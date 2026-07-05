@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Record Sale | GemFort</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#241a00",
+                        "tertiary-container": "#3c2501",
+                        "background": "#f8f9fa",
+                        "tertiary": "#211200",
+                        "error-container": "#ffdad6",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#314863",
+                        "outline": "#74777e",
+                        "inverse-surface": "#2e3132",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#e1e3e4",
+                        "on-tertiary-fixed": "#291800",
+                        "on-background": "#191c1d",
+                        "on-secondary-fixed-variant": "#584400",
+                        "tertiary-fixed": "#ffddb4",
+                        "on-error-container": "#93000a",
+                        "primary": "#00162c",
+                        "outline-variant": "#c4c6ce",
+                        "primary-container": "#122b44",
+                        "on-primary-container": "#7b93b1",
+                        "surface-container": "#edeeef",
+                        "on-primary-fixed": "#011d35",
+                        "tertiary-fixed-dim": "#e8c08d",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#5d421a",
+                        "on-secondary-container": "#785d00",
+                        "inverse-on-surface": "#f0f1f2",
+                        "inverse-primary": "#b1c8e8",
+                        "secondary-fixed-dim": "#e6c364",
+                        "secondary": "#755b00",
+                        "surface-tint": "#49607c",
+                        "primary-fixed": "#d1e4ff",
+                        "surface-dim": "#d9dadb",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#fed977",
+                        "on-surface": "#191c1d",
+                        "secondary-fixed": "#ffe08f",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#b1c8e8",
+                        "on-error": "#ffffff",
+                        "on-tertiary-container": "#ae8b5c",
+                        "surface-container-low": "#f3f4f5",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface": "#f8f9fa",
+                        "on-surface-variant": "#43474d",
+                        "surface-glass": "rgba(255, 255, 255, 0.7)"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "display": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-background min-h-screen pb-32">
+<!-- TopAppBar (From JSON) -->
+<header class="fixed top-0 w-full z-50 bg-surface-glass backdrop-blur-md shadow-sm h-16 flex items-center justify-between px-5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="diamond">diamond</span>
+<h1 class="text-headline-md font-bold text-primary tracking-tighter">GemFort</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="active:scale-95 duration-200 hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-primary" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<main class="pt-24 px-5 max-w-4xl mx-auto space-y-6">
+<!-- Back Action (Internal Page Flow) -->
+<button class="flex items-center gap-2 text-on-surface-variant font-semibold hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
+<span class="text-sm font-label uppercase tracking-widest">Back to Inventory</span>
+</button>
+<section class="space-y-2">
+<h2 class="text-2xl font-bold text-primary tracking-tight">Record Stone Sale</h2>
+<p class="text-on-surface-variant text-sm">Finalize the transaction and update your vault ledger.</p>
+</section>
+<!-- Bento Layout for Content -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Summary Card (The Stone) -->
+<div class="md:col-span-12 lg:col-span-5 glass-card rounded-xl p-6 shadow-sm overflow-hidden flex flex-col gap-4">
+<div class="relative w-full h-48 rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A high-resolution, macro photograph of a 3.2 carat Royal Blue Sapphire with exceptional clarity. The gemstone is positioned on a minimalist white marble surface, illuminated by cool, bright studio lighting that highlights its deep blue facets. The aesthetic is luxurious and crisp, consistent with a high-end jewelry marketplace." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnfK5loqPmFkqijdVfNO9q_ZE-9etnq8QfCVgVr3f39-vIaMqtzerpXD6b6JTGVoLN3hB1d47kOCT8JHG2YJ4__wTRvrFFFueQtSo-bDGqx2t95G0oqnCyzjFHOvMHo3fKlum4hbEDgeQLp_aIqpxyPmYV1YZbZPRwVLR4cQZ6pU4AeYw6DIrGG5-smaPP4VnabbtUQM9fJdwURdIt9NmKeIIP44yd7dp8nvYHIFahHaejozWRlLyjJA"/>
+<div class="absolute top-3 right-3 bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">
+                        Stock ID: BS-9942
+                    </div>
+</div>
+<div class="space-y-1">
+<h3 class="text-xl font-bold text-primary">3.2ct Royal Blue Sapphire</h3>
+<p class="text-sm text-outline font-medium">Origin: Sri Lanka (Ratnapura)</p>
+</div>
+<div class="grid grid-cols-2 gap-4 pt-2 border-t border-surface-container-high">
+<div>
+<p class="text-[10px] text-outline font-bold uppercase tracking-wider">Weight</p>
+<p class="text-sm font-semibold">3.20 Carats</p>
+</div>
+<div>
+<p class="text-[10px] text-outline font-bold uppercase tracking-wider">Shape</p>
+<p class="text-sm font-semibold">Oval Brilliant</p>
+</div>
+</div>
+</div>
+<!-- Transaction Form -->
+<div class="md:col-span-12 lg:col-span-7 space-y-6">
+<!-- Inputs Group -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-surface-container-high space-y-5">
+<h4 class="text-sm font-bold text-primary uppercase tracking-widest border-b border-surface-container pb-2">Sale Details</h4>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-xs font-bold text-on-surface-variant ml-1">Final Sale Price (USD)</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-outline font-semibold">$</span>
+<input class="w-full pl-8 pr-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary font-semibold text-primary transition-all" placeholder="0.00" type="number" value="12500"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-xs font-bold text-on-surface-variant ml-1">Sale Date</label>
+<input class="w-full px-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary font-semibold text-primary transition-all" type="date" value="2023-11-15"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-xs font-bold text-on-surface-variant ml-1">Buyer / Client</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline" data-icon="search">search</span>
+<input class="w-full pl-11 pr-4 py-3 bg-surface-container-low border-none rounded-xl focus:ring-2 focus:ring-primary font-semibold text-primary transition-all" placeholder="Search or add new client..." type="text"/>
+</div>
+</div>
+<div class="space-y-2.5">
+<label class="text-xs font-bold text-on-surface-variant ml-1">Payment Method</label>
+<div class="flex flex-wrap gap-2">
+<button class="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl border border-primary bg-primary text-on-primary transition-all shadow-md">
+<span class="material-symbols-outlined text-lg" data-icon="account_balance">account_balance</span>
+<span class="text-xs font-bold">Transfer</span>
+</button>
+<button class="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="payments">payments</span>
+<span class="text-xs font-bold">Cash</span>
+</button>
+<button class="flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="receipt_long">receipt_long</span>
+<span class="text-xs font-bold">Cheque</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Financial Summary Card -->
+<div class="bg-primary-container text-on-primary-container rounded-xl p-6 shadow-lg relative overflow-hidden">
+<!-- Subtle pattern -->
+<div class="absolute inset-0 opacity-10 pointer-events-none">
+<svg height="100%" width="100%"><rect fill="url(#pattern-dots)" height="100%" width="100%"></rect></svg>
+<defs><pattern height="20" id="pattern-dots" patternunits="userSpaceOnUse" width="20" x="0" y="0"><circle cx="2" cy="2" fill="currentColor" r="1"></circle></pattern></defs>
+</div>
+<h4 class="text-sm font-bold uppercase tracking-widest text-on-primary-container opacity-60 mb-4 border-b border-on-primary-container/20 pb-2">Financial Projection</h4>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="space-y-1">
+<p class="text-[10px] font-bold uppercase tracking-wider text-on-primary-container/60">Cost Basis</p>
+<p class="text-lg font-bold text-white tracking-tight">$8,200.00</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] font-bold uppercase tracking-wider text-on-primary-container/60">Net Profit</p>
+<p class="text-lg font-bold text-secondary-container tracking-tight">+$4,300.00</p>
+</div>
+<div class="space-y-1">
+<p class="text-[10px] font-bold uppercase tracking-wider text-on-primary-container/60">Est. ROI</p>
+<div class="flex items-center gap-1.5">
+<p class="text-lg font-bold text-white tracking-tight">52.4%</p>
+<span class="text-[10px] bg-success-emerald/20 text-emerald-300 px-1.5 py-0.5 rounded flex items-center font-bold">
+<span class="material-symbols-outlined text-[10px]" data-icon="trending_up">trending_up</span>
+</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full bg-secondary-container text-on-secondary-container font-bold py-4 rounded-full shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-transform group">
+<span class="material-symbols-outlined transition-transform group-hover:rotate-12" data-icon="check_circle">check_circle</span>
+<span class="uppercase tracking-widest text-sm">Confirm Sale &amp; Update Inventory</span>
+</button>
+<p class="text-center text-xs text-outline italic">Transaction will be logged to 'BS-9942' and the stone will be marked as SOLD.</p>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Filtered based on context - Active: Workspace) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pt-3 pb-6 bg-surface-glass backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,22,44,0.05)] z-50 rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-outline opacity-70 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-label text-label-md font-semibold uppercase tracking-widest mt-1">Market</span>
+</a>
+<a class="flex flex-col items-center justify-center text-outline opacity-70 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="import_contacts">import_contacts</span>
+<span class="font-label text-label-md font-semibold uppercase tracking-widest mt-1">Directory</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-5 py-1.5 active:scale-90 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-label text-label-md font-semibold uppercase tracking-widest mt-1">Workspace</span>
+</a>
+<a class="flex flex-col items-center justify-center text-outline opacity-70 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label text-label-md font-semibold uppercase tracking-widest mt-1">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple Interaction logic for buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Tactical vibration or visual feedback could be added here
+                console.log('Action triggered');
+            });
+        });
+
+        // Price Profit Calculator logic (Mockup)
+        const priceInput = document.querySelector('input[type="number"]');
+        const profitDisplay = document.querySelector('.text-secondary-container');
+        const roiDisplay = document.querySelector('.text-lg.font-bold.text-white.tracking-tight:nth-child(1)');
+        const costBasis = 8200;
+
+        priceInput.addEventListener('input', (e) => {
+            const salePrice = parseFloat(e.target.value) || 0;
+            const netProfit = salePrice - costBasis;
+            const roi = costBasis > 0 ? (netProfit / costBasis * 100).toFixed(1) : 0;
+            
+            profitDisplay.textContent = `${netProfit >= 0 ? '+' : ''}$${netProfit.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            // Correctly targeting ROI text specifically
+            document.querySelectorAll('.text-lg.font-bold.text-white.tracking-tight')[1].textContent = `${roi}%`;
+            
+            if (netProfit < 0) {
+                profitDisplay.classList.remove('text-secondary-container');
+                profitDisplay.classList.add('text-error');
+            } else {
+                profitDisplay.classList.add('text-secondary-container');
+                profitDisplay.classList.remove('text-error');
+            }
+        });
+    </script>
+</body></html>

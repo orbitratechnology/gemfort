@@ -1,0 +1,4 @@
+# Keep Firebase config files UTF-8 (Windows PowerShell redirects default to UTF-16)
+google-services/** text eol=lf
+*.json text eol=lf
+*.plist text eol=lf

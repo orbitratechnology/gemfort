@@ -1,0 +1,436 @@
+﻿{
+  "success": true,
+  "data": {
+    "nodes": [
+      {
+        "index": 0,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1080,
+          "height": 2400
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 9,
+        "ref": "e1"
+      },
+      {
+        "index": 1,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1080,
+          "height": 2400
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 13,
+        "parentIndex": 0,
+        "ref": "e2"
+      },
+      {
+        "index": 2,
+        "type": "android.widget.ImageButton",
+        "label": "Navigate up",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 88,
+          "width": 154,
+          "height": 154
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 16,
+        "parentIndex": 1,
+        "ref": "e3"
+      },
+      {
+        "index": 3,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 330,
+          "width": 1080,
+          "height": 2070
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 17,
+        "parentIndex": 1,
+        "ref": "e4"
+      },
+      {
+        "index": 4,
+        "type": "android.widget.TextView",
+        "label": "Join GemFort",
+        "value": "Join GemFort",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 396,
+          "width": 948,
+          "height": 88
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e5"
+      },
+      {
+        "index": 5,
+        "type": "android.widget.TextView",
+        "label": "Full Name",
+        "value": "Full Name",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 528,
+          "width": 948,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e6"
+      },
+      {
+        "index": 6,
+        "type": "android.widget.EditText",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 588,
+          "width": 948,
+          "height": 132
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e7"
+      },
+      {
+        "index": 7,
+        "type": "android.widget.TextView",
+        "label": "Email",
+        "value": "Email",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 765,
+          "width": 948,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e8"
+      },
+      {
+        "index": 8,
+        "type": "android.widget.EditText",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 825,
+          "width": 948,
+          "height": 132
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e9"
+      },
+      {
+        "index": 9,
+        "type": "android.widget.TextView",
+        "label": "Phone",
+        "value": "Phone",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1001,
+          "width": 948,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e10"
+      },
+      {
+        "index": 10,
+        "type": "android.widget.EditText",
+        "label": "+94 77X XXX XXXX",
+        "value": "+94 77X XXX XXXX",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1061,
+          "width": 948,
+          "height": 138
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e11"
+      },
+      {
+        "index": 11,
+        "type": "android.widget.TextView",
+        "label": "Password",
+        "value": "Password",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1243,
+          "width": 948,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e12"
+      },
+      {
+        "index": 12,
+        "type": "android.widget.EditText",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1303,
+          "width": 948,
+          "height": 132
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e13"
+      },
+      {
+        "index": 13,
+        "type": "android.widget.TextView",
+        "label": "I am a...",
+        "value": "I am a...",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1479,
+          "width": 948,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e14"
+      },
+      {
+        "index": 14,
+        "type": "android.view.ViewGroup",
+        "label": "Buyer / Trader",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1568,
+          "width": 280,
+          "height": 93
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e15"
+      },
+      {
+        "index": 15,
+        "type": "android.widget.TextView",
+        "label": "Buyer / Trader",
+        "value": "Buyer / Trader",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 101,
+          "y": 1592,
+          "width": 208,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 20,
+        "parentIndex": 14,
+        "ref": "e16"
+      },
+      {
+        "index": 16,
+        "type": "android.view.ViewGroup",
+        "label": "Seller",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 368,
+          "y": 1568,
+          "width": 153,
+          "height": 93
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e17"
+      },
+      {
+        "index": 17,
+        "type": "android.widget.TextView",
+        "label": "Seller",
+        "value": "Seller",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 403,
+          "y": 1592,
+          "width": 82,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 20,
+        "parentIndex": 16,
+        "ref": "e18"
+      },
+      {
+        "index": 18,
+        "type": "android.view.ViewGroup",
+        "label": "Service Provider",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 543,
+          "y": 1568,
+          "width": 310,
+          "height": 93
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e19"
+      },
+      {
+        "index": 19,
+        "type": "android.widget.TextView",
+        "label": "Service Provider",
+        "value": "Service Provider",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 578,
+          "y": 1592,
+          "width": 238,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 20,
+        "parentIndex": 18,
+        "ref": "e20"
+      },
+      {
+        "index": 20,
+        "type": "android.widget.Button",
+        "label": "Create Account",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 66,
+          "y": 1705,
+          "width": 948,
+          "height": 132
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 19,
+        "parentIndex": 3,
+        "ref": "e21"
+      },
+      {
+        "index": 21,
+        "type": "android.widget.TextView",
+        "label": "Create Account",
+        "value": "Create Account",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 404,
+          "y": 1743,
+          "width": 271,
+          "height": 55
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 20,
+        "parentIndex": 20,
+        "ref": "e22"
+      }
+    ],
+    "truncated": false,
+    "appName": "app.gemfort.dev",
+    "appBundleId": "app.gemfort.dev",
+    "visibility": {
+      "partial": false,
+      "visibleNodeCount": 22,
+      "totalNodeCount": 22,
+      "reasons": []
+    },
+    "androidSnapshot": {
+      "backend": "android-helper",
+      "helperVersion": "0.18.3",
+      "helperApiVersion": "1",
+      "helperTransport": "instrumentation",
+      "installReason": "current",
+      "waitForIdleTimeoutMs": 500,
+      "waitForIdleQuietMs": 100,
+      "timeoutMs": 5000,
+      "maxDepth": 128,
+      "maxNodes": 5000,
+      "rootPresent": true,
+      "captureMode": "interactive-windows",
+      "windowCount": 3,
+      "nodeCount": 103,
+      "helperTruncated": false,
+      "elapsedMs": 314
+    },
+    "snapshotDiagnostics": {
+      "stats": {
+        "count": 127,
+        "p50Ms": 790,
+        "p95Ms": 17278,
+        "maxMs": 24389,
+        "slowThresholdMs": 1500,
+        "platform": "android",
+        "backends": {
+          "android": 127
+        }
+      },
+      "warning": "Warning: android snapshots are slow in this run: p95 17278ms over 127 captures. Possible causes: device load, app or dev server stuck, helper fallback, or stale daemon."
+    }
+  }
+}

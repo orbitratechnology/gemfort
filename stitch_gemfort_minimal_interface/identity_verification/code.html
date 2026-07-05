@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Identity Verification - GemFort</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#241a00",
+                    "tertiary-container": "#3c2501",
+                    "background": "#f8f9fa",
+                    "tertiary": "#211200",
+                    "error-container": "#ffdad6",
+                    "surface-bright": "#f8f9fa",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed-variant": "#314863",
+                    "outline": "#74777e",
+                    "inverse-surface": "#2e3132",
+                    "error": "#ba1a1a",
+                    "surface-variant": "#e1e3e4",
+                    "on-tertiary-fixed": "#291800",
+                    "on-background": "#191c1d",
+                    "on-secondary-fixed-variant": "#584400",
+                    "tertiary-fixed": "#ffddb4",
+                    "on-error-container": "#93000a",
+                    "primary": "#00162c",
+                    "outline-variant": "#c4c6ce",
+                    "primary-container": "#122b44",
+                    "on-primary-container": "#7b93b1",
+                    "surface-container": "#edeeef",
+                    "on-primary-fixed": "#011d35",
+                    "tertiary-fixed-dim": "#e8c08d",
+                    "surface-container-high": "#e7e8e9",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#5d421a",
+                    "on-secondary-container": "#785d00",
+                    "inverse-on-surface": "#f0f1f2",
+                    "inverse-primary": "#b1c8e8",
+                    "secondary-fixed-dim": "#e6c364",
+                    "secondary": "#755b00",
+                    "surface-tint": "#49607c",
+                    "primary-fixed": "#d1e4ff",
+                    "surface-dim": "#d9dadb",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#fed977",
+                    "on-surface": "#191c1d",
+                    "secondary-fixed": "#ffe08f",
+                    "on-primary": "#ffffff",
+                    "primary-fixed-dim": "#b1c8e8",
+                    "on-error": "#ffffff",
+                    "on-tertiary-container": "#ae8b5c",
+                    "surface-container-low": "#f3f4f5",
+                    "surface-container-highest": "#e1e3e4",
+                    "surface": "#f8f9fa",
+                    "on-surface-variant": "#43474d",
+                    "surface-glass": "rgba(255, 255, 255, 0.7)"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "xxl": "1rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Inter"],
+                    "display": ["Inter"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .step-active { @apply bg-secondary text-on-secondary shadow-lg shadow-secondary/20; }
+        .step-pending { @apply bg-surface-container-high text-outline; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body min-h-screen pb-24">
+<!-- Top App Bar (Shared Component Strategy) -->
+<header class="fixed top-0 w-full z-50 bg-surface-glass backdrop-blur-md shadow-sm flex items-center justify-between px-5 h-16">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="diamond">diamond</span>
+<h1 class="text-headline-md font-bold text-primary tracking-tighter">GemFort</h1>
+</div>
+<button class="p-2 active:scale-95 duration-200 transition-opacity hover:opacity-80">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="close">close</span>
+</button>
+</header>
+<main class="pt-24 px-5 max-w-xl mx-auto space-y-8">
+<!-- Progress Indicator -->
+<div class="flex items-center justify-between relative px-2">
+<!-- Line Background -->
+<div class="absolute top-5 left-0 w-full h-[2px] bg-surface-container-highest -z-10"></div>
+<!-- Progress Line (Active) -->
+<div class="absolute top-5 left-0 w-[16%] h-[2px] bg-secondary -z-10 transition-all duration-700"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm bg-secondary text-on-secondary shadow-lg shadow-secondary/20">1</div>
+<span class="text-[10px] font-label font-semibold uppercase tracking-widest text-secondary">Documents</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm bg-surface-container-high text-outline">2</div>
+<span class="text-[10px] font-label font-semibold uppercase tracking-widest text-outline">Face Match</span>
+</div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm bg-surface-container-high text-outline">3</div>
+<span class="text-[10px] font-label font-semibold uppercase tracking-widest text-outline">Review</span>
+</div>
+</div>
+<!-- Headline & Description -->
+<section class="space-y-2">
+<h2 class="text-headline-md font-bold text-primary tracking-tight">Identity Verification</h2>
+<p class="text-on-surface-variant text-body-md leading-relaxed">
+                To ensure a secure trading environment, please upload a government-issued ID and your official business registration license.
+            </p>
+</section>
+<!-- Verification Requirments Chip -->
+<div class="bg-secondary-container/30 border border-secondary/10 rounded-xl p-4 flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary pt-0.5" data-icon="verified_user" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<div class="space-y-1">
+<p class="text-on-secondary-container font-semibold text-sm">Security Standards</p>
+<div class="flex flex-wrap gap-x-4 gap-y-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="check_circle">check_circle</span>
+<span class="text-xs text-on-secondary-container">Clear photo</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="check_circle">check_circle</span>
+<span class="text-xs text-on-secondary-container">No glare</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-secondary" data-icon="check_circle">check_circle</span>
+<span class="text-xs text-on-secondary-container">Valid dates</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Upload Zones -->
+<div class="grid gap-4">
+<!-- Government ID -->
+<label class="group cursor-pointer">
+<input class="hidden" type="file"/>
+<div class="border-2 border-dashed border-outline-variant rounded-xxl p-8 flex flex-col items-center justify-center text-center transition-all duration-300 group-hover:border-secondary group-hover:bg-surface-container-low group-active:scale-[0.98]">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-4 group-hover:bg-secondary-fixed transition-colors">
+<span class="material-symbols-outlined text-primary group-hover:text-on-secondary-fixed transition-colors" data-icon="badge">badge</span>
+</div>
+<h3 class="text-body-lg font-semibold text-primary">Government ID</h3>
+<p class="text-xs text-outline mt-1">Passport, NIC, or Driver's License</p>
+<div class="mt-4 px-4 py-1.5 bg-primary text-white rounded-full text-xs font-semibold">Upload Image</div>
+</div>
+</label>
+<!-- Business License -->
+<label class="group cursor-pointer">
+<input class="hidden" type="file"/>
+<div class="border-2 border-dashed border-outline-variant rounded-xxl p-8 flex flex-col items-center justify-center text-center transition-all duration-300 group-hover:border-secondary group-hover:bg-surface-container-low group-active:scale-[0.98]">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-4 group-hover:bg-secondary-fixed transition-colors">
+<span class="material-symbols-outlined text-primary group-hover:text-on-secondary-fixed transition-colors" data-icon="receipt_long">receipt_long</span>
+</div>
+<h3 class="text-body-lg font-semibold text-primary">Business Registration</h3>
+<p class="text-xs text-outline mt-1">Authorized operating license for gem trading</p>
+<div class="mt-4 px-4 py-1.5 bg-primary text-white rounded-full text-xs font-semibold">Upload Document</div>
+</div>
+</label>
+</div>
+<!-- Privacy Assurance -->
+<div class="flex items-center justify-center gap-2 text-outline">
+<span class="material-symbols-outlined text-sm" data-icon="lock">lock</span>
+<span class="text-[11px] font-medium tracking-wide uppercase">Encrypted &amp; Secure 256-bit Processing</span>
+</div>
+</main>
+<!-- Fixed Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full p-5 bg-surface-glass backdrop-blur-xl border-t border-outline-variant/10">
+<div class="max-w-xl mx-auto">
+<button class="w-full h-14 bg-primary text-on-primary rounded-full font-semibold text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform duration-150 flex items-center justify-center gap-2 group">
+                Continue
+                <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Script for interaction simulation -->
+<script>
+        // Simple visual feedback for file inputs
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', function(e) {
+                const container = this.closest('.border-dashed');
+                const fileName = e.target.files[0]?.name;
+                if (fileName) {
+                    container.classList.remove('border-outline-variant');
+                    container.classList.add('border-secondary', 'bg-secondary-container/10');
+                    const label = container.querySelector('h3');
+                    label.textContent = 'Document Selected';
+                    const subText = container.querySelector('p');
+                    subText.textContent = fileName;
+                    subText.classList.add('text-secondary', 'font-medium');
+                    const btn = container.querySelector('div.bg-primary');
+                    btn.textContent = 'Change File';
+                    btn.classList.replace('bg-primary', 'bg-secondary');
+                }
+            });
+        });
+    </script>
+</body></html>

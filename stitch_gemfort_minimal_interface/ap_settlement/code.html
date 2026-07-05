@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Record AP Sale/Return - GemFort</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#00162c",
+                      "on-surface": "#191c1d",
+                      "surface-container-highest": "#e1e3e4",
+                      "surface-dim": "#d9dadb",
+                      "on-secondary-fixed": "#241a00",
+                      "inverse-primary": "#b1c8e8",
+                      "surface-tint": "#49607c",
+                      "tertiary-fixed-dim": "#e8c08d",
+                      "secondary-fixed-dim": "#e6c364",
+                      "inverse-surface": "#2e3132",
+                      "on-tertiary-fixed": "#291800",
+                      "surface-container-lowest": "#ffffff",
+                      "text-muted": "#64748B",
+                      "tertiary-fixed": "#ffddb4",
+                      "primary-fixed-dim": "#b1c8e8",
+                      "error": "#ba1a1a",
+                      "on-secondary-container": "#785d00",
+                      "surface-container": "#edeeef",
+                      "surface-glass": "rgba(255, 255, 255, 0.7)",
+                      "secondary-fixed": "#ffe08f",
+                      "primary-fixed": "#d1e4ff",
+                      "background": "#f8f9fa",
+                      "tertiary": "#211200",
+                      "surface-container-high": "#e7e8e9",
+                      "on-secondary-fixed-variant": "#584400",
+                      "on-primary": "#ffffff",
+                      "outline-variant": "#c4c6ce",
+                      "tertiary-container": "#3c2501",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "outline": "#74777e",
+                      "success-emerald": "#2D6A4F",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#f3f4f5",
+                      "inverse-on-surface": "#f0f1f2",
+                      "secondary-container": "#fed977",
+                      "on-surface-variant": "#43474d",
+                      "on-primary-fixed-variant": "#314863",
+                      "on-primary-container": "#7b93b1",
+                      "error-container": "#ffdad6",
+                      "on-background": "#191c1d",
+                      "secondary": "#755b00",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#011d35",
+                      "surface-bright": "#f8f9fa",
+                      "on-tertiary-container": "#ae8b5c",
+                      "primary-container": "#122b44",
+                      "on-tertiary-fixed-variant": "#5d421a",
+                      "warning-amber": "#D97706",
+                      "text-main": "#1A1C1E",
+                      "surface-variant": "#e1e3e4",
+                      "surface": "#f8f9fa"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "container-margin": "20px",
+                      "stack-md": "12px",
+                      "section-gap": "32px",
+                      "gutter-md": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "headline-md-mobile": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md-mobile": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 35px rgba(0, 22, 44, 0.05);
+        }
+        
+        .input-glass {
+            background-color: theme('colors.surface-container-low');
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .input-glass:focus {
+            background-color: theme('colors.surface-container-lowest');
+            border-color: theme('colors.primary');
+            box-shadow: 0 0 0 2px rgba(0, 22, 44, 0.1);
+            outline: none;
+        }
+
+        /* Hide nav shell for this transactional view as per guidelines */
+      </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-20">
+<!-- Top App Bar (Transactional, no nav shell) -->
+<header class="sticky top-0 z-40 bg-surface-glass backdrop-blur-xl flex justify-between items-center w-full px-container-margin py-stack-md">
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 -ml-2 rounded-full hover:bg-surface-variant/50">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<h1 class="font-headline-md-mobile text-headline-md-mobile text-primary font-bold">Record AP</h1>
+</div>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</header>
+<main class="px-container-margin pt-section-gap pb-section-gap max-w-md mx-auto">
+<!-- Summary Card -->
+<section class="mb-section-gap">
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-stack-md">Stone Details</h2>
+<div class="glass-card rounded-xl p-4 flex gap-4 items-center">
+<div class="w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-surface-variant">
+<img class="w-full h-full object-cover" data-alt="A macro photography shot of a brilliantly cut blue sapphire gemstone resting on a soft, light grey silk cloth. The lighting is bright and modern, creating sharp reflections and deep blue hues within the stone, emphasizing clarity and premium quality. Sleek minimalist aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYLE7_KfgJ_MVYQj8rxpDst-2Zx_N56ghCV9_G9lMPB2CsH0NB1VR7RW1oDOfFJK-4b7ELvRJBvs0YT59P4zvwfBWDvUzv31HrwoQWQkWZrm2FotH06o_4x9WWT8NykR6gFAGVwT7EGEWs9AWrSJgUH7XSL0ikPt_hBESIDPFg-JziXbmaPcT14ukrgAJzKyosCxlBxZgImYbItpaCQVomA7e5SfMqn-_grncoe5dv8Cf7wrMlv1kdyA"/>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="bg-primary-container text-on-primary-container px-2 py-0.5 rounded-full font-label-md text-label-md">AP-4921</span>
+<span class="text-text-muted font-body-md text-body-md">Ref: 992-B</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface leading-tight">3.24ct Blue Sapphire</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Cushion Cut • Heated • Sri Lanka</p>
+</div>
+</div>
+</section>
+<!-- Action Form -->
+<form class="space-y-section-gap">
+<!-- Outcome Selection -->
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface mb-stack-md">Outcome</h2>
+<div class="grid grid-cols-2 gap-gutter-md">
+<!-- Sold Option -->
+<label class="relative cursor-pointer group">
+<input checked="" class="peer sr-only" name="ap_outcome" type="radio" value="sold"/>
+<div class="h-full glass-card rounded-xl p-4 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/20 transition-all flex flex-col items-center justify-center gap-3">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary peer-checked:text-on-primary transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-center">Sold</span>
+</div>
+<div class="absolute top-3 right-3 opacity-0 peer-checked:opacity-100 text-primary transition-opacity">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</label>
+<!-- Returned Option -->
+<label class="relative cursor-pointer group">
+<input class="peer sr-only" name="ap_outcome" type="radio" value="returned"/>
+<div class="h-full glass-card rounded-xl p-4 border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary-fixed/20 transition-all flex flex-col items-center justify-center gap-3">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary peer-checked:text-on-primary transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">keyboard_return</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-center">Returned</span>
+</div>
+<div class="absolute top-3 right-3 opacity-0 peer-checked:opacity-100 text-primary transition-opacity">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Conditional Input: Sale Details (Visible when Sold is selected) -->
+<div class="space-y-stack-md transition-opacity duration-300" id="sale_details_section">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Sale Details</h2>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1 ml-1" for="final_price">Final Sale Price (USD)</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-headline-sm text-headline-sm">$</span>
+<input class="input-glass w-full rounded-full py-3 pl-8 pr-4 font-body-lg text-body-lg text-on-surface h-[52px]" id="final_price" name="final_price" placeholder="0.00" type="number" value="4500.00"/>
+</div>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1 ml-1" for="buyer_name">Buyer/Client</label>
+<input class="input-glass w-full rounded-full py-3 px-4 font-body-lg text-body-lg text-on-surface h-[52px]" id="buyer_name" name="buyer_name" placeholder="Search or enter name" type="text"/>
+</div>
+</div>
+<!-- Conditional Input: Return Notes (Visible when Returned is selected) - Hidden initially -->
+<div class="space-y-stack-md hidden opacity-0 transition-opacity duration-300" id="return_details_section">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Return Details</h2>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1 ml-1" for="return_notes">Reason / Notes (Optional)</label>
+<textarea class="input-glass w-full rounded-xl py-3 px-4 font-body-lg text-body-lg text-on-surface resize-none" id="return_notes" name="return_notes" placeholder="e.g., Client preferred a different cut" rows="3"></textarea>
+</div>
+</div>
+<!-- Action Button -->
+<div class="pt-stack-md">
+<button class="w-full bg-secondary-fixed-dim text-on-secondary-fixed hover:opacity-90 transition-opacity font-headline-md-mobile text-headline-md-mobile py-4 rounded-full flex items-center justify-center gap-2 h-[56px] shadow-lg shadow-secondary-fixed-dim/20" type="button">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">done_all</span>
+                    Confirm AP Record
+                </button>
+</div>
+</form>
+</main>
+<script>
+        // Simple logic to toggle sections based on radio selection
+        const radioSold = document.querySelector('input[value="sold"]');
+        const radioReturned = document.querySelector('input[value="returned"]');
+        const saleSection = document.getElementById('sale_details_section');
+        const returnSection = document.getElementById('return_details_section');
+
+        function updateSections() {
+            if (radioSold.checked) {
+                saleSection.classList.remove('hidden');
+                // slight delay for transition
+                setTimeout(() => {
+                    saleSection.classList.remove('opacity-0');
+                    saleSection.classList.add('opacity-100');
+                }, 10);
+                
+                returnSection.classList.remove('opacity-100');
+                returnSection.classList.add('opacity-0');
+                setTimeout(() => returnSection.classList.add('hidden'), 300);
+
+            } else {
+                returnSection.classList.remove('hidden');
+                 setTimeout(() => {
+                    returnSection.classList.remove('opacity-0');
+                    returnSection.classList.add('opacity-100');
+                }, 10);
+
+                saleSection.classList.remove('opacity-100');
+                saleSection.classList.add('opacity-0');
+                setTimeout(() => saleSection.classList.add('hidden'), 300);
+            }
+        }
+
+        radioSold.addEventListener('change', updateSections);
+        radioReturned.addEventListener('change', updateSections);
+    </script>
+</body></html>

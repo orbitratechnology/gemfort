@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GemFort - Service Records</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#00162c",
+                      "on-surface": "#191c1d",
+                      "surface-container-highest": "#e1e3e4",
+                      "surface-dim": "#d9dadb",
+                      "on-secondary-fixed": "#241a00",
+                      "inverse-primary": "#b1c8e8",
+                      "surface-tint": "#49607c",
+                      "tertiary-fixed-dim": "#e8c08d",
+                      "secondary-fixed-dim": "#e6c364",
+                      "inverse-surface": "#2e3132",
+                      "on-tertiary-fixed": "#291800",
+                      "surface-container-lowest": "#ffffff",
+                      "text-muted": "#64748B",
+                      "tertiary-fixed": "#ffddb4",
+                      "primary-fixed-dim": "#b1c8e8",
+                      "error": "#ba1a1a",
+                      "on-secondary-container": "#785d00",
+                      "surface-container": "#edeeef",
+                      "surface-glass": "rgba(255, 255, 255, 0.7)",
+                      "secondary-fixed": "#ffe08f",
+                      "primary-fixed": "#d1e4ff",
+                      "background": "#f8f9fa",
+                      "tertiary": "#211200",
+                      "surface-container-high": "#e7e8e9",
+                      "on-secondary-fixed-variant": "#584400",
+                      "on-primary": "#ffffff",
+                      "outline-variant": "#c4c6ce",
+                      "tertiary-container": "#3c2501",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "outline": "#74777e",
+                      "success-emerald": "#2D6A4F",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#f3f4f5",
+                      "inverse-on-surface": "#f0f1f2",
+                      "secondary-container": "#fed977",
+                      "on-surface-variant": "#43474d",
+                      "on-primary-fixed-variant": "#314863",
+                      "on-primary-container": "#7b93b1",
+                      "error-container": "#ffdad6",
+                      "on-background": "#191c1d",
+                      "secondary": "#755b00",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#011d35",
+                      "surface-bright": "#f8f9fa",
+                      "on-tertiary-container": "#ae8b5c",
+                      "primary-container": "#122b44",
+                      "on-tertiary-fixed-variant": "#5d421a",
+                      "warning-amber": "#D97706",
+                      "text-main": "#1A1C1E",
+                      "surface-variant": "#e1e3e4",
+                      "surface": "#f8f9fa"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "container-margin": "20px",
+                      "stack-md": "12px",
+                      "section-gap": "32px",
+                      "gutter-md": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "headline-md-mobile": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md-mobile": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #f8f9fa; /* surface */
+        }
+      </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface antialiased bg-surface pb-24">
+<!-- TopAppBar -->
+<header class="bg-surface-glass dark:bg-surface-container-highest/80 text-primary dark:text-primary-fixed-dim font-headline-md-mobile text-headline-md-mobile docked full-width top-0 backdrop-blur-xl flat no shadows transition-opacity duration-200 flex justify-between items-center w-full px-container-margin py-stack-md sticky z-40 border-none">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover border-2 border-surface-container" data-alt="A professional headshot of a person looking forward slightly smiling in a clean light setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrGfZVVYQm6c3L9eEJmwTyDHJi1a62RfpVRt5JjDknRi9g8xcjlLwebWcwKKJ1ET5Wlj8erV6W0mBhDEscmq7chOQPkBZ1-IAd1cuiQRniIaaHYFDGmvsEYJe8F08q5r2j75ve8kyhbKJsYk-3kX0cjAaHaJh8irv5C7g9wzfN6qqZ2GcV82ctwDeLKmExtD9OfzSn75yyJNOJ_9V6aDJevuOSJze_4WhZATD5zpY93kta4gpue47cAw"/>
+<div class="flex flex-col">
+<span class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary dark:text-primary-fixed">GemFort</span>
+<span class="font-label-md text-label-md text-text-muted font-normal tracking-wide">Workspace</span>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center hover:opacity-80 transition-opacity text-primary dark:text-primary-fixed-dim">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+</button>
+</header>
+<main class="px-container-margin pt-stack-md pb-section-gap max-w-4xl mx-auto">
+<!-- Page Title & Search -->
+<div class="mb-section-gap">
+<h1 class="font-display-lg text-display-lg text-primary mb-4 tracking-tight">Service Records</h1>
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-[#F1F5F9] border-none rounded-full py-3 pl-12 pr-4 font-body-lg text-body-lg text-on-surface focus:ring-1 focus:ring-primary transition-shadow placeholder-outline-variant shadow-sm" placeholder="Search gems, providers, or IDs..." type="text"/>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
+<button class="bg-primary text-on-primary font-label-md text-label-md px-4 py-2 rounded-full whitespace-nowrap shadow-sm hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-[16px] align-middle mr-1">tune</span> All Statuses
+                </button>
+<button class="bg-surface-container-highest text-on-surface-variant font-label-md text-label-md px-4 py-2 rounded-full whitespace-nowrap hover:bg-surface-container-high transition-colors">
+                    In Progress
+                </button>
+<button class="bg-surface-container-highest text-on-surface-variant font-label-md text-label-md px-4 py-2 rounded-full whitespace-nowrap hover:bg-surface-container-high transition-colors">
+                    Pending
+                </button>
+<button class="bg-surface-container-highest text-on-surface-variant font-label-md text-label-md px-4 py-2 rounded-full whitespace-nowrap hover:bg-surface-container-high transition-colors">
+                    Completed
+                </button>
+<button class="bg-surface-container-highest text-on-surface-variant font-label-md text-label-md px-4 py-2 rounded-full whitespace-nowrap hover:bg-surface-container-high transition-colors">
+                    Canceled
+                </button>
+</div>
+</div>
+<!-- Service List -->
+<div class="flex flex-col gap-gutter-md">
+<!-- Card 1: In Progress -->
+<div class="bg-surface-container-lowest rounded-[16px] p-4 flex gap-4 items-center shadow-[0_15px_15px_rgba(0,22,44,0.05)]">
+<img class="w-20 h-20 rounded-lg object-cover flex-shrink-0" data-alt="A vivid blue sapphire gemstone cut in a cushion shape, resting on a clean white surface with soft studio lighting reflecting off its facets." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsI7Rr8yniiQQtFiv7bcXv-G7N5d__5Xxpi7mnP177ZRuFNY1F-fqVVQ1hL48drKmSE3-kFfo7BvOyChD3dUuKJvXTFgUjjW4JitpNKXcU_z7oBpOAQ27PwcHkrPqC0eXydxsHWxaPT4tpLA3PeWqd5lgrH0V5ck5v1AA_K4gl_YrOfoaBbowv5SkCsmyjgVLpxhKXESW1rJOdu6DjWW-eBvm1YABJNN7sScrCl4E3PDIr3wHZwVFJ7Q"/>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline-sm text-headline-sm text-primary truncate">Blue Sapphire - Cushion</h3>
+<span class="bg-warning-amber/10 text-warning-amber font-label-md text-label-md px-2 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">sync</span> In Progress
+                        </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-2">Service: Premium Cutting &amp; Polishing</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-text-muted font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px]">business</span> Apex Gem Labs
+                        </div>
+<div class="text-text-muted font-label-md text-label-md">
+                            Est. Oct 24
+                        </div>
+</div>
+</div>
+</div>
+<!-- Card 2: Completed -->
+<div class="bg-surface-container-lowest rounded-[16px] p-4 flex gap-4 items-center shadow-[0_15px_15px_rgba(0,22,44,0.05)] opacity-80">
+<div class="relative flex-shrink-0">
+<img class="w-20 h-20 rounded-lg object-cover" data-alt="A bright green emerald gemstone with a rectangular step cut, beautifully lit to show its rich color against a neutral background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHb76JJ5nS0AbWgLljcCUq3o2SJLx-vmbUoja5Yurl7nCCBfn-Aeu4NLzLiGEJV2zNKOp0kU-Hsjh_14zxP7qjC-8_VpPLFsB2-XrFiosu_vnVnPeGvHuN23AhsNKyHGmIFH2w-I9jI6fDiQriSx2MjRsa3Z9zh94UQarCfYRehbzDfYI8q18rRzqqmqBrgEhdfQ5NRFAEQEM7vzF0WO8IDU9jRUs0o50TNH2MD0dlnr-1U9ws06mXog"/>
+<div class="absolute -top-2 -right-2 bg-secondary-fixed-dim text-on-secondary-fixed rounded-full w-6 h-6 flex items-center justify-center border-2 border-surface-container-lowest">
+<span class="material-symbols-outlined text-[14px] font-bold">check</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline-sm text-headline-sm text-primary truncate">Emerald - Emerald Cut</h3>
+<span class="bg-success-emerald/10 text-success-emerald font-label-md text-label-md px-2 py-1 rounded-full whitespace-nowrap">
+                             Completed
+                        </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-2">Service: GIA Certification</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-text-muted font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px]">verified</span> GIA Institute
+                        </div>
+<div class="text-text-muted font-label-md text-label-md">
+                            Oct 12, 2023
+                        </div>
+</div>
+</div>
+</div>
+<!-- Card 3: Pending -->
+<div class="bg-surface-container-lowest rounded-[16px] p-4 flex gap-4 items-center shadow-[0_15px_15px_rgba(0,22,44,0.05)]">
+<img class="w-20 h-20 rounded-lg object-cover flex-shrink-0" data-alt="A rough, uncut ruby crystal with deep red hues, sitting organically on a bright, minimalist staging area." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCeAdMa2r6iEszIIFShJFRdLnpjM-EzT3QGvPKllOr9CMlLTtlqaJ9YLuNxoILOKVeJkj4L8TqSFp6VattNa_3teWqOAyIqnb3m1zcmSVEibtk3-GxYTAGANB-64Ljgnoi5zUIMuBM3YhPSQ9RJHat137BMNhp277gx628rrpharW24b6cNL3eSAhAEtGOjteFy3ZQzazEgyIJn-df0En7W93tTWganECxfYL0QJBAo3Gnyf_ZYY_Bi0Q"/>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start mb-1">
+<h3 class="font-headline-sm text-headline-sm text-primary truncate">Ruby Rough - Parcel A</h3>
+<span class="bg-surface-container-highest text-on-surface-variant font-label-md text-label-md px-2 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> Pending
+                        </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-2">Service: Yield Assessment</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-text-muted font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px]">person</span> Artisan Cutters
+                        </div>
+<div class="text-text-muted font-label-md text-label-md">
+                            Req: Oct 18
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-[calc(100%-40px)] left-1/2 -translate-x-1/2 z-50 flex justify-around items-center p-2 mb-4 bg-surface-glass dark:bg-surface-container-highest/70 backdrop-blur-xl shadow-lg rounded-full border-none md:hidden">
+<a class="text-on-surface-variant dark:text-outline-variant p-3 hover:bg-surface-variant/50 dark:hover:bg-primary-container/30 transition-colors rounded-full flex flex-col items-center justify-center" href="#">
+<span class="material-symbols-outlined text-[24px]">storefront</span>
+</a>
+<a class="bg-primary dark:bg-primary-fixed-dim text-on-primary dark:text-on-primary-fixed rounded-full p-3 hover:bg-surface-variant/50 dark:hover:bg-primary-container/30 transition-colors Active: scale-95 transition-all duration-150 flex flex-col items-center justify-center" href="#">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">import_contacts</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant p-3 hover:bg-surface-variant/50 dark:hover:bg-primary-container/30 transition-colors rounded-full flex flex-col items-center justify-center" href="#">
+<span class="material-symbols-outlined text-[24px]">inventory_2</span>
+</a>
+<a class="text-on-surface-variant dark:text-outline-variant p-3 hover:bg-surface-variant/50 dark:hover:bg-primary-container/30 transition-colors rounded-full flex flex-col items-center justify-center" href="#">
+<span class="material-symbols-outlined text-[24px]">person</span>
+</a>
+</nav>
+</body></html>

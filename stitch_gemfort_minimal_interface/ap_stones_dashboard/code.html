@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GemFort - AP Stones</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary": "#00162c",
+                      "on-surface": "#191c1d",
+                      "surface-container-highest": "#e1e3e4",
+                      "surface-dim": "#d9dadb",
+                      "on-secondary-fixed": "#241a00",
+                      "inverse-primary": "#b1c8e8",
+                      "surface-tint": "#49607c",
+                      "tertiary-fixed-dim": "#e8c08d",
+                      "secondary-fixed-dim": "#e6c364",
+                      "inverse-surface": "#2e3132",
+                      "on-tertiary-fixed": "#291800",
+                      "surface-container-lowest": "#ffffff",
+                      "text-muted": "#64748B",
+                      "tertiary-fixed": "#ffddb4",
+                      "primary-fixed-dim": "#b1c8e8",
+                      "error": "#ba1a1a",
+                      "on-secondary-container": "#785d00",
+                      "surface-container": "#edeeef",
+                      "surface-glass": "rgba(255, 255, 255, 0.7)",
+                      "secondary-fixed": "#ffe08f",
+                      "primary-fixed": "#d1e4ff",
+                      "background": "#f8f9fa",
+                      "tertiary": "#211200",
+                      "surface-container-high": "#e7e8e9",
+                      "on-secondary-fixed-variant": "#584400",
+                      "on-primary": "#ffffff",
+                      "outline-variant": "#c4c6ce",
+                      "tertiary-container": "#3c2501",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "outline": "#74777e",
+                      "success-emerald": "#2D6A4F",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#f3f4f5",
+                      "inverse-on-surface": "#f0f1f2",
+                      "secondary-container": "#fed977",
+                      "on-surface-variant": "#43474d",
+                      "on-primary-fixed-variant": "#314863",
+                      "on-primary-container": "#7b93b1",
+                      "error-container": "#ffdad6",
+                      "on-background": "#191c1d",
+                      "secondary": "#755b00",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#011d35",
+                      "surface-bright": "#f8f9fa",
+                      "on-tertiary-container": "#ae8b5c",
+                      "primary-container": "#122b44",
+                      "on-tertiary-fixed-variant": "#5d421a",
+                      "warning-amber": "#D97706",
+                      "text-main": "#1A1C1E",
+                      "surface-variant": "#e1e3e4",
+                      "surface": "#f8f9fa"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "container-margin": "20px",
+                      "stack-md": "12px",
+                      "section-gap": "32px",
+                      "gutter-md": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "Inter"
+                      ],
+                      "headline-md-mobile": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md-mobile": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+          .glass-panel {
+              background: rgba(255, 255, 255, 0.7);
+              backdrop-filter: blur(15px);
+              -webkit-backdrop-filter: blur(15px);
+              border: 1px solid rgba(255, 255, 255, 0.5);
+              box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+          }
+          
+          .gem-shadow {
+              box-shadow: 0 15px 30px rgba(0, 22, 44, 0.05);
+          }
+
+          body {
+            -webkit-tap-highlight-color: transparent;
+          }
+      </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen pb-24">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-40 bg-surface-glass backdrop-blur-xl transition-opacity duration-200 flat no shadows px-container-margin py-stack-md flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover" data-alt="A detailed, high-resolution portrait of a professional gemstone dealer in a well-lit office, wearing modern business casual attire. The lighting is soft and flattering, typical of a professional headshot. The color palette is neutral and sophisticated." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmyqGiHgNlGA5F-oPqtdBo7nxtOawms6rrDuDtPMNWrxnYvTwgn5R5sSTcJBAJuIbwOXVfiow__ZXeK3Iif8LE5ryKX8qrq-XAsHkzpl98zSsyE9mBCmOAjdnkH0arDxqHpY4DA2Ew397NsA5uGsolK_wOpDKqNNHJex-_A-WMqudfZEdona49ewGRodgvGGRFk3UrAHQYfw2_NUghCSBDW39t3JK2fHvSdb00cV-o6Xy0efH5ChiUfg"/>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary tracking-tight">GemFort</h1>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="pt-[80px] px-container-margin max-w-3xl mx-auto space-y-section-gap">
+<!-- Page Header -->
+<div class="space-y-1">
+<h2 class="font-headline-sm text-headline-sm text-primary">AP Stones</h2>
+<p class="font-body-md text-body-md text-text-muted">Currently out on approval.</p>
+</div>
+<!-- Summary Stats (Bento style) -->
+<div class="grid grid-cols-2 gap-gutter-md">
+<div class="bg-surface-container-lowest rounded-[20px] p-4 gem-shadow flex flex-col justify-between">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-text-muted text-[20px]">diamond</span>
+<span class="font-label-md text-label-md text-primary bg-primary/10 px-2 py-1 rounded-full">Total Stones</span>
+</div>
+<div>
+<span class="font-display-lg text-display-lg text-primary block">24</span>
+<span class="font-body-md text-body-md text-text-muted">Across 5 contacts</span>
+</div>
+</div>
+<div class="bg-primary rounded-[20px] p-4 gem-shadow flex flex-col justify-between text-on-primary">
+<div class="flex justify-between items-start mb-2">
+<span class="material-symbols-outlined text-on-primary/70 text-[20px]">account_balance_wallet</span>
+<span class="font-label-md text-label-md bg-white/20 px-2 py-1 rounded-full">Total Value</span>
+</div>
+<div>
+<span class="font-display-lg text-display-lg block">$485k</span>
+<span class="font-body-md text-body-md text-on-primary/70">Estimated market</span>
+</div>
+</div>
+</div>
+<!-- Contact Group 1 (Overdue) -->
+<section class="space-y-stack-md">
+<!-- Contact Header -->
+<div class="flex justify-between items-center bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-outline-variant/20">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary font-headline-sm text-headline-sm">JS</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary leading-none">James Smith</h3>
+<p class="font-label-md text-label-md text-text-muted mt-1">Smith Jewelers</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline-sm text-headline-sm text-primary">$125,000</p>
+<p class="font-label-md text-label-md text-error flex items-center justify-end gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">warning</span> Overdue
+                    </p>
+</div>
+</div>
+<!-- Stones List -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-md">
+<!-- Stone Card 1 (Overdue) -->
+<div class="bg-surface-container-lowest rounded-xl p-3 gem-shadow border border-error/30 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-1 h-full bg-error"></div>
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="A stunning, high-quality close-up photograph of a vibrant blue sapphire gemstone resting on a clean white surface. The lighting highlights its excellent cut and clarity. Professional jewelry photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbzZNGiaJrIrVkt-IB2KExcNRyOhcrVx65zdHmegr_srJUaA4YGkkS6LjBed8QjFXUcdZtNm7m8VegyOxjgPkfqQdu-3Rur_s92xUXDgDYhiR7a4UHkwEY8MmPD4c9ua435frb5Qme6Ixgtp2mUNLTwbtWrw9BJwm2Z_6kFITbBdWp3w8NMMdnE2eBeS_vu5DK80_DnrAryWVOYGCxl-LsWMYl65Hue5wEC_6yZSyoT2tQVr04JIv3Hg"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md-mobile text-headline-md-mobile text-primary">Blue Sapphire</h4>
+<span class="font-label-md text-label-md bg-surface-container px-2 py-0.5 rounded text-text-muted">#4920</span>
+</div>
+<p class="font-body-md text-body-md text-text-muted">3.45 ct • Oval • Heated</p>
+</div>
+<div class="flex justify-between items-end mt-2">
+<p class="font-headline-sm text-headline-sm text-primary">$45,000</p>
+<p class="font-label-md text-label-md text-error font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 2 days ago
+                                </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Stone Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 gem-shadow border border-outline-variant/10 relative overflow-hidden group">
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="A brilliant, high-resolution photograph of a flawless white diamond, round brilliant cut, sparkling against a soft grey background. Clean, luxurious aesthetic typical of high-end gem documentation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD-Z6rKF3yTD_pmAg_AluJGHALpLcCUqSfd0E4RvaGrd-NDkF7CTtVjs29CGexP68ownYsAFUs7HPOJv382KvW0iK4oxIsycooU66xVUMYU2YqI8py4Z2ZTmxLIkBv_wecmuiVVs2pUviWZWv-NszPJJlVvrN7hE6lAz8Zip2x5QNezlhqnIW7P3qho1L-n1QeR_JTGMJEHzw610R5ANDARTo6WM0sr8ij4DVRUMTx_2mVZbq-hFE_WfQ"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md-mobile text-headline-md-mobile text-primary">White Diamond</h4>
+<span class="font-label-md text-label-md bg-surface-container px-2 py-0.5 rounded text-text-muted">#4921</span>
+</div>
+<p class="font-body-md text-body-md text-text-muted">1.20 ct • Round • D/VVS1</p>
+</div>
+<div class="flex justify-between items-end mt-2">
+<p class="font-headline-sm text-headline-sm text-primary">$80,000</p>
+<p class="font-label-md text-label-md text-warning-amber font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> Today
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-lowest border border-primary/20 text-primary font-label-md text-label-md py-2 rounded-full hover:bg-surface-container transition-colors">Message</button>
+<button class="flex-1 bg-primary text-on-primary font-label-md text-label-md py-2 rounded-full hover:opacity-90 transition-opacity">Request Return</button>
+</div>
+</section>
+<!-- Contact Group 2 (On Track) -->
+<section class="space-y-stack-md mt-section-gap">
+<!-- Contact Header -->
+<div class="flex justify-between items-center bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-outline-variant/20">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary font-headline-sm text-headline-sm">EW</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary leading-none">Elena Wong</h3>
+<p class="font-label-md text-label-md text-text-muted mt-1">Independent Designer</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-headline-sm text-headline-sm text-primary">$35,500</p>
+<p class="font-label-md text-label-md text-success-emerald flex items-center justify-end gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span> On track
+                    </p>
+</div>
+</div>
+<!-- Stones List -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-md">
+<!-- Stone Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 gem-shadow border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-1 h-full bg-success-emerald/50"></div>
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="A vivid emerald gemstone, emerald cut, showcasing deep green color. Photographed on a clean, light surface with soft, diffused lighting to emphasize its natural inclusions and rich hue. Professional and minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLuHyvEB5qvxFslZjgPOd2qJNjt0-pf7OQrytK59H7vLMAMAprcNJC39sUACHJ9TzPXO_33WqoTukD54QUSm1igpDEgYQZH3cbWHyD46JvyPdNxX6G1pQJKORkn26CvaPLz-vRmhzYTkIJr5EZpOQhoGzHwJk9Mn1nwtBGYAYkxgmvFr3WhygXaw9VoL9xE7giFocD67H03c4Z6h8PFK4gbVFXVdLmssUiZk3RfOr6n7jXvAAXlyfZ5w"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md-mobile text-headline-md-mobile text-primary">Colombian Emerald</h4>
+<span class="font-label-md text-label-md bg-surface-container px-2 py-0.5 rounded text-text-muted">#5012</span>
+</div>
+<p class="font-body-md text-body-md text-text-muted">2.10 ct • Emerald Cut</p>
+</div>
+<div class="flex justify-between items-end mt-2">
+<p class="font-headline-sm text-headline-sm text-primary">$25,000</p>
+<p class="font-label-md text-label-md text-text-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> in 4 days
+                                </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Stone Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-3 gem-shadow border border-outline-variant/10 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-1 h-full bg-success-emerald/50"></div>
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="A bright pink tourmaline gemstone, cushion cut, brilliantly illuminated against a white background. The image is sharp and highlights the facet arrangement and color saturation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtDdSP9rx0irw72ICtrn_drmJXGOuKp7qhEfe1odchJPzeB-4vW6D6SRAUMLlukR-qH4-JZCMxyWasJabQQlDHsVhMrLevW0GMxj7F5GufaFs6TsOBcOkVhThLmmGb1fNO8Gop6pUa8UB6LmeELB7F9OqgRAaZmV8a1hq9Z3koByoXHjcDs5qvccgJSR6VTGY40qL4-L-zPZjeIZFDC0pPeJbCkTdSKb30X4trmmuiF-gqX1P3iYM1Pw"/>
+</div>
+<div class="flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<h4 class="font-headline-md-mobile text-headline-md-mobile text-primary">Pink Tourmaline</h4>
+<span class="font-label-md text-label-md bg-surface-container px-2 py-0.5 rounded text-text-muted">#5013</span>
+</div>
+<p class="font-body-md text-body-md text-text-muted">4.50 ct • Cushion</p>
+</div>
+<div class="flex justify-between items-end mt-2">
+<p class="font-headline-sm text-headline-sm text-primary">$10,500</p>
+<p class="font-label-md text-label-md text-text-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> in 4 days
+                                </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Nav Bar -->
+<nav class="fixed bottom-0 w-[calc(100%-40px)] left-1/2 -translate-x-1/2 z-50 flex justify-around items-center p-2 mb-4 bg-surface-glass backdrop-blur-xl shadow-[0_15px_15px_rgba(0,22,44,0.05)] rounded-full">
+<a class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors rounded-full flex flex-col items-center" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">storefront</span>
+</a>
+<a class="bg-primary text-on-primary rounded-full p-3 flex flex-col items-center shadow-md scale-95 transition-all duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">import_contacts</span>
+</a>
+<a class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors rounded-full flex flex-col items-center" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">inventory_2</span>
+</a>
+<a class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors rounded-full flex flex-col items-center" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">person</span>
+</a>
+</nav>
+</body></html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Gem Inventory List</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d9dadb",
+                        "surface-glass": "rgba(255, 255, 255, 0.7)",
+                        "on-tertiary-fixed-variant": "#5d421a",
+                        "tertiary-fixed-dim": "#e8c08d",
+                        "primary-container": "#122b44",
+                        "surface-variant": "#e1e3e4",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#191c1d",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#785d00",
+                        "on-secondary-fixed": "#241a00",
+                        "on-primary-container": "#7b93b1",
+                        "warning-amber": "#D97706",
+                        "surface-container-low": "#f3f4f5",
+                        "inverse-primary": "#b1c8e8",
+                        "outline": "#74777e",
+                        "success-emerald": "#2D6A4F",
+                        "on-surface-variant": "#43474d",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#e6c364",
+                        "inverse-surface": "#2e3132",
+                        "tertiary": "#211200",
+                        "on-tertiary-container": "#ae8b5c",
+                        "surface-tint": "#49607c",
+                        "on-tertiary-fixed": "#291800",
+                        "outline-variant": "#c4c6ce",
+                        "secondary-container": "#fed977",
+                        "on-secondary-fixed-variant": "#584400",
+                        "on-background": "#191c1d",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#011d35",
+                        "secondary-fixed": "#ffe08f",
+                        "background": "#f8f9fa",
+                        "tertiary-container": "#3c2501",
+                        "text-main": "#1A1C1E",
+                        "primary-fixed": "#d1e4ff",
+                        "surface-container-high": "#e7e8e9",
+                        "on-primary": "#ffffff",
+                        "surface": "#f8f9fa",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#b1c8e8",
+                        "on-primary-fixed-variant": "#314863",
+                        "tertiary-fixed": "#ffddb4",
+                        "secondary": "#755b00",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "text-muted": "#64748B",
+                        "surface-bright": "#f8f9fa",
+                        "primary": "#00162c",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-container": "#edeeef"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "32px",
+                        "stack-sm": "8px",
+                        "gutter-md": "16px",
+                        "stack-md": "12px",
+                        "container-margin": "20px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md-mobile": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #f8f9fa; }
+        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-background antialiased pb-32">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-40 bg-surface-glass backdrop-blur-md dark:bg-inverse-surface/70 w-full">
+<div class="flex justify-between items-center px-container-margin py-stack-md w-full max-w-4xl mx-auto">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="A small circular avatar placeholder image showing a silhouette of a person, set against a sleek minimalist background with soft white lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtQQTftKfgdOMl3aaE0ZHInhg1CM0Zc-vmSFGylayhn1tnkuN9q0WIgrkAFNMGvyxRvyJsJf1WImAJK2VPzHaumHXppLuGDlHO9p1rWHsjl6Za0DooRsZxUhFlQjRbfpSGcYk2qa9NCzaivJP0iNU3lJ-4MUga215rAfgKYWTUxN-po3OIa7hfrVluHgLKjl8gQtJ17lQ70YAAC_tpmL7Ha7rMXCvPHEYlKgsMRPJngVON6G1Tomorzw"/>
+<span class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary dark:text-primary-fixed tracking-tight">GemVault</span>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+<!-- Search & Filters Row -->
+<div class="px-container-margin pb-stack-md flex gap-stack-sm items-center max-w-4xl mx-auto">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="w-full h-11 pl-10 pr-4 bg-surface-container-low border-none rounded-full text-body-md text-on-surface placeholder-outline focus:ring-1 focus:ring-primary focus:bg-white transition-all shadow-inner" placeholder="Search inventory..." type="text"/>
+</div>
+<button class="w-11 h-11 flex items-center justify-center bg-white rounded-full border border-surface-variant/50 shadow-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</button>
+</div>
+<!-- Filter Chips (Scrollable) -->
+<div class="px-container-margin pb-stack-md overflow-x-auto hide-scrollbar max-w-4xl mx-auto">
+<div class="flex gap-2">
+<button class="px-4 py-2 rounded-full bg-primary text-on-primary font-label-md text-label-md whitespace-nowrap shadow-sm">All Gems</button>
+<button class="px-4 py-2 rounded-full bg-white border border-surface-variant/50 text-on-surface-variant font-label-md text-label-md whitespace-nowrap shadow-sm hover:bg-surface-container-low transition-colors">Available</button>
+<button class="px-4 py-2 rounded-full bg-white border border-surface-variant/50 text-on-surface-variant font-label-md text-label-md whitespace-nowrap shadow-sm hover:bg-surface-container-low transition-colors">At Service</button>
+<button class="px-4 py-2 rounded-full bg-white border border-surface-variant/50 text-on-surface-variant font-label-md text-label-md whitespace-nowrap shadow-sm hover:bg-surface-container-low transition-colors">On AP</button>
+<button class="px-4 py-2 rounded-full bg-white border border-surface-variant/50 text-on-surface-variant font-label-md text-label-md whitespace-nowrap shadow-sm hover:bg-surface-container-low transition-colors">Sold</button>
+</div>
+</div>
+</header>
+<!-- Main Content - Inventory List -->
+<main class="px-container-margin py-section-gap max-w-4xl mx-auto flex flex-col gap-4">
+<!-- Gem Card 1 -->
+<div class="bg-white rounded-[16px] shadow-[0_15px_30px_rgba(0,22,44,0.05)] overflow-hidden flex flex-row h-[120px]">
+<div class="w-[120px] h-full flex-shrink-0 relative">
+<img class="w-full h-full object-cover" data-alt="A stunning, deep blue sapphire gemstone cut in an oval shape, resting on a clean white surface with soft, diffused lighting highlighting its clarity and facets. High-end product photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTVtc_WzmbWsboLA5KA5RICXUbZ47FjTCv0AoR6JOi0uJ_anHspCo3S0Y0wKDDlu5ZsX6dU9AFZC3DKm6LIiRLTYZvgOquxBuHcEoJFWA_aUE1P68X41-UXlaHl9uh7OFAsTD3PO5FqESTRM5TyeBtfUry_LCVlZe-nmthv_6o7AfdIUwwTBUOhmpjOAu1GTBuA37C8DzxwRJDlVyqbG2RqScO-lSsDFGHbgAVcJ757k8sRHgZI8dluw"/>
+<div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full border border-surface-variant/20 flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-success-emerald"></div>
+<span class="text-[10px] font-semibold text-on-surface uppercase tracking-wider">Avail</span>
+</div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-1">
+<div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs text-outline font-medium tracking-wide">GF-2024-001</span>
+<button class="text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">more_vert</span></button>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Blue Sapphire</h3>
+<p class="text-sm text-on-surface-variant mt-0.5">Oval Cut</p>
+</div>
+<div class="flex justify-between items-end">
+<span class="font-semibold text-primary">3.24 ct</span>
+<button class="w-8 h-8 rounded-full border border-surface-variant flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Gem Card 2 -->
+<div class="bg-white rounded-[16px] shadow-[0_15px_30px_rgba(0,22,44,0.05)] overflow-hidden flex flex-row h-[120px]">
+<div class="w-[120px] h-full flex-shrink-0 relative">
+<img class="w-full h-full object-cover" data-alt="A brilliant cut round diamond catching the light, displayed on a minimalist soft grey background. The lighting is pristine and luxurious, emphasizing the gemstone's sparkle." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8CfsHz3DDsi3xbHnejAhR8_yyLFV991lpX6627LKUQ1LjiKbTViOcsgjpP29tZrUyiVK9ExKg8_0uIhQTz9auEcjbXEgOqBx_i_Hd6tVgBTxDgK4vi0nW6GyHZorSNt-RcI2y6zhJ3QnZgNJbd2BTyvpqtLKWOfbRYvKRiJJC04trE2b-Pn5R6Lxrz0lik_edgNRAkwfjBx-C3ZW3bdB7Pc0GsEAf77OuA7E8yfYZlIvj3ikM2BjSYw"/>
+<div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full border border-surface-variant/20 flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-warning-amber"></div>
+<span class="text-[10px] font-semibold text-on-surface uppercase tracking-wider">At Serv</span>
+</div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-1">
+<div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs text-outline font-medium tracking-wide">GF-2024-042</span>
+<button class="text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">more_vert</span></button>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">White Diamond</h3>
+<p class="text-sm text-on-surface-variant mt-0.5">Round Brilliant</p>
+</div>
+<div class="flex justify-between items-end">
+<span class="font-semibold text-primary">1.05 ct</span>
+<button class="w-8 h-8 rounded-full border border-surface-variant flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Gem Card 3 -->
+<div class="bg-white rounded-[16px] shadow-[0_15px_30px_rgba(0,22,44,0.05)] overflow-hidden flex flex-row h-[120px]">
+<div class="w-[120px] h-full flex-shrink-0 relative">
+<div class="w-full h-full bg-cover bg-center" data-alt="A vivid green emerald with an octagonal step cut, resting on a sleek, light reflective surface. High-end, pristine lighting highlighting the rich color." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDHTNGy-Jp7qD1rsezCXvhtRppjnuhrM0RAewcV8XmlWakjHK6cTTU_jvA3yrfyCELzdpMNiUImCgQF3BlacKx54x7mSlqiBBkDc4m8_q-g1arPnPy7EJfzxI3cJjJKsD-wxvDAS0QKEIP4jwADIg_KdhmzAih1f68v9BjUD-1mjx6fcjB1TMxIE8NdlKuKh1YMBFVa_FVZe4hquP2NhzxjiVXabfZ43lgJ-5lEg0EuTFAPBzfTwJl3-A')"></div>
+<div class="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full border border-surface-variant/20 flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary-fixed-dim"></div>
+<span class="text-[10px] font-semibold text-on-surface uppercase tracking-wider">On AP</span>
+</div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-1">
+<div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs text-outline font-medium tracking-wide">GF-2023-118</span>
+<button class="text-outline hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">more_vert</span></button>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Colombian Emerald</h3>
+<p class="text-sm text-on-surface-variant mt-0.5">Emerald Cut</p>
+</div>
+<div class="flex justify-between items-end">
+<span class="font-semibold text-primary">4.50 ct</span>
+<button class="w-8 h-8 rounded-full border border-surface-variant flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-28 right-container-margin w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:opacity-90 active:scale-95 transition-all z-40">
+<span class="material-symbols-outlined text-[28px]">add</span>
+</button>
+<!-- Bottom Nav Bar -->
+<nav class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[400px] z-50 flex justify-around items-center p-2 bg-surface-glass backdrop-blur-xl dark:bg-inverse-surface/80 rounded-full border border-surface-variant/20 dark:border-outline-variant/10 shadow-[0px_15px_30px_rgba(0,22,44,0.05)]">
+<a class="flex items-center justify-center text-outline dark:text-outline-variant w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">diamond</span>
+</a>
+<a class="flex items-center justify-center bg-primary dark:bg-primary-fixed text-on-primary dark:text-on-primary-fixed rounded-full w-12 h-12 hover:opacity-80 transition-opacity scale-90 duration-200 shadow-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+</a>
+<a class="flex items-center justify-center text-outline dark:text-outline-variant w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">explore</span>
+</a>
+<a class="flex items-center justify-center text-outline dark:text-outline-variant w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">verified</span>
+</a>
+<a class="flex items-center justify-center text-outline dark:text-outline-variant w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">person</span>
+</a>
+</nav>
+</body></html>
