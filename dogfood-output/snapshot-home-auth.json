@@ -1,0 +1,421 @@
+﻿{
+  "success": true,
+  "data": {
+    "nodes": [
+      {
+        "index": 0,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1080,
+          "height": 2400
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 9,
+        "ref": "e1"
+      },
+      {
+        "index": 1,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1080,
+          "height": 2400
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 13,
+        "parentIndex": 0,
+        "ref": "e2"
+      },
+      {
+        "index": 2,
+        "type": "android.widget.ScrollView",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 264,
+          "width": 1080,
+          "height": 1960
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 21,
+        "parentIndex": 1,
+        "ref": "e3"
+      },
+      {
+        "index": 3,
+        "type": "android.widget.TextView",
+        "label": "GemFort",
+        "value": "GemFort",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 44,
+          "y": 310,
+          "width": 216,
+          "height": 77
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 23,
+        "parentIndex": 2,
+        "ref": "e4"
+      },
+      {
+        "index": 4,
+        "type": "android.view.ViewGroup",
+        "label": "≡ƒöö",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 960,
+          "y": 308,
+          "width": 76,
+          "height": 82
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 23,
+        "parentIndex": 2,
+        "ref": "e5"
+      },
+      {
+        "index": 5,
+        "type": "android.widget.TextView",
+        "label": "≡ƒöö",
+        "value": "≡ƒöö",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 960,
+          "y": 308,
+          "width": 76,
+          "height": 82
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 24,
+        "parentIndex": 4,
+        "ref": "e6"
+      },
+      {
+        "index": 6,
+        "type": "android.widget.TextView",
+        "label": "≡ƒôó Platform",
+        "value": "≡ƒôó Platform",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 90,
+          "y": 480,
+          "width": 900,
+          "height": 44
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 24,
+        "parentIndex": 2,
+        "ref": "e7"
+      },
+      {
+        "index": 7,
+        "type": "android.widget.TextView",
+        "label": "Welcome to GemFort",
+        "value": "Welcome to GemFort",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 90,
+          "y": 535,
+          "width": 900,
+          "height": 66
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 24,
+        "parentIndex": 2,
+        "ref": "e8"
+      },
+      {
+        "index": 8,
+        "type": "android.widget.TextView",
+        "label": "Find verified gem businesses and track your private inventory in one app.",
+        "value": "Find verified gem businesses and track your private inventory in one app.",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 90,
+          "y": 612,
+          "width": 900,
+          "height": 110
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 24,
+        "parentIndex": 2,
+        "ref": "e9"
+      },
+      {
+        "index": 9,
+        "type": "android.view.View",
+        "label": "≡ƒÅá, Home",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 0,
+          "y": 2225,
+          "width": 270,
+          "height": 153
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 17,
+        "parentIndex": 1,
+        "ref": "e10"
+      },
+      {
+        "index": 10,
+        "type": "android.widget.TextView",
+        "label": "≡ƒÅá",
+        "value": "≡ƒÅá",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 100,
+          "y": 2240,
+          "width": 68,
+          "height": 74
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 9,
+        "ref": "e11"
+      },
+      {
+        "index": 11,
+        "type": "android.widget.TextView",
+        "label": "Home",
+        "value": "Home",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 97,
+          "y": 2315,
+          "width": 76,
+          "height": 38
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 9,
+        "ref": "e12"
+      },
+      {
+        "index": 12,
+        "type": "android.view.View",
+        "label": "≡ƒôï, Directory",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 270,
+          "y": 2225,
+          "width": 270,
+          "height": 153
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 17,
+        "parentIndex": 1,
+        "ref": "e13"
+      },
+      {
+        "index": 13,
+        "type": "android.widget.TextView",
+        "label": "≡ƒôï",
+        "value": "≡ƒôï",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 370,
+          "y": 2240,
+          "width": 68,
+          "height": 74
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 12,
+        "ref": "e14"
+      },
+      {
+        "index": 14,
+        "type": "android.widget.TextView",
+        "label": "Directory",
+        "value": "Directory",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 348,
+          "y": 2315,
+          "width": 114,
+          "height": 38
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 12,
+        "ref": "e15"
+      },
+      {
+        "index": 15,
+        "type": "android.view.View",
+        "label": "≡ƒÆ╝, Workspace",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 540,
+          "y": 2225,
+          "width": 270,
+          "height": 153
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 17,
+        "parentIndex": 1,
+        "ref": "e16"
+      },
+      {
+        "index": 16,
+        "type": "android.widget.TextView",
+        "label": "≡ƒÆ╝",
+        "value": "≡ƒÆ╝",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 640,
+          "y": 2240,
+          "width": 68,
+          "height": 74
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 15,
+        "ref": "e17"
+      },
+      {
+        "index": 17,
+        "type": "android.widget.TextView",
+        "label": "Workspace",
+        "value": "Workspace",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 605,
+          "y": 2315,
+          "width": 140,
+          "height": 38
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 15,
+        "ref": "e18"
+      },
+      {
+        "index": 18,
+        "type": "android.view.View",
+        "label": "≡ƒæñ, Profile",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 810,
+          "y": 2225,
+          "width": 270,
+          "height": 153
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "hittable": true,
+        "depth": 17,
+        "parentIndex": 1,
+        "ref": "e19"
+      },
+      {
+        "index": 19,
+        "type": "android.widget.TextView",
+        "label": "≡ƒæñ",
+        "value": "≡ƒæñ",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 910,
+          "y": 2240,
+          "width": 68,
+          "height": 74
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 18,
+        "ref": "e20"
+      },
+      {
+        "index": 20,
+        "type": "android.widget.TextView",
+        "label": "Profile",
+        "value": "Profile",
+        "bundleId": "app.gemfort.dev",
+        "rect": {
+          "x": 904,
+          "y": 2315,
+          "width": 82,
+          "height": 38
+        },
+        "enabled": true,
+        "visibleToUser": true,
+        "depth": 18,
+        "parentIndex": 18,
+        "ref": "e21"
+      }
+    ],
+    "truncated": false,
+    "appName": "app.gemfort.dev",
+    "appBundleId": "app.gemfort.dev",
+    "visibility": {
+      "partial": false,
+      "visibleNodeCount": 21,
+      "totalNodeCount": 21,
+      "reasons": []
+    },
+    "androidSnapshot": {
+      "backend": "android-helper",
+      "helperVersion": "0.18.3",
+      "helperApiVersion": "1",
+      "helperTransport": "persistent-session",
+      "helperSessionReused": true,
+      "installReason": "current",
+      "waitForIdleTimeoutMs": 500,
+      "waitForIdleQuietMs": 100,
+      "timeoutMs": 5000,
+      "maxDepth": 128,
+      "maxNodes": 5000,
+      "rootPresent": true,
+      "captureMode": "interactive-windows",
+      "windowCount": 3,
+      "nodeCount": 124,
+      "helperTruncated": false,
+      "elapsedMs": 110
+    },
+    "snapshotDiagnostics": {
+      "stats": {
+        "count": 147,
+        "p50Ms": 780,
+        "p95Ms": 17278,
+        "maxMs": 24389,
+        "slowThresholdMs": 1500,
+        "platform": "android",
+        "backends": {
+          "android": 147
+        }
+      },
+      "warning": "Warning: android snapshots are slow in this run: p95 17278ms over 147 captures. Possible causes: device load, app or dev server stuck, helper fallback, or stale daemon."
+    }
+  }
+}

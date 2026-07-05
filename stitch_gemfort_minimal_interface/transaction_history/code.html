@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GemVault - Transaction History</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-container": "#ae8b5c",
+                    "surface-dim": "#d9dadb",
+                    "on-primary-fixed": "#011d35",
+                    "surface-container": "#edeeef",
+                    "secondary-container": "#fed977",
+                    "on-error-container": "#93000a",
+                    "secondary": "#755b00",
+                    "primary-container": "#122b44",
+                    "primary": "#00162c",
+                    "on-primary-container": "#7b93b1",
+                    "on-secondary-container": "#785d00",
+                    "background": "#f8f9fa",
+                    "inverse-surface": "#2e3132",
+                    "tertiary-fixed-dim": "#e8c08d",
+                    "surface-bright": "#f8f9fa",
+                    "primary-fixed": "#d1e4ff",
+                    "on-tertiary-fixed": "#291800",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed-variant": "#5d421a",
+                    "inverse-on-surface": "#f0f1f2",
+                    "on-surface": "#191c1d",
+                    "text-muted": "#64748B",
+                    "surface-container-low": "#f3f4f5",
+                    "surface-container-high": "#e7e8e9",
+                    "on-surface-variant": "#43474d",
+                    "on-background": "#191c1d",
+                    "warning-amber": "#D97706",
+                    "on-secondary-fixed-variant": "#584400",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed-dim": "#e6c364",
+                    "on-tertiary": "#ffffff",
+                    "outline-variant": "#c4c6ce",
+                    "on-primary": "#ffffff",
+                    "success-emerald": "#2D6A4F",
+                    "surface-tint": "#49607c",
+                    "text-main": "#1A1C1E",
+                    "on-secondary": "#ffffff",
+                    "inverse-primary": "#b1c8e8",
+                    "tertiary-container": "#3c2501",
+                    "surface-glass": "rgba(255, 255, 255, 0.7)",
+                    "error-container": "#ffdad6",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#b1c8e8",
+                    "surface": "#f8f9fa",
+                    "secondary-fixed": "#ffe08f",
+                    "surface-container-highest": "#e1e3e4",
+                    "on-secondary-fixed": "#241a00",
+                    "tertiary-fixed": "#ffddb4",
+                    "on-primary-fixed-variant": "#314863",
+                    "outline": "#74777e",
+                    "surface-variant": "#e1e3e4",
+                    "tertiary": "#211200"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-sm": "8px",
+                    "gutter-md": "16px",
+                    "container-margin": "20px",
+                    "stack-md": "12px",
+                    "section-gap": "32px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-md-mobile": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-md-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8f9fa;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(15px);
+        box-shadow: 0px 15px 30px rgba(0, 22, 44, 0.05);
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #e1e3e4;
+        border-radius: 10px;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col">
+<!-- Top AppBar -->
+<header class="bg-surface-glass backdrop-blur-md sticky top-0 z-50 flex justify-between items-center px-container-margin py-stack-md w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high ring-2 ring-primary/5">
+<img class="w-full h-full object-cover" data-alt="A professional close-up portrait of a gemstone expert in a high-end minimalist jewelry atelier. The scene features soft, diffused lighting typical of luxury boutiques, with the subject looking toward the camera with a calm, inviting expression. The background is a clean, blurred aesthetic of polished surfaces and neutral tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDcFsD2shLG4DdqkGvfmmbh-ZNfpGs-D4JA5_TNjdOnlS5v1PkRLOSR-hZGwEwmdFQG40VM5UNNnGloJdg7edtR9p-8wVQrxAEMUhHAy1Q3SiIZOC6UsZ_251Aw7f8yWdj6i-E2WG5_D-M9zh48v1twHE9BHA1Gh__s7PAruO70HD1YTscIfJyur3s8vVeXd-d4zVBtBBatQmdXFqD1ShMjoRqxBLsWEIe1o8a68xAVKsG-BInUB1GpRg"/>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary">GemVault</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+</header>
+<main class="flex-1 px-container-margin pb-32">
+<!-- Search & Quick Filters -->
+<section class="mt-section-gap space-y-gutter-md">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest rounded-xl border-none ring-1 ring-outline/10 focus:ring-2 focus:ring-primary transition-all text-body-md" placeholder="Search transactions, gems, or contacts..." type="text"/>
+</div>
+<div class="flex gap-stack-sm overflow-x-auto pb-2 custom-scrollbar">
+<button class="px-5 py-2 rounded-full bg-primary text-on-primary font-label-md whitespace-nowrap">All</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md border border-outline/10 whitespace-nowrap hover:bg-surface-container-high">Income</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md border border-outline/10 whitespace-nowrap hover:bg-surface-container-high">Expense</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md border border-outline/10 whitespace-nowrap hover:bg-surface-container-high">Date Range</button>
+<button class="px-5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-md border border-outline/10 whitespace-nowrap hover:bg-surface-container-high">Categories</button>
+</div>
+</section>
+<!-- Transaction List -->
+<section class="mt-section-gap space-y-section-gap">
+<!-- Today Group -->
+<div>
+<h2 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-gutter-md">Today</h2>
+<div class="space-y-stack-md">
+<!-- Transaction Item -->
+<div class="glass-card bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 active:scale-[0.98] transition-transform">
+<div class="w-12 h-12 rounded-full bg-success-emerald/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-success-emerald" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-sm text-primary truncate">Blue Sapphire Sale</h3>
+<span class="font-headline-sm text-success-emerald">+$4,250.00</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<p class="text-body-md text-text-muted">Marcus Sterling</p>
+<span class="w-1 h-1 rounded-full bg-outline/30"></span>
+<p class="text-body-md text-text-muted">14:20</p>
+</div>
+<p class="text-body-md text-on-surface-variant mt-1 italic text-xs">"Certificate of authenticity included."</p>
+</div>
+</div>
+<!-- Transaction Item -->
+<div class="glass-card bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 active:scale-[0.98] transition-transform">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">do_not_disturb_on</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-sm text-primary truncate">GIA Certification Fee</h3>
+<span class="font-headline-sm text-error">-$185.00</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<p class="text-body-md text-text-muted">GIA Laboratory</p>
+<span class="w-1 h-1 rounded-full bg-outline/30"></span>
+<p class="text-body-md text-text-muted">09:15</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Yesterday Group -->
+<div>
+<h2 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-gutter-md">Yesterday</h2>
+<div class="space-y-stack-md">
+<!-- Transaction Item -->
+<div class="glass-card bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 active:scale-[0.98] transition-transform">
+<div class="w-12 h-12 rounded-full bg-success-emerald/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-success-emerald" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-sm text-primary truncate">Emerald Batch Import</h3>
+<span class="font-headline-sm text-success-emerald">+$12,000.00</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<p class="text-body-md text-text-muted">Bogota Mining Corp</p>
+<span class="w-1 h-1 rounded-full bg-outline/30"></span>
+<p class="text-body-md text-text-muted">16:45</p>
+</div>
+</div>
+</div>
+<!-- Transaction Item -->
+<div class="glass-card bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 active:scale-[0.98] transition-transform">
+<div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">do_not_disturb_on</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-sm text-primary truncate">Office Lease Payment</h3>
+<span class="font-headline-sm text-error">-$2,400.00</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<p class="text-body-md text-text-muted">Antwerp Real Estate</p>
+<span class="w-1 h-1 rounded-full bg-outline/30"></span>
+<p class="text-body-md text-text-muted">10:00</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center z-50 active:scale-90 transition-transform hover:opacity-90">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 bg-surface-glass backdrop-blur-xl dark:bg-inverse-surface/80 border border-surface-variant/20 rounded-full shadow-[0px_15px_30px_rgba(0,22,44,0.05)] p-2 flex justify-around items-center">
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity active:scale-90" href="#">
+<span class="material-symbols-outlined">diamond</span>
+</a>
+<a class="flex items-center justify-center bg-primary text-on-primary rounded-full w-12 h-12 transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity active:scale-90" href="#">
+<span class="material-symbols-outlined">explore</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity active:scale-90" href="#">
+<span class="material-symbols-outlined">verified</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity active:scale-90" href="#">
+<span class="material-symbols-outlined">person</span>
+</a>
+</nav>
+<script>
+        // Simple filter button interaction
+        const filterButtons = document.querySelectorAll('.overflow-x-auto button');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => {
+                    b.classList.remove('bg-primary', 'text-on-primary');
+                    b.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+                });
+                btn.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+                btn.classList.add('bg-primary', 'text-on-primary');
+            });
+        });
+
+        // FAB active effect
+        const fab = document.querySelector('button.fixed.bottom-24');
+        fab.addEventListener('click', () => {
+            // Ripple or navigation logic would go here
+            console.log('Open Add Transaction Modal');
+        });
+    </script>
+</body></html>

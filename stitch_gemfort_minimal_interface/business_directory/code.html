@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GemFort - Business Directory</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary": "#755b00",
+                      "warning-amber": "#D97706",
+                      "text-main": "#1A1C1E",
+                      "primary-fixed": "#d1e4ff",
+                      "surface-container-low": "#f3f4f5",
+                      "tertiary-fixed": "#ffddb4",
+                      "surface": "#f8f9fa",
+                      "on-tertiary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "on-primary-fixed": "#011d35",
+                      "inverse-surface": "#2e3132",
+                      "on-surface-variant": "#43474d",
+                      "secondary-container": "#fed977",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-container": "#3c2501",
+                      "surface-variant": "#e1e3e4",
+                      "surface-bright": "#f8f9fa",
+                      "on-secondary-fixed-variant": "#584400",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "primary": "#00162c",
+                      "on-tertiary-fixed-variant": "#5d421a",
+                      "secondary-fixed": "#ffe08f",
+                      "surface-container-high": "#e7e8e9",
+                      "on-primary-container": "#7b93b1",
+                      "on-primary": "#ffffff",
+                      "primary-fixed-dim": "#b1c8e8",
+                      "outline-variant": "#c4c6ce",
+                      "on-tertiary-container": "#ae8b5c",
+                      "text-muted": "#64748B",
+                      "outline": "#74777e",
+                      "surface-glass": "rgba(255, 255, 255, 0.7)",
+                      "tertiary": "#211200",
+                      "on-secondary-container": "#785d00",
+                      "on-surface": "#191c1d",
+                      "surface-dim": "#d9dadb",
+                      "on-background": "#191c1d",
+                      "primary-container": "#122b44",
+                      "on-tertiary-fixed": "#291800",
+                      "surface-container-highest": "#e1e3e4",
+                      "surface-tint": "#49607c",
+                      "on-secondary-fixed": "#241a00",
+                      "tertiary-fixed-dim": "#e8c08d",
+                      "on-primary-fixed-variant": "#314863",
+                      "inverse-on-surface": "#f0f1f2",
+                      "error-container": "#ffdad6",
+                      "on-secondary": "#ffffff",
+                      "secondary-fixed-dim": "#e6c364",
+                      "success-emerald": "#2D6A4F",
+                      "surface-container": "#edeeef",
+                      "background": "#f8f9fa",
+                      "inverse-primary": "#b1c8e8"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "section-gap": "32px",
+                      "gutter-md": "16px",
+                      "stack-md": "12px",
+                      "container-margin": "20px"
+              },
+              "fontFamily": {
+                      "headline-md-mobile": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "headline-md-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        .ambient-shadow {
+            box-shadow: 0 15px 30px rgba(0, 22, 44, 0.05);
+        }
+        
+        /* Hide scrollbar for horizontal scroll areas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-text-main font-body-md antialiased pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-40 bg-surface-glass backdrop-blur-xl transition-opacity duration-200">
+<div class="flex justify-between items-center w-full px-container-margin py-stack-md">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A professional headshot of a female gem trader wearing a crisp white blouse, set against a blurred, bright modern office background. The lighting is soft and flattering, embodying a trustworthy and premium corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBpX6Jvph5lW7SkFMkISbZra0_A-XMsmmBbum32OknRlmk_cRvk_WxB_07e5s60EhYSVDn_9cC46ipwqMyZQuCUVzoTzO-ZDy0zsnq19XXK1OJ8gqqVmCHZOhz86TDjSnUHNJZtTKeWI0l6H9IHXVqBXhBkCXErkB_py2-oSNhuU49qzdl0syvbOAyZRQPoxyjj7jrathZq3xZke93zVXBtT5VQ38Al3Z9qTYqurYOheyHgJSk0KJCuBw"/>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary">GemFort</h1>
+<button aria-label="Notifications" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant/50 transition-colors text-primary">
+<span class="material-symbols-outlined hover:opacity-80">notifications</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="pt-24 px-container-margin max-w-3xl mx-auto">
+<!-- Header & Search -->
+<div class="mb-section-gap flex flex-col gap-stack-md">
+<h2 class="font-display-lg text-display-lg text-primary">Directory</h2>
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-low text-text-main font-body-md rounded-full border-none focus:ring-1 focus:ring-primary focus:bg-surface-container-lowest transition-colors placeholder:text-text-muted shadow-sm" placeholder="Search sellers, providers..." type="text"/>
+</div>
+</div>
+<!-- Toggle Tabs -->
+<div class="flex gap-gutter-md mb-section-gap bg-surface-container-low p-1 rounded-full shadow-sm w-fit">
+<button class="px-6 py-2 rounded-full font-label-md text-label-md bg-primary text-on-primary transition-colors">Sellers</button>
+<button class="px-6 py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-variant/50 transition-colors">Service Providers</button>
+</div>
+<!-- Filter Row -->
+<div class="flex gap-stack-sm overflow-x-auto no-scrollbar mb-section-gap pb-2 -mx-container-margin px-container-margin md:mx-0 md:px-0">
+<button class="flex items-center gap-1 px-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-full whitespace-nowrap text-text-main font-label-md text-label-md hover:bg-surface-variant/30 transition-colors ambient-shadow">
+                Location <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button class="flex items-center gap-1 px-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-full whitespace-nowrap text-text-main font-label-md text-label-md hover:bg-surface-variant/30 transition-colors ambient-shadow">
+                Verified <span class="material-symbols-outlined text-[16px]">verified</span>
+</button>
+<button class="flex items-center gap-1 px-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-full whitespace-nowrap text-text-main font-label-md text-label-md hover:bg-surface-variant/30 transition-colors ambient-shadow">
+                Rating <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button class="flex items-center gap-1 w-10 h-10 justify-center bg-surface-container-lowest border border-outline-variant rounded-full flex-shrink-0 text-text-main hover:bg-surface-variant/30 transition-colors ambient-shadow">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</button>
+</div>
+<!-- Business Directory Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-section-gap">
+<!-- Business Card 1 -->
+<article class="bg-surface-container-lowest rounded-2xl overflow-hidden ambient-shadow cursor-pointer hover:shadow-[0_20px_40px_rgba(0,22,44,0.08)] transition-all duration-300 group">
+<div class="h-32 w-full relative">
+<img alt="Cover photo" class="w-full h-full object-cover" data-alt="A macro photograph of several high-quality, vivid blue sapphires resting on a pristine white marble surface. The lighting is bright and clean, emphasizing the depth of color and precise faceting of the gemstones, projecting a sense of luxury and trust in a modern light-mode setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCmGGElkoiRUAe6YL7cGNpClnHNwRCGBoSSMNm6HOzO_RULYFFFHqgCaFILWO6dAdT4mpe0zakDq9GkhCeEAsaE0C0zQhSqWmD29QD2msnNnZnkZLG3YZ-oheRKMM8iUExWyyC50B_0rWP_PyJ6hr7nCEj5WTg5Vfj-Z9XeCrncvtbp-TmiZfSTnLaoA9IyyXeDcS55yO8JUjBX0nIs5-JJv978YEsdzBLN2mwT9n0t6SkD-ff7COymQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+<div class="absolute bottom-[-24px] left-gutter-md w-16 h-16 rounded-full border-4 border-surface-container-lowest bg-surface-container-high overflow-hidden shadow-sm">
+<img alt="Business Logo" class="w-full h-full object-cover" data-alt="A sleek, minimalist business logo featuring a geometric diamond shape in deep navy blue against a crisp white background. The design is simple, modern, and perfectly suited for a high-end jewelry brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTo9_DgPg8L7r-0WSJ6PP_VADzlD4FIhzWCbX435EkwYDGTBgCUUzioxkC-Ph7CLun-cbrjyIPs70bzB9AZKFdSl7KRkT5rnDAv3-tYjZwlYujV-3RJ3gadZYQMWcKMO-iC02k4VnWjhBtbncgXKV9YljQn91U4jzUZQQAyAnRV4C30vN3R5ag-JlaIW466LLUzBX6NUpBccgrSkaAczIUPkq4pgsg_is5VSZGljJgf3UGSYxATEANpw"/>
+</div>
+</div>
+<div class="pt-8 pb-5 px-gutter-md">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors">Aura Gems</h3>
+<div class="flex items-center gap-1 mt-1 text-text-muted font-body-md text-body-md">
+<span class="material-symbols-outlined text-[16px]">location_on</span> New York, USA
+                            </div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="flex items-center gap-1 text-secondary font-label-md text-label-md bg-secondary-container/20 px-2 py-1 rounded-full">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">verified</span> Trusted
+                            </span>
+<span class="flex items-center gap-1 text-text-main font-label-md text-label-md">
+<span class="material-symbols-outlined text-[14px] text-warning-amber" style="font-variation-settings: 'FILL' 1;">star</span> 4.9 (120)
+                            </span>
+</div>
+</div>
+<p class="text-text-muted font-body-md text-body-md mt-3 line-clamp-2">Specializing in untreated, ethical blue sapphires and fine spinels sourced directly from Ceylon.</p>
+<div class="flex gap-2 mt-4 flex-wrap">
+<span class="px-3 py-1 bg-surface-container-low text-text-main font-label-md text-label-md rounded-full">Blue Sapphires</span>
+<span class="px-3 py-1 bg-surface-container-low text-text-main font-label-md text-label-md rounded-full">Spinels</span>
+</div>
+</div>
+</article>
+<!-- Business Card 2 -->
+<article class="bg-surface-container-lowest rounded-2xl overflow-hidden ambient-shadow cursor-pointer hover:shadow-[0_20px_40px_rgba(0,22,44,0.08)] transition-all duration-300 group">
+<div class="h-32 w-full relative">
+<div class="w-full h-full bg-gradient-to-br from-surface-container-high to-surface-container-low flex items-center justify-center text-outline-variant">
+<span class="material-symbols-outlined text-4xl opacity-50">imagesmode</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
+<div class="absolute bottom-[-24px] left-gutter-md w-16 h-16 rounded-full border-4 border-surface-container-lowest bg-surface-container-high overflow-hidden shadow-sm flex items-center justify-center text-primary font-headline-md text-headline-md">
+                        EL
+                    </div>
+</div>
+<div class="pt-8 pb-5 px-gutter-md">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors">Emerald Legacy</h3>
+<div class="flex items-center gap-1 mt-1 text-text-muted font-body-md text-body-md">
+<span class="material-symbols-outlined text-[16px]">location_on</span> Bogota, Colombia
+                            </div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="flex items-center gap-1 text-text-main font-label-md text-label-md">
+<span class="material-symbols-outlined text-[14px] text-warning-amber" style="font-variation-settings: 'FILL' 1;">star</span> 4.7 (85)
+                            </span>
+</div>
+</div>
+<p class="text-text-muted font-body-md text-body-md mt-3 line-clamp-2">Premium Colombian emeralds, rough and faceted. Over 30 years of family mining history.</p>
+<div class="flex gap-2 mt-4 flex-wrap">
+<span class="px-3 py-1 bg-surface-container-low text-text-main font-label-md text-label-md rounded-full">Emeralds</span>
+<span class="px-3 py-1 bg-surface-container-low text-text-main font-label-md text-label-md rounded-full">Rough Stones</span>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-[calc(100%-40px)] left-1/2 -translate-x-1/2 z-50 flex justify-around items-center p-2 mb-4 bg-surface-glass backdrop-blur-xl shadow-[0_15px_15px_rgba(0,22,44,0.05)] rounded-full">
+<button aria-label="Marketplace" class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">storefront</span>
+</button>
+<button aria-label="Directory" class="bg-primary text-on-primary rounded-full p-3 hover:bg-surface-variant/50 transition-colors flex items-center justify-center scale-95 transition-all duration-150">
+<span class="material-symbols-outlined">import_contacts</span>
+</button>
+<button aria-label="Inventory" class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">inventory_2</span>
+</button>
+<button aria-label="Profile" class="text-on-surface-variant p-3 hover:bg-surface-variant/50 transition-colors flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">person</span>
+</button>
+</nav>
+</body></html>

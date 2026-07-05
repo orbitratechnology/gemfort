@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GemVault Financial Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
+        /* Custom scrollbar for transaction list */
+        .custom-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #e1e3e4;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#ae8b5c",
+                        "surface-dim": "#d9dadb",
+                        "on-primary-fixed": "#011d35",
+                        "surface-container": "#edeeef",
+                        "secondary-container": "#fed977",
+                        "on-error-container": "#93000a",
+                        "secondary": "#755b00",
+                        "primary-container": "#122b44",
+                        "primary": "#00162c",
+                        "on-primary-container": "#7b93b1",
+                        "on-secondary-container": "#785d00",
+                        "background": "#f8f9fa",
+                        "inverse-surface": "#2e3132",
+                        "tertiary-fixed-dim": "#e8c08d",
+                        "surface-bright": "#f8f9fa",
+                        "primary-fixed": "#d1e4ff",
+                        "on-tertiary-fixed": "#291800",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#5d421a",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-surface": "#191c1d",
+                        "text-muted": "#64748B",
+                        "surface-container-low": "#f3f4f5",
+                        "surface-container-high": "#e7e8e9",
+                        "on-surface-variant": "#43474d",
+                        "on-background": "#191c1d",
+                        "warning-amber": "#D97706",
+                        "on-secondary-fixed-variant": "#584400",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#e6c364",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#c4c6ce",
+                        "on-primary": "#ffffff",
+                        "success-emerald": "#2D6A4F",
+                        "surface-tint": "#49607c",
+                        "text-main": "#1A1C1E",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#b1c8e8",
+                        "tertiary-container": "#3c2501",
+                        "surface-glass": "rgba(255, 255, 255, 0.7)",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#b1c8e8",
+                        "surface": "#f8f9fa",
+                        "secondary-fixed": "#ffe08f",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-secondary-fixed": "#241a00",
+                        "tertiary-fixed": "#ffddb4",
+                        "on-primary-fixed-variant": "#314863",
+                        "outline": "#74777e",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary": "#211200"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "gutter-md": "16px",
+                        "container-margin": "20px",
+                        "stack-md": "12px",
+                        "section-gap": "32px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md-mobile": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md min-h-screen pb-32">
+<!-- Top App Bar -->
+<header class="bg-surface-glass backdrop-blur-md sticky top-0 z-50 flex justify-between items-center px-container-margin py-stack-md w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/10">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a luxury gemstone dealer in a high-end office, captured with soft natural lighting. The subject has a sophisticated appearance, reflecting a premium brand identity. The background is a clean, minimalist studio space with subtle hints of emerald and gold decor, emphasizing a wealth-management aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr4Olq3KWL0YDS5yVbdRIFe8x6XhwdXmPB47jTzbP6PTcxOgo_xKngRlO4qRH-1VkyBrpbf4XbXVxoDDK-628erUG5uAVDjoVnB1leZu7XO-4RRgPidWUJRvArPF3DFP1ky2u_tw6lshreIGww9HDavGUb7PrcdnqKorFMpcq6KQL3OjcnL3ErJIeedKIwZDIsczBTpoSdKazIDogq8x9PZRYnqppdgDVXAQ1392-I1A0hQfKEcpKxvw"/>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary">GemVault</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+</header>
+<main class="px-container-margin mt-stack-md">
+<!-- High-Level Summary -->
+<section class="grid grid-cols-1 gap-gutter-md">
+<div class="glass-card p-6 rounded-xl border border-surface-variant/20 shadow-[0px_15px_30px_rgba(0,22,44,0.05)]">
+<p class="text-on-surface-variant font-label-md uppercase tracking-wider mb-2">Total Net Profit</p>
+<div class="flex items-end justify-between">
+<h2 class="font-display-lg text-display-lg text-primary">$142,850.00</h2>
+<span class="text-success-emerald font-label-md flex items-center bg-success-emerald/10 px-2 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm mr-1">trending_up</span> +12.5%
+                    </span>
+</div>
+<div class="mt-6 grid grid-cols-2 gap-4">
+<div class="p-4 bg-primary/5 rounded-lg">
+<p class="text-on-surface-variant font-label-md mb-1">Income</p>
+<p class="text-primary font-headline-sm">$184,200</p>
+</div>
+<div class="p-4 bg-error/5 rounded-lg">
+<p class="text-on-surface-variant font-label-md mb-1">Expenses</p>
+<p class="text-error font-headline-sm">$41,350</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Cash Flow Visualization -->
+<section class="mt-section-gap">
+<div class="flex items-center justify-between mb-stack-md">
+<h3 class="font-headline-sm text-headline-sm text-primary">Cash Flow</h3>
+<button class="text-primary font-label-md flex items-center gap-1">
+                    This Month <span class="material-symbols-outlined text-sm">expand_more</span>
+</button>
+</div>
+<div class="glass-card p-6 rounded-xl border border-surface-variant/20 shadow-[0px_15px_30px_rgba(0,22,44,0.05)] overflow-hidden relative">
+<!-- Abstract Chart Representation -->
+<div class="flex items-end justify-between h-40 gap-2">
+<div class="w-full bg-primary/10 rounded-t-lg relative group transition-all hover:bg-primary/20" style="height: 60%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-[10px] px-2 py-1 rounded">Sourcing</div>
+</div>
+<div class="w-full bg-primary/10 rounded-t-lg relative group transition-all hover:bg-primary/20" style="height: 45%;"></div>
+<div class="w-full bg-primary rounded-t-lg relative group transition-all" style="height: 85%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-[10px] px-2 py-1 rounded">Sales</div>
+</div>
+<div class="w-full bg-primary/10 rounded-t-lg relative group transition-all hover:bg-primary/20" style="height: 30%;"></div>
+<div class="w-full bg-secondary rounded-t-lg relative group transition-all" style="height: 55%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-secondary text-white text-[10px] px-2 py-1 rounded">Logistics</div>
+</div>
+<div class="w-full bg-primary/10 rounded-t-lg relative group transition-all hover:bg-primary/20" style="height: 70%;"></div>
+<div class="w-full bg-primary/10 rounded-t-lg relative group transition-all hover:bg-primary/20" style="height: 40%;"></div>
+</div>
+<div class="mt-6 flex flex-wrap gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-on-surface-variant font-label-md">Inventory Sales</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="text-on-surface-variant font-label-md">Operations</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary/20"></span>
+<span class="text-on-surface-variant font-label-md">Marketing</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Categories Bento Grid -->
+<section class="mt-section-gap">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-stack-md">Spend Categories</h3>
+<div class="grid grid-cols-2 gap-4">
+<div class="glass-card p-4 rounded-xl border border-surface-variant/10 flex flex-col justify-between h-32">
+<span class="material-symbols-outlined text-primary bg-primary/5 w-10 h-10 flex items-center justify-center rounded-full">diamond</span>
+<div>
+<p class="text-on-surface-variant font-label-md">Sourcing</p>
+<p class="text-primary font-bold">$24.5k</p>
+</div>
+</div>
+<div class="glass-card p-4 rounded-xl border border-surface-variant/10 flex flex-col justify-between h-32">
+<span class="material-symbols-outlined text-on-tertiary-container bg-tertiary-fixed w-10 h-10 flex items-center justify-center rounded-full">verified</span>
+<div>
+<p class="text-on-surface-variant font-label-md">Services</p>
+<p class="text-primary font-bold">$12.2k</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Transactions -->
+<section class="mt-section-gap">
+<div class="flex items-center justify-between mb-stack-md">
+<h3 class="font-headline-sm text-headline-sm text-primary">Recent Transactions</h3>
+<button class="text-primary font-label-md underline">View All</button>
+</div>
+<div class="space-y-3">
+<!-- Transaction Item 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between border border-surface-variant/10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-success-emerald/10 text-success-emerald flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">add</span>
+</div>
+<div>
+<p class="text-primary font-bold">1.2ct Royal Blue Sapphire</p>
+<p class="text-on-surface-variant text-xs">Inventory Sale • Oct 24</p>
+</div>
+</div>
+<p class="text-success-emerald font-bold">+$4,200.00</p>
+</div>
+<!-- Transaction Item 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between border border-surface-variant/10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-error/10 text-error flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">remove</span>
+</div>
+<div>
+<p class="text-primary font-bold">GIA Certification Fees</p>
+<p class="text-on-surface-variant text-xs">Services • Oct 22</p>
+</div>
+</div>
+<p class="text-error font-bold">-$850.00</p>
+</div>
+<!-- Transaction Item 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between border border-surface-variant/10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-success-emerald/10 text-success-emerald flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">add</span>
+</div>
+<div>
+<p class="text-primary font-bold">Emerald Cut Pendant Commission</p>
+<p class="text-on-surface-variant text-xs">Service Fee • Oct 20</p>
+</div>
+</div>
+<p class="text-success-emerald font-bold">+$12,000.00</p>
+</div>
+<!-- Transaction Item 4 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex items-center justify-between border border-surface-variant/10">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-error/10 text-error flex items-center justify-center rounded-full">
+<span class="material-symbols-outlined">remove</span>
+</div>
+<div>
+<p class="text-primary font-bold">Parcel Logistic Insurance</p>
+<p class="text-on-surface-variant text-xs">Operations • Oct 18</p>
+</div>
+</div>
+<p class="text-error font-bold">-$1,240.00</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-40">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] z-50 flex justify-around items-center p-2 bg-surface-glass backdrop-blur-xl rounded-full border border-surface-variant/20 shadow-[0px_15px_30px_rgba(0,22,44,0.05)]">
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">diamond</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">explore</span>
+</a>
+<!-- ACTIVE TAB: Inventory/Money logic -->
+<a class="flex items-center justify-center bg-primary text-on-primary rounded-full w-12 h-12 scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+</a>
+<a class="flex items-center justify-center text-outline w-12 h-12 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined">person</span>
+</a>
+</nav>
+<script>
+        // Simple intersection observer for reveal animations
+        const observerOptions = {
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('opacity-100', 'translate-y-0');
+                    entry.target.classList.remove('opacity-0', 'translate-y-4');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('section').forEach(section => {
+            section.classList.add('transition-all', 'duration-700', 'opacity-0', 'translate-y-4');
+            observer.observe(section);
+        });
+    </script>
+</body></html>

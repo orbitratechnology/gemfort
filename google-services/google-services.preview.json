@@ -1,0 +1,160 @@
+{
+  "project_info": {
+    "project_number": "478360291449",
+    "project_id": "gemfort",
+    "storage_bucket": "gemfort.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478360291449:android:8de6a2a3e6b3f699456ca8",
+        "android_client_info": {
+          "package_name": "app.gemfort"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478360291449-10kdke0mt2f7obsdr2usi38vq5dsdkmv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.gemfort",
+            "certificate_hash": "3d7cc42bc35652e3147c4789968e4be900c36891"
+          }
+        },
+        {
+          "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLiyikGJ-4THOeMa0YtjBTBnP4jSBBKzk"
+        },
+        {
+          "current_key": "AIzaSyCfMbSZbSTFcZ4dwpSDnukkLXO0dZq9oo8"
+        },
+        {
+          "current_key": "AIzaSyBH3rr7YfJandlNge2WsastJJ-gBI8s8Fk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "478360291449-kcfqobf2rr7ref2oakp0af1bd7nknlgv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.gemfort.preview"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478360291449:android:2ec8535f55333720456ca8",
+        "android_client_info": {
+          "package_name": "app.gemfort.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478360291449-47hut6pth4aoujhbo1vgmoj995lof4kl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.gemfort.dev",
+            "certificate_hash": "3d7cc42bc35652e3147c4789968e4be900c36891"
+          }
+        },
+        {
+          "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLiyikGJ-4THOeMa0YtjBTBnP4jSBBKzk"
+        },
+        {
+          "current_key": "AIzaSyCfMbSZbSTFcZ4dwpSDnukkLXO0dZq9oo8"
+        },
+        {
+          "current_key": "AIzaSyBH3rr7YfJandlNge2WsastJJ-gBI8s8Fk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "478360291449-kcfqobf2rr7ref2oakp0af1bd7nknlgv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.gemfort.preview"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478360291449:android:24835c24f98f45ab456ca8",
+        "android_client_info": {
+          "package_name": "app.gemfort.preview"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "478360291449-8ssfp58nahcci5vvf7an8dmij2tta6a1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.gemfort.preview",
+            "certificate_hash": "3d7cc42bc35652e3147c4789968e4be900c36891"
+          }
+        },
+        {
+          "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLiyikGJ-4THOeMa0YtjBTBnP4jSBBKzk"
+        },
+        {
+          "current_key": "AIzaSyCfMbSZbSTFcZ4dwpSDnukkLXO0dZq9oo8"
+        },
+        {
+          "current_key": "AIzaSyBH3rr7YfJandlNge2WsastJJ-gBI8s8Fk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "478360291449-9d0fn1om9sqnho8682ogpp04kckbd24r.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "478360291449-kcfqobf2rr7ref2oakp0af1bd7nknlgv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.gemfort.preview"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

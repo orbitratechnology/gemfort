@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Service Detail - GemFort</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#00162c",
+                        "on-surface": "#191c1d",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface-dim": "#d9dadb",
+                        "on-secondary-fixed": "#241a00",
+                        "inverse-primary": "#b1c8e8",
+                        "surface-tint": "#49607c",
+                        "tertiary-fixed-dim": "#e8c08d",
+                        "secondary-fixed-dim": "#e6c364",
+                        "inverse-surface": "#2e3132",
+                        "on-tertiary-fixed": "#291800",
+                        "surface-container-lowest": "#ffffff",
+                        "text-muted": "#64748B",
+                        "tertiary-fixed": "#ffddb4",
+                        "primary-fixed-dim": "#b1c8e8",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#785d00",
+                        "surface-container": "#edeeef",
+                        "surface-glass": "rgba(255, 255, 255, 0.7)",
+                        "secondary-fixed": "#ffe08f",
+                        "primary-fixed": "#d1e4ff",
+                        "background": "#f8f9fa",
+                        "tertiary": "#211200",
+                        "surface-container-high": "#e7e8e9",
+                        "on-secondary-fixed-variant": "#584400",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c4c6ce",
+                        "tertiary-container": "#3c2501",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "outline": "#74777e",
+                        "success-emerald": "#2D6A4F",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f3f4f5",
+                        "inverse-on-surface": "#f0f1f2",
+                        "secondary-container": "#fed977",
+                        "on-surface-variant": "#43474d",
+                        "on-primary-fixed-variant": "#314863",
+                        "on-primary-container": "#7b93b1",
+                        "error-container": "#ffdad6",
+                        "on-background": "#191c1d",
+                        "secondary": "#755b00",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#011d35",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary-container": "#ae8b5c",
+                        "primary-container": "#122b44",
+                        "on-tertiary-fixed-variant": "#5d421a",
+                        "warning-amber": "#D97706",
+                        "text-main": "#1A1C1E",
+                        "surface-variant": "#e1e3e4",
+                        "surface": "#f8f9fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "container-margin": "20px",
+                        "stack-md": "12px",
+                        "section-gap": "32px",
+                        "gutter-md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md-mobile": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen relative pb-32">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-40 bg-surface-glass backdrop-blur-xl flex justify-between items-center w-full px-container-margin py-stack-md">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile font-bold text-primary">Service Detail</h1>
+<div class="w-10"></div> <!-- Spacer for centering -->
+</header>
+<main class="px-container-margin py-section-gap space-y-section-gap">
+<!-- Header Section -->
+<section class="space-y-stack-md">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center gap-1 bg-surface-container-highest px-3 py-1 rounded-full text-label-md font-label-md">
+<span class="material-symbols-outlined text-[14px]">diamond</span>
+                    Recut
+                </span>
+<span class="text-secondary font-label-md text-label-md">IN PROGRESS</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-primary">Royal Blue Sapphire Recut</h2>
+<p class="text-on-surface-variant text-body-md font-body-md">Refining facet symmetry to enhance brilliance and color saturation.</p>
+</section>
+<!-- Progress Timeline -->
+<section class="bg-surface-container-lowest rounded-xl p-4 shadow-[0_15px_15px_rgba(0,22,44,0.02)]">
+<h3 class="font-headline-md-mobile text-headline-md-mobile mb-4">Timeline</h3>
+<div class="relative pl-6 space-y-6 before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-surface-variant">
+<div class="relative">
+<div class="absolute -left-[30px] top-1 w-[20px] h-[20px] rounded-full bg-primary flex items-center justify-center border-4 border-surface-container-lowest">
+<span class="material-symbols-outlined text-white text-[12px]">check</span>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-md text-label-md text-primary">Received</p>
+<p class="text-body-md text-text-muted">Gem accepted by artisan</p>
+</div>
+<span class="text-label-md text-text-muted">Oct 12</span>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[30px] top-1 w-[20px] h-[20px] rounded-full bg-primary flex items-center justify-center border-4 border-surface-container-lowest">
+<div class="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-md text-label-md text-primary">Cutting in Progress</p>
+<p class="text-body-md text-text-muted">Current stage</p>
+</div>
+<span class="text-label-md text-text-muted">Today</span>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[30px] top-1 w-[20px] h-[20px] rounded-full bg-surface-variant border-4 border-surface-container-lowest"></div>
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-md text-label-md text-text-muted">Final Polish</p>
+<p class="text-body-md text-text-muted">Pending</p>
+</div>
+<span class="text-label-md text-text-muted">Est. Oct 16</span>
+</div>
+</div>
+<div class="relative">
+<div class="absolute -left-[30px] top-1 w-[20px] h-[20px] rounded-full bg-surface-variant border-4 border-surface-container-lowest"></div>
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-md text-label-md text-text-muted">Ready for Pickup</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Weight Tracking -->
+<section class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-[0_15px_15px_rgba(0,22,44,0.02)] flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-text-muted mb-2">scale</span>
+<p class="text-label-md font-label-md text-text-muted uppercase tracking-wider mb-1">Before</p>
+<p class="font-headline-sm text-headline-sm text-primary">4.20 ct</p>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-[0_15px_15px_rgba(0,22,44,0.02)] flex flex-col items-center justify-center text-center">
+<span class="material-symbols-outlined text-secondary-fixed-dim mb-2">flare</span>
+<p class="text-label-md font-label-md text-text-muted uppercase tracking-wider mb-1">Expected</p>
+<p class="font-headline-sm text-headline-sm text-primary">3.85 ct</p>
+<p class="text-[10px] text-text-muted mt-1">Est. loss ~8%</p>
+</div>
+</section>
+<!-- Provider Details -->
+<section class="bg-surface-container-lowest rounded-xl p-4 shadow-[0_15px_15px_rgba(0,22,44,0.02)] flex items-center justify-between">
+<div class="flex items-center gap-4">
+<img alt="Provider Avatar" class="w-12 h-12 rounded-full object-cover shadow-sm" data-alt="A professional portrait of a skilled gem artisan, well-lit, in a modern, clean workshop setting, conveying trust and high-end craftsmanship." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAu9wSdJmcUwXCtzJjLUAhxpnJS5XJ3EApC7b1weQwQJFmZ6APlt36eiuO8-fmqkpo061Ct_6PEwH7LYCcsYqqXDYwQfPWRQAtDpqT4poclJFdx2Ps19MvxUxOVI8wepw-ZhFe7hRfeI3dgtTaZituco5JEvLDsj8aNcd_39uCA9sSXq6F5pUhDPh8nrXa8FcCHGuI2fIbujzfgYQCX95mfJcuKZce_cdoYCHlfLzuB6pySpghtsR5Nww"/>
+<div>
+<h3 class="font-headline-md-mobile text-body-lg font-bold text-primary">Atelier Luma</h3>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-secondary-fixed-dim text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+<p class="text-body-md text-text-muted text-sm">Master Cutter</p>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center hover:bg-surface-dim transition-colors">
+<span class="material-symbols-outlined text-on-surface">call</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center hover:bg-surface-dim transition-colors">
+<span class="material-symbols-outlined text-on-surface">chat</span>
+</button>
+</div>
+</section>
+<!-- Cost Breakdown -->
+<section class="bg-surface-container-lowest rounded-xl p-4 shadow-[0_15px_15px_rgba(0,22,44,0.02)]">
+<h3 class="font-headline-md-mobile text-headline-md-mobile mb-4">Cost Summary</h3>
+<div class="space-y-2">
+<div class="flex justify-between text-body-md">
+<span class="text-on-surface-variant">Base Service Fee</span>
+<span>$450.00</span>
+</div>
+<div class="flex justify-between text-body-md">
+<span class="text-on-surface-variant">Insurance</span>
+<span>$50.00</span>
+</div>
+<div class="pt-2 border-t border-surface-variant flex justify-between font-headline-sm text-headline-sm mt-2">
+<span>Total Estimate</span>
+<span>$500.00</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Action Area -->
+<div class="fixed bottom-0 left-0 right-0 p-container-margin bg-surface-glass backdrop-blur-xl border-t border-surface-variant/20">
+<button class="w-full bg-primary text-on-primary font-headline-sm text-headline-sm py-3 rounded-full hover:opacity-90 transition-opacity">
+            View Contract
+        </button>
+</div>
+</body></html>
