@@ -1,6 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
@@ -12,9 +12,11 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { loginUser, getUserProfile, needsPhoneVerification } from '@/lib/firebase/auth-service';
 import { markOnboardingComplete } from '@/lib/onboarding';
+import { useToast } from '@/providers/toast-provider';
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export default function LoginScreen() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Login failed';
       setError(msg);
-      Alert.alert('Sign In Failed', msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

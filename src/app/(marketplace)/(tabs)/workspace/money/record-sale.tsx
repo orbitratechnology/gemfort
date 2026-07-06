@@ -2,7 +2,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { formatGemType } from '@/constants/gem-options';
@@ -22,6 +22,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Timestamp } from '@/lib/firebase/db';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 type PaymentMethod = 'transfer' | 'cash' | 'cheque';
 const METHODS: { id: PaymentMethod; label: string; icon: IconName }[] = [
@@ -34,6 +35,7 @@ export default function RecordSaleScreen() {
   const { gemId: gemIdParam } = useLocalSearchParams<{ gemId?: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
 
   const [selectedGemId, setSelectedGemId] = useState<string | null>(gemIdParam ?? null);
@@ -61,11 +63,11 @@ export default function RecordSaleScreen() {
 
   async function handleConfirm() {
     if (!user || !gem) {
-      Alert.alert('Select a gem', 'Choose which stone you are selling.');
+      toast.error('Choose which stone you are selling.');
       return;
     }
     if (!salePrice) {
-      Alert.alert('Enter price', 'Enter the final sale price.');
+      toast.error('Enter the final sale price.');
       return;
     }
     setLoading(true);
@@ -83,11 +85,10 @@ export default function RecordSaleScreen() {
       await updateGemStatus(gem.id, user.uid, 'sold', `Sold for ${formatCurrency(salePrice)}`);
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      Alert.alert('Sale recorded', `${gem.sku} marked as sold and logged to your ledger.`, [
-        { text: 'Done', onPress: () => router.back() },
-      ]);
+      toast.success(`${gem.sku} marked as sold and logged to your ledger.`);
+      router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not record sale');
+      toast.error(e instanceof Error ? e.message : 'Could not record sale');
     } finally {
       setLoading(false);
     }
@@ -95,23 +96,9 @@ export default function RecordSaleScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerBrand}>
-          <Icon name="diamond" size={20} color={colors.primary} />
-          <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-        </View>
-        <Pressable onPress={() => router.push('/notifications')} style={styles.iconBtn}>
-          <Icon name="notifications-none" size={22} color={colors.onSurfaceVariant} />
-        </Pressable>
-      </View>
+      <StackHeader title="Record Sale" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => router.back()} style={styles.backRow}>
-          <Icon name="arrow-back" size={18} color={colors.onSurfaceVariant} />
-          <Text style={[styles.backText, { color: colors.onSurfaceVariant }]}>BACK TO INVENTORY</Text>
-        </Pressable>
-
         <View style={styles.titleWrap}>
           <Text style={[styles.title, { color: colors.primary }]}>Record Stone Sale</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
@@ -242,7 +229,7 @@ export default function RecordSaleScreen() {
             </View>
             <View>
               <Text style={[styles.projLabel, { color: colors.onPrimary + 'AA' }]}>NET PROFIT</Text>
-              <Text style={[styles.projValue, { color: netProfit >= 0 ? colors.accent : '#FF8A80' }]}>
+              <Text style={[styles.projValue, { color: netProfit >= 0 ? colors.accent : colors.error }]}>
                 {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
               </Text>
             </View>

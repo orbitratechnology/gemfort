@@ -1,11 +1,12 @@
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { AuthProvider } from '@/providers/auth-provider';
 import { PushNotificationRegistrar } from '@/providers/push-notification-registrar';
 import { QueryProvider } from '@/providers/query-provider';
 import { ThemeProvider } from '@/providers/theme-provider';
+import { ToastProvider } from '@/providers/toast-provider';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,12 +55,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <QueryProvider>
-        <AuthProvider>
-          <PushNotificationRegistrar />
-          <RootNavigator />
-        </AuthProvider>
-      </QueryProvider>
+      <ToastProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <PushNotificationRegistrar />
+            <RootNavigator />
+          </AuthProvider>
+        </QueryProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

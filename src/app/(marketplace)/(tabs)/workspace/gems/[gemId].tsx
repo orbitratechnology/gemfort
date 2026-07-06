@@ -1,29 +1,31 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Image, StyleSheet, Text, View, Pressable } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
-import { MANUAL_STATUS_OPTIONS, formatGemType } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { MANUAL_STATUS_OPTIONS, formatGemType } from '@/constants/gem-options';
 import { getGemQuickActions } from '@/features/workspace/gem-utils';
 import {
-  fetchGem,
-  fetchGemCosts,
-  fetchGemEvents,
-  updateGemStatus,
+    fetchGem,
+    fetchGemCosts,
+    fetchGemEvents,
+    updateGemStatus,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import type { GemStatus } from '@/types';
 
 export default function GemDetailScreen() {
   const { gemId } = useLocalSearchParams<{ gemId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
 
   const { data: gem } = useQuery({
@@ -57,7 +59,7 @@ export default function GemDetailScreen() {
       await queryClient.invalidateQueries({ queryKey: ['gem-events', gemId] });
       await queryClient.invalidateQueries({ queryKey: ['gems', user.uid] });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not update status');
+      toast.error(e instanceof Error ? e.message : 'Could not update status');
     }
   }
 
@@ -97,7 +99,7 @@ export default function GemDetailScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Top Navigation */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
+      <View style={[styles.header]}>
         <Pressable onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerHigh }]}>
           <Icon name="arrow-back" size={24} color={colors.onSurface} />
         </Pressable>

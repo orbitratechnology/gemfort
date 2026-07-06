@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchServices } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -90,21 +91,7 @@ export default function ServicesListScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.avatar, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.surfaceContainer }]}>
-            <Icon name="person" size={20} color={colors.onSurfaceVariant} />
-          </View>
-          <View>
-            <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-            <Text style={[styles.brandSub, { color: colors.textMuted }]}>Workspace</Text>
-          </View>
-        </View>
-        <Pressable style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerLowest }]} onPress={() => router.push('/notifications')}>
-          <Icon name="notifications-none" size={24} color={colors.primary} />
-        </Pressable>
-      </View>
+      <StackHeader title="Service Records" />
 
       <FlatList
         data={filtered}

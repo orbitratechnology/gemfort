@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatGemType } from '@/constants/gem-options';
@@ -62,21 +63,7 @@ export default function ApListScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Top App Bar */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.avatarWrap, { borderColor: colors.outlineVariant + '4D' }]}>
-            <Image 
-              source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAmyqGiHgNlGA5F-oPqtdBo7nxtOawms6rrDuDtPMNWrxnYvTwgn5R5sSTcJBAJuIbwOXVfiow__ZXeK3Iif8LE5ryKX8qrq-XAsHkzpl98zSsyE9mBCmOAjdnkH0arDxqHpY4DA2Ew397NsA5uGsolK_wOpDKqNNHJex-_A-WMqudfZEdona49ewGRodgvGGRFk3UrAHQYfw2_NUghCSBDW39t3JK2fHvSdb00cV-o6Xy0efH5ChiUfg' }} 
-              style={styles.avatar} 
-            />
-          </View>
-          <Text style={[styles.brandName, { color: colors.primary }]}>GemFort</Text>
-        </View>
-        <Pressable style={styles.bellBtn} onPress={() => router.push('/notifications')}>
-          <Icon name="notifications-none" size={24} color={colors.onSurfaceVariant} />
-        </Pressable>
-      </View>
+      <StackHeader title="AP Stones" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         {/* Page Header */}

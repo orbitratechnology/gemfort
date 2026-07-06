@@ -45,3 +45,5 @@ example
 /android
 
 *.plan.md
+
+/dogfood-output
