@@ -1,24 +1,26 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
+import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { uploadPickedImage } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 const STEPS = ['Documents', 'Face Match', 'Review'];
 
 export default function VerifyApplicationScreen() {
   const { user, refreshProfile } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const [brNumber, setBrNumber] = useState('');
   const [ngjaNumber, setNgjaNumber] = useState('');
   const [applicationType, setApplicationType] = useState<'seller' | 'provider'>('seller');
@@ -43,7 +45,7 @@ export default function VerifyApplicationScreen() {
   async function handleSubmit() {
     if (!user) return;
     if (!brNumber) {
-      Alert.alert('BR number required', 'Enter your business registration number to continue.');
+      toast.error('Enter your business registration number to continue.');
       return;
     }
     setLoading(true);
@@ -64,13 +66,10 @@ export default function VerifyApplicationScreen() {
         },
       });
       await refreshProfile();
-      Alert.alert(
-        'Submitted',
-        'Your verification application is pending review. You will be notified when approved.',
-        [{ text: 'OK', onPress: () => router.back() }],
-      );
+      toast.success('Verification submitted — pending review. You will be notified when approved.');
+      router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Submission failed');
+      toast.error(e instanceof Error ? e.message : 'Submission failed');
     } finally {
       setLoading(false);
     }
@@ -79,7 +78,7 @@ export default function VerifyApplicationScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
+      <View style={[styles.header]}>
         <View style={styles.headerLeft}>
           <Icon name="diamond" size={22} color={colors.primary} />
           <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>

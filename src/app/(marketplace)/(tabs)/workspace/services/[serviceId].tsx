@@ -1,18 +1,19 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { completeService, fetchServices } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import type { ServiceRecord } from '@/types';
 
 function timelineSteps(status: ServiceRecord['status']) {
@@ -37,6 +38,7 @@ export default function ServiceDetailScreen() {
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [weightAfter, setWeightAfter] = useState('');
   const [finalCost, setFinalCost] = useState('');
@@ -71,10 +73,10 @@ export default function ServiceDetailScreen() {
       });
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       await queryClient.invalidateQueries({ queryKey: ['services'] });
-      Alert.alert('Done', 'Service marked complete');
+      toast.success('Service marked complete');
       router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed');
+      toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setLoading(false);
     }
@@ -83,7 +85,7 @@ export default function ServiceDetailScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
+      <View style={[styles.header]}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Icon name="arrow-back" size={24} color={colors.onSurface} />
         </Pressable>

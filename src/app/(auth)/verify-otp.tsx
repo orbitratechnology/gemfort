@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -25,10 +24,12 @@ import {
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
   const ts = useThemeStyles();
+  const toast = useToast();
   const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
   const { user } = useAuth();
   const phone = normalizePhoneNumber(phoneParam ?? '');
@@ -47,11 +48,11 @@ export default function VerifyOtpScreen() {
 
   const handleSendCode = useCallback(async () => {
     if (!phone) {
-      Alert.alert('Missing phone', 'No phone number to verify.');
+      toast.error('No phone number to verify.');
       return;
     }
     if (!isFirebaseConfigured) {
-      Alert.alert('Firebase not configured', 'Set EXPO_PUBLIC_FIREBASE_* env vars.');
+      toast.error('Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.');
       return;
     }
     setSending(true);
@@ -59,9 +60,9 @@ export default function VerifyOtpScreen() {
       const id = await sendPhoneVerificationCode(phone);
       setVerificationId(id);
       setCooldown(60);
-      Alert.alert('Code sent', `We sent a verification code to ${phone}`);
+      toast.success(`We sent a verification code to ${phone}`);
     } catch (e) {
-      Alert.alert('Could not send code', e instanceof Error ? e.message : 'Try again');
+      toast.error(e instanceof Error ? e.message : 'Could not send code. Try again.');
     } finally {
       setSending(false);
     }
@@ -69,7 +70,7 @@ export default function VerifyOtpScreen() {
 
   async function handleConfirm() {
     if (!verificationId || code.length < 6) {
-      Alert.alert('Enter the 6-digit code from your SMS.');
+      toast.error('Enter the 6-digit code from your SMS.');
       return;
     }
     setConfirming(true);
@@ -78,7 +79,7 @@ export default function VerifyOtpScreen() {
       await markOnboardingComplete();
       router.replace('/(marketplace)/(tabs)/home');
     } catch (e) {
-      Alert.alert('Verification failed', e instanceof Error ? e.message : 'Invalid code');
+      toast.error(e instanceof Error ? e.message : 'Verification failed. Invalid code.');
     } finally {
       setConfirming(false);
     }

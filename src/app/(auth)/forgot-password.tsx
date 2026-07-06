@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { resetPassword } from '@/lib/firebase/auth-service';
+import { useToast } from '@/providers/toast-provider';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useAppTheme();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,9 +20,9 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       await resetPassword(email);
-      Alert.alert('Email sent', 'Check your inbox for reset instructions.');
+      toast.success('Check your inbox for reset instructions.');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not send reset email');
+      toast.error(e instanceof Error ? e.message : 'Could not send reset email');
     } finally {
       setLoading(false);
     }

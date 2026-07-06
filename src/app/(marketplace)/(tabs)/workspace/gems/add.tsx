@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,12 @@ import { createGem } from '@/features/workspace/workspace-service';
 import { uploadPickedImage } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useToast } from '@/providers/toast-provider';
 
 export default function AddGemScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const [step, setStep] = useState(1);
   const [gemType, setGemType] = useState('blue_sapphire');
   const [originCountry, setOriginCountry] = useState('');
@@ -29,7 +31,7 @@ export default function AddGemScreen() {
   function handleNext() {
     if (step === 1) {
       if (!roughWeight.trim() || !acquisitionCost.trim()) {
-        Alert.alert('Required', 'Please enter weight and price.');
+        toast.error('Please enter weight and price.');
         return;
       }
       setStep(2);
@@ -53,10 +55,10 @@ export default function AddGemScreen() {
         notes: `Treatment: ${treatment}`,
         photoUrls: photoUrl ? [photoUrl] : [],
       });
-      Alert.alert('Success', 'Gem added to your inventory');
+      toast.success('Gem added to your inventory');
       router.replace(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not add gem');
+      toast.error(e instanceof Error ? e.message : 'Could not add gem');
     } finally {
       setLoading(false);
     }

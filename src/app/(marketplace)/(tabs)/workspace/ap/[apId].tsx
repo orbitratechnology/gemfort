@@ -1,13 +1,13 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View, Pressable, Image } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   fetchApRecords,
@@ -17,11 +17,13 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [soldPrice, setSoldPrice] = useState('');
   const [buyerName, setBuyerName] = useState('');
@@ -50,15 +52,15 @@ export default function ApDetailScreen() {
       if (outcome === 'sold') {
         if (!soldPrice) throw new Error('Please enter sale price');
         await recordApSale(apId!, user.uid, parseFloat(soldPrice));
-        Alert.alert('Recorded', 'AP sale recorded');
+        toast.success('AP sale recorded');
       } else {
         await recordApReturn(apId!, user.uid);
-        Alert.alert('Recorded', 'Gem returned from AP');
+        toast.success('Gem returned from AP');
       }
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       router.back();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed');
+      toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setLoading(false);
     }
@@ -67,7 +69,7 @@ export default function ApDetailScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Top App Bar */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
+      <View style={[styles.header]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Icon name="arrow-back" size={24} color={colors.onSurfaceVariant} />
@@ -83,7 +85,7 @@ export default function ApDetailScreen() {
         {/* Summary Card */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stone Details</Text>
-          <View style={[styles.glassCard, { backgroundColor: colors.surfaceGlass, borderColor: colors.surfaceVariant }]}>
+          <View style={[styles.glassCard]}>
             <View style={styles.cardRow}>
               <View style={[styles.gemImageWrap, { backgroundColor: colors.surfaceVariant }]}>
                 <Image 

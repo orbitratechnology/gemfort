@@ -1,10 +1,11 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
@@ -67,19 +68,7 @@ export default function BusinessProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <Pressable onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerHigh }]}>
-          <Icon name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
-        <View style={styles.headerBrand}>
-          <Icon name="diamond" size={20} color={colors.primary} />
-          <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-        </View>
-        <Pressable onPress={() => router.push('/notifications')} style={styles.iconBtn}>
-          <Icon name="notifications-none" size={22} color={colors.onSurfaceVariant} />
-        </Pressable>
-      </View>
+      <StackHeader title="Business" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         {/* Cover + identity */}
@@ -172,7 +161,9 @@ export default function BusinessProfileScreen() {
           <View style={styles.statusRow}>
             <Text style={[styles.statusLabel, { color: colors.onPrimary + 'AA' }]}>Member Since</Text>
             <Text style={[styles.statusValue, { color: colors.onPrimary }]}>
-              {business.badges.verifiedSinceYear ?? new Date(business.createdAt?.toDate?.() ?? Date.now()).getFullYear()}
+              {business.badges.verifiedSinceYear ??
+                business.createdAt?.toDate?.().getFullYear() ??
+                '—'}
             </Text>
           </View>
           <View style={styles.statusRow}>

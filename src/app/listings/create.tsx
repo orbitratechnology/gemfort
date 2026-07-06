@@ -6,16 +6,20 @@ import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 
 import { Button } from '@/components/ui/button';
-import { ThemedScrollView, ThemedView } from '@/components/ui/screen';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
-import { Palette, Spacing, Typography } from '@/constants/design-tokens';
+import { Spacing, Typography } from '@/constants/design-tokens';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import { createListing, fetchGems } from '@/features/workspace/workspace-service';
+import { useAppTheme } from '@/hooks/use-app-theme';
 import { openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 export default function CreateListingScreen() {
   const { user, profile } = useAuth();
+  const { colors } = useAppTheme();
+  const toast = useToast();
   const { workspaceGemId: preselectedGemId } = useLocalSearchParams<{ workspaceGemId?: string }>();
   const [title, setTitle] = useState('');
   const [gemType, setGemType] = useState('blue_sapphire');
@@ -41,8 +45,8 @@ export default function CreateListingScreen() {
   if (!isVerifiedSeller) {
     return (
       <ThemedScrollView contentContainerStyle={styles.blocked}>
-        <Text style={styles.blockedTitle}>Verified sellers only</Text>
-        <Text style={styles.blockedBody}>
+        <Text style={[styles.blockedTitle, { color: colors.primary }]}>Verified sellers only</Text>
+        <Text style={[styles.blockedBody, { color: colors.textMuted }]}>
           Apply for verification from your profile to create gem listings.
         </Text>
         <Button title="Go to Profile" onPress={() => router.push('/(marketplace)/(tabs)/profile')} />
@@ -114,17 +118,17 @@ export default function CreateListingScreen() {
         { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
       ]);
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to publish');
+      toast.error(e instanceof Error ? e.message : 'Failed to publish');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <ThemedScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.section}>Source from Workspace</Text>
+    <ThemedScrollView contentContainerStyle={styles.content}>
+      <Text style={[styles.section, { color: colors.primary }]}>Source from Workspace</Text>
       {linkedGem ? (
-        <Text style={styles.linkedHint}>
+        <Text style={[styles.linkedHint, { color: colors.textMuted }]}>
           Linked: {linkedGem.sku} — {linkedGem.currentWeight}ct
         </Text>
       ) : null}
@@ -149,10 +153,15 @@ export default function CreateListingScreen() {
       <Input label="Carat Weight" value={caratWeight} onChangeText={setCaratWeight} keyboardType="decimal-pad" />
       <Input label="Origin" value={origin} onChangeText={setOrigin} />
 
-      <Text style={styles.section}>Visibility</Text>
+      <Text style={[styles.section, { color: colors.primary }]}>Visibility</Text>
       {(['private', 'members_only', 'public'] as const).map((v) => (
         <Pressable key={v} onPress={() => setVisibility(v)}>
-          <Text style={[styles.vis, visibility === v && styles.visActive]}>
+          <Text
+            style={[
+              styles.vis,
+              { color: visibility === v ? colors.primary : colors.textMuted },
+              visibility === v && styles.visActive,
+            ]}>
             {v === 'private' ? '🔒 Private (link only)' : v === 'members_only' ? '👥 Members' : '🌐 Public'}
           </Text>
         </Pressable>
@@ -164,13 +173,12 @@ export default function CreateListingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Palette.white },
   content: { padding: Spacing.lg, gap: Spacing.md },
-  section: { ...Typography.h3, color: Palette.gemBlue },
-  linkedHint: { ...Typography.bodySmall, color: Palette.gray500 },
-  vis: { ...Typography.body, color: Palette.gray500, paddingVertical: 8 },
-  visActive: { color: Palette.gemBlue, fontWeight: '600' },
+  section: { ...Typography.h3 },
+  linkedHint: { ...Typography.bodySmall },
+  vis: { ...Typography.body, paddingVertical: 8 },
+  visActive: { fontWeight: '600' },
   blocked: { padding: Spacing.xxl, gap: Spacing.md },
-  blockedTitle: { ...Typography.h2, color: Palette.gray900 },
-  blockedBody: { ...Typography.body, color: Palette.gray500 },
+  blockedTitle: { ...Typography.h2 },
+  blockedBody: { ...Typography.body },
 });

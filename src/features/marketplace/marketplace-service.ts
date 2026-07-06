@@ -14,7 +14,7 @@ import {
   Timestamp,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
-import type { Announcement, Business, BusinessType } from '@/types';
+import type { Announcement, Business, BusinessType, MarketplaceListing } from '@/types';
 
 export async function fetchAnnouncements(): Promise<Announcement[]> {
   const q = query(
@@ -338,6 +338,115 @@ export function demoBusinesses(filters?: {
   ];
 
   return filterBusinesses(all, filters);
+}
+
+// ─── Public marketplace listings (gems collection) ─────────────
+
+export type ListingFilters = {
+  gemType?: string | null;
+  verifiedOnly?: boolean;
+  sort?: 'recent' | 'price_low' | 'price_high';
+};
+
+/** Public, active gem listings — readable by guests per Firestore rules. */
+export async function fetchPublicListings(): Promise<MarketplaceListing[]> {
+  const q = query(
+    collection(getFirebaseDb(), 'gems'),
+    where('visibility', '==', 'public'),
+    where('status', '==', 'active'),
+    limit(50),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MarketplaceListing);
+}
+
+export function filterListings(
+  items: MarketplaceListing[],
+  filters?: ListingFilters,
+): MarketplaceListing[] {
+  let result = items;
+  if (filters?.gemType && filters.gemType !== 'all') {
+    result = result.filter((l) => l.gemType === filters.gemType);
+  }
+  const sorted = [...result];
+  if (filters?.sort === 'price_low') {
+    sorted.sort((a, b) => (a.priceMin ?? Infinity) - (b.priceMin ?? Infinity));
+  } else if (filters?.sort === 'price_high') {
+    sorted.sort((a, b) => (b.priceMin ?? 0) - (a.priceMin ?? 0));
+  } else {
+    sorted.sort((a, b) => (b.publishedAt?.toMillis?.() ?? 0) - (a.publishedAt?.toMillis?.() ?? 0));
+  }
+  return sorted;
+}
+
+export function searchListings(search: string, items: MarketplaceListing[]): MarketplaceListing[] {
+  const term = search.toLowerCase().trim();
+  if (!term) return items;
+  return items.filter(
+    (l) =>
+      l.title.toLowerCase().includes(term) ||
+      l.gemType.toLowerCase().includes(term) ||
+      l.origin.toLowerCase().includes(term),
+  );
+}
+
+export function demoListings(): MarketplaceListing[] {
+  const now = Timestamp.now();
+  const base = {
+    sellerUid: 'demo',
+    businessId: 'demo-seller-1',
+    workspaceGemId: null,
+    description: null,
+    visibility: 'public' as const,
+    clarity: 'VS',
+    shape: 'Oval',
+    isCertified: true,
+    certifyingLab: 'GIA',
+    certificateNumber: null,
+    showPrice: true,
+    currency: 'USD',
+    status: 'active' as const,
+    analytics: { totalViews: 0, whatsappTaps: 0 },
+    createdAt: now,
+    updatedAt: now,
+    publishedAt: now,
+  };
+  return [
+    {
+      ...base,
+      id: 'demo-listing-1',
+      title: 'Natural Blue Sapphire',
+      gemType: 'blue_sapphire',
+      caratWeight: 2.4,
+      color: 'Royal Blue',
+      origin: 'Ceylon, Sri Lanka',
+      treatmentStatus: 'unheated',
+      priceMin: 2300,
+      priceMax: null,
+      photoUrls: [
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuC_7OK_3UypEsNQwZgFXed6mI302725BO5QYFtofpbY8PzSm0dEMgGn54C6ym8vcSee6QXTw0g8Z6QU8_OBltA7gLcCeJ4kKFCFOupuVgLA93mmVDwqpxn7RHgD51EFt_nfNONxJ8W0mD2MXxTTSfbepmKUi2HN1p34G4HIfEVddJGuuYIVj0dS-jRlotHtTEWA3B8HbOXVkWB3z1_VpTgc_qNslfs4GY3HmzQHKipxkV3v8LwmE2pD-1wjEXnKy-yn5iw',
+      ],
+      shareableSlug: 'GF-L-00001',
+      shareableUrl: 'https://gemfort.app/l/GF-L-00001',
+    },
+    {
+      ...base,
+      id: 'demo-listing-2',
+      title: 'Pigeon Blood Ruby',
+      gemType: 'ruby',
+      caratWeight: 1.8,
+      color: 'Pigeon Blood',
+      origin: 'Mogok, Myanmar',
+      treatmentStatus: 'heated',
+      priceMin: 5500,
+      priceMax: null,
+      photoUrls: [
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuAnxTKk7Lh3v8VRIiVT16UI-WibWqYAYWYptNYrqza3yY8wTHL_v-2aw6XRG4BZHj3R-uVySUjExAGUwSOcA7QO1tFoxcJToAb-1tZh-DxfSuLUud96jxa3xaKZnzxWGxox981P5jRQ6kUIr7f10n7mpdN3aPRZ1WGiM9W6b8gxlblPu9qP5lkdoTlhcI-Yr6M7HR-QCb8-58Fs9emGEYkKhvx0oSDCOppcYSq_yRMooh1CXQ45fIUC8g',
+      ],
+      shareableSlug: 'GF-L-00002',
+      shareableUrl: 'https://gemfort.app/l/GF-L-00002',
+    },
+  ];
 }
 
 export function demoAnnouncements(): Announcement[] {

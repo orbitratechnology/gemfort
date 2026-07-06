@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { CONTACT_TYPES } from '@/constants/contact-types';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { filterContacts } from '@/features/workspace/contact-utils';
@@ -70,25 +71,7 @@ export default function ContactsListScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerLeft}>
-          <Icon name="diamond" size={22} color={colors.primary} />
-          <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Pressable onPress={() => router.push('/notifications')} style={styles.headerBtn}>
-            <Icon name="notifications-none" size={22} color={colors.onSurfaceVariant} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(marketplace)/(tabs)/profile')}
-            style={[styles.headerAvatar, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.headerAvatarText, { color: colors.onPrimary }]}>
-              {initials(user?.displayName ?? 'JD')}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+      <StackHeader title="Contacts" />
 
       <FlatList
         data={filtered}
@@ -100,7 +83,6 @@ export default function ContactsListScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <Text style={[styles.title, { color: colors.primary }]}>Workspace</Text>
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>
               Manage your network of gem collectors, sellers, and logistics partners.
             </Text>

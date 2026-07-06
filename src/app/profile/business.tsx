@@ -1,7 +1,7 @@
 import { Redirect, router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -15,6 +15,7 @@ import {
 import { useThemeStyles } from '@/hooks/use-theme-styles';
 import type { AuthUser } from '@/lib/firebase/auth-types';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import type { Business, BusinessType, UserProfile } from '@/types';
 
 type FormProps = {
@@ -25,6 +26,7 @@ type FormProps = {
 
 function BusinessProfileForm({ business, user, profile }: FormProps) {
   const ts = useThemeStyles();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [businessName, setBusinessName] = useState(business?.businessName ?? '');
   const [shortDescription, setShortDescription] = useState(business?.shortDescription ?? '');
@@ -39,7 +41,7 @@ function BusinessProfileForm({ business, user, profile }: FormProps) {
 
   async function handleSave() {
     if (!businessName.trim() || !city.trim()) {
-      Alert.alert('Required fields', 'Business name and city are required.');
+      toast.error('Business name and city are required.');
       return;
     }
     setLoading(true);
@@ -66,9 +68,9 @@ function BusinessProfileForm({ business, user, profile }: FormProps) {
         });
       }
       await queryClient.invalidateQueries({ queryKey: ['my-business'] });
-      Alert.alert('Saved', 'Your business profile has been updated.');
+      toast.success('Your business profile has been updated.');
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not save');
+      toast.error(e instanceof Error ? e.message : 'Could not save');
     } finally {
       setLoading(false);
     }

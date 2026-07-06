@@ -13,9 +13,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BusinessCard } from '@/components/marketplace/business-card';
+import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { StackHeader } from '@/components/ui/stack-header';
 import { SkeletonList } from '@/components/ui/skeleton-list';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -25,24 +27,37 @@ import {
   searchBusinesses,
 } from '@/features/marketplace/marketplace-service';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
+import type { Business } from '@/types';
 
 type Tab = 'sellers' | 'providers';
+type SortBy = 'featured' | 'rating' | 'name';
 const PAGE_SIZE = 20;
+
+const SORT_OPTIONS: { id: SortBy; label: string }[] = [
+  { id: 'featured', label: 'Featured' },
+  { id: 'rating', label: 'Top Rated' },
+  { id: 'name', label: 'Name (A–Z)' },
+];
 
 export default function DirectoryScreen() {
   const { colors } = useAppTheme();
   const [tab, setTab] = useState<Tab>('sellers');
   const [search, setSearch] = useState('');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [city, setCity] = useState('all');
+  const [sortBy, setSortBy] = useState<SortBy>('featured');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draft, setDraft] = useState<{ verified: 'all' | 'verified'; city: string; sort: SortBy }>({
+    verified: 'all',
+    city: 'all',
+    sort: 'featured',
+  });
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['businesses', tab, verifiedOnly],
+    queryKey: ['businesses', tab],
     queryFn: async () => {
-      const filters = {
-        businessType: tab === 'sellers' ? ('seller' as const) : ('provider' as const),
-        verifiedOnly,
-      };
+      const filters = { businessType: tab === 'sellers' ? ('seller' as const) : ('provider' as const) };
       if (!isFirebaseConfigured) return demoBusinesses(filters);
       try {
         return await fetchBusinesses(filters);
@@ -52,7 +67,29 @@ export default function DirectoryScreen() {
     },
   });
 
-  const filtered = useMemo(() => searchBusinesses(search, data ?? []), [search, data]);
+  const cities = useMemo(() => {
+    const set = new Set((data ?? []).map((b) => b.city).filter(Boolean));
+    return ['all', ...Array.from(set).sort()];
+  }, [data]);
+
+  const filtered = useMemo(() => {
+    let result = searchBusinesses(search, data ?? []);
+    if (verifiedOnly) result = result.filter((b) => b.badges.isVerified);
+    if (city !== 'all') result = result.filter((b) => b.city === city);
+    const sorted = [...result];
+    if (sortBy === 'rating') {
+      sorted.sort((a, b) => b.badges.endorsementCount - a.badges.endorsementCount);
+    } else if (sortBy === 'name') {
+      sorted.sort((a, b) => a.businessName.localeCompare(b.businessName));
+    } else {
+      sorted.sort((a, b) => {
+        if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+        return a.businessName.localeCompare(b.businessName);
+      });
+    }
+    return sorted;
+  }, [search, data, verifiedOnly, city, sortBy]);
+
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
 
   const segments: { id: Tab; label: string }[] = [
@@ -60,29 +97,29 @@ export default function DirectoryScreen() {
     { id: 'providers', label: 'Service Providers' },
   ];
 
+  function openFilter() {
+    setDraft({ verified: verifiedOnly ? 'verified' : 'all', city, sort: sortBy });
+    setFilterOpen(true);
+  }
+
+  function applyFilter() {
+    setVerifiedOnly(draft.verified === 'verified');
+    setCity(draft.city);
+    setSortBy(draft.sort);
+    setVisibleCount(PAGE_SIZE);
+    setFilterOpen(false);
+  }
+
+  const activeCount = (verifiedOnly ? 1 : 0) + (city !== 'all' ? 1 : 0) + (sortBy !== 'featured' ? 1 : 0);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Transparent header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <Pressable
-          onPress={() => router.push('/(marketplace)/(tabs)/profile')}
-          style={[styles.avatar, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant }]}>
-          <Icon name="person" size={22} color={colors.onSurfaceVariant} />
-        </Pressable>
-        <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-        <Pressable
-          onPress={() => router.push('/notifications')}
-          style={styles.headerBtn}>
-          <Icon name="notifications-none" size={24} color={colors.primary} />
-        </Pressable>
-      </View>
+      <StackHeader title="Directory" showBack={false} />
 
       <ScrollView
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, { color: colors.primary }]}>Directory</Text>
-
         {/* Search */}
         <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
           <Icon name="search" size={22} color={colors.textMuted} />
@@ -110,11 +147,7 @@ export default function DirectoryScreen() {
                   setVisibleCount(PAGE_SIZE);
                 }}
                 style={[styles.segmentBtn, active && { backgroundColor: colors.primary }]}>
-                <Text
-                  style={[
-                    styles.segmentText,
-                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}>
+                <Text style={[styles.segmentText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
                   {s.label}
                 </Text>
               </Pressable>
@@ -123,14 +156,20 @@ export default function DirectoryScreen() {
         </View>
 
         {/* Filter row */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}>
-          <View style={[styles.filterChip, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-            <Text style={[styles.filterText, { color: colors.textMain }]}>Location</Text>
-            <Icon name="expand-more" size={16} color={colors.textMain} />
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          <Pressable
+            onPress={openFilter}
+            style={[
+              styles.filterChip,
+              activeCount > 0
+                ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
+            ]}>
+            <Icon name="tune" size={16} color={activeCount > 0 ? colors.onPrimary : colors.textMain} />
+            <Text style={[styles.filterText, { color: activeCount > 0 ? colors.onPrimary : colors.textMain }]}>
+              Filters{activeCount > 0 ? ` (${activeCount})` : ''}
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => {
               setVerifiedOnly((v) => !v);
@@ -142,18 +181,18 @@ export default function DirectoryScreen() {
                 ? { backgroundColor: colors.primary, borderColor: colors.primary }
                 : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
             ]}>
-            <Text style={[styles.filterText, { color: verifiedOnly ? colors.onPrimary : colors.textMain }]}>
-              Verified
-            </Text>
+            <Text style={[styles.filterText, { color: verifiedOnly ? colors.onPrimary : colors.textMain }]}>Verified</Text>
             <Icon name="verified" size={16} color={verifiedOnly ? colors.onPrimary : colors.textMain} />
           </Pressable>
-          <View style={[styles.filterChip, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-            <Text style={[styles.filterText, { color: colors.textMain }]}>Rating</Text>
-            <Icon name="expand-more" size={16} color={colors.textMain} />
-          </View>
-          <View style={[styles.filterIconBtn, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-            <Icon name="tune" size={20} color={colors.textMain} />
-          </View>
+          {city !== 'all' ? (
+            <Pressable
+              onPress={() => { setCity('all'); setVisibleCount(PAGE_SIZE); }}
+              style={[styles.filterChip, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+              <Icon name="location-on" size={16} color={colors.onPrimary} />
+              <Text style={[styles.filterText, { color: colors.onPrimary }]}>{city}</Text>
+              <Icon name="close" size={14} color={colors.onPrimary} />
+            </Pressable>
+          ) : null}
         </ScrollView>
 
         {/* Grid */}
@@ -162,7 +201,7 @@ export default function DirectoryScreen() {
             <SkeletonList />
           ) : filtered.length ? (
             <>
-              {visible.map((b) => (
+              {visible.map((b: Business) => (
                 <BusinessCard key={b.id} business={b} onPress={() => router.push(`/business/${b.id}`)} />
               ))}
               {visibleCount < filtered.length ? (
@@ -185,6 +224,44 @@ export default function DirectoryScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Filter bottom sheet */}
+      <BottomSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        title="Filter Directory"
+        footer={
+          <>
+            <Button title="Apply Filters" onPress={applyFilter} />
+            <Button
+              title="Reset"
+              variant="ghost"
+              onPress={() => setDraft({ verified: 'all', city: 'all', sort: 'featured' })}
+            />
+          </>
+        }>
+        <FilterChipGroup
+          label="Verification"
+          value={draft.verified}
+          onChange={(v) => setDraft((d) => ({ ...d, verified: v }))}
+          options={[
+            { id: 'all', label: 'All' },
+            { id: 'verified', label: 'Verified only' },
+          ]}
+        />
+        <FilterChipGroup
+          label="Location"
+          value={draft.city}
+          onChange={(v) => setDraft((d) => ({ ...d, city: v }))}
+          options={cities.map((c) => ({ id: c, label: c === 'all' ? 'All cities' : c }))}
+        />
+        <FilterChipGroup
+          label="Sort By"
+          value={draft.sort}
+          onChange={(v) => setDraft((d) => ({ ...d, sort: v }))}
+          options={SORT_OPTIONS}
+        />
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -244,13 +321,5 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   filterText: { ...Typography.labelMd },
-  filterIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
   grid: { gap: Spacing.sectionGap, marginTop: Spacing.stackSm },
 });

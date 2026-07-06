@@ -14,9 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
-import { GEM_STATUS_FILTERS } from '@/constants/gem-options';
+import { StackHeader } from '@/components/ui/stack-header';
+import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { filterGems } from '@/features/workspace/gem-utils';
 import { fetchGems } from '@/features/workspace/workspace-service';
@@ -32,6 +35,12 @@ export default function GemsListScreen() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<GemStatus | 'all'>(initialStatus);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draft, setDraft] = useState<{ status: GemStatus | 'all'; type: string }>({
+    status: initialStatus,
+    type: 'all',
+  });
 
   const { data: gems = [], refetch, isRefetching } = useQuery({
     queryKey: ['gems', user?.uid],
@@ -40,27 +49,24 @@ export default function GemsListScreen() {
   });
 
   const filtered = useMemo(
-    () => filterGems(gems, { search, status: statusFilter, gemType: 'all' }),
-    [gems, search, statusFilter],
+    () => filterGems(gems, { search, status: statusFilter, gemType: typeFilter }),
+    [gems, search, statusFilter, typeFilter],
   );
+
+  function openFilter() {
+    setDraft({ status: statusFilter, type: typeFilter });
+    setFilterOpen(true);
+  }
+
+  function applyFilter() {
+    setStatusFilter(draft.status);
+    setTypeFilter(draft.type);
+    setFilterOpen(false);
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Top App Bar */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.avatarWrap, { borderColor: colors.outlineVariant + '4D' }]}>
-            <Image 
-              source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDtQQTftKfgdOMl3aaE0ZHInhg1CM0Zc-vmSFGylayhn1tnkuN9q0WIgrkAFNMGvyxRvyJsJf1WImAJK2VPzHaumHXppLuGDlHO9p1rWHsjl6Za0DooRsZxUhFlQjRbfpSGcYk2qa9NCzaivJP0iNU3lJ-4MUga215rAfgKYWTUxN-po3OIa7hfrVluHgLKjl8gQtJ17lQ70YAAC_tpmL7Ha7rMXCvPHEYlKgsMRPJngVON6G1Tomorzw' }} 
-              style={styles.avatar} 
-            />
-          </View>
-          <Text style={[styles.brandName, { color: colors.primary }]}>GemVault</Text>
-        </View>
-        <Pressable style={styles.bellBtn} onPress={() => router.push('/notifications')}>
-          <Icon name="notifications-none" size={24} color={colors.onSurfaceVariant} />
-        </Pressable>
-      </View>
+      <StackHeader title="My Gems" />
 
       {/* Search & Filters Row */}
       <View style={styles.searchRow}>
@@ -76,8 +82,15 @@ export default function GemsListScreen() {
             onChangeText={setSearch}
           />
         </View>
-        <Pressable style={[styles.filterBtn, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' }]}>
-          <Icon name="tune" size={20} color={colors.onSurfaceVariant} />
+        <Pressable
+          onPress={openFilter}
+          style={[
+            styles.filterBtn,
+            typeFilter !== 'all'
+              ? { backgroundColor: colors.primary, borderColor: colors.primary }
+              : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' },
+          ]}>
+          <Icon name="tune" size={20} color={typeFilter !== 'all' ? colors.onPrimary : colors.onSurfaceVariant} />
         </Pressable>
       </View>
 
@@ -172,6 +185,35 @@ export default function GemsListScreen() {
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
+
+      {/* Filter bottom sheet */}
+      <BottomSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        title="Filter Inventory"
+        footer={
+          <>
+            <Button title="Apply Filters" onPress={applyFilter} />
+            <Button
+              title="Reset"
+              variant="ghost"
+              onPress={() => setDraft({ status: 'all', type: 'all' })}
+            />
+          </>
+        }>
+        <FilterChipGroup
+          label="Status"
+          value={draft.status}
+          onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
+          options={GEM_STATUS_FILTERS.map((f) => ({ id: f.value, label: f.label }))}
+        />
+        <FilterChipGroup
+          label="Gem Type"
+          value={draft.type}
+          onChange={(v) => setDraft((d) => ({ ...d, type: v }))}
+          options={[{ id: 'all', label: 'All' }, ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label }))]}
+        />
+      </BottomSheet>
     </SafeAreaView>
   );
 }

@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,6 +20,7 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useThemeStyles } from '@/hooks/use-theme-styles';
 import { registerUser } from '@/lib/firebase/auth-service';
+import { useToast } from '@/providers/toast-provider';
 import type { UserRole } from '@/types';
 
 const roles: { id: UserRole; label: string }[] = [
@@ -32,6 +32,7 @@ const roles: { id: UserRole; label: string }[] = [
 export default function RegisterScreen() {
   const { colors } = useAppTheme();
   const ts = useThemeStyles();
+  const toast = useToast();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -41,7 +42,7 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!displayName || !email || !phone || !password) {
-      Alert.alert('Missing fields', 'Please fill in all fields.');
+      toast.error('Please fill in all fields.');
       return;
     }
     setLoading(true);
@@ -55,7 +56,7 @@ export default function RegisterScreen() {
       });
       router.replace({ pathname: '/(auth)/verify-otp', params: { phone: verifiedPhone } });
     } catch (e) {
-      Alert.alert('Registration failed', e instanceof Error ? e.message : 'Try again');
+      toast.error(e instanceof Error ? e.message : 'Registration failed. Try again.');
     } finally {
       setLoading(false);
     }

@@ -1,13 +1,12 @@
-import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { ThemedView } from '@/components/ui/screen';
+import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
@@ -19,10 +18,12 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [type, setType] = useState<'income' | 'expense'>('income');
   const [amount, setAmount] = useState('');
@@ -75,7 +76,7 @@ export default function TransactionsScreen() {
       setShowForm(false);
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed');
+      toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setLoading(false);
     }
@@ -83,18 +84,7 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Top AppBar */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.avatarWrap, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.primary + '0D' }]}>
-            <Icon name="person" size={20} color={colors.onSurfaceVariant} />
-          </View>
-          <Text style={[styles.brandName, { color: colors.primary }]}>GemVault</Text>
-        </View>
-        <Pressable style={styles.bellBtn} onPress={() => router.push('/notifications')}>
-          <Icon name="notifications-none" size={20} color={colors.primary} />
-        </Pressable>
-      </View>
+      <StackHeader title="Transactions" />
 
       <View style={styles.container}>
         {/* Search & Quick Filters */}

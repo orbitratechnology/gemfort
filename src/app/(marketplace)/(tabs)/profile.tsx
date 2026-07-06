@@ -4,11 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SignInPrompt } from '@/components/auth/sign-in-prompt';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { StackHeader } from '@/components/ui/stack-header';
+import { Radius, Spacing, Typography, type ThemeColors } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
 import { logoutUser } from '@/lib/firebase/auth-service';
 import type { ThemePreference } from '@/lib/theme-preference';
-import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
 import { useAuth } from '@/providers/auth-provider';
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
@@ -16,6 +17,41 @@ const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
   { id: 'light', label: 'Light', icon: 'light-mode' },
   { id: 'dark', label: 'Dark', icon: 'dark-mode' },
 ];
+
+function Divider({ colors }: { colors: ThemeColors }) {
+  return <View style={[styles.divider, { backgroundColor: colors.surfaceVariant }]} />;
+}
+
+function Row({
+  icon,
+  label,
+  subtitle,
+  onPress,
+  trailing,
+  danger,
+  colors,
+}: {
+  icon: IconName;
+  label: string;
+  subtitle?: string;
+  onPress?: () => void;
+  trailing?: React.ReactNode;
+  danger?: boolean;
+  colors: ThemeColors;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+      <View style={[styles.rowIcon]}>
+        <Icon name={icon} size={20} color={danger ? colors.error : colors.primary} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, { color: danger ? colors.error : colors.textMain }]}>{label}</Text>
+        {subtitle ? <Text style={[styles.rowSub, { color: colors.textMuted }]}>{subtitle}</Text> : null}
+      </View>
+      {trailing ?? <Icon name="chevron-right" size={20} color={colors.outline} />}
+    </Pressable>
+  );
+}
 
 const ROLE_LABELS: Record<string, string> = {
   normal_user: 'Buyer / Trader',
@@ -51,49 +87,9 @@ export default function ProfileScreen() {
     ? new Date(user.metadata.creationTime).getFullYear()
     : new Date().getFullYear();
 
-  function Row({
-    icon,
-    label,
-    subtitle,
-    onPress,
-    trailing,
-    danger,
-  }: {
-    icon: IconName;
-    label: string;
-    subtitle?: string;
-    onPress?: () => void;
-    trailing?: React.ReactNode;
-    danger?: boolean;
-  }) {
-    return (
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
-        <View style={[styles.rowIcon, { backgroundColor: colors.primaryMuted }]}>
-          <Icon name={icon} size={20} color={danger ? colors.error : colors.primary} />
-        </View>
-        <View style={styles.rowText}>
-          <Text style={[styles.rowLabel, { color: danger ? colors.error : colors.textMain }]}>{label}</Text>
-          {subtitle ? <Text style={[styles.rowSub, { color: colors.textMuted }]}>{subtitle}</Text> : null}
-        </View>
-        {trailing ?? <Icon name="chevron-right" size={20} color={colors.outline} />}
-      </Pressable>
-    );
-  }
-
-  const Divider = () => <View style={[styles.divider, { backgroundColor: colors.surfaceVariant }]} />;
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <View style={styles.headerBrand}>
-          <Icon name="diamond" size={20} color={colors.primary} />
-          <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
-        </View>
-        <Pressable onPress={() => router.push('/notifications')} style={styles.iconBtn}>
-          <Icon name="settings" size={22} color={colors.onSurfaceVariant} />
-        </Pressable>
-      </View>
+      <StackHeader title="Profile" showBack={false} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Identity */}
@@ -124,6 +120,7 @@ export default function ProfileScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>BUSINESS PROFILE</Text>
         <View style={[styles.group, { backgroundColor: colors.surfaceContainerLowest }]}>
           <Row
+            colors={colors}
             icon="verified-user"
             label="Verification Status"
             subtitle={isVerified ? 'Gold Authentication' : 'Not verified yet'}
@@ -134,8 +131,9 @@ export default function ProfileScreen() {
               </Text>
             }
           />
-          <Divider />
+          <Divider colors={colors} />
           <Row
+            colors={colors}
             icon="storefront"
             label="Edit Business"
             subtitle="Update contact & info"
@@ -143,8 +141,9 @@ export default function ProfileScreen() {
           />
           {isVerifiedSeller ? (
             <>
-              <Divider />
+              <Divider colors={colors} />
               <Row
+                colors={colors}
                 icon="visibility"
                 label="View Public Shop"
                 subtitle="See customer preview"
@@ -179,6 +178,7 @@ export default function ProfileScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ACCOUNT &amp; APP</Text>
         <View style={[styles.group, { backgroundColor: colors.surfaceContainerLowest }]}>
           <Row
+            colors={colors}
             icon="notifications-none"
             label="Notifications"
             onPress={() => router.push('/notifications')}
@@ -190,14 +190,16 @@ export default function ProfileScreen() {
               ) : undefined
             }
           />
-          <Divider />
+          <Divider colors={colors} />
           <Row
+            colors={colors}
             icon="help-outline"
             label="Help Center"
             onPress={() => Linking.openURL('mailto:support@gemfort.app')}
           />
-          <Divider />
+          <Divider colors={colors} />
           <Row
+            colors={colors}
             icon="info-outline"
             label="About GemFort"
             trailing={<Text style={[styles.trailingValue, { color: colors.textMuted }]}>v1.0.0</Text>}
