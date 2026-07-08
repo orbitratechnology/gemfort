@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
@@ -35,8 +35,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<ToastState | null>(null);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-20)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [translateY] = useState(() => new Animated.Value(-20));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(0);
 
@@ -93,7 +93,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               { backgroundColor: colors.surfaceContainerHighest, borderLeftColor: accent },
             ]}>
             <Icon name={VARIANT_ICON[toast.variant]} size={20} color={accent} />
-            <Text style={[styles.message, { color: colors.onSurface }]} numberOfLines={3}>
+            <Text style={[styles.message, { color: colors.onSurface }]} numberOfLines={2}>
               {toast.message}
             </Text>
           </Pressable>

@@ -25,6 +25,7 @@ import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
@@ -62,7 +63,7 @@ export default function VerifyOtpScreen() {
       setCooldown(60);
       toast.success(`We sent a verification code to ${phone}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not send code. Try again.');
+      toast.error(friendlyError(e, 'Could not send code. Try again.'));
     } finally {
       setSending(false);
     }
@@ -79,7 +80,7 @@ export default function VerifyOtpScreen() {
       await markOnboardingComplete();
       router.replace('/(marketplace)/(tabs)/home');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Verification failed. Invalid code.');
+      toast.error(friendlyError(e, 'Verification failed. Invalid code.'));
     } finally {
       setConfirming(false);
     }

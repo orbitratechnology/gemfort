@@ -19,6 +19,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 import type { GemStatus } from '@/types';
 
 export default function GemDetailScreen() {
@@ -59,7 +60,7 @@ export default function GemDetailScreen() {
       await queryClient.invalidateQueries({ queryKey: ['gem-events', gemId] });
       await queryClient.invalidateQueries({ queryKey: ['gems', user.uid] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not update status');
+      toast.error(friendlyError(e, 'Could not update status.'));
     }
   }
 

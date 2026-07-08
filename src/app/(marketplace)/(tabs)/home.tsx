@@ -109,24 +109,30 @@ export default function HomeScreen() {
             style={styles.avatar}
           />
           <View>
-            <Text style={[styles.userRole, { color: colors.outline }]}>BUYER</Text>
-            <View style={styles.brandRow}>
-              <Text style={[styles.brandName, { color: colors.primary }]}>GemFort</Text>
-              <Icon name="expand-more" size={18} color={colors.primary} />
-            </View>
+            <Text style={[styles.userRole, { color: colors.textMuted }]}>DISCOVER</Text>
+            <Text style={[styles.brandName, { color: colors.primary }]}>GemFort</Text>
           </View>
         </View>
         <Pressable
-          style={[styles.searchBtn, { backgroundColor: colors.surfaceContainer }]}
-          onPress={() => router.push('/(marketplace)/(tabs)/directory')}>
-          <Icon name="search" size={20} color={colors.onSurfaceVariant} />
+          style={[styles.iconBtn, { backgroundColor: colors.surfaceContainer }]}
+          onPress={() => router.push('/notifications')}>
+          <Icon name="notifications-none" size={20} color={colors.onSurfaceVariant} />
         </Pressable>
       </View>
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetchAll} />}
       >
+        {/* Search */}
+        <Pressable
+          style={[styles.searchBar, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.surfaceVariant }]}
+          onPress={() => router.push('/(marketplace)/(tabs)/directory')}>
+          <Icon name="search" size={20} color={colors.textMuted} />
+          <Text style={[styles.searchText, { color: colors.textMuted }]}>Search gems, sellers, origins…</Text>
+        </Pressable>
+
         {/* Filter Chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
           <Pressable
@@ -304,12 +310,24 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 40, height: 40, borderRadius: 20 },
-  userRole: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  userRole: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.2 },
   brandName: { ...Typography.headlineMdMobile },
-  searchBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 
   content: { paddingBottom: 100 },
+
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: Spacing.containerMargin,
+    marginTop: Spacing.stackSm,
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  searchText: { ...Typography.bodyMd },
 
   filtersScroll: { paddingVertical: Spacing.stackMd },
   filtersContent: { paddingHorizontal: Spacing.containerMargin, gap: 8 },
@@ -325,7 +343,13 @@ const styles = StyleSheet.create({
   emptyWrap: { paddingHorizontal: Spacing.containerMargin },
   featuredScroll: { paddingBottom: 24 },
   featuredContent: { paddingHorizontal: Spacing.containerMargin, gap: 16 },
-  gemCard: { width: 280, borderRadius: Radius.lg, overflow: 'hidden', shadowColor: '#00162C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 3 },
+  gemCard: {
+    width: 280,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    boxShadow: '0 8px 24px rgba(15, 118, 110, 0.10)',
+  },
   gemImage: { width: '100%', height: 180 },
   gemImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: 12, left: 12, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.full, zIndex: 10 },

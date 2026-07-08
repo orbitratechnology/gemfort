@@ -21,6 +21,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { useThemeStyles } from '@/hooks/use-theme-styles';
 import { registerUser } from '@/lib/firebase/auth-service';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 import type { UserRole } from '@/types';
 
 const roles: { id: UserRole; label: string }[] = [
@@ -56,7 +57,7 @@ export default function RegisterScreen() {
       });
       router.replace({ pathname: '/(auth)/verify-otp', params: { phone: verifiedPhone } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Registration failed. Try again.');
+      toast.error(friendlyError(e, 'Could not create account. Try again.'));
     } finally {
       setLoading(false);
     }

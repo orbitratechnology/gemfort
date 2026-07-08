@@ -79,7 +79,19 @@ export async function loginUser(email: string, password: string) {
 }
 
 export async function logoutUser() {
-  await signOut(getFirebaseAuth());
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    try {
+      await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+        fcmToken: null,
+        updatedAt: serverTimestamp(),
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+  await signOut(auth);
 }
 
 export async function resetPassword(email: string) {

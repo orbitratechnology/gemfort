@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   query,
   where,
   orderBy,
@@ -14,7 +15,7 @@ import {
   Timestamp,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
-import type { Announcement, Business, BusinessType, MarketplaceListing } from '@/types';
+import type { Announcement, Business, BusinessType, FraudReportType, MarketplaceListing } from '@/types';
 
 export async function fetchAnnouncements(): Promise<Announcement[]> {
   const q = query(
@@ -467,4 +468,45 @@ export function demoAnnouncements(): Announcement[] {
       createdAt: now,
     },
   ];
+}
+
+export async function submitFraudReport(input: {
+  reporterUid: string;
+  reportedBusinessId: string;
+  reportedUserUid: string | null;
+  reportType: FraudReportType;
+  description: string;
+  evidenceUrls?: string[];
+}): Promise<string> {
+  const ref = await addDoc(collection(getFirebaseDb(), 'reports'), {
+    reporterUid: input.reporterUid,
+    reportedBusinessId: input.reportedBusinessId,
+    reportedUserUid: input.reportedUserUid,
+    reportType: input.reportType,
+    description: input.description.trim(),
+    evidenceUrls: input.evidenceUrls ?? [],
+    status: 'pending',
+    adminUid: null,
+    adminNotes: null,
+    resolution: null,
+    actionTaken: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    resolvedAt: null,
+  });
+  return ref.id;
+}
+
+export async function sendEndorsement(input: {
+  fromUid: string;
+  fromBusinessId: string;
+  toBusinessId: string;
+}): Promise<void> {
+  const endorsementId = `${input.fromBusinessId}_${input.toBusinessId}`;
+  await setDoc(doc(getFirebaseDb(), 'endorsements', endorsementId), {
+    fromBusinessId: input.fromBusinessId,
+    toBusinessId: input.toBusinessId,
+    fromUid: input.fromUid,
+    createdAt: serverTimestamp(),
+  });
 }

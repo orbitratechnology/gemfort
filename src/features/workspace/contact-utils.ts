@@ -9,7 +9,7 @@ export function filterContacts(
 
   return contacts
     .filter((contact) => {
-      if (typeFilter && !contact.contactTypes.includes(typeFilter)) return false;
+      if (typeFilter && !(contact.contactTypes ?? []).includes(typeFilter)) return false;
       if (!normalizedQuery) return true;
 
       const haystack = [
@@ -18,7 +18,7 @@ export function filterContacts(
         contact.phone,
         contact.whatsapp,
         contact.email,
-        ...contact.contactTypes,
+        ...(contact.contactTypes ?? []),
       ]
         .filter(Boolean)
         .join(' ')

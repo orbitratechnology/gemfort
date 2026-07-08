@@ -18,6 +18,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
@@ -60,7 +61,7 @@ export default function ApDetailScreen() {
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       router.back();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
+      toast.error(friendlyError(e, 'Could not update this stone.'));
     } finally {
       setLoading(false);
     }

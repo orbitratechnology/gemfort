@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,16 +9,18 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { getMonthTotals } from '@/features/workspace/money-utils';
+import { detectChequesMaturingTomorrow, getChequeSummary } from '@/features/workspace/cheque-utils';
+import { getTripsByStatus } from '@/features/workspace/trip-utils';
 import {
   detectOverdueAp,
   detectOverdueServices,
-  createNotification,
   fetchApRecords,
+  fetchCheques,
   fetchContacts,
   fetchGems,
-  fetchNotifications,
   fetchServices,
   fetchTransactions,
+  fetchTrips,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
@@ -62,44 +63,17 @@ export default function WorkspaceHub() {
     enabled: !!userId,
   });
 
-  const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications', userId],
-    queryFn: () => fetchNotifications(userId!),
+  const { data: cheques = [] } = useQuery({
+    queryKey: ['cheques', userId],
+    queryFn: () => fetchCheques(userId!),
     enabled: !!userId,
   });
 
-  useEffect(() => {
-    if (!userId) return;
-
-    const overdueAp = detectOverdueAp(apRecords);
-    const overdueServices = detectOverdueServices(services);
-    const existingKeys = new Set(
-      notifications
-        .filter((n) => n.type === 'ap_overdue' || n.type === 'service_overdue')
-        .map((n) => `${n.referenceType}:${n.referenceId}`),
-    );
-
-    overdueAp.forEach((a) => {
-      if (existingKeys.has(`ap:${a.id}`)) return;
-      createNotification(userId, {
-        type: 'ap_overdue',
-        title: 'AP Stone Overdue',
-        message: 'An AP stone is past its expected return date.',
-        referenceType: 'ap',
-        referenceId: a.id,
-      }).catch(() => {});
-    });
-    overdueServices.forEach((s) => {
-      if (existingKeys.has(`service:${s.id}`)) return;
-      createNotification(userId, {
-        type: 'service_overdue',
-        title: 'Service Overdue',
-        message: 'A gem with a service provider is overdue.',
-        referenceType: 'service',
-        referenceId: s.id,
-      }).catch(() => {});
-    });
-  }, [userId, apRecords, services, notifications]);
+  const { data: trips = [] } = useQuery({
+    queryKey: ['trips', userId],
+    queryFn: () => fetchTrips(userId!),
+    enabled: !!userId,
+  });
 
   if (!user) {
     return (
@@ -112,7 +86,11 @@ export default function WorkspaceHub() {
 
   const overdueServices = detectOverdueServices(services);
   const overdueAp = detectOverdueAp(apRecords);
-  const alertCount = overdueServices.length + overdueAp.length;
+  const maturingCheques = detectChequesMaturingTomorrow(cheques);
+  const chequeSummary = getChequeSummary(cheques);
+  const { active: activeTrips } = getTripsByStatus(trips);
+  const ongoingTrips = trips.filter((t) => t.status === 'ongoing');
+  const alertCount = overdueServices.length + overdueAp.length + maturingCheques.length + ongoingTrips.length;
 
   const { income: monthIncome, expense: monthExpense } = getMonthTotals(transactions);
   const monthNet = monthIncome - monthExpense;
@@ -124,15 +102,16 @@ export default function WorkspaceHub() {
   const stats: { label: string; value: number; icon: IconName; route: string }[] = [
     { label: 'Gems', value: gems.length, icon: 'diamond', route: `${WORKSPACE}/gems` },
     { label: 'Services', value: services.length, icon: 'handyman', route: `${WORKSPACE}/services` },
+    { label: 'Trips', value: activeTrips.length, icon: 'flight', route: `${WORKSPACE}/trips` },
     { label: 'AP Stones', value: apRecords.length, icon: 'hourglass-empty', route: `${WORKSPACE}/ap` },
     { label: 'Contacts', value: contacts.length, icon: 'group', route: `${WORKSPACE}/contacts` },
   ];
 
   const actions: { label: string; icon: IconName; route: string; primary?: boolean }[] = [
     { label: 'Add Gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
+    { label: 'Plan Trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
+    { label: 'Add Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
     { label: 'Record Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
-    { label: 'New Service', icon: 'design-services', route: `${WORKSPACE}/services/add` },
-    { label: 'Add Contact', icon: 'person-add', route: `${WORKSPACE}/contacts/add` },
   ];
 
   const tint = colors.primary + '14';
@@ -240,7 +219,111 @@ export default function WorkspaceHub() {
                   <Icon name="chevron-right" size={20} color={colors.outline} />
                 </Pressable>
               ))}
+              {maturingCheques.map((c) => (
+                <Pressable
+                  key={c.id}
+                  onPress={() => router.push(`${WORKSPACE}/cheques/${c.id}` as never)}
+                  style={({ pressed }) => [
+                    styles.alertRow,
+                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
+                    pressed && { opacity: 0.7 },
+                  ]}>
+                  <View style={[styles.alertDot, { backgroundColor: colors.primary }]} />
+                  <View style={styles.alertText}>
+                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>Cheque maturing tomorrow</Text>
+                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
+                      {c.chequeNumber} · {formatCurrency(c.amount)}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={colors.outline} />
+                </Pressable>
+              ))}
+              {ongoingTrips.map((t) => (
+                <Pressable
+                  key={t.id}
+                  onPress={() => router.push(`${WORKSPACE}/trips/${t.id}` as never)}
+                  style={({ pressed }) => [
+                    styles.alertRow,
+                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
+                    pressed && { opacity: 0.7 },
+                  ]}>
+                  <View style={[styles.alertDot, { backgroundColor: colors.successEmerald }]} />
+                  <View style={styles.alertText}>
+                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>Trip in progress</Text>
+                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
+                      {t.tripName} · {t.destinationCity}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={colors.outline} />
+                </Pressable>
+              ))}
             </View>
+          </View>
+        ) : null}
+
+        {/* Trips overview */}
+        {trips.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Trips</Text>
+              <Pressable onPress={() => router.push(`${WORKSPACE}/trips` as never)} hitSlop={8}>
+                <Text style={[styles.seeAll, { color: colors.primary }]}>View all</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() =>
+                router.push(
+                  (activeTrips[0]
+                    ? `${WORKSPACE}/trips/${activeTrips[0].id}`
+                    : `${WORKSPACE}/trips`) as never,
+                )
+              }
+              style={({ pressed }) => [
+                styles.financeCard,
+                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
+                pressed && { opacity: 0.9 },
+              ]}>
+              <View style={styles.financeTop}>
+                <Text style={[styles.financeCaption, { color: colors.textMuted }]}>ACTIVE</Text>
+                <Text style={[styles.financeNet, { color: colors.primary }]} selectable>
+                  {activeTrips.length} trip{activeTrips.length === 1 ? '' : 's'}
+                </Text>
+              </View>
+              <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>
+                {ongoingTrips.length > 0
+                  ? `${ongoingTrips[0].tripName} is ongoing`
+                  : `${trips.filter((t) => t.status === 'completed').length} completed`}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Cheques overview */}
+        {cheques.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Cheques</Text>
+              <Pressable onPress={() => router.push(`${WORKSPACE}/cheques` as never)} hitSlop={8}>
+                <Text style={[styles.seeAll, { color: colors.primary }]}>View all</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => router.push(`${WORKSPACE}/cheques/calendar` as never)}
+              style={({ pressed }) => [
+                styles.financeCard,
+                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
+                pressed && { opacity: 0.9 },
+              ]}>
+              <View style={styles.financeTop}>
+                <Text style={[styles.financeCaption, { color: colors.textMuted }]}>HOLDING</Text>
+                <Text style={[styles.financeNet, { color: colors.primary }]} selectable>
+                  {chequeSummary.holdingCount} · {formatCurrency(chequeSummary.holdingTotal)}
+                </Text>
+              </View>
+              <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>
+                {formatCurrency(chequeSummary.clearingThisMonth)} clearing this month
+              </Text>
+            </Pressable>
           </View>
         ) : null}
 

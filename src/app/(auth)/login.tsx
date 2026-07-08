@@ -13,6 +13,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { loginUser, getUserProfile, needsPhoneVerification } from '@/lib/firebase/auth-service';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
@@ -38,7 +39,7 @@ export default function LoginScreen() {
         router.replace('/(marketplace)/(tabs)/home');
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Login failed';
+      const msg = friendlyError(e, 'Could not sign in. Please try again.');
       setError(msg);
       toast.error(msg);
     } finally {

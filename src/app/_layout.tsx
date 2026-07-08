@@ -1,4 +1,6 @@
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { isFirebaseConfigured } from '@/lib/firebase/config';
+import { warmUpFirestore } from '@/lib/firebase/init';
 import { AuthProvider } from '@/providers/auth-provider';
 import { PushNotificationRegistrar } from '@/providers/push-notification-registrar';
 import { QueryProvider } from '@/providers/query-provider';
@@ -6,8 +8,7 @@ import { ThemeProvider } from '@/providers/theme-provider';
 import { ToastProvider } from '@/providers/toast-provider';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-
+import { useEffect, useState } from 'react';
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
@@ -36,10 +37,7 @@ function RootNavigator() {
         options={{ headerShown: true, title: 'Create Listing', headerBackTitle: 'Back' }}
       />
       <Stack.Screen name="profile/verify" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="profile/business"
-        options={{ headerShown: true, title: 'My Business', headerBackTitle: 'Back' }}
-      />
+      <Stack.Screen name="profile/business" options={{ headerShown: false }} />
       <Stack.Screen
         name="notifications"
         options={{ headerShown: true, title: 'Notifications', headerBackTitle: 'Back' }}
@@ -49,9 +47,20 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [firebaseReady, setFirebaseReady] = useState(!isFirebaseConfigured);
+
   useEffect(() => {
-    SplashScreen.hideAsync();
+    if (!isFirebaseConfigured) {
+      void SplashScreen.hideAsync();
+      return;
+    }
+
+    void warmUpFirestore()
+      .then(() => setFirebaseReady(true))
+      .finally(() => SplashScreen.hideAsync());
   }, []);
+
+  if (!firebaseReady) return null;
 
   return (
     <ThemeProvider>

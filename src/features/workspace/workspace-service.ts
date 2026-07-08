@@ -14,17 +14,27 @@ import {
   Timestamp,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
+import { convertToBase } from '@/lib/exchange-rates';
 import { calcWeightLossPercent, generateSku } from '@/lib/utils';
 import type {
   ApRecord,
+  Cheque,
+  ChequeDirection,
+  ChequeStatus,
   Contact,
   GemCost,
   GemEvent,
   GemStatus,
   Payable,
+  Payment,
   Receivable,
   ServiceRecord,
   Transaction,
+  Trip,
+  TripExpense,
+  TripGem,
+  TripStatus,
+  TripType,
   WorkspaceGem,
 } from '@/types';
 
@@ -385,7 +395,14 @@ export async function fetchContacts(ownerUid: string): Promise<Contact[]> {
   const q = query(collection(getFirebaseDb(), 'gemtrack_contacts'), where('ownerUid', '==', ownerUid));
   const snap = await getDocs(q);
   return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }) as Contact)
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        contactTypes: Array.isArray(data.contactTypes) ? data.contactTypes : [],
+      } as Contact;
+    })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
@@ -439,13 +456,18 @@ export async function fetchTransactions(ownerUid: string): Promise<Transaction[]
 
 export async function createTransaction(
   ownerUid: string,
-  input: Omit<Transaction, 'id' | 'ownerUid' | 'createdAt' | 'amountBase'>,
+  input: Omit<Transaction, 'id' | 'ownerUid' | 'createdAt' | 'amountBase'> & { amountBase?: number },
 ) {
   const now = Timestamp.now();
+  const amountBase =
+    input.amountBase ??
+    (input.currency && input.currency !== 'LKR'
+      ? await convertToBase(input.amount, input.currency)
+      : input.amount);
   const ref = await addDoc(collection(getFirebaseDb(), 'gemtrack_transactions'), {
     ...input,
     ownerUid,
-    amountBase: input.amount,
+    amountBase,
     date: input.date ?? now,
     createdAt: now,
   });
@@ -500,7 +522,17 @@ export async function createPayable(
   ).id;
 }
 
-export async function recordReceivablePayment(receivableId: string, paymentAmount: number) {
+export async function recordReceivablePayment(
+  ownerUid: string,
+  receivableId: string,
+  paymentAmount: number,
+  options?: {
+    currency?: string;
+    paymentMethod?: string | null;
+    commission?: number | null;
+    notes?: string | null;
+  },
+) {
   if (paymentAmount <= 0) throw new Error('Payment amount must be positive');
   const ref = doc(getFirebaseDb(), 'gemtrack_receivables', receivableId);
   const snap = await getDoc(ref);
@@ -509,14 +541,58 @@ export async function recordReceivablePayment(receivableId: string, paymentAmoun
   const newReceived = Math.min(data.amount, data.amountReceived + paymentAmount);
   const status =
     newReceived >= data.amount ? 'paid' : newReceived > 0 ? 'partial' : 'pending';
+  const now = Timestamp.now();
+  const currency = options?.currency ?? data.currency ?? 'LKR';
+
   await updateDoc(ref, {
     amountReceived: newReceived,
     status,
     updatedAt: serverTimestamp(),
   });
+
+  const amountBase = await convertToBase(paymentAmount, currency);
+  const txnId = await createTransaction(ownerUid, {
+    type: 'income',
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    category: 'other_income',
+    description: `Payment received: ${data.description}`,
+    gemId: null,
+    contactId: data.contactId,
+    date: now,
+  });
+
+  await addDoc(collection(getFirebaseDb(), 'gemtrack_payments'), {
+    ownerUid,
+    direction: 'in',
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    paymentMethod: options?.paymentMethod ?? null,
+    commission: options?.commission ?? null,
+    receivableId,
+    payableId: null,
+    gemId: null,
+    contactId: data.contactId,
+    transactionId: txnId,
+    notes: options?.notes ?? null,
+    paymentDate: now,
+    createdAt: now,
+  });
 }
 
-export async function recordPayablePayment(payableId: string, paymentAmount: number) {
+export async function recordPayablePayment(
+  ownerUid: string,
+  payableId: string,
+  paymentAmount: number,
+  options?: {
+    currency?: string;
+    paymentMethod?: string | null;
+    commission?: number | null;
+    notes?: string | null;
+  },
+) {
   if (paymentAmount <= 0) throw new Error('Payment amount must be positive');
   const ref = doc(getFirebaseDb(), 'gemtrack_payables', payableId);
   const snap = await getDoc(ref);
@@ -524,11 +600,467 @@ export async function recordPayablePayment(payableId: string, paymentAmount: num
   const data = snap.data() as Payable;
   const newPaid = Math.min(data.amount, data.amountPaid + paymentAmount);
   const status = newPaid >= data.amount ? 'paid' : newPaid > 0 ? 'partial' : 'pending';
+  const now = Timestamp.now();
+  const currency = options?.currency ?? data.currency ?? 'LKR';
+
   await updateDoc(ref, {
     amountPaid: newPaid,
     status,
     updatedAt: serverTimestamp(),
   });
+
+  const amountBase = await convertToBase(paymentAmount, currency);
+  const txnId = await createTransaction(ownerUid, {
+    type: 'expense',
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    category: 'other_expense',
+    description: `Payment made: ${data.description}`,
+    gemId: null,
+    contactId: data.contactId,
+    date: now,
+  });
+
+  await addDoc(collection(getFirebaseDb(), 'gemtrack_payments'), {
+    ownerUid,
+    direction: 'out',
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    paymentMethod: options?.paymentMethod ?? null,
+    commission: options?.commission ?? null,
+    receivableId: null,
+    payableId,
+    gemId: null,
+    contactId: data.contactId,
+    transactionId: txnId,
+    notes: options?.notes ?? null,
+    paymentDate: now,
+    createdAt: now,
+  });
+}
+
+export async function fetchPayments(ownerUid: string): Promise<Payment[]> {
+  const q = query(
+    collection(getFirebaseDb(), 'gemtrack_payments'),
+    where('ownerUid', '==', ownerUid),
+    orderBy('paymentDate', 'desc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payment);
+}
+
+// ─── Cheques ──────────────────────────────────────
+
+export async function fetchCheques(ownerUid: string): Promise<Cheque[]> {
+  const q = query(
+    collection(getFirebaseDb(), 'gemtrack_cheques'),
+    where('ownerUid', '==', ownerUid),
+    orderBy('maturityDate', 'asc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque);
+}
+
+export async function fetchCheque(chequeId: string): Promise<Cheque | null> {
+  const snap = await getDoc(doc(getFirebaseDb(), 'gemtrack_cheques', chequeId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Cheque;
+}
+
+export async function createCheque(
+  ownerUid: string,
+  input: {
+    direction: ChequeDirection;
+    chequeNumber: string;
+    bankName: string;
+    branch?: string | null;
+    amount: number;
+    currency?: string;
+    counterpartyContactId: string;
+    issuedBy: string;
+    issueDate: Timestamp;
+    maturityDate: Timestamp;
+    status?: ChequeStatus;
+    photoUrl?: string | null;
+    gemId?: string | null;
+    apRecordId?: string | null;
+    notes?: string | null;
+  },
+): Promise<string> {
+  const now = Timestamp.now();
+  const ref = await addDoc(collection(getFirebaseDb(), 'gemtrack_cheques'), {
+    ownerUid,
+    direction: input.direction,
+    chequeNumber: input.chequeNumber.trim(),
+    bankName: input.bankName.trim(),
+    branch: input.branch?.trim() ?? null,
+    amount: input.amount,
+    currency: input.currency ?? 'LKR',
+    amountBase: input.amount,
+    counterpartyContactId: input.counterpartyContactId,
+    issuedBy: input.issuedBy.trim(),
+    issueDate: input.issueDate,
+    maturityDate: input.maturityDate,
+    depositedDate: null,
+    clearedDate: null,
+    status: input.status ?? 'holding',
+    bouncedReason: null,
+    replacementChequeId: null,
+    photoUrl: input.photoUrl ?? null,
+    gemId: input.gemId ?? null,
+    apRecordId: input.apRecordId ?? null,
+    tripId: null,
+    notes: input.notes?.trim() ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+export async function updateCheque(
+  chequeId: string,
+  data: Partial<
+    Pick<
+      Cheque,
+      | 'chequeNumber'
+      | 'bankName'
+      | 'branch'
+      | 'amount'
+      | 'amountBase'
+      | 'issuedBy'
+      | 'issueDate'
+      | 'maturityDate'
+      | 'photoUrl'
+      | 'notes'
+    >
+  >,
+) {
+  const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (data.chequeNumber !== undefined) updates.chequeNumber = data.chequeNumber.trim();
+  if (data.bankName !== undefined) updates.bankName = data.bankName.trim();
+  if (data.branch !== undefined) updates.branch = data.branch?.trim() ?? null;
+  if (data.amount !== undefined) {
+    updates.amount = data.amount;
+    updates.amountBase = data.amountBase ?? data.amount;
+  }
+  if (data.issuedBy !== undefined) updates.issuedBy = data.issuedBy.trim();
+  if (data.issueDate !== undefined) updates.issueDate = data.issueDate;
+  if (data.maturityDate !== undefined) updates.maturityDate = data.maturityDate;
+  if (data.photoUrl !== undefined) updates.photoUrl = data.photoUrl;
+  if (data.notes !== undefined) updates.notes = data.notes?.trim() ?? null;
+  await updateDoc(doc(getFirebaseDb(), 'gemtrack_cheques', chequeId), updates);
+}
+
+export async function updateChequeStatus(
+  chequeId: string,
+  status: ChequeStatus,
+  extra?: { bouncedReason?: string; replacementChequeId?: string },
+) {
+  const now = Timestamp.now();
+  const updates: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
+  if (status === 'deposited') updates.depositedDate = now;
+  if (status === 'cleared') {
+    updates.clearedDate = now;
+    updates.depositedDate = updates.depositedDate ?? now;
+  }
+  if (status === 'bounced' && extra?.bouncedReason) {
+    updates.bouncedReason = extra.bouncedReason.trim();
+  }
+  if (status === 'replaced' && extra?.replacementChequeId) {
+    updates.replacementChequeId = extra.replacementChequeId;
+  }
+  await updateDoc(doc(getFirebaseDb(), 'gemtrack_cheques', chequeId), updates);
+}
+
+// ─── Trips ────────────────────────────────────────
+
+const EMPTY_TRIP_SUMMARY = {
+  totalExpenses: 0,
+  totalGemsPurchased: 0,
+  totalGemsSold: 0,
+  totalRevenue: 0,
+  netResult: 0,
+  gemsOnAp: 0,
+  gemsReturned: 0,
+};
+
+export async function fetchTrips(ownerUid: string): Promise<Trip[]> {
+  const q = query(
+    collection(getFirebaseDb(), 'gemtrack_trips'),
+    where('ownerUid', '==', ownerUid),
+    orderBy('startDate', 'desc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trip);
+}
+
+export async function fetchTrip(tripId: string): Promise<Trip | null> {
+  const snap = await getDoc(doc(getFirebaseDb(), 'gemtrack_trips', tripId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Trip;
+}
+
+export async function createTrip(
+  ownerUid: string,
+  input: {
+    tripName: string;
+    tripType: TripType;
+    destinationCountry: string;
+    destinationCity: string;
+    startDate: Timestamp;
+    expectedEndDate: Timestamp;
+    budget?: number;
+    budgetCurrency?: string;
+    cashCarried?: number;
+    notes?: string | null;
+  },
+): Promise<string> {
+  const now = Timestamp.now();
+  const ref = await addDoc(collection(getFirebaseDb(), 'gemtrack_trips'), {
+    ownerUid,
+    companyId: null,
+    tripName: input.tripName.trim(),
+    tripType: input.tripType,
+    destinationCountry: input.destinationCountry.trim(),
+    destinationCity: input.destinationCity.trim(),
+    startDate: input.startDate,
+    expectedEndDate: input.expectedEndDate,
+    actualEndDate: null,
+    budget: input.budget ?? 0,
+    budgetCurrency: input.budgetCurrency ?? 'LKR',
+    cashCarried: input.cashCarried ?? 0,
+    status: 'planning' as TripStatus,
+    summary: { ...EMPTY_TRIP_SUMMARY },
+    notes: input.notes?.trim() ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+export async function updateTripStatus(tripId: string, status: TripStatus) {
+  const updates: Record<string, unknown> = { status, updatedAt: serverTimestamp() };
+  if (status === 'completed') updates.actualEndDate = Timestamp.now();
+  await updateDoc(doc(getFirebaseDb(), 'gemtrack_trips', tripId), updates);
+}
+
+export async function fetchTripExpenses(tripId: string): Promise<TripExpense[]> {
+  const q = query(
+    collection(getFirebaseDb(), 'gemtrack_trip_expenses'),
+    where('tripId', '==', tripId),
+    orderBy('date', 'desc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TripExpense);
+}
+
+export async function addTripExpense(
+  ownerUid: string,
+  tripId: string,
+  input: {
+    category: string;
+    amount: number;
+    currency?: string;
+    description?: string | null;
+    date?: Timestamp;
+    paymentMethod?: string | null;
+    receiptPhotoUrl?: string | null;
+  },
+): Promise<string> {
+  const now = Timestamp.now();
+  const ref = await addDoc(collection(getFirebaseDb(), 'gemtrack_trip_expenses'), {
+    tripId,
+    ownerUid,
+    date: input.date ?? now,
+    category: input.category,
+    description: input.description?.trim() ?? null,
+    amount: input.amount,
+    currency: input.currency ?? 'LKR',
+    amountBase: input.amount,
+    paymentMethod: input.paymentMethod ?? null,
+    receiptPhotoUrl: input.receiptPhotoUrl ?? null,
+    createdAt: now,
+  });
+
+  await createTransaction(ownerUid, {
+    type: 'expense',
+    amount: input.amount,
+    currency: input.currency ?? 'LKR',
+    category: 'trip_expense',
+    description: input.description?.trim() || `Trip expense: ${input.category}`,
+    gemId: null,
+    contactId: null,
+    date: input.date ?? now,
+  });
+
+  await refreshTripSummary(tripId, ownerUid);
+  return ref.id;
+}
+
+export async function fetchTripGems(tripId: string): Promise<TripGem[]> {
+  const q = query(collection(getFirebaseDb(), 'gemtrack_trip_gems'), where('tripId', '==', tripId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TripGem);
+}
+
+async function refreshTripSummary(tripId: string, ownerUid: string) {
+  const [expenses, tripGems] = await Promise.all([fetchTripExpenses(tripId), fetchTripGems(tripId)]);
+  const purchases = tripGems.filter((tg) => tg.role === 'purchase');
+  const parcels = tripGems.filter((tg) => tg.role === 'parcel');
+  const sold = parcels.filter((tg) => tg.status === 'sold');
+  const totalExpenses = expenses.reduce((s, e) => s + e.amountBase, 0);
+  const purchaseSpend = purchases.reduce((s, tg) => s + (tg.purchaseCost ?? 0), 0);
+  const totalRevenue = sold.reduce((s, tg) => s + (tg.salePrice ?? 0), 0);
+
+  await updateDoc(doc(getFirebaseDb(), 'gemtrack_trips', tripId), {
+    summary: {
+      totalExpenses,
+      totalGemsPurchased: purchases.length,
+      totalGemsSold: sold.length,
+      totalRevenue,
+      netResult: totalRevenue - totalExpenses - purchaseSpend,
+      gemsOnAp: 0,
+      gemsReturned: tripGems.filter((tg) => tg.status === 'returned').length,
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function createGemOnSourcingTrip(
+  ownerUid: string,
+  tripId: string,
+  input: {
+    gemType: string;
+    originCountry: string;
+    roughWeight: number;
+    acquisitionCost: number;
+    notes?: string | null;
+  },
+): Promise<string> {
+  const gemId = await createGem(ownerUid, {
+    gemType: input.gemType,
+    originCountry: input.originCountry,
+    roughWeight: input.roughWeight,
+    acquisitionCost: input.acquisitionCost,
+    notes: input.notes ?? `Purchased on trip`,
+  });
+
+  const now = Timestamp.now();
+  await addDoc(collection(getFirebaseDb(), 'gemtrack_trip_gems'), {
+    tripId,
+    ownerUid,
+    gemId,
+    role: 'purchase',
+    purchaseCost: input.acquisitionCost,
+    salePrice: null,
+    saleDate: null,
+    status: 'on_trip',
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await refreshTripSummary(tripId, ownerUid);
+  return gemId;
+}
+
+export async function addGemsToSellingTrip(
+  ownerUid: string,
+  tripId: string,
+  gemIds: string[],
+): Promise<void> {
+  const now = Timestamp.now();
+  await Promise.all(
+    gemIds.map(async (gemId) => {
+      await addDoc(collection(getFirebaseDb(), 'gemtrack_trip_gems'), {
+        tripId,
+        ownerUid,
+        gemId,
+        role: 'parcel',
+        purchaseCost: null,
+        salePrice: null,
+        saleDate: null,
+        status: 'on_trip',
+        createdAt: now,
+        updatedAt: now,
+      });
+      await updateGemStatus(gemId, ownerUid, 'on_trip', 'Added to selling trip parcel');
+    }),
+  );
+  await refreshTripSummary(tripId, ownerUid);
+}
+
+export async function recordTripGemSale(
+  ownerUid: string,
+  tripId: string,
+  tripGemId: string,
+  gemId: string,
+  salePrice: number,
+): Promise<void> {
+  const now = Timestamp.now();
+  await updateDoc(doc(getFirebaseDb(), 'gemtrack_trip_gems', tripGemId), {
+    salePrice,
+    saleDate: now,
+    status: 'sold',
+    updatedAt: serverTimestamp(),
+  });
+  await updateGemStatus(gemId, ownerUid, 'sold', `Sold on trip for ${salePrice}`);
+  await createTransaction(ownerUid, {
+    type: 'income',
+    amount: salePrice,
+    currency: 'LKR',
+    category: 'gem_sale',
+    description: 'Sale during selling trip',
+    gemId,
+    contactId: null,
+    date: now,
+  });
+  await refreshTripSummary(tripId, ownerUid);
+}
+
+export async function distributeTripOverhead(ownerUid: string, tripId: string): Promise<number> {
+  const [expenses, tripGems] = await Promise.all([fetchTripExpenses(tripId), fetchTripGems(tripId)]);
+  const purchases = tripGems.filter((tg) => tg.role === 'purchase');
+  if (purchases.length === 0) throw new Error('No gems purchased on this trip to allocate overhead.');
+  const overhead = expenses.reduce((s, e) => s + e.amountBase, 0);
+  if (overhead <= 0) throw new Error('No trip expenses to distribute.');
+
+  const totalPurchase = purchases.reduce((s, tg) => s + (tg.purchaseCost ?? 0), 0);
+  const now = Timestamp.now();
+  let distributed = 0;
+
+  for (const tg of purchases) {
+    const share =
+      totalPurchase > 0
+        ? (overhead * (tg.purchaseCost ?? 0)) / totalPurchase
+        : overhead / purchases.length;
+    if (share <= 0) continue;
+
+    const gem = await fetchGem(tg.gemId);
+    if (!gem) continue;
+
+    await addDoc(collection(getFirebaseDb(), 'gemtrack_gem_costs'), {
+      gemId: tg.gemId,
+      ownerUid,
+      costType: 'trip_overhead',
+      description: 'Trip overhead allocation',
+      amount: share,
+      currency: 'LKR',
+      amountBase: share,
+      serviceRecordId: null,
+      date: now,
+      createdAt: now,
+    });
+
+    await updateDoc(doc(getFirebaseDb(), 'gemtrack_gems', tg.gemId), {
+      totalCost: gem.totalCost + share,
+      updatedAt: serverTimestamp(),
+    });
+    distributed += share;
+  }
+
+  return distributed;
 }
 
 // ─── Listings ─────────────────────────────────────
@@ -588,6 +1120,7 @@ export async function createNotification(
   recipientUid: string,
   input: { type: string; title: string; message: string; referenceType?: string; referenceId?: string },
 ) {
+  /** @deprecated Notifications are created by Cloud Functions only. */
   const now = Timestamp.now();
   await addDoc(collection(getFirebaseDb(), 'notifications'), {
     recipientUid,

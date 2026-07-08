@@ -115,15 +115,15 @@
   Report types: P&L, Cash Flow, Inventory Value,
   Outstanding Payments, Cheque Maturity
 
-  SPRINT 12: Polish + GemNet Enhancements
+  SPRINT 12: Polish + GemNet Enhancements ✅
   ────────────────────────────────────────
-  Full GemTrack notification types (all 8 types)
-  Offline mode (cache core data)
+  Full GemTrack notification types (all 8 types) — Cloud Functions Gen 2 daily job
+  Push via FCM — onNotificationCreated trigger + @react-native-firebase/messaging
+  GemNet triggers: announcements, verification, reports, account actions
+  Offline mode — Firestore native persistence + React Query offlineFirst
   GemNet: Fraud reporting submission
   GemNet: Endorsement sending
-  Performance optimization
-  Localization preparation (string extraction)
-  App Store and Play Store public release
+  Performance optimization (staleTime, gcTime, refetch tuning)
 
   PHASE 2 DELIVERABLE
   ─────────────────────

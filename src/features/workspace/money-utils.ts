@@ -11,7 +11,7 @@ import {
   subYears,
 } from 'date-fns';
 
-import type { Transaction } from '@/types';
+import type { Payable, Receivable, Transaction } from '@/types';
 
 export type TransactionSection = {
   title: string;
@@ -141,6 +141,17 @@ export function getCategoryBreakdown(
   return Array.from(totals.entries())
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+/** Outstanding money still owed to you (receivables) and owed by you (payables). */
+export function getOutstanding(receivables: Receivable[], payables: Payable[]) {
+  const toCollect = receivables
+    .filter((r) => r.status !== 'paid')
+    .reduce((sum, r) => sum + Math.max(0, r.amount - r.amountReceived), 0);
+  const toPay = payables
+    .filter((p) => p.status !== 'paid')
+    .reduce((sum, p) => sum + Math.max(0, p.amount - p.amountPaid), 0);
+  return { toCollect, toPay };
 }
 
 export type CashFlowBucket = { label: string; income: number; expense: number };

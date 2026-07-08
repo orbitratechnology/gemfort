@@ -1,15 +1,18 @@
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import { useEffect, useRef } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 
+import {
+  canRegisterForPushNotifications,
+  registerPushTokenForUser,
+} from '@/lib/notifications/register-push-token';
 import { updateFcmToken } from '@/lib/firebase/auth-service';
 import { useAuth } from '@/providers/auth-provider';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
@@ -17,33 +20,45 @@ Notifications.setNotificationHandler({
 });
 
 export function usePushNotifications() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const uidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user || !Device.isDevice) return;
-
-    async function register() {
-      const { status: existing } = await Notifications.getPermissionsAsync();
-      let finalStatus = existing;
-      if (existing !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') return;
-
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
-          importance: Notifications.AndroidImportance.DEFAULT,
-        });
-      }
-
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: '4ef3ea53-839b-47a2-9621-2875c6fa182d',
-      });
-      await updateFcmToken(user!.uid, tokenData.data);
-    }
-
-    register().catch(() => {});
+    uidRef.current = user?.uid ?? null;
   }, [user]);
+
+  useEffect(() => {
+    if (isLoading || !user || !canRegisterForPushNotifications()) return;
+
+    let pushTokenSubscription: Notifications.EventSubscription | undefined;
+    let cancelled = false;
+
+    pushTokenSubscription = Notifications.addPushTokenListener((nextToken) => {
+      const uid = uidRef.current;
+      const tokenValue = typeof nextToken.data === 'string' ? nextToken.data.trim() : '';
+      if (!uid || !tokenValue) return;
+      void updateFcmToken(uid, tokenValue).catch((error) => {
+        if (__DEV__) console.warn('[push] Token refresh save failed', error);
+      });
+    });
+
+    void registerPushTokenForUser(user.uid).catch((error) => {
+      if (!cancelled && __DEV__) {
+        console.warn('[push] Initial registration failed', error);
+      }
+    });
+
+    const onAppStateChange = (state: AppStateStatus) => {
+      if (state !== 'active' || !uidRef.current) return;
+      void registerPushTokenForUser(uidRef.current).catch(() => {});
+    };
+
+    const appStateSub = AppState.addEventListener('change', onAppStateChange);
+
+    return () => {
+      cancelled = true;
+      pushTokenSubscription?.remove();
+      appStateSub.remove();
+    };
+  }, [user, isLoading]);
 }

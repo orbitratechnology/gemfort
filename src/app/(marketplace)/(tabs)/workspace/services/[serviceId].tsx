@@ -14,6 +14,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 import type { ServiceRecord } from '@/types';
 
 function timelineSteps(status: ServiceRecord['status']) {
@@ -76,7 +77,7 @@ export default function ServiceDetailScreen() {
       toast.success('Service marked complete');
       router.back();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
+      toast.error(friendlyError(e, 'Could not update service.'));
     } finally {
       setLoading(false);
     }

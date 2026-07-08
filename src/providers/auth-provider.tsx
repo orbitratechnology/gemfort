@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -26,31 +27,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(isFirebaseConfigured);
+  const profileRequestRef = useRef(0);
+
+  const loadProfile = useCallback(async (uid: string) => {
+    const requestId = ++profileRequestRef.current;
+    const data = await getUserProfile(uid);
+    if (requestId === profileRequestRef.current) {
+      setProfile(data);
+    }
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     if (!user) {
       setProfile(null);
       return;
     }
-    const data = await getUserProfile(user.uid);
-    setProfile(data);
-  }, [user]);
+    await loadProfile(user.uid);
+  }, [loadProfile, user]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
 
-    const unsub = onAuthStateChanged(getFirebaseAuth(), async (nextUser) => {
+    const unsub = onAuthStateChanged(getFirebaseAuth(), (nextUser) => {
       setUser(nextUser as AuthUser | null);
       if (nextUser) {
-        const data = await getUserProfile(nextUser.uid);
-        setProfile(data);
+        void loadProfile(nextUser.uid);
       } else {
+        profileRequestRef.current += 1;
         setProfile(null);
       }
       setIsLoading(false);
     });
     return unsub;
-  }, []);
+  }, [loadProfile]);
 
   const value = useMemo(
     () => ({ user, profile, isLoading, refreshProfile }),

@@ -23,6 +23,7 @@ import { Timestamp } from '@/lib/firebase/db';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 type PaymentMethod = 'transfer' | 'cash' | 'cheque';
 const METHODS: { id: PaymentMethod; label: string; icon: IconName }[] = [
@@ -85,10 +86,18 @@ export default function RecordSaleScreen() {
       await updateGemStatus(gem.id, user.uid, 'sold', `Sold for ${formatCurrency(salePrice)}`);
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      if (method === 'cheque') {
+        toast.success(`${gem.sku} sold — add the cheque details next.`);
+        router.replace({
+          pathname: '/(marketplace)/(tabs)/workspace/cheques/add',
+          params: { amount: String(salePrice), gemId: gem.id },
+        });
+        return;
+      }
       toast.success(`${gem.sku} marked as sold and logged to your ledger.`);
       router.back();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not record sale');
+      toast.error(friendlyError(e, 'Could not record sale.'));
     } finally {
       setLoading(false);
     }
