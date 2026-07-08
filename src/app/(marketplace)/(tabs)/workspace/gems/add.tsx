@@ -14,6 +14,7 @@ import { uploadPickedImage } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function AddGemScreen() {
   const { user } = useAuth();
@@ -58,7 +59,7 @@ export default function AddGemScreen() {
       toast.success('Gem added to your inventory');
       router.replace(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not add gem');
+      toast.error(friendlyError(e, 'Could not add gem.'));
     } finally {
       setLoading(false);
     }

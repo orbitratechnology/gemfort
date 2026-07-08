@@ -70,7 +70,7 @@ export function ContactPicker({
                     <Text style={[styles.meta, ts.textMuted]}>{contact.phone}</Text>
                   ) : null}
                   <View style={styles.tags}>
-                    {contact.contactTypes.map((type) => (
+                    {(contact.contactTypes ?? []).map((type) => (
                       <Text key={type} style={[styles.tag, ts.textPrimary]}>
                         {type}
                       </Text>

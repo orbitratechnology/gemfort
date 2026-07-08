@@ -14,6 +14,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { uploadPickedImage } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 const STEPS = ['Documents', 'Face Match', 'Review'];
 
@@ -69,7 +70,7 @@ export default function VerifyApplicationScreen() {
       toast.success('Verification submitted — pending review. You will be notified when approved.');
       router.back();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Submission failed');
+      toast.error(friendlyError(e, 'Could not submit. Please try again.'));
     } finally {
       setLoading(false);
     }

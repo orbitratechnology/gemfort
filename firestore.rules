@@ -286,7 +286,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data)
            .affectedKeys().hasOnly(['isRead']);
 
-      // Created by Cloud Functions (admin token)
+      // Created by Cloud Functions (Admin SDK) or admin console
       allow create: if isAdmin();
       allow delete: if isOwner(resource.data.recipientUid)
                     || isAdmin();
@@ -408,6 +408,14 @@ service cloud.firestore {
     }
 
     match /gemtrack_trip_expenses/{docId} {
+      allow read, write: if isOwner(resource.data.ownerUid)
+                         && isNotSuspended();
+      allow create: if isAnySignedIn()
+        && isOwner(request.resource.data.ownerUid);
+      allow read, write: if isAdmin();
+    }
+
+    match /gemtrack_trip_gems/{docId} {
       allow read, write: if isOwner(resource.data.ownerUid)
                          && isNotSuspended();
       allow create: if isAnySignedIn()

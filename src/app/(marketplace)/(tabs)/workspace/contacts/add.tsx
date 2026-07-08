@@ -12,6 +12,7 @@ import { createContact } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 import { CONTACT_TYPES } from '@/constants/contact-types';
 
@@ -52,7 +53,7 @@ export default function AddContactScreen() {
       toast.success('Contact added');
       router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to add contact');
+      toast.error(friendlyError(e, 'Could not add contact.'));
     } finally {
       setLoading(false);
     }

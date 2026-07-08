@@ -22,6 +22,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatDate, openPhone, openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 function initials(name: string) {
   return name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
@@ -90,7 +91,7 @@ export default function ContactDetailScreen() {
       toast.success('Contact updated');
       setEditing(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(friendlyError(e, 'Could not save contact.'));
     } finally {
       setSaving(false);
     }
@@ -110,7 +111,7 @@ export default function ContactDetailScreen() {
             toast.success('Contact deleted');
             router.back();
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Failed to delete');
+            toast.error(friendlyError(e, 'Could not delete contact.'));
           }
         },
       },

@@ -15,6 +15,7 @@ import { createApRecord, fetchContacts, fetchGems } from '@/features/workspace/w
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function AddApScreen() {
   const { user } = useAuth();
@@ -57,7 +58,7 @@ export default function AddApScreen() {
       toast.success('Gem given on AP');
       router.replace(`/(marketplace)/(tabs)/workspace/ap/${id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to give on AP');
+      toast.error(friendlyError(e, 'Could not give on AP.'));
     } finally {
       setLoading(false);
     }

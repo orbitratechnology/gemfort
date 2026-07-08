@@ -9,6 +9,7 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { resetPassword } from '@/lib/firebase/auth-service';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useAppTheme();
@@ -22,7 +23,7 @@ export default function ForgotPasswordScreen() {
       await resetPassword(email);
       toast.success('Check your inbox for reset instructions.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not send reset email');
+      toast.error(friendlyError(e, 'Could not send reset email.'));
     } finally {
       setLoading(false);
     }

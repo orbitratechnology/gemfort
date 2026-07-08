@@ -10,7 +10,7 @@ export default function MarketplaceTabLayout() {
 
   return (
     <NativeTabs
-      key={colors.tabBar}
+      key={colors.text}
       tintColor={colors.primary}
       backgroundColor={colors.tabBar}
       minimizeBehavior={Platform.OS === 'ios' ? 'onScrollDown' : undefined}>

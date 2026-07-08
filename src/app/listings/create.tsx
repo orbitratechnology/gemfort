@@ -15,6 +15,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 export default function CreateListingScreen() {
   const { user, profile } = useAuth();
@@ -118,7 +119,7 @@ export default function CreateListingScreen() {
         { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
       ]);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to publish');
+      toast.error(friendlyError(e, 'Could not publish listing.'));
     } finally {
       setLoading(false);
     }

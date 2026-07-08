@@ -26,6 +26,12 @@ export type UserProfile = {
   suspendedAt: Timestamp | null;
   companyId: string | null;
   fcmToken: string | null;
+  notificationPreferences?: {
+    pushAnnouncements?: boolean;
+    pushChequeAlerts?: boolean;
+    pushApAlerts?: boolean;
+    pushPaymentAlerts?: boolean;
+  };
   phoneVerified?: boolean;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
@@ -328,6 +334,138 @@ export type Payable = {
   updatedAt: Timestamp;
 };
 
+export type PaymentDirection = 'in' | 'out';
+
+export type Payment = {
+  id: string;
+  ownerUid: string;
+  direction: PaymentDirection;
+  amount: number;
+  currency: string;
+  amountBase: number;
+  paymentMethod: string | null;
+  commission: number | null;
+  receivableId: string | null;
+  payableId: string | null;
+  gemId: string | null;
+  contactId: string | null;
+  transactionId: string | null;
+  notes: string | null;
+  paymentDate: Timestamp;
+  createdAt: Timestamp;
+};
+
+export type FinancialReportType =
+  | 'profit_loss'
+  | 'cash_flow'
+  | 'inventory_value'
+  | 'outstanding_payments'
+  | 'cheque_maturity';
+
+export type ChequeDirection = 'received' | 'given';
+
+export type ChequeStatus =
+  | 'holding'
+  | 'deposited'
+  | 'cleared'
+  | 'bounced'
+  | 'replaced'
+  | 'cancelled';
+
+export type Cheque = {
+  id: string;
+  ownerUid: string;
+  direction: ChequeDirection;
+  chequeNumber: string;
+  bankName: string;
+  branch: string | null;
+  amount: number;
+  currency: string;
+  amountBase: number;
+  counterpartyContactId: string;
+  issuedBy: string;
+  issueDate: Timestamp;
+  maturityDate: Timestamp;
+  depositedDate: Timestamp | null;
+  clearedDate: Timestamp | null;
+  status: ChequeStatus;
+  bouncedReason: string | null;
+  replacementChequeId: string | null;
+  photoUrl: string | null;
+  gemId: string | null;
+  apRecordId: string | null;
+  tripId: string | null;
+  notes: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type TripType = 'sourcing' | 'selling' | 'both';
+
+export type TripStatus = 'planning' | 'ongoing' | 'completed' | 'cancelled';
+
+export type Trip = {
+  id: string;
+  ownerUid: string;
+  companyId: string | null;
+  tripName: string;
+  tripType: TripType;
+  destinationCountry: string;
+  destinationCity: string;
+  startDate: Timestamp;
+  expectedEndDate: Timestamp;
+  actualEndDate: Timestamp | null;
+  budget: number;
+  budgetCurrency: string;
+  cashCarried: number;
+  status: TripStatus;
+  summary: {
+    totalExpenses: number;
+    totalGemsPurchased: number;
+    totalGemsSold: number;
+    totalRevenue: number;
+    netResult: number;
+    gemsOnAp: number;
+    gemsReturned: number;
+  };
+  notes: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type TripGemRole = 'purchase' | 'parcel';
+
+export type TripGemStatus = 'on_trip' | 'sold' | 'returned';
+
+export type TripGem = {
+  id: string;
+  tripId: string;
+  ownerUid: string;
+  gemId: string;
+  role: TripGemRole;
+  purchaseCost: number | null;
+  salePrice: number | null;
+  saleDate: Timestamp | null;
+  status: TripGemStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type TripExpense = {
+  id: string;
+  tripId: string;
+  ownerUid: string;
+  date: Timestamp;
+  category: string;
+  description: string | null;
+  amount: number;
+  currency: string;
+  amountBase: number;
+  paymentMethod: string | null;
+  receiptPhotoUrl: string | null;
+  createdAt: Timestamp;
+};
+
 export type MarketplaceListing = {
   id: string;
   sellerUid: string;
@@ -368,7 +506,43 @@ export type AppNotification = {
   message: string;
   referenceType: string | null;
   referenceId: string | null;
+  priority?: 'high' | 'medium' | 'low';
   isRead: boolean;
+  isPushSent?: boolean;
+  createdAt: Timestamp;
+};
+
+export type FraudReportType =
+  | 'fake_business'
+  | 'scammer'
+  | 'wrong_information'
+  | 'fake_gems'
+  | 'harassment'
+  | 'other';
+
+export type FraudReport = {
+  id: string;
+  reporterUid: string;
+  reportedBusinessId: string;
+  reportedUserUid: string | null;
+  reportType: FraudReportType;
+  description: string;
+  evidenceUrls: string[];
+  status: 'pending' | 'investigating' | 'resolved' | 'dismissed';
+  adminUid: string | null;
+  adminNotes: string | null;
+  resolution: string | null;
+  actionTaken: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  resolvedAt: Timestamp | null;
+};
+
+export type Endorsement = {
+  id: string;
+  fromBusinessId: string;
+  toBusinessId: string;
+  fromUid: string;
   createdAt: Timestamp;
 };
 

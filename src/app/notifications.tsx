@@ -38,6 +38,16 @@ export default function NotificationsScreen() {
       router.push(`/(marketplace)/(tabs)/workspace/ap/${refId}`);
     } else if (refType === 'service' && refId) {
       router.push(`/(marketplace)/(tabs)/workspace/services/${refId}`);
+    } else if (refType === 'cheque' && refId) {
+      router.push(`/(marketplace)/(tabs)/workspace/cheques/${refId}`);
+    } else if (refType === 'receivable' && refId) {
+      router.push('/(marketplace)/(tabs)/workspace/money/receivables');
+    } else if (refType === 'verification') {
+      router.push('/profile/verify');
+    } else if (refType === 'announcement') {
+      router.push('/(marketplace)/(tabs)/home');
+    } else if (refType === 'account') {
+      router.push('/(marketplace)/(tabs)/profile');
     }
   }
 

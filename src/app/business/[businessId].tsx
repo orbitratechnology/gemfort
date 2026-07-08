@@ -1,9 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FraudReportSheet } from '@/components/marketplace/fraud-report-sheet';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -11,11 +12,16 @@ import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   demoBusinesses,
   fetchBusiness,
+  fetchBusinessByOwnerUid,
+  sendEndorsement,
   trackBusinessAnalytics,
 } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { friendlyError } from '@/lib/errors';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import { formatCurrency, openPhone, openWhatsApp } from '@/lib/utils';
+import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 
 function initials(name: string) {
   return name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
@@ -24,6 +30,10 @@ function initials(name: string) {
 export default function BusinessProfileScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
   const { colors } = useAppTheme();
+  const { user, profile } = useAuth();
+  const toast = useToast();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [endorsing, setEndorsing] = useState(false);
 
   const { data: business } = useQuery({
     queryKey: ['business', businessId],
@@ -38,6 +48,12 @@ export default function BusinessProfileScreen() {
       }
     },
     enabled: !!businessId,
+  });
+
+  const { data: myBusiness } = useQuery({
+    queryKey: ['my-business', user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    enabled: !!user && isFirebaseConfigured,
   });
 
   useEffect(() => {
@@ -65,6 +81,30 @@ export default function BusinessProfileScreen() {
       : business.verificationTier === 'basic'
         ? 'Verified Merchant'
         : 'Member';
+
+  const isOwnBusiness = user?.uid === business.ownerUid;
+  const isVerifiedMember =
+    profile?.verificationStatus === 'verified' &&
+    (profile?.role === 'verified_seller' || profile?.role === 'verified_provider');
+  const canEndorse = !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
+
+  async function handleEndorse() {
+    if (!user || !myBusiness || !business) return;
+    setEndorsing(true);
+    try {
+      await sendEndorsement({
+        fromUid: user.uid,
+        fromBusinessId: myBusiness.id,
+        toBusinessId: business.id,
+      });
+      toast.success(`You endorsed ${business.businessName}.`);
+    } catch (e) {
+      const msg = friendlyError(e, 'Could not send endorsement.');
+      toast.error(msg.includes('PERMISSION') || msg.includes('already') ? 'You already endorsed this business.' : msg);
+    } finally {
+      setEndorsing(false);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -103,6 +143,29 @@ export default function BusinessProfileScreen() {
             ) : null}
           </View>
         </View>
+
+        {/* Trust actions */}
+        {user && !isOwnBusiness ? (
+          <View style={styles.trustRow}>
+            {canEndorse ? (
+              <Pressable
+                style={[styles.trustBtn, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}
+                onPress={handleEndorse}
+                disabled={endorsing}>
+                <Icon name="thumb-up" size={18} color={colors.accent} />
+                <Text style={[styles.trustBtnText, { color: colors.accent }]}>
+                  {endorsing ? 'Sending…' : 'Endorse'}
+                </Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={[styles.trustBtn, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}
+              onPress={() => setReportOpen(true)}>
+              <Icon name="flag" size={18} color={colors.error} />
+              <Text style={[styles.trustBtnText, { color: colors.error }]}>Report</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* About Us */}
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
@@ -228,6 +291,17 @@ export default function BusinessProfileScreen() {
 
         <Text style={[styles.footer, { color: colors.textMuted }]}>Powered by GemFort</Text>
       </ThemedScrollView>
+
+      {user && business ? (
+        <FraudReportSheet
+          visible={reportOpen}
+          onClose={() => setReportOpen(false)}
+          reporterUid={user.uid}
+          reportedBusinessId={business.id}
+          reportedUserUid={business.ownerUid}
+          businessName={business.businessName}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -288,6 +362,19 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
   contactBtnText: { ...Typography.labelMd },
+
+  trustRow: { flexDirection: 'row', gap: Spacing.sm },
+  trustBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
+  trustBtnText: { ...Typography.labelMd, fontWeight: '600' },
 
   statusCard: { borderRadius: Radius.lg, padding: 16, gap: 10 },
   statusHeading: { ...Typography.labelMd, letterSpacing: 1, marginBottom: 4 },

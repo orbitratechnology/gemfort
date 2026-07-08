@@ -16,6 +16,7 @@ import { createService, fetchContacts, fetchGems } from '@/features/workspace/wo
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import { friendlyError } from '@/lib/errors';
 
 const SERVICE_TYPES = [
   { id: 'cutting', label: 'Cutting' },
@@ -76,7 +77,7 @@ export default function AddServiceScreen() {
       toast.success('Service record created');
       router.replace(`/(marketplace)/(tabs)/workspace/services/${id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create service');
+      toast.error(friendlyError(e, 'Could not create service.'));
     } finally {
       setLoading(false);
     }
