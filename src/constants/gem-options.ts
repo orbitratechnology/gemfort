@@ -1,16 +1,17 @@
+import type { IconName } from '@/components/ui/icon';
 import type { GemStatus } from '@/types';
 
 export const GEM_TYPES = [
-  { value: 'blue_sapphire', label: 'Blue Sapphire' },
-  { value: 'ruby', label: 'Ruby' },
-  { value: 'padparadscha', label: 'Padparadscha' },
-  { value: 'emerald', label: 'Emerald' },
-  { value: 'cat_eye', label: 'Cat\'s Eye' },
-  { value: 'star_sapphire', label: 'Star Sapphire' },
-  { value: 'spinel', label: 'Spinel' },
-  { value: 'garnet', label: 'Garnet' },
-  { value: 'tourmaline', label: 'Tourmaline' },
-  { value: 'other', label: 'Other' },
+  { value: 'blue_sapphire', label: 'Blue Sapphire', icon: 'diamond' as IconName },
+  { value: 'ruby', label: 'Ruby', icon: 'favorite' as IconName },
+  { value: 'padparadscha', label: 'Padparadscha', icon: 'wb-sunny' as IconName },
+  { value: 'emerald', label: 'Emerald', icon: 'eco' as IconName },
+  { value: 'cat_eye', label: "Cat's Eye", icon: 'visibility' as IconName },
+  { value: 'star_sapphire', label: 'Star Sapphire', icon: 'star' as IconName },
+  { value: 'spinel', label: 'Spinel', icon: 'hexagon' as IconName },
+  { value: 'garnet', label: 'Garnet', icon: 'brightness-1' as IconName },
+  { value: 'tourmaline', label: 'Tourmaline', icon: 'water-drop' as IconName },
+  { value: 'other', label: 'Other', icon: 'more-horiz' as IconName },
 ] as const;
 
 export const GEM_STATUS_FILTERS: { value: GemStatus | 'all'; label: string }[] = [

@@ -70,6 +70,7 @@ export default function PaymentsScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <EmptyState
+            icon="payments"
             title="No payments yet"
             subtitle="Partial payments on receivables and payables appear here with commission if recorded."
           />

@@ -64,11 +64,11 @@ export default function AddContactScreen() {
       <StackHeader title="Add Contact" />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Name" value={displayName} onChangeText={setDisplayName} placeholder="Full name" />
-          <Input label="Company" value={companyName} onChangeText={setCompanyName} placeholder="Optional" />
-          <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-          <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
-          <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+          <Input label="Name" value={displayName} onChangeText={setDisplayName} placeholder="Full name" leftIcon="person" />
+          <Input label="Company" value={companyName} onChangeText={setCompanyName} placeholder="Optional" leftIcon="business" />
+          <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="phone" />
+          <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" leftIcon="chat" />
+          <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" leftIcon="email" />
         </View>
 
         <View style={styles.section}>
@@ -96,10 +96,10 @@ export default function AddContactScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" />
+          <Input label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" leftIcon="notes" />
         </View>
 
-        <Button title="Save Contact" loading={loading} onPress={handleSubmit} />
+        <Button title="Save Contact" icon="person-add" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
     </SafeAreaView>
   );

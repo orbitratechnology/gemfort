@@ -136,6 +136,7 @@ export default function ContactsListScreen() {
         }
         ListEmptyComponent={
           <EmptyState
+            icon="person"
             title={contacts.length === 0 ? 'No contacts yet' : 'No matches'}
             subtitle={
               contacts.length === 0

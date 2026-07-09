@@ -11,7 +11,9 @@ export default function MarketplaceTabLayout() {
   return (
     <NativeTabs
       key={colors.text}
-      tintColor={colors.primary}
+      indicatorColor={colors.primary}
+      iconColor={{ default: colors.text, selected: colors.white }}
+      tintColor={colors.text}
       backgroundColor={colors.tabBar}
       minimizeBehavior={Platform.OS === 'ios' ? 'onScrollDown' : undefined}>
       <NativeTabs.Trigger name="home">

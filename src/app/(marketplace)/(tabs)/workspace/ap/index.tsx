@@ -109,9 +109,10 @@ export default function ApListScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <EmptyState
+              icon="handshake"
               title="No AP stones"
               subtitle="Give a gem on AP to track it here"
-              action={<Button title="Give on AP" onPress={() => router.push('/(marketplace)/(tabs)/workspace/ap/add')} />}
+              action={<Button title="Give on AP" icon="add" onPress={() => router.push('/(marketplace)/(tabs)/workspace/ap/add')} />}
             />
           }
           renderItem={({ item: group }) => (

@@ -146,6 +146,13 @@ const styles = StyleSheet.create({
   group: { gap: Spacing.sm },
   groupLabel: { ...Typography.labelMd, letterSpacing: 0.5, textTransform: 'uppercase' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full, borderWidth: 1 },
-  chipText: { ...Typography.labelMd },
+  chip: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipText: { ...Typography.labelMd, lineHeight: 18, includeFontPadding: false },
 });

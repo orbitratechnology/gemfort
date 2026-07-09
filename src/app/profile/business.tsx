@@ -286,15 +286,15 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
       {/* Identity */}
       <SectionCard title="Identity" subtitle="How buyers recognize you" colors={colors}>
         <View style={styles.fieldStack}>
-          <Input label="Business name" value={businessName} onChangeText={setBusinessName} placeholder="e.g. Celestial Sapphires" />
+          <Input label="Business name" value={businessName} onChangeText={setBusinessName} placeholder="e.g. Celestial Sapphires" leftIcon="business" />
         </View>
       </SectionCard>
 
       {/* Location */}
       <SectionCard title="Location" subtitle="Where you operate from" colors={colors}>
         <View style={styles.fieldStack}>
-          <Input label="City" value={city} onChangeText={setCity} placeholder="Beruwala" />
-          <Input label="Address" value={address} onChangeText={setAddress} placeholder="Street, building, area" />
+          <Input label="City" value={city} onChangeText={setCity} placeholder="Beruwala" leftIcon="place" />
+          <Input label="Address" value={address} onChangeText={setAddress} placeholder="Street, building, area" leftIcon="home" />
         </View>
       </SectionCard>
 
@@ -307,6 +307,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           placeholder="Specializing in Ceylon sapphires, ethically sourced from Ratnapura…"
           multiline
           style={styles.textArea}
+          leftIcon="notes"
         />
       </SectionCard>
 
@@ -319,6 +320,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             onChangeText={setWhatsapp}
             keyboardType="phone-pad"
             placeholder="+94 77X XXX XXXX"
+            leftIcon="chat"
           />
           {business ? (
             <View style={styles.toggleRow}>
@@ -341,6 +343,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             placeholder="+94 XX XXX XXXX"
+            leftIcon="phone"
           />
           {business ? (
             <View style={styles.toggleRow}>
@@ -363,6 +366,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
       <View style={styles.actions}>
         <Button
           title={business ? 'Save changes' : 'Create business profile'}
+          icon="save"
           loading={loading}
           disabled={!canSave}
           onPress={handleSave}

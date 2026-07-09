@@ -96,13 +96,14 @@ export default function AddTripPurchaseScreen() {
           </View>
         </View>
 
-        <Input label="Origin country" value={originCountry} onChangeText={setOriginCountry} />
+        <Input label="Origin country" value={originCountry} onChangeText={setOriginCountry} leftIcon="public" />
         <Input
           label="Rough weight (ct)"
           value={roughWeight}
           onChangeText={setRoughWeight}
           keyboardType="decimal-pad"
           placeholder="0.00"
+          leftIcon="scale"
         />
         <Input
           label="Purchase price (LKR)"
@@ -110,10 +111,11 @@ export default function AddTripPurchaseScreen() {
           onChangeText={setAcquisitionCost}
           keyboardType="decimal-pad"
           placeholder="0.00"
+          leftIcon="payments"
         />
-        <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline />
+        <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 
-        <Button title="Add to trip" loading={loading} onPress={handleSubmit} />
+        <Button title="Add to trip" icon="add" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
     </SafeAreaView>
   );

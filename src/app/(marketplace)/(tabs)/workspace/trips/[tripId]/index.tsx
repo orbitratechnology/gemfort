@@ -229,11 +229,11 @@ export default function TripDetailScreen() {
         </View>
 
         {canStartTrip(trip.status) ? (
-          <Button title="Start trip" loading={loading} onPress={() => handleStatus('ongoing')} />
+          <Button title="Start trip" icon="flight" loading={loading} onPress={() => handleStatus('ongoing')} />
         ) : null}
         {canCompleteTrip(trip.status) ? (
           <View style={styles.actionRow}>
-            <Button title="Complete trip" loading={loading} onPress={() => handleStatus('completed')} style={{ flex: 1 }} />
+            <Button title="Complete trip" icon="done-all" loading={loading} onPress={() => handleStatus('completed')} style={{ flex: 1 }} />
           </View>
         ) : null}
 
@@ -286,6 +286,7 @@ export default function TripDetailScreen() {
               onChangeText={setSalePrice}
               keyboardType="decimal-pad"
               placeholder="0.00"
+              leftIcon="payments"
             />
             <View style={styles.saleActions}>
               <Button
@@ -297,7 +298,7 @@ export default function TripDetailScreen() {
                 }}
                 style={{ flex: 1 }}
               />
-              <Button title="Confirm sale" loading={loading} onPress={handleRecordSale} style={{ flex: 1 }} />
+              <Button title="Confirm sale" icon="check-circle" loading={loading} onPress={handleRecordSale} style={{ flex: 1 }} />
             </View>
           </View>
         ) : null}

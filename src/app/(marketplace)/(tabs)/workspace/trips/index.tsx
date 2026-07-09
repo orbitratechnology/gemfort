@@ -117,6 +117,7 @@ export default function TripsScreen() {
 
         {trips.length === 0 ? (
           <EmptyState
+            icon="flight"
             title="No trips yet"
             subtitle="Create a sourcing or selling trip to track travel costs and gem deals."
           />

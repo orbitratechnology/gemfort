@@ -159,18 +159,20 @@ export default function ApDetailScreen() {
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Sale Details</Text>
                 <View style={styles.inputGroup}>
-                  <Input 
-                    label="Final Sale Price (USD)" 
-                    value={soldPrice} 
-                    onChangeText={setSoldPrice} 
-                    keyboardType="decimal-pad" 
+                  <Input
+                    label="Final Sale Price (USD)"
+                    value={soldPrice}
+                    onChangeText={setSoldPrice}
+                    keyboardType="decimal-pad"
                     placeholder="0.00"
+                    leftIcon="payments"
                   />
-                  <Input 
-                    label="Buyer/Client" 
-                    value={buyerName} 
-                    onChangeText={setBuyerName} 
+                  <Input
+                    label="Buyer/Client"
+                    value={buyerName}
+                    onChangeText={setBuyerName}
                     placeholder="Search or enter name"
+                    leftIcon="person"
                   />
                 </View>
               </View>
@@ -178,12 +180,13 @@ export default function ApDetailScreen() {
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Return Details</Text>
                 <View style={styles.inputGroup}>
-                  <Input 
-                    label="Reason / Notes (Optional)" 
-                    value={returnNotes} 
-                    onChangeText={setReturnNotes} 
+                  <Input
+                    label="Reason / Notes (Optional)"
+                    value={returnNotes}
+                    onChangeText={setReturnNotes}
                     multiline
                     placeholder="e.g., Client preferred a different cut"
+                    leftIcon="notes"
                   />
                 </View>
               </View>
@@ -191,9 +194,10 @@ export default function ApDetailScreen() {
 
             {/* Action Button */}
             <View style={styles.actionArea}>
-              <Button 
-                title="Confirm AP Record" 
-                onPress={handleConfirm} 
+              <Button
+                title="Confirm AP Record"
+                icon="check-circle"
+                onPress={handleConfirm}
                 loading={loading}
                 style={[styles.confirmBtn, { backgroundColor: colors.secondaryContainer }]}
                 textStyle={{ color: colors.onSecondaryContainer as any }}

@@ -14,6 +14,7 @@ type ContactPickerProps = {
   onChange: (contactId: string) => void;
   typeFilter?: string | null;
   emptyHint?: string;
+  error?: string;
 };
 
 export function ContactPicker({
@@ -23,6 +24,7 @@ export function ContactPicker({
   onChange,
   typeFilter = null,
   emptyHint = 'Add a contact in Workspace → Contacts first.',
+  error,
 }: ContactPickerProps) {
   const ts = useThemeStyles();
   const [query, setQuery] = useState('');
@@ -40,6 +42,7 @@ export function ContactPicker({
         value={query}
         onChangeText={setQuery}
         placeholder="Name, phone, or type"
+        leftIcon="search"
       />
       {filtered.length === 0 ? (
         <Text style={[styles.empty, ts.textMuted]}>{emptyHint}</Text>
@@ -55,6 +58,7 @@ export function ContactPicker({
                   ts.border,
                   { backgroundColor: ts.colors.surface },
                   selected && { borderColor: ts.colors.primary },
+                  !!error && !value && { borderColor: ts.colors.error },
                 ]}
                 onPress={() => onChange(contact.id)}>
                 <View style={styles.rowBody}>
@@ -85,6 +89,11 @@ export function ContactPicker({
           })}
         </View>
       )}
+      {error ? (
+        <Text style={[styles.error, { color: ts.colors.error }]} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -113,4 +122,5 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   check: { ...Typography.caption, marginLeft: Spacing.sm, fontWeight: '600' },
+  error: { ...Typography.bodySmall },
 });

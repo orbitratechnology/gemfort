@@ -146,6 +146,7 @@ export default function ServicesListScreen() {
         }
         ListEmptyComponent={
           <EmptyState
+            icon="handyman"
             title="No service records"
             subtitle="Send a gem to a cutter, heater, or lab to track it here."
           />

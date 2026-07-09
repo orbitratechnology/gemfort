@@ -1,19 +1,22 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Brand } from '@/constants/brand-story';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { loginUser, getUserProfile, needsPhoneVerification } from '@/lib/firebase/auth-service';
-import { markOnboardingComplete } from '@/lib/onboarding';
-import { useToast } from '@/providers/toast-provider';
+import { getUserProfile, loginUser, needsPhoneVerification } from '@/lib/firebase/auth-service';
 import { friendlyError } from '@/lib/errors';
+import { markOnboardingComplete } from '@/lib/onboarding';
+import { loginSchema, parseForm } from '@/lib/validation/form-schemas';
+import { useToast } from '@/providers/toast-provider';
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
@@ -21,13 +24,28 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function clearField(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
 
   async function handleLogin() {
-    setError('');
+    const result = parseForm(loginSchema, { email, password });
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+
     setLoading(true);
+    setErrors({});
     try {
-      const loggedInUser = await loginUser(email, password);
+      const loggedInUser = await loginUser(result.data.email, result.data.password);
       await markOnboardingComplete();
       const profile = await getUserProfile(loggedInUser.uid);
       if (needsPhoneVerification(profile)) {
@@ -40,7 +58,7 @@ export default function LoginScreen() {
       }
     } catch (e) {
       const msg = friendlyError(e, 'Could not sign in. Please try again.');
-      setError(msg);
+      setErrors({ password: msg });
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -51,42 +69,64 @@ export default function LoginScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}>
-        <ScrollView
+        style={styles.flex}>
+        <ThemedScrollView
           contentContainerStyle={styles.container}
-          contentInsetAdjustmentBehavior="automatic"
           keyboardShouldPersistTaps="handled">
-          <BrandMark size="md" showWordmark />
-          <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
+          <View style={styles.brandBlock}>
+            <BrandMark size="md" showWordmark />
+            <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
+          </View>
+
           <StoryChapter
             title="Welcome back"
             body="Sign in to continue your gem business journey."
             accent="primary"
           />
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="you@example.com"
-          />
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Enter password"
-            error={error}
-          />
-          <Button title="Sign In" loading={loading} onPress={handleLogin} />
-          <Link href="/(auth)/forgot-password" style={styles.link}>
-            <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
-          </Link>
-          <Link href="/(auth)/register" style={styles.link}>
-            <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
-          </Link>
-        </ScrollView>
+
+          <FormSection>
+            <Input
+              label="Email"
+              leftIcon="email"
+              value={email}
+              onChangeText={(v) => {
+                setEmail(v);
+                clearField('email');
+              }}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              placeholder="you@example.com"
+              error={errors.email}
+            />
+            <Input
+              label="Password"
+              leftIcon="lock"
+              value={password}
+              onChangeText={(v) => {
+                setPassword(v);
+                clearField('password');
+              }}
+              secureTextEntry
+              autoComplete="password"
+              textContentType="password"
+              placeholder="Enter password"
+              error={errors.password}
+            />
+          </FormSection>
+
+          <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
+
+          <View style={styles.links}>
+            <Link href="/(auth)/forgot-password">
+              <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
+            </Link>
+            <Link href="/(auth)/register">
+              <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
+            </Link>
+          </View>
+        </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -94,8 +134,15 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: Spacing.xxl, gap: Spacing.lg },
-  tagline: { ...Typography.bodySmall, marginTop: -Spacing.sm },
-  link: { alignSelf: 'center' },
-  linkText: { ...Typography.body },
+  flex: { flex: 1 },
+  container: {
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.section,
+    gap: Spacing.lg,
+  },
+  brandBlock: { gap: Spacing.sm },
+  tagline: { ...Typography.bodySmall },
+  links: { alignItems: 'center', gap: Spacing.md, paddingTop: Spacing.sm },
+  linkText: { ...Typography.bodyMd, fontWeight: '600' },
 });

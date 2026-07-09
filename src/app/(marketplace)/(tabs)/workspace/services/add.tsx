@@ -146,8 +146,8 @@ export default function AddServiceScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Weight Before (ct)" value={weightBefore} onChangeText={setWeightBefore} keyboardType="decimal-pad" />
-          <Input label="Days Until Return" value={daysUntilReturn} onChangeText={setDaysUntilReturn} keyboardType="number-pad" />
+          <Input label="Weight Before (ct)" value={weightBefore} onChangeText={setWeightBefore} keyboardType="decimal-pad" leftIcon="scale" />
+          <Input label="Days Until Return" value={daysUntilReturn} onChangeText={setDaysUntilReturn} keyboardType="number-pad" leftIcon="schedule" />
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
@@ -161,7 +161,7 @@ export default function AddServiceScreen() {
           />
         </View>
 
-        <Button title="Create Service Record" loading={loading} onPress={handleSubmit} />
+        <Button title="Create Service Record" icon="handyman" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
     </SafeAreaView>
   );

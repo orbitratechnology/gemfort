@@ -1,38 +1,32 @@
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
-import { ThemedScrollView } from '@/components/ui/screen';
+import { ChipSelect } from '@/components/ui/chip-select';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Brand } from '@/constants/brand-story';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useThemeStyles } from '@/hooks/use-theme-styles';
 import { registerUser } from '@/lib/firebase/auth-service';
-import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
+import { parseForm, registerSchema } from '@/lib/validation/form-schemas';
+import { useToast } from '@/providers/toast-provider';
 import type { UserRole } from '@/types';
 
-const roles: { id: UserRole; label: string }[] = [
-  { id: 'normal_user', label: 'Buyer / Trader' },
-  { id: 'verified_seller', label: 'Seller' },
-  { id: 'verified_provider', label: 'Service Provider' },
+const ROLES: { value: UserRole; label: string; subtitle: string }[] = [
+  { value: 'normal_user', label: 'Buyer / Trader', subtitle: 'Browse and track stones' },
+  { value: 'verified_seller', label: 'Seller', subtitle: 'List gems for sale' },
+  { value: 'verified_provider', label: 'Service provider', subtitle: 'Cutting, heating, polish' },
 ];
 
 export default function RegisterScreen() {
   const { colors } = useAppTheme();
-  const ts = useThemeStyles();
   const toast = useToast();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -40,20 +34,41 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [roleIntent, setRoleIntent] = useState<UserRole>('normal_user');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function clearField(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
 
   async function handleRegister() {
-    if (!displayName || !email || !phone || !password) {
-      toast.error('Please fill in all fields.');
+    const result = parseForm(registerSchema, {
+      displayName,
+      email,
+      phone,
+      password,
+      roleIntent,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0] ?? 'Check the highlighted fields.');
       return;
     }
+
     setLoading(true);
+    setErrors({});
     try {
+      const data = result.data;
       const { phone: verifiedPhone } = await registerUser({
-        email,
-        password,
-        displayName,
-        phone,
-        roleIntent,
+        email: data.email,
+        password: data.password,
+        displayName: data.displayName,
+        phone: data.phone,
+        roleIntent: data.roleIntent,
       });
       router.replace({ pathname: '/(auth)/verify-otp', params: { phone: verifiedPhone } });
     } catch (e) {
@@ -67,48 +82,98 @@ export default function RegisterScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}>
-        <ThemedScrollView contentContainerStyle={styles.container}>
+        style={styles.flex}>
+        <ThemedScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled">
           <BrandMark size="md" />
           <StoryChapter
             title="Create your account"
-            body={`${Brand.subtagline} Join the GemFort community to track stones and connect with traders.`}
+            body={`${Brand.subtagline} Track stones and connect with traders.`}
           />
-          <Input label="Full Name" value={displayName} onChangeText={setDisplayName} />
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
+
+          <FormSection title="Your details">
+            <Input
+              label="Full name"
+              leftIcon="person"
+              value={displayName}
+              onChangeText={(v) => {
+                setDisplayName(v);
+                clearField('displayName');
+              }}
+              autoComplete="name"
+              textContentType="name"
+              error={errors.displayName}
+            />
+            <Input
+              label="Email"
+              leftIcon="email"
+              value={email}
+              onChangeText={(v) => {
+                setEmail(v);
+                clearField('email');
+              }}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              error={errors.email}
+            />
+            <Input
+              label="Phone"
+              leftIcon="phone"
+              value={phone}
+              onChangeText={(v) => {
+                setPhone(v);
+                clearField('phone');
+              }}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              placeholder="+94 77X XXX XXXX"
+              error={errors.phone}
+            />
+            <Input
+              label="Password"
+              leftIcon="lock"
+              value={password}
+              onChangeText={(v) => {
+                setPassword(v);
+                clearField('password');
+              }}
+              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              placeholder="At least 8 characters"
+              error={errors.password}
+            />
+          </FormSection>
+
+          <FormSection title="I am a…">
+            <ChipSelect
+              layout="stack"
+              options={ROLES}
+              value={roleIntent}
+              onChange={(v) => {
+                setRoleIntent(v);
+                clearField('roleIntent');
+              }}
+              error={errors.roleIntent}
+            />
+          </FormSection>
+
+          <Button
+            title="Create account"
+            icon="person-add"
+            loading={loading}
+            onPress={handleRegister}
           />
-          <Input
-            label="Phone"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="+94 77X XXX XXXX"
-          />
-          <Input label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-          <Text style={[styles.label, ts.textSecondary]}>I am a...</Text>
-          <View style={styles.roles}>
-            {roles.map((r) => (
-              <Pressable
-                key={r.id}
-                style={[styles.roleChip, ts.chip, roleIntent === r.id && ts.chipActive]}
-                onPress={() => setRoleIntent(r.id)}>
-                <Text
-                  style={[
-                    styles.roleText,
-                    ts.chipText,
-                    roleIntent === r.id && ts.chipTextActive,
-                  ]}>
-                  {r.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Button title="Create Account" loading={loading} onPress={handleRegister} />
+
+          <Link href="/(auth)/login">
+            <Text style={[styles.linkText, { color: colors.primary }]}>
+              Already have an account? Sign in
+            </Text>
+          </Link>
         </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -117,14 +182,16 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: Spacing.xxl, gap: Spacing.lg },
-  label: { ...Typography.label },
-  roles: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  roleChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
+  flex: { flex: 1 },
+  container: {
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.section,
+    gap: Spacing.lg,
   },
-  roleText: { ...Typography.bodySmall },
+  linkText: {
+    ...Typography.bodyMd,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });

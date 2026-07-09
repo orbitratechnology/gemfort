@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { Icon, type IconName } from '@/components/ui/icon';
 import { Palette, Radius, TouchTarget, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -18,6 +19,7 @@ type ButtonProps = PressableProps & {
   title: string;
   variant?: Variant;
   loading?: boolean;
+  icon?: IconName;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 };
@@ -26,6 +28,7 @@ export function Button({
   title,
   variant = 'primary',
   loading,
+  icon,
   disabled,
   style,
   textStyle,
@@ -61,6 +64,7 @@ export function Button({
   };
 
   const v = variantStyles[variant];
+  const iconColor = (v.text.color as string) ?? colors.onPrimary;
 
   return (
     <Pressable
@@ -75,9 +79,12 @@ export function Button({
       disabled={disabled || loading}
       {...props}>
       {loading ? (
-        <ActivityIndicator color={v.text.color as string} />
+        <ActivityIndicator color={iconColor} />
       ) : (
-        <Text style={[styles.text, v.text, textStyle]}>{title}</Text>
+        <>
+          {icon ? <Icon name={icon} size={18} color={iconColor} /> : null}
+          <Text style={[styles.text, v.text, textStyle]}>{title}</Text>
+        </>
       )}
     </Pressable>
   );

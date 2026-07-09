@@ -50,7 +50,7 @@ export default function CreateListingScreen() {
         <Text style={[styles.blockedBody, { color: colors.textMuted }]}>
           Apply for verification from your profile to create gem listings.
         </Text>
-        <Button title="Go to Profile" onPress={() => router.push('/(marketplace)/(tabs)/profile')} />
+        <Button title="Go to Profile" icon="person" onPress={() => router.push('/(marketplace)/(tabs)/profile')} />
       </ThemedScrollView>
     );
   }
@@ -150,9 +150,9 @@ export default function CreateListingScreen() {
           />
         ))}
 
-      <Input label="Title" value={title} onChangeText={setTitle} />
-      <Input label="Carat Weight" value={caratWeight} onChangeText={setCaratWeight} keyboardType="decimal-pad" />
-      <Input label="Origin" value={origin} onChangeText={setOrigin} />
+      <Input label="Title" value={title} onChangeText={setTitle} leftIcon="diamond" />
+      <Input label="Carat Weight" value={caratWeight} onChangeText={setCaratWeight} keyboardType="decimal-pad" leftIcon="scale" />
+      <Input label="Origin" value={origin} onChangeText={setOrigin} leftIcon="place" />
 
       <Text style={[styles.section, { color: colors.primary }]}>Visibility</Text>
       {(['private', 'members_only', 'public'] as const).map((v) => (
@@ -168,7 +168,7 @@ export default function CreateListingScreen() {
         </Pressable>
       ))}
 
-      <Button title="Publish Listing" loading={loading} onPress={handlePublish} />
+      <Button title="Publish Listing" icon="publish" loading={loading} onPress={handlePublish} />
     </ThemedScrollView>
   );
 }

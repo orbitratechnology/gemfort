@@ -40,6 +40,7 @@ export default function PublicListingScreen() {
     return (
       <ThemedView style={styles.center}>
         <EmptyState
+          icon="diamond"
           title="Listing not found"
           subtitle="This gem may have been sold or removed from the marketplace."
         />
@@ -90,6 +91,7 @@ export default function PublicListingScreen() {
       {sellerWhatsapp ? (
         <Button
           title="WhatsApp to Inquire"
+          icon="chat"
           variant="whatsapp"
           onPress={() =>
             Linking.openURL(openWhatsApp(sellerWhatsapp, `Hi, interested in ${listing.title}`))

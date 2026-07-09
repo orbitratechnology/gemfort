@@ -132,7 +132,7 @@ export default function ContactDetailScreen() {
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
         <StackHeader title="Contact" />
         <View style={styles.center}>
-          <EmptyState title="Contact not found" subtitle="It may have been deleted." />
+          <EmptyState icon="person-off" title="Contact not found" subtitle="It may have been deleted." />
         </View>
       </SafeAreaView>
     );
@@ -144,10 +144,10 @@ export default function ContactDetailScreen() {
         <StackHeader title="Edit Contact" closeIcon onBack={() => setEditing(false)} />
         <ThemedScrollView contentContainerStyle={styles.content}>
           <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Input label="Name" value={displayName} onChangeText={setDisplayName} />
-            <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-            <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" />
-            <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+            <Input label="Name" value={displayName} onChangeText={setDisplayName} leftIcon="person" />
+            <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="phone" />
+            <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" leftIcon="chat" />
+            <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" leftIcon="email" />
           </View>
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>TYPES</Text>
@@ -171,9 +171,9 @@ export default function ContactDetailScreen() {
             </View>
           </View>
           <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Input label="Notes" value={notes} onChangeText={setNotes} multiline />
+            <Input label="Notes" value={notes} onChangeText={setNotes} multiline leftIcon="notes" />
           </View>
-          <Button title="Save Changes" loading={saving} onPress={handleSave} />
+          <Button title="Save Changes" icon="save" loading={saving} onPress={handleSave} />
         </ThemedScrollView>
       </SafeAreaView>
     );
@@ -284,7 +284,7 @@ export default function ContactDetailScreen() {
           <Text style={[styles.emptyHistory, { color: colors.textMuted }]}>No AP records linked.</Text>
         )}
 
-        <Button title="Delete Contact" variant="ghost" onPress={handleDelete} textStyle={{ color: colors.error }} />
+        <Button title="Delete Contact" icon="delete" variant="ghost" onPress={handleDelete} textStyle={{ color: colors.error }} />
       </ThemedScrollView>
     </SafeAreaView>
   );

@@ -2,28 +2,45 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, format } from 'date-fns';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
+import { ChipSelect } from '@/components/ui/chip-select';
+import { FormFooter } from '@/components/ui/form-footer';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactPicker } from '@/components/workspace/contact-picker';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Spacing, Typography } from '@/constants/design-tokens';
 import { createCheque, fetchContacts } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Timestamp } from '@/lib/firebase/db';
-import { uploadPickedImage } from '@/lib/firebase/storage-service';
+import {
+  extensionForMedia,
+  uploadLocalMedia,
+  type LocalMedia,
+} from '@/lib/firebase/storage-service';
 import { friendlyError } from '@/lib/errors';
+import { addChequeSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { ChequeDirection } from '@/types';
 
-const DIRECTIONS: { id: ChequeDirection; label: string; subtitle: string }[] = [
-  { id: 'received', label: 'Received', subtitle: 'Payment coming to you' },
-  { id: 'given', label: 'Given', subtitle: 'Cheque you issued' },
+const DIRECTIONS = [
+  {
+    value: 'received' as const,
+    label: 'Received',
+    subtitle: 'Payment coming to you',
+    icon: 'call-received' as const,
+  },
+  {
+    value: 'given' as const,
+    label: 'Given',
+    subtitle: 'Cheque you issued',
+    icon: 'call-made' as const,
+  },
 ];
 
 export default function AddChequeScreen() {
@@ -47,9 +64,9 @@ export default function AddChequeScreen() {
   const [issuedBy, setIssuedBy] = useState('');
   const [maturityDays, setMaturityDays] = useState('30');
   const [notes, setNotes] = useState('');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', user?.uid],
@@ -62,54 +79,67 @@ export default function AddChequeScreen() {
     [contacts, contactId],
   );
 
-  async function handleUploadPhoto() {
-    if (!user) return;
-    setUploading(true);
-    try {
-      const url = await uploadPickedImage(`cheques/${user.uid}/${Date.now()}.jpg`);
-      if (url) {
-        setPhotoUrl(url);
-        toast.success('Cheque photo added.');
-      }
-    } catch (e) {
-      toast.error(friendlyError(e, 'Could not upload photo.'));
-    } finally {
-      setUploading(false);
-    }
+  const maturityPreview = useMemo(() => {
+    const days = parseInt(maturityDays, 10);
+    if (!days || days < 1) return null;
+    return format(addDays(new Date(), days), 'd MMM yyyy');
+  }, [maturityDays]);
+
+  function clearField(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   async function handleSubmit() {
     if (!user) return;
-    if (!chequeNumber.trim() || !bankName.trim() || !amount || !contactId) {
-      toast.error('Fill in cheque number, bank, amount, and contact.');
-      return;
-    }
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0) {
-      toast.error('Enter a valid amount.');
+    const result = parseForm(addChequeSchema, {
+      direction,
+      chequeNumber,
+      bankName,
+      branch: branch || undefined,
+      amount,
+      maturityDays,
+      contactId,
+      issuedBy: issuedBy || undefined,
+      notes: notes || undefined,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0] ?? 'Check the highlighted fields.');
       return;
     }
 
     setLoading(true);
     try {
+      const data = result.data;
       const now = Timestamp.now();
-      const maturity = Timestamp.fromDate(addDays(new Date(), parseInt(maturityDays, 10) || 30));
-      const issuer = issuedBy.trim() || selectedContact?.displayName || 'Unknown';
+      const maturity = Timestamp.fromDate(addDays(new Date(), data.maturityDays));
+      const issuer = data.issuedBy?.trim() || selectedContact?.displayName || 'Unknown';
+
+      let photoUrl: string | null = null;
+      if (photo) {
+        const ext = extensionForMedia(photo);
+        photoUrl = await uploadLocalMedia(photo, `cheques/${user.uid}/${Date.now()}.${ext}`);
+      }
 
       const id = await createCheque(user.uid, {
-        direction,
-        chequeNumber,
-        bankName,
-        branch: branch || null,
-        amount: parsedAmount,
-        counterpartyContactId: contactId,
+        direction: data.direction,
+        chequeNumber: data.chequeNumber,
+        bankName: data.bankName,
+        branch: data.branch || null,
+        amount: data.amount,
+        counterpartyContactId: data.contactId,
         issuedBy: issuer,
         issueDate: now,
         maturityDate: maturity,
         photoUrl,
         gemId: params.gemId ?? null,
         apRecordId: params.apRecordId ?? null,
-        notes: notes || null,
+        notes: data.notes || null,
       });
 
       await queryClient.invalidateQueries({ queryKey: ['cheques'] });
@@ -124,155 +154,151 @@ export default function AddChequeScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Cheque" />
+      <StackHeader title="Add cheque" />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Record a post-dated cheque and track its maturity date.
+      <ThemedScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
+        <Text style={[styles.lead, { color: colors.textMuted }]}>
+          Track post-dated cheques and maturity dates.
         </Text>
 
-        {/* Direction */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>DIRECTION</Text>
-          <View style={styles.directionRow}>
-            {DIRECTIONS.map((d) => {
-              const active = direction === d.id;
-              return (
-                <Pressable
-                  key={d.id}
-                  onPress={() => setDirection(d.id)}
-                  style={[
-                    styles.directionCard,
-                    {
-                      backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLowest,
-                      borderColor: active ? colors.primary : colors.outlineVariant,
-                    },
-                  ]}>
-                  <Icon
-                    name={d.id === 'received' ? 'call-received' : 'call-made'}
-                    size={22}
-                    color={active ? colors.onPrimaryContainer : colors.onSurfaceVariant}
-                  />
-                  <Text style={[styles.directionLabel, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>
-                    {d.label}
-                  </Text>
-                  <Text style={[styles.directionSub, { color: colors.textMuted }]}>{d.subtitle}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        <FormSection title="Direction">
+          <ChipSelect
+            layout="split"
+            options={DIRECTIONS}
+            value={direction}
+            onChange={(v) => {
+              setDirection(v);
+              clearField('direction');
+            }}
+            error={errors.direction}
+          />
+        </FormSection>
 
-        {/* Details */}
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Cheque number" value={chequeNumber} onChangeText={setChequeNumber} placeholder="e.g. 001234" />
-          <Input label="Bank" value={bankName} onChangeText={setBankName} placeholder="Commercial Bank" />
-          <Input label="Branch (optional)" value={branch} onChangeText={setBranch} placeholder="Beruwala" />
+        <FormSection title="Cheque details">
+          <Input
+            label="Cheque number"
+            value={chequeNumber}
+            onChangeText={(v) => {
+              setChequeNumber(v);
+              clearField('chequeNumber');
+            }}
+            placeholder="e.g. 001234"
+            leftIcon="receipt"
+            error={errors.chequeNumber}
+          />
+          <Input
+            label="Bank"
+            value={bankName}
+            onChangeText={(v) => {
+              setBankName(v);
+              clearField('bankName');
+            }}
+            placeholder="Commercial Bank"
+            leftIcon="account-balance"
+            error={errors.bankName}
+          />
+          <Input
+            label="Branch"
+            value={branch}
+            onChangeText={setBranch}
+            placeholder="Optional"
+            leftIcon="business"
+            error={errors.branch}
+          />
           <Input
             label="Amount (LKR)"
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(v) => {
+              setAmount(v);
+              clearField('amount');
+            }}
             keyboardType="decimal-pad"
             placeholder="0.00"
+            leftIcon="payments"
+            error={errors.amount}
           />
           <Input
             label="Maturity in days"
             value={maturityDays}
-            onChangeText={setMaturityDays}
+            onChangeText={(v) => {
+              setMaturityDays(v);
+              clearField('maturityDays');
+            }}
             keyboardType="number-pad"
             placeholder="30"
+            leftIcon="event"
+            error={errors.maturityDays}
           />
-          {maturityDays ? (
+          {maturityPreview ? (
             <Text style={[styles.hint, { color: colors.textMuted }]}>
-              Matures {format(addDays(new Date(), parseInt(maturityDays, 10) || 30), 'd MMM yyyy')}
+              Matures {maturityPreview}
             </Text>
           ) : null}
-        </View>
+        </FormSection>
 
-        {/* Contact */}
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Counterparty">
           <ContactPicker
-            label="Counterparty"
+            label="Contact"
             contacts={contacts}
             value={contactId}
+            error={errors.contactId}
             onChange={(id) => {
               setContactId(id);
+              clearField('contactId');
               const c = contacts.find((x) => x.id === id);
               if (c && !issuedBy) setIssuedBy(c.displayName);
             }}
           />
           <Input
-            label="Issued by (display name)"
+            label="Issued by"
             value={issuedBy}
             onChangeText={setIssuedBy}
             placeholder={selectedContact?.displayName ?? 'Name on cheque'}
+            leftIcon="person"
+            error={errors.issuedBy}
           />
-        </View>
+        </FormSection>
 
-        {/* Photo */}
-        <Pressable
-          onPress={handleUploadPhoto}
-          disabled={uploading}
-          style={({ pressed }) => [
-            styles.photoCard,
-            { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant },
-            pressed && { opacity: 0.85 },
-          ]}>
-          <Icon name={photoUrl ? 'check-circle' : 'photo-camera'} size={24} color={colors.primary} />
-          <View style={styles.photoText}>
-            <Text style={[styles.photoTitle, { color: colors.onSurface }]}>
-              {photoUrl ? 'Photo attached' : 'Add cheque photo'}
-            </Text>
-            <Text style={[styles.photoSub, { color: colors.textMuted }]}>
-              {uploading ? 'Uploading…' : 'Optional — capture or pick from gallery'}
-            </Text>
-          </View>
-        </Pressable>
+        <FormSection title="Cheque photo" hint="Optional. Upload happens when you save.">
+          <MediaField
+            variant="row"
+            value={photo}
+            onChange={setPhoto}
+            emptyTitle="Add cheque photo"
+            emptySubtitle="Kept on device until you save"
+          />
+        </FormSection>
 
-        <Input label="Notes (optional)" value={notes} onChangeText={setNotes} multiline style={styles.notes} />
-
-        <Button title="Save cheque" loading={loading} onPress={handleSubmit} />
+        <FormSection>
+          <Input
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            style={styles.notes}
+            placeholder="Optional"
+            leftIcon="notes"
+            error={errors.notes}
+          />
+        </FormSection>
       </ThemedScrollView>
+
+      <FormFooter title="Save cheque" icon="save" loading={loading} onPress={handleSubmit} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.lg },
-  subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 1 },
-  directionRow: { flexDirection: 'row', gap: Spacing.md },
-  directionCard: {
-    flex: 1,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    borderWidth: 1.5,
-    padding: Spacing.md,
-    gap: Spacing.xs,
-    alignItems: 'flex-start',
+  content: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.lg,
   },
-  directionLabel: { ...Typography.labelMd, fontWeight: '600' },
-  directionSub: { ...Typography.bodySmall, lineHeight: 18 },
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
+  lead: { ...Typography.bodyMd, lineHeight: 22 },
   hint: { ...Typography.bodySmall, marginTop: -4 },
-  photoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-  },
-  photoText: { flex: 1, gap: 2 },
-  photoTitle: { ...Typography.labelMd, fontWeight: '600' },
-  photoSub: { ...Typography.bodySmall },
   notes: { minHeight: 72, textAlignVertical: 'top', paddingTop: 12 },
 });

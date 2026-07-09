@@ -25,8 +25,39 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import type { ThemeColors } from '@/constants/design-tokens';
 
 const WORKSPACE = '/(marketplace)/(tabs)/workspace';
+
+type ModuleItem = {
+  label: string;
+  value: number;
+  icon: IconName;
+  route: string;
+  hint?: string;
+};
+
+type AlertItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: IconName;
+  tone: 'critical' | 'warning' | 'info' | 'success';
+  route: string;
+};
+
+function toneColors(tone: AlertItem['tone'], colors: ThemeColors) {
+  switch (tone) {
+    case 'critical':
+      return { fg: colors.error, bg: colors.error + '14' };
+    case 'warning':
+      return { fg: colors.warningAmber, bg: colors.warningAmber + '18' };
+    case 'success':
+      return { fg: colors.successEmerald, bg: colors.successEmerald + '18' };
+    default:
+      return { fg: colors.primary, bg: colors.primary + '14' };
+  }
+}
 
 export default function WorkspaceHub() {
   const { user } = useAuth();
@@ -90,83 +121,228 @@ export default function WorkspaceHub() {
   const chequeSummary = getChequeSummary(cheques);
   const { active: activeTrips } = getTripsByStatus(trips);
   const ongoingTrips = trips.filter((t) => t.status === 'ongoing');
-  const alertCount = overdueServices.length + overdueAp.length + maturingCheques.length + ongoingTrips.length;
 
   const { income: monthIncome, expense: monthExpense } = getMonthTotals(transactions);
   const monthNet = monthIncome - monthExpense;
   const totalInventoryValue = gems.reduce((sum, g) => sum + (g.acquisitionCost || 0), 0);
   const flowTotal = monthIncome + monthExpense;
-  const incomePct = flowTotal > 0 ? (monthIncome / flowTotal) * 100 : 0;
-  const expensePct = flowTotal > 0 ? (monthExpense / flowTotal) * 100 : 0;
+  const incomePct = flowTotal > 0 ? Math.max(6, (monthIncome / flowTotal) * 100) : 0;
+  const expensePct = flowTotal > 0 ? Math.max(6, (monthExpense / flowTotal) * 100) : 0;
 
-  const stats: { label: string; value: number; icon: IconName; route: string }[] = [
-    { label: 'Gems', value: gems.length, icon: 'diamond', route: `${WORKSPACE}/gems` },
-    { label: 'Services', value: services.length, icon: 'handyman', route: `${WORKSPACE}/services` },
-    { label: 'Trips', value: activeTrips.length, icon: 'flight', route: `${WORKSPACE}/trips` },
-    { label: 'AP Stones', value: apRecords.length, icon: 'hourglass-empty', route: `${WORKSPACE}/ap` },
-    { label: 'Contacts', value: contacts.length, icon: 'group', route: `${WORKSPACE}/contacts` },
+  const readyGems = gems.filter((g) =>
+    ['ready_for_sale', 'certified', 'polished', 'listed'].includes(g.status),
+  ).length;
+  const inService = gems.filter((g) =>
+    ['with_cutter', 'with_heater', 'with_polisher'].includes(g.status),
+  ).length;
+
+  const modules: ModuleItem[] = [
+    {
+      label: 'Gems',
+      value: gems.length,
+      icon: 'diamond',
+      route: `${WORKSPACE}/gems`,
+      hint: readyGems > 0 ? `${readyGems} ready` : undefined,
+    },
+    {
+      label: 'Services',
+      value: services.length,
+      icon: 'handyman',
+      route: `${WORKSPACE}/services`,
+      hint: inService > 0 ? `${inService} out` : undefined,
+    },
+    {
+      label: 'Trips',
+      value: activeTrips.length,
+      icon: 'flight',
+      route: `${WORKSPACE}/trips`,
+      hint: ongoingTrips.length > 0 ? `${ongoingTrips.length} live` : undefined,
+    },
+    {
+      label: 'AP',
+      value: apRecords.length,
+      icon: 'hourglass-empty',
+      route: `${WORKSPACE}/ap`,
+      hint: overdueAp.length > 0 ? `${overdueAp.length} overdue` : undefined,
+    },
+    {
+      label: 'Cheques',
+      value: chequeSummary.holdingCount,
+      icon: 'receipt-long',
+      route: `${WORKSPACE}/cheques`,
+      hint: maturingCheques.length > 0 ? `${maturingCheques.length} due` : undefined,
+    },
+    {
+      label: 'Contacts',
+      value: contacts.length,
+      icon: 'group',
+      route: `${WORKSPACE}/contacts`,
+    },
   ];
 
   const actions: { label: string; icon: IconName; route: string; primary?: boolean }[] = [
-    { label: 'Add Gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
-    { label: 'Plan Trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
-    { label: 'Add Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
-    { label: 'Record Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
+    { label: 'Add gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
+    { label: 'Plan trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
+    { label: 'Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
+    { label: 'Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
   ];
 
-  const tint = colors.primary + '14';
+  const alerts: AlertItem[] = [
+    ...overdueAp.map((a) => ({
+      id: `ap-${a.id}`,
+      title: 'AP stone overdue',
+      subtitle: `Past expected return · #${a.id.slice(0, 6)}`,
+      icon: 'hourglass-empty' as const,
+      tone: 'critical' as const,
+      route: `${WORKSPACE}/ap/${a.id}`,
+    })),
+    ...overdueServices.map((s) => ({
+      id: `svc-${s.id}`,
+      title: 'Service overdue',
+      subtitle: `With provider · #${s.id.slice(0, 6)}`,
+      icon: 'handyman' as const,
+      tone: 'warning' as const,
+      route: `${WORKSPACE}/services/${s.id}`,
+    })),
+    ...maturingCheques.map((c) => ({
+      id: `chq-${c.id}`,
+      title: 'Cheque matures tomorrow',
+      subtitle: `${c.chequeNumber} · ${formatCurrency(c.amount)}`,
+      icon: 'receipt-long' as const,
+      tone: 'info' as const,
+      route: `${WORKSPACE}/cheques/${c.id}`,
+    })),
+    ...ongoingTrips.map((t) => ({
+      id: `trip-${t.id}`,
+      title: 'Trip in progress',
+      subtitle: `${t.tripName} · ${t.destinationCity}`,
+      icon: 'flight' as const,
+      tone: 'success' as const,
+      route: `${WORKSPACE}/trips/${t.id}`,
+    })),
+  ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Workspace" showBack={false} />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Inventory hero */}
-        <View style={[styles.hero, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
-          <Text style={[styles.heroLabel, { color: colors.textMuted }]}>TOTAL INVENTORY VALUE</Text>
-          <Text style={[styles.heroValue, { color: colors.primary }]}>{formatCurrency(totalInventoryValue)}</Text>
-          <Text style={[styles.heroSub, { color: colors.textMuted }]}>
-            {gems.length} {gems.length === 1 ? 'gem' : 'gems'} in inventory
-          </Text>
-        </View>
+      <ThemedScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Hero */}
+        <Pressable
+          onPress={() => router.push(`${WORKSPACE}/gems` as never)}
+          style={({ pressed }) => [
+            styles.hero,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.96 : 1 },
+          ]}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroCopy}>
+              <Text style={[styles.heroLabel, { color: colors.onPrimary + 'B3' }]}>
+                Inventory value
+              </Text>
+              <Text style={[styles.heroValue, { color: colors.onPrimary }]} selectable>
+                {formatCurrency(totalInventoryValue)}
+              </Text>
+            </View>
+            <View style={[styles.heroBadge, { backgroundColor: colors.onPrimary + '1F' }]}>
+              <Icon name="diamond" size={22} color={colors.onPrimary} />
+            </View>
+          </View>
 
-        {/* Stat tiles */}
-        <View style={styles.statGrid}>
-          {stats.map((s) => (
-            <Pressable
-              key={s.label}
-              onPress={() => router.push(s.route as never)}
-              style={({ pressed }) => [
-                styles.statTile,
-                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                pressed && { opacity: 0.7 },
-              ]}>
-              <View style={[styles.statIcon, { backgroundColor: tint }]}>
-                <Icon name={s.icon} size={20} color={colors.primary} />
+          <View style={styles.heroMetaRow}>
+            <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+              <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                {gems.length} {gems.length === 1 ? 'gem' : 'gems'}
+              </Text>
+            </View>
+            {readyGems > 0 ? (
+              <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+                <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                  {readyGems} ready to sell
+                </Text>
               </View>
-              <Text style={[styles.statValue, { color: colors.primary }]}>{s.value}</Text>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>{s.label}</Text>
-            </Pressable>
-          ))}
+            ) : null}
+            {inService > 0 ? (
+              <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+                <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                  {inService} in service
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.heroFooter}>
+            <Text style={[styles.heroLink, { color: colors.onPrimary + 'CC' }]}>Open inventory</Text>
+            <Icon name="chevron-right" size={18} color={colors.onPrimary + 'CC'} />
+          </View>
+        </Pressable>
+
+        {/* Modules */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Modules</Text>
+          <View style={styles.moduleGrid}>
+            {modules.map((m) => (
+              <Pressable
+                key={m.label}
+                onPress={() => router.push(m.route as never)}
+                style={({ pressed }) => [
+                  styles.moduleTile,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    opacity: pressed ? 0.92 : 1,
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
+                  },
+                ]}>
+                <View style={styles.moduleTop}>
+                  <View style={[styles.moduleIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name={m.icon} size={18} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.moduleValue, { color: colors.onSurface }]}>{m.value}</Text>
+                </View>
+                <Text style={[styles.moduleLabel, { color: colors.onSurfaceVariant }]}>{m.label}</Text>
+                {m.hint ? (
+                  <Text style={[styles.moduleHint, { color: colors.primary }]} numberOfLines={1}>
+                    {m.hint}
+                  </Text>
+                ) : (
+                  <Text style={[styles.moduleHint, { color: colors.textMuted }]}>View</Text>
+                )}
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         {/* Quick actions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Quick actions</Text>
-          <View style={styles.actionsRow}>
-            {actions.map((a) => (
+          <View
+            style={[
+              styles.actionsCard,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}>
+            {actions.map((a, index) => (
               <Pressable
                 key={a.label}
                 onPress={() => router.push(a.route as never)}
-                style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}>
+                style={({ pressed }) => [
+                  styles.actionItem,
+                  index < actions.length - 1 && {
+                    borderRightWidth: StyleSheet.hairlineWidth,
+                    borderRightColor: colors.outlineVariant,
+                  },
+                  pressed && { opacity: 0.75 },
+                ]}>
                 <View
                   style={[
                     styles.actionIcon,
                     a.primary
                       ? { backgroundColor: colors.primary }
-                      : { backgroundColor: tint },
+                      : { backgroundColor: colors.primaryContainer },
                   ]}>
-                  <Icon name={a.icon} size={22} color={a.primary ? colors.onPrimary : colors.primary} />
+                  <Icon
+                    name={a.icon}
+                    size={20}
+                    color={a.primary ? colors.onPrimary : colors.onPrimaryContainer}
+                  />
                 </View>
                 <Text style={[styles.actionLabel, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
                   {a.label}
@@ -177,214 +353,160 @@ export default function WorkspaceHub() {
         </View>
 
         {/* Alerts */}
-        {alertCount > 0 ? (
+        {alerts.length > 0 ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Needs attention</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>
+                Needs attention
+              </Text>
+              <View style={[styles.countPill, { backgroundColor: colors.errorContainer }]}>
+                <Text style={[styles.countPillText, { color: colors.onErrorContainer }]}>
+                  {alerts.length}
+                </Text>
+              </View>
+            </View>
             <View style={styles.alertList}>
-              {overdueAp.map((a) => (
-                <Pressable
-                  key={a.id}
-                  onPress={() => router.push(`${WORKSPACE}/ap/${a.id}` as never)}
-                  style={({ pressed }) => [
-                    styles.alertRow,
-                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                    pressed && { opacity: 0.7 },
-                  ]}>
-                  <View style={[styles.alertDot, { backgroundColor: colors.error }]} />
-                  <View style={styles.alertText}>
-                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>AP stone overdue</Text>
-                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
-                      Past expected return · #{a.id.slice(0, 6)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </Pressable>
-              ))}
-              {overdueServices.map((s) => (
-                <Pressable
-                  key={s.id}
-                  onPress={() => router.push(`${WORKSPACE}/services/${s.id}` as never)}
-                  style={({ pressed }) => [
-                    styles.alertRow,
-                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                    pressed && { opacity: 0.7 },
-                  ]}>
-                  <View style={[styles.alertDot, { backgroundColor: colors.warningAmber }]} />
-                  <View style={styles.alertText}>
-                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>Service overdue</Text>
-                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
-                      With provider · #{s.id.slice(0, 6)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </Pressable>
-              ))}
-              {maturingCheques.map((c) => (
-                <Pressable
-                  key={c.id}
-                  onPress={() => router.push(`${WORKSPACE}/cheques/${c.id}` as never)}
-                  style={({ pressed }) => [
-                    styles.alertRow,
-                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                    pressed && { opacity: 0.7 },
-                  ]}>
-                  <View style={[styles.alertDot, { backgroundColor: colors.primary }]} />
-                  <View style={styles.alertText}>
-                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>Cheque maturing tomorrow</Text>
-                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
-                      {c.chequeNumber} · {formatCurrency(c.amount)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </Pressable>
-              ))}
-              {ongoingTrips.map((t) => (
-                <Pressable
-                  key={t.id}
-                  onPress={() => router.push(`${WORKSPACE}/trips/${t.id}` as never)}
-                  style={({ pressed }) => [
-                    styles.alertRow,
-                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                    pressed && { opacity: 0.7 },
-                  ]}>
-                  <View style={[styles.alertDot, { backgroundColor: colors.successEmerald }]} />
-                  <View style={styles.alertText}>
-                    <Text style={[styles.alertTitle, { color: colors.onSurface }]}>Trip in progress</Text>
-                    <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
-                      {t.tripName} · {t.destinationCity}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </Pressable>
-              ))}
+              {alerts.map((alert) => {
+                const tone = toneColors(alert.tone, colors);
+                return (
+                  <Pressable
+                    key={alert.id}
+                    onPress={() => router.push(alert.route as never)}
+                    style={({ pressed }) => [
+                      styles.alertRow,
+                      {
+                        backgroundColor: colors.surfaceContainerLowest,
+                        opacity: pressed ? 0.92 : 1,
+                      },
+                    ]}>
+                    <View style={[styles.alertIcon, { backgroundColor: tone.bg }]}>
+                      <Icon name={alert.icon} size={18} color={tone.fg} />
+                    </View>
+                    <View style={styles.alertText}>
+                      <Text style={[styles.alertTitle, { color: colors.onSurface }]}>
+                        {alert.title}
+                      </Text>
+                      <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
+                        {alert.subtitle}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color={colors.outline} />
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ) : null}
 
-        {/* Trips overview */}
-        {trips.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Trips</Text>
-              <Pressable onPress={() => router.push(`${WORKSPACE}/trips` as never)} hitSlop={8}>
-                <Text style={[styles.seeAll, { color: colors.primary }]}>View all</Text>
-              </Pressable>
-            </View>
-            <Pressable
-              onPress={() =>
-                router.push(
-                  (activeTrips[0]
-                    ? `${WORKSPACE}/trips/${activeTrips[0].id}`
-                    : `${WORKSPACE}/trips`) as never,
-                )
-              }
-              style={({ pressed }) => [
-                styles.financeCard,
-                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                pressed && { opacity: 0.9 },
-              ]}>
-              <View style={styles.financeTop}>
-                <Text style={[styles.financeCaption, { color: colors.textMuted }]}>ACTIVE</Text>
-                <Text style={[styles.financeNet, { color: colors.primary }]} selectable>
-                  {activeTrips.length} trip{activeTrips.length === 1 ? '' : 's'}
-                </Text>
-              </View>
-              <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>
-                {ongoingTrips.length > 0
-                  ? `${ongoingTrips[0].tripName} is ongoing`
-                  : `${trips.filter((t) => t.status === 'completed').length} completed`}
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Cheques overview */}
-        {cheques.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Cheques</Text>
-              <Pressable onPress={() => router.push(`${WORKSPACE}/cheques` as never)} hitSlop={8}>
-                <Text style={[styles.seeAll, { color: colors.primary }]}>View all</Text>
-              </Pressable>
-            </View>
-            <Pressable
-              onPress={() => router.push(`${WORKSPACE}/cheques/calendar` as never)}
-              style={({ pressed }) => [
-                styles.financeCard,
-                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-                pressed && { opacity: 0.9 },
-              ]}>
-              <View style={styles.financeTop}>
-                <Text style={[styles.financeCaption, { color: colors.textMuted }]}>HOLDING</Text>
-                <Text style={[styles.financeNet, { color: colors.primary }]} selectable>
-                  {chequeSummary.holdingCount} · {formatCurrency(chequeSummary.holdingTotal)}
-                </Text>
-              </View>
-              <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>
-                {formatCurrency(chequeSummary.clearingThisMonth)} clearing this month
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Finances */}
+        {/* Operations overview */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Finances</Text>
-            <Pressable onPress={() => router.push(`${WORKSPACE}/money` as never)} hitSlop={8}>
-              <Text style={[styles.seeAll, { color: colors.primary }]}>Details</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money` as never)}
-            style={({ pressed }) => [
-              styles.financeCard,
-              { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
-              pressed && { opacity: 0.9 },
-            ]}>
-            <View style={styles.financeTop}>
-              <Text style={[styles.financeCaption, { color: colors.textMuted }]}>NET · THIS MONTH</Text>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Overview</Text>
+          <View style={styles.overviewGrid}>
+            <Pressable
+              onPress={() => router.push(`${WORKSPACE}/money` as never)}
+              style={({ pressed }) => [
+                styles.overviewWide,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  opacity: pressed ? 0.94 : 1,
+                },
+              ]}>
+              <View style={styles.overviewHeader}>
+                <Text style={[styles.overviewCaption, { color: colors.textMuted }]}>This month</Text>
+                <Icon name="account-balance-wallet" size={18} color={colors.primary} />
+              </View>
               <Text
                 style={[
-                  styles.financeNet,
+                  styles.overviewNet,
                   { color: monthNet >= 0 ? colors.successEmerald : colors.error },
-                ]}>
-                {monthNet >= 0 ? '+' : '−'}
+                ]}
+                selectable>
+                {monthNet >= 0 ? '+' : '-'}
                 {formatCurrency(Math.abs(monthNet))}
               </Text>
-            </View>
+              <Text style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}>Net cashflow</Text>
 
-            <View style={styles.financeRowWrap}>
-              <View style={styles.financeRow}>
-                <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>Income</Text>
-                <Text style={[styles.financeAmount, { color: colors.successEmerald }]}>
-                  {formatCurrency(monthIncome)}
-                </Text>
+              <View style={styles.flowBlock}>
+                <View style={styles.flowRow}>
+                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Income</Text>
+                  <Text style={[styles.flowAmount, { color: colors.successEmerald }]}>
+                    {formatCurrency(monthIncome)}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <View
+                    style={[
+                      styles.fill,
+                      { backgroundColor: colors.successEmerald, width: `${incomePct}%` },
+                    ]}
+                  />
+                </View>
               </View>
-              <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
-                <View style={[styles.fill, { backgroundColor: colors.successEmerald, width: `${incomePct}%` }]} />
-              </View>
-            </View>
 
-            <View style={styles.financeRowWrap}>
-              <View style={styles.financeRow}>
-                <Text style={[styles.financeLabel, { color: colors.onSurfaceVariant }]}>Expenses</Text>
-                <Text style={[styles.financeAmount, { color: colors.error }]}>
-                  {formatCurrency(monthExpense)}
+              <View style={styles.flowBlock}>
+                <View style={styles.flowRow}>
+                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Expenses</Text>
+                  <Text style={[styles.flowAmount, { color: colors.error }]}>
+                    {formatCurrency(monthExpense)}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <View
+                    style={[styles.fill, { backgroundColor: colors.error, width: `${expensePct}%` }]}
+                  />
+                </View>
+              </View>
+            </Pressable>
+
+            <View style={styles.overviewSide}>
+              <Pressable
+                onPress={() => router.push(`${WORKSPACE}/trips` as never)}
+                style={({ pressed }) => [
+                  styles.overviewHalf,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    opacity: pressed ? 0.94 : 1,
+                  },
+                ]}>
+                <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                  <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
+                </View>
+                <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                  {activeTrips.length}
                 </Text>
-              </View>
-              <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
-                <View style={[styles.fill, { backgroundColor: colors.error, width: `${expensePct}%` }]} />
-              </View>
+                <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
+                <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  {ongoingTrips[0]?.tripName ?? 'No live trips'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
+                style={({ pressed }) => [
+                  styles.overviewHalf,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    opacity: pressed ? 0.94 : 1,
+                  },
+                ]}>
+                <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
+                  <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
+                </View>
+                <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                  {chequeSummary.holdingCount}
+                </Text>
+                <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
+                <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  {formatCurrency(chequeSummary.clearingThisMonth)} clearing
+                </Text>
+              </Pressable>
             </View>
-          </Pressable>
+          </View>
         </View>
       </ThemedScrollView>
     </SafeAreaView>
   );
 }
-
-const CARD_BORDER = 1;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
@@ -396,65 +518,197 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    padding: Spacing.containerMargin,
     borderRadius: Radius.xl,
-    borderWidth: CARD_BORDER,
-    gap: 6,
+    borderCurve: 'continuous',
+    padding: Spacing.containerMargin,
+    gap: 14,
+    boxShadow: '0 10px 28px rgba(12, 67, 60, 0.22)',
   },
-  heroLabel: { ...Typography.labelMd, letterSpacing: 1 },
-  heroValue: { ...Typography.displayLg },
-  heroSub: { ...Typography.bodyMd },
-
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.stackMd },
-  statTile: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.lg,
-    borderWidth: CARD_BORDER,
-    gap: 10,
+  heroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  statIcon: { width: 40, height: 40, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
-  statValue: { ...Typography.headlineMd },
-  statLabel: { ...Typography.labelMd, letterSpacing: 0.4 },
+  heroCopy: { flex: 1, gap: 4, paddingRight: 12 },
+  heroLabel: { ...Typography.labelMd, letterSpacing: 0.4 },
+  heroValue: {
+    ...Typography.displayLg,
+    fontVariant: ['tabular-nums'],
+  },
+  heroBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  heroPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+  },
+  heroPillText: { ...Typography.caption, fontWeight: '600' },
+  heroFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  heroLink: { ...Typography.labelMd },
 
   section: { gap: Spacing.stackMd },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { ...Typography.headlineSmMobile, marginBottom: 2 },
-  seeAll: { ...Typography.labelMd },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: { ...Typography.headlineSmMobile },
+  countPill: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  countPillText: { ...Typography.caption, fontWeight: '700' },
 
-  actionsRow: { flexDirection: 'row', gap: Spacing.stackMd },
-  action: { flex: 1, alignItems: 'center', gap: 8 },
-  actionIcon: { width: 56, height: 56, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { ...Typography.labelMd, textAlign: 'center' },
+  moduleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.stackMd,
+  },
+  moduleTile: {
+    width: '31%',
+    flexGrow: 1,
+    minWidth: '30%',
+    maxWidth: '32.5%',
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: 12,
+    gap: 6,
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+  },
+  moduleTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  moduleIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moduleValue: {
+    ...Typography.headlineSm,
+    fontVariant: ['tabular-nums'],
+  },
+  moduleLabel: { ...Typography.labelMd },
+  moduleHint: { ...Typography.caption },
+
+  actionsCard: {
+    flexDirection: 'row',
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    paddingVertical: 14,
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+  },
+  actionItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionLabel: { ...Typography.caption, fontWeight: '600', textAlign: 'center' },
 
   alertList: { gap: Spacing.stackSm },
   alertRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.stackMd,
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.lg,
-    borderWidth: CARD_BORDER,
+    padding: 14,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
   },
-  alertDot: { width: 10, height: 10, borderRadius: 5 },
-  alertText: { flex: 1, gap: 2 },
+  alertIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertText: { flex: 1, gap: 2, minWidth: 0 },
   alertTitle: { ...Typography.bodyLg, fontWeight: '600' },
   alertSub: { ...Typography.bodyMd },
 
-  financeCard: {
-    padding: Spacing.containerMargin,
-    borderRadius: Radius.xl,
-    borderWidth: CARD_BORDER,
-    gap: Spacing.gutterMd,
+  overviewGrid: {
+    flexDirection: 'row',
+    gap: Spacing.stackMd,
+    alignItems: 'stretch',
   },
-  financeTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  financeCaption: { ...Typography.labelMd, letterSpacing: 1 },
-  financeNet: { ...Typography.headlineSm },
-  financeRowWrap: { gap: 8 },
-  financeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  financeLabel: { ...Typography.bodyMd, fontWeight: '600' },
-  financeAmount: { ...Typography.bodyMd, fontWeight: '600' },
-  track: { height: 8, borderRadius: 4, overflow: 'hidden', width: '100%' },
-  fill: { height: '100%', borderRadius: 4 },
+  overviewWide: {
+    flex: 1.35,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: 16,
+    gap: 10,
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+  },
+  overviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  overviewCaption: { ...Typography.labelMd },
+  overviewNet: {
+    ...Typography.headlineMd,
+    fontVariant: ['tabular-nums'],
+  },
+  overviewSub: { ...Typography.caption, marginTop: -4 },
+  flowBlock: { gap: 6, marginTop: 4 },
+  flowRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  flowLabel: { ...Typography.caption, fontWeight: '600' },
+  flowAmount: {
+    ...Typography.caption,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  track: { height: 6, borderRadius: 3, overflow: 'hidden', width: '100%' },
+  fill: { height: '100%', borderRadius: 3 },
+
+  overviewSide: { flex: 1, gap: Spacing.stackMd },
+  overviewHalf: {
+    flex: 1,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: 14,
+    gap: 4,
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+  },
+  miniIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  miniValue: {
+    ...Typography.headlineSm,
+    fontVariant: ['tabular-nums'],
+  },
+  miniLabel: { ...Typography.caption, fontWeight: '600' },
+  miniHint: { ...Typography.caption },
 });

@@ -100,16 +100,17 @@ export default function OnboardingScreen() {
       <View style={styles.actions}>
         {isLast ? (
           <>
-            <Button title="Create Account" onPress={() => finish('/(auth)/register')} />
-            <Button title="Sign In" variant="secondary" onPress={() => finish('/(auth)/login')} />
+            <Button title="Create Account" icon="person-add" onPress={() => finish('/(auth)/register')} />
+            <Button title="Sign In" icon="login" variant="secondary" onPress={() => finish('/(auth)/login')} />
             <Button
               title="Browse as Guest"
+              icon="explore"
               variant="ghost"
               onPress={() => finish('/(marketplace)/(tabs)/home')}
             />
           </>
         ) : (
-          <Button title="Continue" onPress={handleContinue} />
+          <Button title="Continue" icon="arrow-forward" onPress={handleContinue} />
         )}
       </View>
     </SafeAreaView>
