@@ -1,60 +1,127 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/ui/button';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { ChipSelect } from '@/components/ui/chip-select';
+import { FormFooter } from '@/components/ui/form-footer';
+import { FormSection } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
-import { GEM_TYPES } from '@/constants/gem-options';
-import { Palette, Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { MediaField } from '@/components/ui/media-field';
+import { ThemedScrollView } from '@/components/ui/screen';
+import { StackHeader } from '@/components/ui/stack-header';
+import { GEM_TYPES, formatGemType } from '@/constants/gem-options';
+import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { createGem } from '@/features/workspace/workspace-service';
-import { uploadPickedImage } from '@/lib/firebase/storage-service';
-import { useAuth } from '@/providers/auth-provider';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
+import {
+  extensionForMedia,
+  uploadLocalMedia,
+  type LocalMedia,
+} from '@/lib/firebase/storage-service';
+import { formatCurrency } from '@/lib/utils';
+import { addGemSchema, parseForm } from '@/lib/validation/form-schemas';
+import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
+
+const TREATMENTS = [
+  { value: 'none' as const, label: 'None', icon: 'block' as const },
+  { value: 'heat' as const, label: 'Heat', icon: 'local-fire-department' as const },
+  { value: 'oil' as const, label: 'Oil', icon: 'water-drop' as const },
+  { value: 'irradiation' as const, label: 'Irradiation', icon: 'science' as const },
+];
+
+const STEPS = ['Details', 'Photo', 'Review'] as const;
 
 export default function AddGemScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
-  const [step, setStep] = useState(1);
+
+  const [step, setStep] = useState(0);
   const [gemType, setGemType] = useState('blue_sapphire');
+  const [typeOpen, setTypeOpen] = useState(false);
   const [originCountry, setOriginCountry] = useState('');
   const [roughWeight, setRoughWeight] = useState('');
   const [acquisitionCost, setAcquisitionCost] = useState('');
-  const [treatment, setTreatment] = useState('none');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [treatment, setTreatment] = useState<'none' | 'heat' | 'oil' | 'irradiation'>('none');
+  const [photo, setPhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const selectedType = useMemo(
+    () => GEM_TYPES.find((t) => t.value === gemType) ?? GEM_TYPES[0],
+    [gemType],
+  );
+
+  function clearField(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function validateDetails() {
+    const result = parseForm(addGemSchema, {
+      gemType,
+      originCountry,
+      roughWeight,
+      acquisitionCost,
+      treatment,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0] ?? 'Check the highlighted fields.');
+      return null;
+    }
+    setErrors({});
+    return result.data;
+  }
 
   function handleNext() {
-    if (step === 1) {
-      if (!roughWeight.trim() || !acquisitionCost.trim()) {
-        toast.error('Please enter weight and price.');
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
-    } else {
-      handleSubmit();
+    if (step === 0) {
+      if (!validateDetails()) return;
+      setStep(1);
+      return;
     }
+    if (step === 1) {
+      setStep(2);
+      return;
+    }
+    void handleSubmit();
   }
 
   async function handleSubmit() {
     if (!user) return;
+    const data = validateDetails();
+    if (!data) {
+      setStep(0);
+      return;
+    }
     setLoading(true);
     try {
+      let photoUrls: string[] = [];
+      if (photo) {
+        const ext = extensionForMedia(photo);
+        const url = await uploadLocalMedia(
+          photo,
+          `gemtrack_gems/${user.uid}/${Date.now()}.${ext}`,
+        );
+        photoUrls = [url];
+      }
       const gemId = await createGem(user.uid, {
-        gemType,
-        originCountry,
-        roughWeight: parseFloat(roughWeight) || 0,
-        acquisitionCost: parseFloat(acquisitionCost) || 0,
+        gemType: data.gemType,
+        originCountry: data.originCountry,
+        roughWeight: data.roughWeight,
+        acquisitionCost: data.acquisitionCost,
         colorPrimary: null,
-        notes: `Treatment: ${treatment}`,
-        photoUrls: photoUrl ? [photoUrl] : [],
+        notes: `Treatment: ${data.treatment}`,
+        photoUrls,
       });
       toast.success('Gem added to your inventory');
       router.replace(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
@@ -65,249 +132,328 @@ export default function AddGemScreen() {
     }
   }
 
-  async function handlePhoto() {
-    if (!user) return;
-    const url = await uploadPickedImage(`gemtrack_gems/${user.uid}/${Date.now()}.jpg`);
-    if (url) setPhotoUrl(url);
-  }
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Top Navigation */}
-      <View style={[styles.header, { backgroundColor: colors.surfaceGlass }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Icon name="arrow-back" size={24} color={colors.primary} />
-        </Pressable>
-        <Text style={[styles.title, { color: colors.primary }]}>Add Gem</Text>
-        <View style={styles.spacer} />
-      </View>
+      <StackHeader title="Add gem" />
 
-      <ThemedScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {/* Step Indicator */}
-        <View style={styles.stepIndicator}>
-          <View style={styles.stepCol}>
-            <View style={[styles.stepCircle, step >= 1 ? { backgroundColor: colors.primary } : { backgroundColor: colors.surfaceVariant }]}>
-              <Text style={[styles.stepNum, step >= 1 ? { color: colors.onPrimary } : { color: colors.onSurfaceVariant }]}>1</Text>
-            </View>
-            <Text style={[styles.stepText, step >= 1 ? { color: colors.primary } : { color: colors.onSurfaceVariant }]}>Details</Text>
-          </View>
-          <View style={[styles.stepLine, { backgroundColor: step >= 2 ? colors.primary : colors.surfaceVariant }]} />
-          <View style={[styles.stepCol, step < 2 && styles.stepFaded]}>
-            <View style={[styles.stepCircle, step >= 2 ? { backgroundColor: colors.primary } : { backgroundColor: colors.surfaceVariant }]}>
-              <Text style={[styles.stepNum, step >= 2 ? { color: colors.onPrimary } : { color: colors.onSurfaceVariant }]}>2</Text>
-            </View>
-            <Text style={[styles.stepText, step >= 2 ? { color: colors.primary } : { color: colors.onSurfaceVariant }]}>Photos</Text>
-          </View>
-          <View style={[styles.stepLine, { backgroundColor: step >= 3 ? colors.primary : colors.surfaceVariant }]} />
-          <View style={[styles.stepCol, step < 3 && styles.stepFaded]}>
-            <View style={[styles.stepCircle, step >= 3 ? { backgroundColor: colors.primary } : { backgroundColor: colors.surfaceVariant }]}>
-              <Text style={[styles.stepNum, step >= 3 ? { color: colors.onPrimary } : { color: colors.onSurfaceVariant }]}>3</Text>
-            </View>
-            <Text style={[styles.stepText, step >= 3 ? { color: colors.primary } : { color: colors.onSurfaceVariant }]}>Review</Text>
-          </View>
+      <ThemedScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.stepRow}>
+          {STEPS.map((label, i) => {
+            const active = i === step;
+            const done = i < step;
+            return (
+              <View key={label} style={styles.stepItem}>
+                <View
+                  style={[
+                    styles.stepDot,
+                    {
+                      backgroundColor:
+                        active || done ? colors.primary : colors.surfaceContainerHigh,
+                    },
+                  ]}>
+                  {done ? (
+                    <Icon name="check" size={14} color={colors.onPrimary} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.stepNum,
+                        { color: active ? colors.onPrimary : colors.onSurfaceVariant },
+                      ]}>
+                      {i + 1}
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.stepLabel,
+                    { color: active || done ? colors.primary : colors.textMuted },
+                  ]}>
+                  {label}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
-        {/* Form Section */}
-        {step === 1 && (
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <View style={styles.fieldWrap}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Gem Type</Text>
-              <View style={styles.typeGrid}>
-                {GEM_TYPES.map((t) => (
-                  <Pressable
-                    key={t.value}
-                    style={[
-                      styles.typeChip,
-                      { borderColor: colors.outlineVariant },
-                      gemType === t.value && { backgroundColor: colors.primary, borderColor: colors.primary },
-                    ]}
-                    onPress={() => setGemType(t.value)}>
-                    <Text
-                      style={[
-                        styles.typeChipText,
-                        { color: colors.onSurfaceVariant },
-                        gemType === t.value && { color: colors.onPrimary },
-                      ]}>
-                      {t.label}
-                    </Text>
-                  </Pressable>
-                ))}
+        {step === 0 ? (
+          <>
+            <FormSection title="Stone" hint="Type, weight, and what you paid.">
+              <View style={styles.fieldBlock}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Gem type</Text>
+                <Pressable
+                  onPress={() => setTypeOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Gem type ${selectedType.label}. Tap to change`}
+                  accessibilityHint="Opens gem type picker"
+                  style={({ pressed }) => [
+                    styles.typeField,
+                    {
+                      backgroundColor: colors.surfaceContainerLow,
+                      borderColor: errors.gemType ? colors.error : colors.outlineVariant,
+                      opacity: pressed ? 0.92 : 1,
+                      transform: [{ scale: pressed ? 0.99 : 1 }],
+                    },
+                  ]}>
+                  <View style={[styles.typeFieldIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name={selectedType.icon} size={20} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.typeFieldValue, { color: colors.onSurface }]} numberOfLines={1}>
+                    {selectedType.label}
+                  </Text>
+                  <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+                </Pressable>
+                {errors.gemType ? (
+                  <Text style={[styles.fieldError, { color: colors.error }]} accessibilityLiveRegion="polite">
+                    {errors.gemType}
+                  </Text>
+                ) : null}
               </View>
-            </View>
+              <View style={styles.row}>
+                <View style={styles.flex}>
+                  <Input
+                    label="Weight (ct)"
+                    value={roughWeight}
+                    onChangeText={(v) => {
+                      setRoughWeight(v);
+                      clearField('roughWeight');
+                    }}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    leftIcon="scale"
+                    error={errors.roughWeight}
+                  />
+                </View>
+                <View style={styles.flex}>
+                  <Input
+                    label="Purchase price"
+                    value={acquisitionCost}
+                    onChangeText={(v) => {
+                      setAcquisitionCost(v);
+                      clearField('acquisitionCost');
+                    }}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    leftIcon="payments"
+                    error={errors.acquisitionCost}
+                  />
+                </View>
+              </View>
+              <Input
+                label="Origin"
+                value={originCountry}
+                onChangeText={(v) => {
+                  setOriginCountry(v);
+                  clearField('originCountry');
+                }}
+                placeholder="e.g. Sri Lanka, Colombia"
+                leftIcon="public"
+                error={errors.originCountry}
+              />
+            </FormSection>
 
-            <View style={styles.row}>
-              <View style={styles.flex1}>
-                <Input
-                  label="Weight (ct)"
-                  value={roughWeight}
-                  onChangeText={setRoughWeight}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                />
-              </View>
-              <View style={styles.flex1}>
-                <Input
-                  label="Purchase Price"
-                  value={acquisitionCost}
-                  onChangeText={setAcquisitionCost}
-                  keyboardType="decimal-pad"
-                  placeholder="$ 0.00"
-                />
-              </View>
-            </View>
+            <FormSection title="Treatment">
+              <ChipSelect
+                options={TREATMENTS}
+                value={treatment}
+                onChange={(v) => {
+                  setTreatment(v);
+                  clearField('treatment');
+                }}
+                error={errors.treatment}
+              />
+            </FormSection>
+          </>
+        ) : null}
 
-            <Input
-              label="Origin"
-              value={originCountry}
-              onChangeText={setOriginCountry}
-              placeholder="e.g. Sri Lanka, Colombia"
+        {step === 1 ? (
+          <FormSection title="Photo" hint="Optional. Helps you recognise the stone later.">
+            <MediaField
+              value={photo}
+              onChange={setPhoto}
+              emptyTitle="Add photo"
+              emptySubtitle="Kept on device until you save"
             />
+          </FormSection>
+        ) : null}
 
-            <View style={styles.fieldWrap}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Treatment</Text>
-              <View style={styles.typeGrid}>
-                {['none', 'heat', 'oil', 'irradiation'].map((t) => (
-                  <Pressable
-                    key={t}
-                    style={[
-                      styles.typeChip,
-                      { borderColor: colors.outlineVariant },
-                      treatment === t && { backgroundColor: colors.primary, borderColor: colors.primary },
-                    ]}
-                    onPress={() => setTreatment(t)}>
-                    <Text
-                      style={[
-                        styles.typeChipText,
-                        { color: colors.onSurfaceVariant },
-                        treatment === t && { color: colors.onPrimary },
-                      ]}>
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+        {step === 2 ? (
+          <FormSection title="Review">
+            <View style={styles.reviewList}>
+              <ReviewRow label="Type" value={formatGemType(gemType)} />
+              <ReviewRow label="Weight" value={`${roughWeight} ct`} />
+              <ReviewRow
+                label="Price"
+                value={formatCurrency(parseFloat(acquisitionCost) || 0)}
+              />
+              <ReviewRow label="Origin" value={originCountry.trim() || '-'} />
+              <ReviewRow
+                label="Treatment"
+                value={treatment.charAt(0).toUpperCase() + treatment.slice(1)}
+              />
+              <ReviewRow label="Photo" value={photo ? 'Selected' : 'None'} />
             </View>
-          </View>
-        )}
-
-        {step === 2 && (
-          <Pressable 
-            style={[styles.photoCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}
-            onPress={handlePhoto}
-          >
-            <View style={[styles.photoIconWrap, { backgroundColor: colors.primaryFixed }]}>
-              <Icon name="add-a-photo" size={24} color={colors.primary} />
-            </View>
-            <Text style={[styles.photoTitle, { color: colors.primary }]}>Upload Gem Photo</Text>
-            <Text style={[styles.photoSub, { color: colors.textMuted }]}>Tap to open camera or select from gallery</Text>
-            {photoUrl && <Text style={{ color: colors.successEmerald, marginTop: 8 }}>Photo Added ✓</Text>}
-          </Pressable>
-        )}
-
-        {step === 3 && (
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Review Details</Text>
-            <Text style={{ color: colors.textMain, marginTop: 8 }}>Type: {gemType}</Text>
-            <Text style={{ color: colors.textMain, marginTop: 4 }}>Weight: {roughWeight} ct</Text>
-            <Text style={{ color: colors.textMain, marginTop: 4 }}>Price: ${acquisitionCost}</Text>
-            <Text style={{ color: colors.textMain, marginTop: 4 }}>Origin: {originCountry}</Text>
-            <Text style={{ color: colors.textMain, marginTop: 4 }}>Treatment: {treatment}</Text>
-            {photoUrl && <Text style={{ color: colors.successEmerald, marginTop: 8 }}>Photo Included</Text>}
-          </View>
-        )}
+          </FormSection>
+        ) : null}
       </ThemedScrollView>
 
-      {/* Bottom Action Area */}
-      <View style={[styles.bottomBar, { backgroundColor: colors.surfaceGlass, borderTopColor: colors.surfaceVariant }]}>
-        <Button 
-          title={step === 3 ? "Confirm & Save" : "Continue"} 
-          onPress={handleNext} 
-          loading={loading}
-          style={styles.actionBtn}
-        />
-      </View>
+      <FormFooter
+        title={step === 2 ? 'Save gem' : 'Continue'}
+        icon={step === 2 ? 'save' : 'arrow-forward'}
+        loading={loading}
+        onPress={handleNext}
+        secondaryTitle={step > 0 ? 'Back' : undefined}
+        onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}
+      />
+
+      <BottomSheet visible={typeOpen} onClose={() => setTypeOpen(false)} title="Gem type">
+        <Text style={[styles.sheetHint, { color: colors.textMuted }]}>
+          Choose the stone type for this inventory record.
+        </Text>
+        <View style={styles.typeList}>
+          {GEM_TYPES.map((opt) => {
+            const active = gemType === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={opt.label}
+                onPress={() => {
+                  setGemType(opt.value);
+                  clearField('gemType');
+                  setTypeOpen(false);
+                }}
+                style={({ pressed }) => [
+                  styles.typeOption,
+                  {
+                    backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
+                    borderColor: active ? colors.primary : colors.outlineVariant,
+                    opacity: pressed ? 0.9 : 1,
+                  },
+                ]}>
+                <View
+                  style={[
+                    styles.typeOptionIcon,
+                    {
+                      backgroundColor: active ? colors.primary : colors.surfaceContainerHighest,
+                    },
+                  ]}>
+                  <Icon
+                    name={opt.icon}
+                    size={18}
+                    color={active ? colors.onPrimary : colors.onSurfaceVariant}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.typeOptionLabel,
+                    { color: active ? colors.onPrimaryContainer : colors.onSurface },
+                  ]}>
+                  {opt.label}
+                </Text>
+                {active ? <Icon name="check" size={20} color={colors.primary} /> : <View style={styles.typeOptionSpacer} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </SafeAreaView>
+  );
+}
+
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={[styles.reviewRow, { borderBottomColor: colors.outlineVariant }]}>
+      <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>{label}</Text>
+      <Text style={[styles.reviewValue, { color: colors.onSurface }]} selectable>
+        {value}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
+  content: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.lg,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  stepItem: { flex: 1, alignItems: 'center', gap: 6 },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNum: { ...Typography.caption, fontWeight: '700' },
+  stepLabel: { ...Typography.caption, fontWeight: '600' },
+  fieldBlock: { gap: 8 },
+  fieldLabel: { ...Typography.labelMd },
+  fieldError: { ...Typography.bodySmall },
+  typeField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 12,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    borderWidth: 1.5,
+  },
+  typeFieldIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeFieldValue: { ...Typography.bodyMd, fontWeight: '600', flex: 1 },
+  sheetHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
+  typeList: { gap: Spacing.stackSm },
+  typeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    borderWidth: 1.5,
+  },
+  typeOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeOptionLabel: { ...Typography.bodyMd, fontWeight: '600', flex: 1 },
+  typeOptionSpacer: { width: 20 },
+  row: { flexDirection: 'row', gap: Spacing.md },
+  flex: { flex: 1 },
+  reviewList: { gap: 0 },
+  reviewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.stackMd,
-    zIndex: 40,
-  },
-  backBtn: { padding: 8, borderRadius: Radius.full },
-  backIcon: { fontSize: 24, fontWeight: 'bold' },
-  title: { ...Typography.headlineMdMobile },
-  spacer: { width: 40 },
-  container: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.sectionGap, paddingBottom: 100 },
-  
-  stepIndicator: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 },
-  stepCol: { alignItems: 'center', gap: 4, width: '33%' },
-  stepFaded: { opacity: 0.5 },
-  stepCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  stepNum: { ...Typography.labelMd },
-  stepText: { ...Typography.labelMd },
-  stepLine: { height: 2, flex: 1, marginHorizontal: 8 },
-
-  card: {
-    borderRadius: Radius.lg,
-    padding: Spacing.gutterMd,
-    gap: Spacing.stackMd,
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.05,
-    shadowRadius: 30,
-    elevation: 5,
-  },
-  fieldWrap: { gap: 4 },
-  label: { ...Typography.labelMd },
-  row: { flexDirection: 'row', gap: Spacing.stackMd },
-  flex1: { flex: 1 },
-  
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.stackSm },
-  typeChip: {
-    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: Radius.md,
-    borderWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
   },
-  typeChipText: { ...Typography.bodyMd },
-
-  photoCard: {
-    borderRadius: Radius.lg,
-    padding: Spacing.gutterMd,
-    gap: Spacing.stackSm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    minHeight: 160,
-  },
-  photoIconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  photoIcon: { fontSize: 24 },
-  photoTitle: { ...Typography.headlineMdMobile },
-  photoSub: { ...Typography.bodyMd, textAlign: 'center', maxWidth: 200 },
-
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Spacing.containerMargin,
-    borderTopWidth: 1,
-  },
-  actionBtn: {
-    width: '100%',
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.05,
-    shadowRadius: 30,
-    elevation: 5,
-  },
+  reviewLabel: { ...Typography.bodyMd },
+  reviewValue: { ...Typography.bodyLg, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
 });

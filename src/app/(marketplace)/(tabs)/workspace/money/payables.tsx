@@ -170,9 +170,10 @@ export default function PayablesScreen() {
                 onChangeText={setPaymentAmount}
                 keyboardType="decimal-pad"
                 placeholder={String(remaining)}
+                leftIcon="payments"
               />
-              <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" />
-              <Button title="Confirm Payment" loading={loading} onPress={() => handleRecordPayment(item)} />
+              <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
+              <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
             </View>
           ) : (
@@ -240,7 +241,7 @@ export default function PayablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker label="To contact" contacts={contacts} value={contactId} onChange={setContactId} />
-                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" leftIcon="payments" />
                 <View style={styles.currencyRow}>
                   {SUPPORTED_CURRENCIES.slice(0, 4).map((c) => (
                     <Pressable
@@ -259,16 +260,16 @@ export default function PayablesScreen() {
                     </Pressable>
                   ))}
                 </View>
-                <Input label="Description" value={description} onChangeText={setDescription} />
-                <Button title="Add Payable" loading={loading} onPress={handleAdd} />
+                <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
+                <Button title="Add Payable" icon="add" loading={loading} onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>
             ) : (
-              <Button title="+ New Payable" onPress={() => setShowForm(true)} />
+              <Button title="+ New Payable" icon="add" onPress={() => setShowForm(true)} />
             )}
           </View>
         }
-        ListEmptyComponent={<EmptyState title="No payables" subtitle="Track money you owe here." />}
+        ListEmptyComponent={<EmptyState icon="money-off" title="No payables" subtitle="Track money you owe here." />}
         renderItem={renderRow}
       />
     </SafeAreaView>

@@ -176,16 +176,18 @@ export default function ReceivablesScreen() {
                 onChangeText={setPaymentAmount}
                 keyboardType="decimal-pad"
                 placeholder={String(remaining)}
+                leftIcon="payments"
               />
-              <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" />
+              <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
               <Input
                 label="Commission (optional)"
                 value={commission}
                 onChangeText={setCommission}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
+                leftIcon="payments"
               />
-              <Button title="Confirm Payment" loading={loading} onPress={() => handleRecordPayment(item)} />
+              <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
             </View>
           ) : (
@@ -253,7 +255,7 @@ export default function ReceivablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker label="From contact" contacts={contacts} value={contactId} onChange={setContactId} />
-                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" leftIcon="payments" />
                 <View style={styles.currencyRow}>
                   {SUPPORTED_CURRENCIES.slice(0, 4).map((c) => (
                     <Pressable
@@ -272,16 +274,16 @@ export default function ReceivablesScreen() {
                     </Pressable>
                   ))}
                 </View>
-                <Input label="Description" value={description} onChangeText={setDescription} />
-                <Button title="Add Receivable" loading={loading} onPress={handleAdd} />
+                <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
+                <Button title="Add Receivable" icon="add" loading={loading} onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>
             ) : (
-              <Button title="+ New Receivable" onPress={() => setShowForm(true)} />
+              <Button title="+ New Receivable" icon="add" onPress={() => setShowForm(true)} />
             )}
           </View>
         }
-        ListEmptyComponent={<EmptyState title="No receivables" subtitle="Track money owed to you here." />}
+        ListEmptyComponent={<EmptyState icon="account-balance-wallet" title="No receivables" subtitle="Track money owed to you here." />}
         renderItem={renderRow}
       />
     </SafeAreaView>

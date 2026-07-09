@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
@@ -115,18 +116,20 @@ export default function TransactionsScreen() {
                 style={[styles.typeBtn, { backgroundColor: type === 'income' ? colors.successEmerald + '1A' : colors.surfaceContainerLow }]}
                 onPress={() => setType('income')}
               >
+                <Icon name="arrow-downward" size={16} color={type === 'income' ? colors.successEmerald : colors.onSurfaceVariant} />
                 <Text style={[styles.typeText, { color: type === 'income' ? colors.successEmerald : colors.onSurfaceVariant }]}>Income</Text>
               </Pressable>
               <Pressable 
                 style={[styles.typeBtn, { backgroundColor: type === 'expense' ? colors.error + '1A' : colors.surfaceContainerLow }]}
                 onPress={() => setType('expense')}
               >
+                <Icon name="arrow-upward" size={16} color={type === 'expense' ? colors.error : colors.onSurfaceVariant} />
                 <Text style={[styles.typeText, { color: type === 'expense' ? colors.error : colors.onSurfaceVariant }]}>Expense</Text>
               </Pressable>
             </View>
-            <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
-            <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" />
-            <Button title="Add Transaction" loading={loading} onPress={handleAdd} style={{ marginTop: 8 }} />
+            <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" leftIcon="payments" />
+            <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
+            <Button title="Add Transaction" icon="add" loading={loading} onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>
         )}
 
@@ -138,7 +141,7 @@ export default function TransactionsScreen() {
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           ListEmptyComponent={
-            <Text style={[styles.empty, { color: colors.textMuted }]}>No transactions yet. Tap + to record one.</Text>
+            <EmptyState icon="receipt-long" title="No transactions yet" subtitle="Tap + to record one." />
           }
           renderSectionHeader={({ section }) => (
             <Text style={[styles.sectionHeader, { color: colors.onSurfaceVariant }]}>{section.title}</Text>
@@ -219,12 +222,11 @@ const styles = StyleSheet.create({
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formTitle: { ...Typography.headlineSm },
   typeRow: { flexDirection: 'row', gap: 8 },
-  typeBtn: { flex: 1, paddingVertical: 10, borderRadius: Radius.md, alignItems: 'center' },
+  typeBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 10, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   typeText: { ...Typography.labelMd },
 
   list: { padding: Spacing.containerMargin, paddingTop: 0, paddingBottom: 100 },
   sectionHeader: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.gutterMd, marginTop: Spacing.sectionGap },
-  empty: { ...Typography.bodyMd, textAlign: 'center', marginTop: Spacing.sectionGap },
   
   txCard: { padding: 16, borderRadius: Radius.lg, borderWidth: 1, marginBottom: Spacing.stackMd, shadowColor: '#00162C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
   txLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },

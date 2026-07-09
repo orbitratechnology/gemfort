@@ -102,8 +102,8 @@ export default function AddApScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Minimum Price (LKR)" value={minPrice} onChangeText={setMinPrice} keyboardType="decimal-pad" placeholder="0.00" />
-          <Input label="Expected Days" value={days} onChangeText={setDays} keyboardType="number-pad" />
+          <Input label="Minimum Price (LKR)" value={minPrice} onChangeText={setMinPrice} keyboardType="decimal-pad" placeholder="0.00" leftIcon="payments" />
+          <Input label="Expected Days" value={days} onChangeText={setDays} keyboardType="number-pad" leftIcon="schedule" />
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
@@ -117,7 +117,7 @@ export default function AddApScreen() {
           />
         </View>
 
-        <Button title="Create AP Record" loading={loading} onPress={handleSubmit} />
+        <Button title="Create AP Record" icon="handshake" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
     </SafeAreaView>
   );

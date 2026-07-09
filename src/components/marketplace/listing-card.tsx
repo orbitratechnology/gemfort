@@ -2,36 +2,33 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Radius, Typography } from '@/constants/design-tokens';
 import { formatGemType } from '@/constants/gem-options';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
-import type { WorkspaceGem } from '@/types';
+import type { MarketplaceListing } from '@/types';
 
-/** Soft cap so tiles stay product-sized on tablets / wide layouts. */
-export const GEM_CARD_MAX_WIDTH = 188;
-
-type GemCardProps = {
-  gem: WorkspaceGem;
+type ListingCardProps = {
+  listing: MarketplaceListing;
   onPress?: () => void;
 };
 
 /**
- * Workspace inventory tile for 2-column ecommerce grids.
- * Image-led, status pill, SKU + type, weight, asking price.
+ * Marketplace gem tile for 2-column ecommerce grids.
+ * Image-led, compact meta, price-forward — full half-width of the screen.
  */
-export function GemCard({ gem, onPress }: GemCardProps) {
+export function ListingCard({ listing, onPress }: ListingCardProps) {
   const { colors } = useAppTheme();
-  const photo = gem.photoUrls?.[0];
-  const currency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? 'LKR';
   const price =
-    gem.askingPrice != null ? formatCurrency(gem.askingPrice, currency) : 'No price set';
+    listing.showPrice && listing.priceMin
+      ? formatCurrency(listing.priceMin, listing.currency)
+      : 'Inquire';
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
+      accessibilityLabel={`${listing.title}, ${price}`}
       style={({ pressed }) => [
         styles.card,
         {
@@ -41,31 +38,33 @@ export function GemCard({ gem, onPress }: GemCardProps) {
         },
       ]}>
       <View style={styles.media}>
-        {photo ? (
-          <Image source={{ uri: photo }} style={styles.image} contentFit="cover" />
+        {listing.photoUrls?.[0] ? (
+          <Image source={{ uri: listing.photoUrls[0] }} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, styles.placeholder, { backgroundColor: colors.surfaceContainerHigh }]}>
             <Icon name="diamond" size={28} color={colors.outlineVariant} />
           </View>
         )}
-        <View style={[styles.statusPill, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.statusText, { color: colors.onPrimary }]} numberOfLines={1}>
-            {gem.status.replace(/_/g, ' ')}
-          </Text>
-        </View>
+        {listing.isCertified ? (
+          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.badgeText, { color: colors.onPrimary }]}>Certified</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.sku, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-          {gem.sku}
-        </Text>
-        <Text style={[styles.type, { color: colors.onSurface }]} numberOfLines={2}>
-          {formatGemType(gem.gemType)}
+        <Text style={[styles.title, { color: colors.onSurface }]} numberOfLines={2}>
+          {listing.title}
         </Text>
         <Text style={[styles.meta, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-          {gem.currentWeight} ct
-          {gem.cutType ? ` · ${gem.cutType}` : ''}
+          {formatGemType(listing.gemType)} · {listing.caratWeight} ct
         </Text>
+        <View style={styles.originRow}>
+          <Icon name="location-on" size={12} color={colors.textMuted} />
+          <Text style={[styles.origin, { color: colors.textMuted }]} numberOfLines={1}>
+            {listing.origin}
+          </Text>
+        </View>
         <Text style={[styles.price, { color: colors.primary }]} numberOfLines={1}>
           {price}
         </Text>
@@ -76,9 +75,7 @@ export function GemCard({ gem, onPress }: GemCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    width: '100%',
-    maxWidth: GEM_CARD_MAX_WIDTH,
-    alignSelf: 'center',
+    flex: 1,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     overflow: 'hidden',
@@ -90,26 +87,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   image: {
-    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%',
   },
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusPill: {
+  badge: {
     position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
-    maxWidth: '78%',
+    top: 8,
+    left: 8,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: Radius.full,
   },
-  statusText: {
+  badgeText: {
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.4,
-    textTransform: 'capitalize',
+    textTransform: 'uppercase',
   },
   body: {
     paddingHorizontal: 10,
@@ -117,17 +114,22 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 3,
   },
-  sku: {
-    ...Typography.caption,
-    letterSpacing: 0.3,
-  },
-  type: {
+  title: {
     ...Typography.bodyMd,
     fontWeight: '600',
     lineHeight: 18,
   },
   meta: {
     ...Typography.caption,
+  },
+  originRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  origin: {
+    ...Typography.caption,
+    flex: 1,
   },
   price: {
     ...Typography.bodyMd,

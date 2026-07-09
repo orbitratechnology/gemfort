@@ -190,11 +190,13 @@ export default function ChequeDetailScreen() {
               value={bounceReason}
               onChangeText={setBounceReason}
               placeholder="Insufficient funds, signature mismatch…"
+              leftIcon="notes"
             />
             <View style={styles.bounceActions}>
               <Button title="Cancel" variant="ghost" onPress={() => setShowBounceForm(false)} />
               <Button
                 title="Confirm bounce"
+                icon="cancel"
                 loading={loading}
                 onPress={() => {
                   if (!bounceReason.trim()) {
@@ -256,7 +258,7 @@ export default function ChequeDetailScreen() {
         ) : null}
 
         {isBounced ? (
-          <Button title="Add replacement cheque" variant="secondary" onPress={handleReplace} />
+          <Button title="Add replacement cheque" icon="swap-horiz" variant="secondary" onPress={handleReplace} />
         ) : null}
 
         {cheque.gemId ? (

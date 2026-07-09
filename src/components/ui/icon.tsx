@@ -1,4 +1,4 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -11,9 +11,8 @@ type IconProps = {
 };
 
 /**
- * App-wide icon. Wraps react-native-vector-icons (via @expo/vector-icons)
- * MaterialIcons set, which maps 1:1 to the Material Symbols used in the
- * GemFort stitch designs. Defaults to the current theme's on-surface color.
+ * App-wide icon using @react-native-vector-icons/material-icons.
+ * Maps 1:1 to Material Symbols used across GemFort screens.
  */
 export function Icon({ name, size = 24, color }: IconProps) {
   const { colors } = useAppTheme();

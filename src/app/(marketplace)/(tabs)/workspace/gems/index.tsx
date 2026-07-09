@@ -9,8 +9,8 @@ import {
   Text,
   TextInput,
   View,
-  Image,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
+import { GEM_CARD_MAX_WIDTH, GemCard } from '@/components/workspace/gem-card';
 import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { filterGems } from '@/features/workspace/gem-utils';
@@ -27,9 +28,14 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAuth } from '@/providers/auth-provider';
 import type { GemStatus } from '@/types';
 
+const GRID_GAP = Spacing.stackMd;
+const CHIP_HEIGHT = 36;
+const LIST_H_PAD = Spacing.containerMargin;
+
 export default function GemsListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const params = useLocalSearchParams<{ status?: string }>();
   const initialStatus = (params.status as GemStatus | undefined) ?? 'all';
 
@@ -53,6 +59,14 @@ export default function GemsListScreen() {
     [gems, search, statusFilter, typeFilter],
   );
 
+  const cellMaxWidth = useMemo(() => {
+    const contentWidth = windowWidth - LIST_H_PAD * 2;
+    const half = (contentWidth - GRID_GAP) / 2;
+    return Math.min(half, GEM_CARD_MAX_WIDTH);
+  }, [windowWidth]);
+
+  const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all';
+
   function openFilter() {
     setDraft({ status: statusFilter, type: typeFilter });
     setFilterOpen(true);
@@ -68,132 +82,142 @@ export default function GemsListScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="My Gems" />
 
-      {/* Search & Filters Row */}
       <View style={styles.searchRow}>
         <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
-          <View style={{ marginLeft: 12 }}>
+          <View style={styles.searchIcon}>
             <Icon name="search" size={20} color={colors.outline} />
           </View>
-          <TextInput 
+          <TextInput
             style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search inventory..."
+            placeholder="Search SKU, type, origin..."
             placeholderTextColor={colors.outline}
             value={search}
             onChangeText={setSearch}
+            returnKeyType="search"
+            accessibilityLabel="Search inventory"
           />
         </View>
         <Pressable
           onPress={openFilter}
-          style={[
+          accessibilityRole="button"
+          accessibilityLabel="Open filters"
+          style={({ pressed }) => [
             styles.filterBtn,
             typeFilter !== 'all'
               ? { backgroundColor: colors.primary, borderColor: colors.primary }
-              : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' },
+              : {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderColor: colors.outlineVariant,
+                },
+            pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
           ]}>
-          <Icon name="tune" size={20} color={typeFilter !== 'all' ? colors.onPrimary : colors.onSurfaceVariant} />
+          <Icon
+            name="tune"
+            size={20}
+            color={typeFilter !== 'all' ? colors.onPrimary : colors.onSurfaceVariant}
+          />
         </Pressable>
       </View>
 
-      {/* Filter Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
-        <Pressable
-          style={[
-            styles.chip,
-            statusFilter === 'all' 
-              ? { backgroundColor: colors.primary, borderColor: colors.primary }
-              : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' }
-          ]}
-          onPress={() => setStatusFilter('all')}
-        >
-          <Text style={[styles.chipText, { color: statusFilter === 'all' ? colors.onPrimary : colors.onSurfaceVariant }]}>All Gems</Text>
-        </Pressable>
-        {GEM_STATUS_FILTERS.map((f) => (
-          <Pressable
-            key={f.value}
-            style={[
-              styles.chip,
-              statusFilter === f.value 
-                ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' }
-            ]}
-            onPress={() => setStatusFilter(f.value)}
-          >
-            <Text style={[styles.chipText, { color: statusFilter === f.value ? colors.onPrimary : colors.onSurfaceVariant }]}>{f.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.filtersWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContent}>
+          {GEM_STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.value;
+            return (
+              <Pressable
+                key={f.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={({ pressed }) => [
+                  styles.chip,
+                  active
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : {
+                        backgroundColor: colors.surfaceContainerLowest,
+                        borderColor: colors.outlineVariant,
+                      },
+                  pressed && { opacity: 0.9 },
+                ]}
+                onPress={() => setStatusFilter(f.value)}>
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
+                  ]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      {/* Main Content - Inventory List */}
+      {hasActiveFilters ? (
+        <View style={styles.resultMeta}>
+          <Text style={[styles.resultCount, { color: colors.onSurfaceVariant }]}>
+            {filtered.length} {filtered.length === 1 ? 'gem' : 'gems'}
+          </Text>
+          <Pressable
+            onPress={() => {
+              setStatusFilter('all');
+              setTypeFilter('all');
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Clear filters">
+            <Text style={[styles.clearFilters, { color: colors.primary }]}>Clear</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListEmptyComponent={
           <EmptyState
+            icon="diamond"
             title={gems.length ? 'No gems match' : 'No gems yet'}
-            subtitle={gems.length ? 'Try clearing filters' : 'Add your first gem to start tracking'}
+            subtitle={
+              gems.length ? 'Try clearing filters or search' : 'Add your first gem to start tracking'
+            }
           />
         }
-        renderItem={({ item }) => {
-          let badgeColor = colors.successEmerald;
-          let badgeText = 'Avail';
-          if (item.status === 'with_cutter') { badgeColor = colors.warningAmber; badgeText = 'At Serv'; }
-          if (item.status === 'on_ap') { badgeColor = colors.secondary; badgeText = 'On AP'; }
-          if (item.status === 'sold') { badgeColor = colors.outline; badgeText = 'Sold'; }
-
-          return (
-            <Pressable 
-              style={[styles.gemCard, { backgroundColor: colors.surfaceContainerLowest }]}
+        renderItem={({ item }) => (
+          <View style={[styles.cell, { maxWidth: cellMaxWidth }]}>
+            <GemCard
+              gem={item}
               onPress={() => router.push(`/(marketplace)/(tabs)/workspace/gems/${item.id}`)}
-            >
-              <View style={styles.gemThumbWrap}>
-                <Image 
-                  source={{ uri: item.photoUrls?.[0] || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDTVtc_WzmbWsboLA5KA5RICXUbZ47FjTCv0AoR6JOi0uJ_anHspCo3S0Y0wKDDlu5ZsX6dU9AFZC3DKm6LIiRLTYZvgOquxBuHcEoJFWA_aUE1P68X41-UXlaHl9uh7OFAsTD3PO5FqESTRM5TyeBtfUry_LCVlZe-nmthv_6o7AfdIUwwTBUOhmpjOAu1GTBuA37C8DzxwRJDlVyqbG2RqScO-lSsDFGHbgAVcJ757k8sRHgZI8dluw' }} 
-                  style={styles.gemThumb} 
-                />
-                <View style={[styles.gemBadge, { backgroundColor: colors.surfaceGlass, borderColor: colors.surfaceVariant + '33' }]}>
-                  <View style={[styles.badgeDot, { backgroundColor: badgeColor }]} />
-                  <Text style={[styles.badgeText, { color: colors.onSurface }]}>{badgeText}</Text>
-                </View>
-              </View>
-              <View style={styles.gemInfo}>
-                <View>
-                  <View style={styles.gemHeaderRow}>
-                    <Text style={[styles.gemSku, { color: colors.outline }]}>{item.sku}</Text>
-                    <Icon name="more-vert" size={18} color={colors.outline} />
-                  </View>
-                  <Text style={[styles.gemTitle, { color: colors.onSurface }]} numberOfLines={1}>{item.gemType.replace(/_/g, ' ')}</Text>
-                  <Text style={[styles.gemSub, { color: colors.onSurfaceVariant }]}>{item.treatmentStatus || 'Natural'}</Text>
-                </View>
-                <View style={styles.gemFooterRow}>
-                  <Text style={[styles.gemWeight, { color: colors.primary }]}>{item.currentWeight} ct</Text>
-                  <View style={[styles.viewBtn, { borderColor: colors.surfaceVariant }]}>
-                    <Icon name="visibility" size={16} color={colors.onSurfaceVariant} />
-                  </View>
-                </View>
-              </View>
-            </Pressable>
-          );
-        }}
+            />
+          </View>
+        )}
       />
 
-      {/* Floating Action Button */}
-      <Pressable 
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => router.push('/(marketplace)/(tabs)/workspace/gems/add')}
-      >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add gem"
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push('/(marketplace)/(tabs)/workspace/gems/add')}>
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
 
-      {/* Filter bottom sheet */}
       <BottomSheet
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
         title="Filter Inventory"
         footer={
           <>
-            <Button title="Apply Filters" onPress={applyFilter} />
+            <Button title="Apply Filters" icon="filter-list" onPress={applyFilter} />
             <Button
               title="Reset"
               variant="ghost"
@@ -211,7 +235,10 @@ export default function GemsListScreen() {
           label="Gem Type"
           value={draft.type}
           onChange={(v) => setDraft((d) => ({ ...d, type: v }))}
-          options={[{ id: 'all', label: 'All' }, ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label }))]}
+          options={[
+            { id: 'all', label: 'All' },
+            ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label })),
+          ]}
         />
       </BottomSheet>
     </SafeAreaView>
@@ -220,57 +247,79 @@ export default function GemsListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
+  searchRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: LIST_H_PAD,
+    paddingBottom: Spacing.stackMd,
+  },
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.stackMd,
-    zIndex: 40,
+    borderRadius: Radius.full,
+    height: 44,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', borderWidth: 1 },
-  avatar: { width: '100%', height: '100%' },
-  brandName: { ...Typography.headlineMdMobile, letterSpacing: -0.5 },
-  bellBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  
-  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.stackMd },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: Radius.full, height: 44 },
+  searchIcon: { marginLeft: 12 },
   searchInput: { flex: 1, paddingHorizontal: 12, ...Typography.bodyMd },
-  filterBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-
-  filtersScroll: { maxHeight: 44, marginBottom: Spacing.stackMd },
-  filtersContent: { paddingHorizontal: Spacing.containerMargin, gap: 8 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  chipText: { ...Typography.labelMd },
-
-  list: { padding: Spacing.containerMargin, gap: 16, paddingBottom: 100 },
-  gemCard: {
-    flexDirection: 'row',
-    height: 120,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.05,
-    shadowRadius: 30,
-    elevation: 3,
+  filterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  gemThumbWrap: { width: 120, height: '100%', position: 'relative' },
-  gemThumb: { width: '100%', height: '100%' },
-  gemBadge: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.full, borderWidth: 1 },
-  badgeDot: { width: 6, height: 6, borderRadius: 3 },
-  badgeText: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 },
-  
-  gemInfo: { flex: 1, padding: 12, justifyContent: 'space-between' },
-  gemHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  gemSku: { fontSize: 12, fontWeight: '500', letterSpacing: 0.5 },
-  gemTitle: { ...Typography.headlineSm, textTransform: 'capitalize' },
-  gemSub: { ...Typography.bodyMd, marginTop: 2 },
-  
-  gemFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  gemWeight: { fontSize: 16, fontWeight: '600' },
-  viewBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+
+  filtersWrap: {
+    height: CHIP_HEIGHT,
+    marginBottom: Spacing.stackMd,
+  },
+  filtersContent: {
+    paddingHorizontal: LIST_H_PAD,
+    gap: 8,
+    alignItems: 'center',
+  },
+  chip: {
+    height: CHIP_HEIGHT,
+    paddingHorizontal: 14,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipText: {
+    ...Typography.labelMd,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+
+  resultMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: LIST_H_PAD,
+    marginBottom: Spacing.stackSm,
+  },
+  resultCount: { ...Typography.labelMd },
+  clearFilters: { ...Typography.labelMd, fontWeight: '600' },
+
+  list: {
+    paddingHorizontal: LIST_H_PAD,
+    paddingBottom: 100,
+    flexGrow: 1,
+  },
+  columnWrapper: {
+    gap: GRID_GAP,
+    marginBottom: GRID_GAP,
+    justifyContent: 'flex-start',
+  },
+  cell: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: GEM_CARD_MAX_WIDTH,
+    alignItems: 'center',
+  },
 
   fab: {
     position: 'absolute',
@@ -281,11 +330,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 5,
+    boxShadow: '0 8px 20px rgba(15, 118, 110, 0.28)',
     zIndex: 100,
   },
 });

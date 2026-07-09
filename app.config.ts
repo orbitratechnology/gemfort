@@ -80,6 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-dev-client',
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
+    '@react-native-vector-icons/material-icons',
     [
       'expo-build-properties',
       {

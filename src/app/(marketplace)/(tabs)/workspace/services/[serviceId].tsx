@@ -222,9 +222,9 @@ export default function ServiceDetailScreen() {
         {actionable ? (
           <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, gap: Spacing.md }]}>
             <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Mark as Received</Text>
-            <Input label="Weight After (ct)" value={weightAfter} onChangeText={setWeightAfter} keyboardType="decimal-pad" />
-            <Input label="Final Cost (LKR)" value={finalCost} onChangeText={setFinalCost} keyboardType="decimal-pad" />
-            <Button title="Mark Received & Complete" loading={loading} onPress={handleComplete} />
+            <Input label="Weight After (ct)" value={weightAfter} onChangeText={setWeightAfter} keyboardType="decimal-pad" leftIcon="scale" />
+            <Input label="Final Cost (LKR)" value={finalCost} onChangeText={setFinalCost} keyboardType="decimal-pad" leftIcon="payments" />
+            <Button title="Mark Received & Complete" icon="check-circle" loading={loading} onPress={handleComplete} />
           </View>
         ) : null}
       </ThemedScrollView>

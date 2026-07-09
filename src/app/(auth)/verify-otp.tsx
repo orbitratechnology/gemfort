@@ -1,20 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
-import { ThemedScrollView } from '@/components/ui/screen';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useThemeStyles } from '@/hooks/use-theme-styles';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import {
   confirmPhoneVerificationCode,
@@ -22,14 +17,14 @@ import {
   skipPhoneVerificationForDev,
 } from '@/lib/firebase/phone-auth';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
+import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
+import { parseForm, verifyOtpSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
 
 export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
-  const ts = useThemeStyles();
   const toast = useToast();
   const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
   const { user } = useAuth();
@@ -40,6 +35,7 @@ export default function VerifyOtpScreen() {
   const [sending, setSending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -61,25 +57,33 @@ export default function VerifyOtpScreen() {
       const id = await sendPhoneVerificationCode(phone);
       setVerificationId(id);
       setCooldown(60);
-      toast.success(`We sent a verification code to ${phone}`);
+      toast.success(`Code sent to ${phone}`);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not send code. Try again.'));
     } finally {
       setSending(false);
     }
-  }, [phone]);
+  }, [phone, toast]);
 
   async function handleConfirm() {
-    if (!verificationId || code.length < 6) {
-      toast.error('Enter the 6-digit code from your SMS.');
+    if (!verificationId) {
+      toast.error('Send a verification code first.');
       return;
     }
+    const result = parseForm(verifyOtpSchema, { code });
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+
     setConfirming(true);
+    setErrors({});
     try {
-      await confirmPhoneVerificationCode(verificationId, code.trim());
+      await confirmPhoneVerificationCode(verificationId, result.data.code);
       await markOnboardingComplete();
       router.replace('/(marketplace)/(tabs)/home');
     } catch (e) {
+      setErrors({ code: 'Invalid or expired code. Try again.' });
       toast.error(friendlyError(e, 'Verification failed. Invalid code.'));
     } finally {
       setConfirming(false);
@@ -97,31 +101,52 @@ export default function VerifyOtpScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}>
-        <ThemedScrollView contentContainerStyle={styles.container}>
+        style={styles.flex}>
+        <ThemedScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled">
           <StoryChapter
             title="Verify your phone"
             body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
           />
 
           <Button
-            title={verificationId ? 'Resend Code' : 'Send Code'}
+            title={verificationId ? 'Resend code' : 'Send code'}
+            icon="sms"
             loading={sending}
             disabled={cooldown > 0}
             onPress={handleSendCode}
           />
           {cooldown > 0 ? (
-            <Text style={[styles.cooldown, ts.textMuted]}>Resend available in {cooldown}s</Text>
+            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
+              Resend available in {cooldown}s
+            </Text>
           ) : null}
 
-          <Input
-            label="6-digit code"
-            value={code}
-            onChangeText={setCode}
-            keyboardType="number-pad"
-            maxLength={6}
+          <FormSection title="Enter code">
+            <Input
+              label="6-digit code"
+              leftIcon="pin"
+              value={code}
+              onChangeText={(v) => {
+                setCode(v.replace(/\D/g, '').slice(0, 6));
+                setErrors({});
+              }}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="sms-otp"
+              maxLength={6}
+              placeholder="000000"
+              error={errors.code}
+            />
+          </FormSection>
+
+          <Button
+            title="Verify & continue"
+            icon="verified"
+            loading={confirming}
+            onPress={handleConfirm}
           />
-          <Button title="Verify & Continue" loading={confirming} onPress={handleConfirm} />
 
           {__DEV__ ? (
             <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
@@ -134,6 +159,12 @@ export default function VerifyOtpScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { padding: Spacing.xxl, gap: Spacing.lg },
+  flex: { flex: 1 },
+  container: {
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.section,
+    gap: Spacing.lg,
+  },
   cooldown: { ...Typography.caption, textAlign: 'center' },
 });

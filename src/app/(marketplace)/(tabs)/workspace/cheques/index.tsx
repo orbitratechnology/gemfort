@@ -214,6 +214,7 @@ export default function ChequesScreen() {
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Upcoming</Text>
           {upcoming.length === 0 ? (
             <EmptyState
+              icon="receipt-long"
               title="No pending cheques"
               subtitle="Add a post-dated cheque to track maturity and clearance."
             />
