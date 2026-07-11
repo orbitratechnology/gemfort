@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -66,6 +66,7 @@ export default function VerifyOtpScreen() {
   }, [phone, toast]);
 
   async function handleConfirm() {
+    Keyboard.dismiss();
     if (!verificationId) {
       toast.error('Send a verification code first.');
       return;
@@ -137,6 +138,9 @@ export default function VerifyOtpScreen() {
               autoComplete="sms-otp"
               maxLength={6}
               placeholder="000000"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={handleConfirm}
               error={errors.code}
             />
           </FormSection>

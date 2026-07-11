@@ -10,7 +10,8 @@
   GIVEN a new user downloads the app
   WHEN they tap Register
   THEN they can enter email, phone, and password
-  AND select their role (Normal User, Seller, Provider)
+  AND select their role (Trader, Lapidary, Gem Lab)
+  AND their user document is created with that role and verificationStatus none
   AND receive an OTP to verify their phone
   AND their user document is created in Firestore with correct defaults
 

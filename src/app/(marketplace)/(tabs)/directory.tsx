@@ -37,7 +37,7 @@ import {
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import type { Business, MarketplaceListing } from '@/types';
 
-type Tab = 'gems' | 'sellers' | 'providers';
+type Tab = 'gems' | 'traders' | 'lapidaries' | 'labs';
 type BusinessSortBy = 'featured' | 'rating' | 'name';
 const PAGE_SIZE = 20;
 
@@ -83,7 +83,8 @@ export default function DirectoryScreen() {
     sort: BusinessSortBy;
   }>({ verified: 'all', city: 'all', sort: 'featured' });
 
-  const businessType = tab === 'sellers' ? ('seller' as const) : ('provider' as const);
+  const businessType =
+    tab === 'traders' ? ('trader' as const) : tab === 'labs' ? ('gem_lab' as const) : ('lapidary' as const);
 
   const {
     data: businesses,
@@ -91,15 +92,11 @@ export default function DirectoryScreen() {
     refetch: refetchBusinesses,
     isRefetching: businessesRefetching,
   } = useQuery({
-    queryKey: ['businesses', tab === 'providers' ? 'providers' : 'sellers'],
+    queryKey: ['businesses', tab],
     queryFn: async () => {
       const filters = { businessType };
       if (!isFirebaseConfigured) return demoBusinesses(filters);
-      try {
-        return await fetchBusinesses(filters);
-      } catch {
-        return demoBusinesses(filters);
-      }
+      return fetchBusinesses(filters);
     },
     enabled: tab !== 'gems',
   });
@@ -113,12 +110,7 @@ export default function DirectoryScreen() {
     queryKey: ['public-listings'],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoListings();
-      try {
-        const items = await fetchPublicListings();
-        return items.length ? items : demoListings();
-      } catch {
-        return demoListings();
-      }
+      return fetchPublicListings();
     },
     enabled: tab === 'gems',
   });
@@ -162,8 +154,9 @@ export default function DirectoryScreen() {
 
   const segments: { id: Tab; label: string }[] = [
     { id: 'gems', label: 'Gems' },
-    { id: 'sellers', label: 'Sellers' },
-    { id: 'providers', label: 'Providers' },
+    { id: 'traders', label: 'Traders' },
+    { id: 'lapidaries', label: 'Lapidaries' },
+    { id: 'labs', label: 'Gem Labs' },
   ];
 
   const isLoading = tab === 'gems' ? listingsLoading : businessesLoading;
@@ -222,7 +215,7 @@ export default function DirectoryScreen() {
           <TextInput
             style={[styles.searchInput, { color: colors.textMain }]}
             placeholder={
-              tab === 'gems' ? 'Search gems, origins…' : 'Search sellers, providers…'
+              tab === 'gems' ? 'Search gems, origins…' : 'Search traders, lapidaries, labs…'
             }
             placeholderTextColor={colors.textMuted}
             value={search}
@@ -424,7 +417,9 @@ export default function DirectoryScreen() {
                   <BusinessCard
                     key={b.id}
                     business={b}
-                    roleLabel={tab === 'providers' ? 'Provider' : 'Seller'}
+                    roleLabel={
+                      tab === 'labs' ? 'Gem Lab' : tab === 'lapidaries' ? 'Lapidary' : 'Trader'
+                    }
                     onPress={() => router.push(`/business/${b.id}`)}
                   />
                 ))}
@@ -440,11 +435,19 @@ export default function DirectoryScreen() {
           ) : (
             <EmptyState
               icon="business"
-              title={tab === 'providers' ? 'No service providers yet' : 'No businesses match'}
+              title={
+                tab === 'labs'
+                  ? 'No gem labs yet'
+                  : tab === 'lapidaries'
+                    ? 'No lapidaries yet'
+                    : 'No traders match'
+              }
               subtitle={
-                tab === 'providers'
-                  ? 'Verified cutters and labs will appear here soon.'
-                  : 'Try clearing filters'
+                tab === 'labs'
+                  ? 'Verified gem labs will appear here.'
+                  : tab === 'lapidaries'
+                    ? 'Verified lapidaries will appear here.'
+                    : 'Try clearing filters or check back after verification.'
               }
             />
           )}

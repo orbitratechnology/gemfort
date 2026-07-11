@@ -47,3 +47,5 @@ example
 *.plan.md
 
 /dogfood-output
+/docs
+/plan

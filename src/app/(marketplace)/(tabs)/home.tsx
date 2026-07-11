@@ -31,13 +31,9 @@ export default function HomeScreen() {
     useQuery({
       queryKey: ['public-listings'],
       queryFn: async () => {
+        // Demo fixtures only when Firebase is not wired; never mask empty/error with mocks.
         if (!isFirebaseConfigured) return demoListings();
-        try {
-          const items = await fetchPublicListings();
-          return items.length ? items : demoListings();
-        } catch {
-          return demoListings();
-        }
+        return fetchPublicListings();
       },
     });
 
@@ -45,11 +41,7 @@ export default function HomeScreen() {
     queryKey: ['announcements'],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoAnnouncements();
-      try {
-        return await fetchAnnouncements();
-      } catch {
-        return demoAnnouncements();
-      }
+      return fetchAnnouncements();
     },
   });
 
@@ -79,6 +71,8 @@ export default function HomeScreen() {
           </View>
         </View>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
           style={[styles.iconBtn, { backgroundColor: colors.surfaceContainer }]}
           onPress={() => router.push('/notifications')}>
           <Icon name="notifications-none" size={20} color={colors.onSurfaceVariant} />
@@ -90,6 +84,8 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetchAll} />}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search gems and traders"
           style={[
             styles.searchBar,
             { backgroundColor: colors.surfaceContainerLow, borderColor: colors.surfaceVariant },
@@ -97,13 +93,30 @@ export default function HomeScreen() {
           onPress={() => router.push('/(marketplace)/(tabs)/directory')}>
           <Icon name="search" size={20} color={colors.textMuted} />
           <Text style={[styles.searchText, { color: colors.textMuted }]}>
-            Search gems, sellers, origins…
+            Search gems & traders
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Verify a gem certificate"
+          onPress={() => router.push('/verify-certificate')}
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.primaryContainer, borderColor: colors.primary + '33' },
+          ]}>
+          <Icon name="workspace-premium" size={20} color={colors.primary} />
+          <Text style={[styles.searchText, { color: colors.primary }]}>
+            Verify a gem certificate
           </Text>
         </Pressable>
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>Featured Gems</Text>
-          <Pressable onPress={() => router.push('/(marketplace)/(tabs)/directory')}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See all gems"
+            onPress={() => router.push('/(marketplace)/(tabs)/directory')}>
             <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
           </Pressable>
         </View>

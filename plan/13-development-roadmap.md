@@ -7,7 +7,8 @@
 **Theme: Track my gems and money**
 
 ```
-  SPRINT 1 (Weeks 1–2): Foundation
+  SPRINT note (roles): Trader / Lapidary / Gem Lab registration assigns role immediately (unverified).
+  Directory tabs: Traders, Lapidaries, Gem Labs. Lapidary Jobs + Gem Lab Certificates + public verify.
   ─────────────────────────────────
   Firebase project setup
   Firestore collections created

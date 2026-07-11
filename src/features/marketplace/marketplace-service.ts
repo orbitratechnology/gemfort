@@ -15,7 +15,10 @@ import {
   Timestamp,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
-import type { Announcement, Business, BusinessType, FraudReportType, MarketplaceListing } from '@/types';
+import { businessTypeFromRole, directoryTabFromBusinessType, normalizeUserRole, ROLE_LABELS } from '@/constants/roles';
+import type { Announcement, Business, BusinessType, FraudReportType, MarketplaceListing, UserRole } from '@/types';
+
+export type DirectoryBusinessFilter = 'trader' | 'lapidary' | 'gem_lab' | 'seller' | 'provider';
 
 export async function fetchAnnouncements(): Promise<Announcement[]> {
   const q = query(
@@ -29,7 +32,7 @@ export async function fetchAnnouncements(): Promise<Announcement[]> {
 }
 
 export async function fetchBusinesses(filters?: {
-  businessType?: 'seller' | 'provider';
+  businessType?: DirectoryBusinessFilter;
   city?: string;
   verifiedOnly?: boolean;
 }): Promise<Business[]> {
@@ -46,19 +49,22 @@ export async function fetchBusinesses(filters?: {
 export function filterBusinesses(
   items: Business[],
   filters?: {
-    businessType?: 'seller' | 'provider';
+    businessType?: DirectoryBusinessFilter;
     city?: string;
     verifiedOnly?: boolean;
   },
 ): Business[] {
   let result = items;
 
-  if (filters?.businessType === 'seller') {
-    result = result.filter((b) => b.businessType === 'seller' || b.sellerProfile != null);
+  if (filters?.businessType === 'trader' || filters?.businessType === 'seller') {
+    result = result.filter((b) => directoryTabFromBusinessType(b.businessType) === 'traders' || b.sellerProfile != null);
   }
-  if (filters?.businessType === 'provider') {
+  if (filters?.businessType === 'lapidary' || filters?.businessType === 'provider') {
+    result = result.filter((b) => directoryTabFromBusinessType(b.businessType) === 'lapidaries' || b.providerProfile != null);
+  }
+  if (filters?.businessType === 'gem_lab') {
     result = result.filter(
-      (b) => b.providerProfile != null || (b.businessType !== 'seller' && b.sellerProfile == null),
+      (b) => directoryTabFromBusinessType(b.businessType) === 'labs' || b.labProfile != null,
     );
   }
   if (filters?.city) {
@@ -95,6 +101,23 @@ export async function fetchBusinessByOwnerUid(ownerUid: string): Promise<Busines
   return { id: d.id, ...d.data() } as Business;
 }
 
+/** Map registration role → business document type. */
+export function businessTypeFromRegistration(profile: {
+  role?: string | null;
+  roleIntent?: string | null;
+} | null): BusinessType | null {
+  const role = normalizeUserRole(profile?.role || profile?.roleIntent);
+  return businessTypeFromRole(role as UserRole);
+}
+
+export function accountTypeLabelFromRegistration(profile: {
+  role?: string | null;
+  roleIntent?: string | null;
+} | null): string {
+  const role = normalizeUserRole(profile?.role || profile?.roleIntent);
+  return ROLE_LABELS[role] ?? 'Member';
+}
+
 export async function createBusinessProfile(
   ownerUid: string,
   ownerName: string,
@@ -108,14 +131,19 @@ export async function createBusinessProfile(
   },
 ): Promise<string> {
   const now = Timestamp.now();
-  const isSeller = input.businessType === 'seller';
+  const type = input.businessType === 'seller' ? 'trader' : input.businessType === 'cutter' || input.businessType === 'provider' ? 'lapidary' : input.businessType;
+  const isTrader = type === 'trader';
+  const isLapidary = type === 'lapidary';
+  const isLab = type === 'gem_lab';
   const ref = await addDoc(collection(getFirebaseDb(), 'businesses'), {
     ownerUid,
-    businessType: input.businessType,
+    businessType: type,
     businessName: input.businessName.trim(),
     ownerName: ownerName.trim(),
     brNumber: '',
     ngjaNumber: '',
+    gemLicenseNumber: '',
+    tinNumber: '',
     yearEstablished: null,
     shortDescription: input.shortDescription.trim(),
     address: '',
@@ -136,7 +164,7 @@ export async function createBusinessProfile(
       listingMilestone: 0,
       endorsementCount: 0,
     },
-    sellerProfile: isSeller
+    sellerProfile: isTrader
       ? {
           gemSpecializations: [],
           sourceOrigins: ['sri_lanka'],
@@ -146,14 +174,23 @@ export async function createBusinessProfile(
           preferredCurrencies: ['LKR', 'USD'],
         }
       : null,
-    providerProfile: isSeller
-      ? null
-      : {
+    providerProfile: isLapidary
+      ? {
           services: [],
+          servicesOffered: [],
           gemSpecializations: [],
           isAcceptingOrders: true,
           portfolioCount: 0,
-        },
+        }
+      : null,
+    labProfile: isLab
+      ? {
+          accreditations: [],
+          reportTypes: ['full', 'brief', 'origin'],
+          isAcceptingOrders: true,
+          certificatesIssued: 0,
+        }
+      : null,
     contacts: {
       whatsapp: { value: input.whatsapp?.trim() ?? '', isVisible: !!input.whatsapp?.trim() },
       phone: { value: input.phone?.trim() ?? '', isVisible: !!input.phone?.trim() },
@@ -247,7 +284,7 @@ export function searchBusinesses(
 }
 
 export function demoBusinesses(filters?: {
-  businessType?: 'seller' | 'provider';
+  businessType?: DirectoryBusinessFilter;
   verifiedOnly?: boolean;
 }): Business[] {
   const now = Timestamp.now();
@@ -289,52 +326,60 @@ export function demoBusinesses(filters?: {
   const all: Business[] = [
     {
       ...base,
-      id: 'demo-seller-1',
-      businessType: 'seller',
+      id: 'demo-trader-1',
+      businessType: 'trader',
       businessName: 'Beruwala Sapphire House',
-      ownerName: 'Mahesh Perera',
-      shortDescription: 'Trusted sapphire dealer specializing in Ceylon blue sapphires.',
+      ownerName: 'Demo Trader',
+      shortDescription: 'Ceylon sapphires',
       city: 'Beruwala',
       sellerProfile: {
-        gemSpecializations: ['blue_sapphire', 'ruby'],
+        gemSpecializations: ['blue_sapphire'],
         sourceOrigins: ['sri_lanka'],
-        stoneTypes: ['cut_polished', 'certified'],
-        priceRangeMin: 50000,
-        priceRangeMax: 5000000,
+        stoneTypes: ['rough', 'cut'],
+        priceRangeMin: 100,
+        priceRangeMax: 50000,
         preferredCurrencies: ['LKR', 'USD'],
       },
       providerProfile: null,
-      isFeatured: true,
+      labProfile: null,
+      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
     },
     {
       ...base,
-      id: 'demo-provider-1',
-      businessType: 'cutter',
+      id: 'demo-lapidary-1',
+      businessType: 'lapidary',
       businessName: 'Kamal Gem Cutting',
-      ownerName: 'Kamal Silva',
-      shortDescription: 'Precision cutting for sapphires and spinels.',
+      ownerName: 'Demo Lapidary',
+      shortDescription: 'Precision cutting',
       city: 'Beruwala',
       sellerProfile: null,
       providerProfile: {
-        services: [
-          {
-            serviceId: '1',
-            name: 'Sapphire Cutting',
-            category: 'cutting',
-            pricingType: 'per_stone',
-            priceMin: 5000,
-            priceMax: 25000,
-            currency: 'LKR',
-            turnaroundDaysMin: 7,
-            turnaroundDaysMax: 14,
-            description: 'Precision cutting',
-            isActive: true,
-          },
-        ],
+        services: [],
+        servicesOffered: ['cutting', 'polishing'],
         gemSpecializations: ['blue_sapphire'],
         isAcceptingOrders: true,
         portfolioCount: 12,
       },
+      labProfile: null,
+      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
+    },
+    {
+      ...base,
+      id: 'demo-lab-1',
+      businessType: 'gem_lab',
+      businessName: 'Ceylon Gem Lab',
+      ownerName: 'Demo Lab',
+      shortDescription: 'Independent gem reports',
+      city: 'Colombo',
+      sellerProfile: null,
+      providerProfile: null,
+      labProfile: {
+        accreditations: ['NGJA'],
+        reportTypes: ['full', 'brief'],
+        isAcceptingOrders: true,
+        certificatesIssued: 120,
+      },
+      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
     },
   ];
 

@@ -20,12 +20,11 @@ type BusinessCardProps = {
   business: Business;
   onPress?: () => void;
   /** Visual cue for sellers vs providers in mixed contexts */
-  roleLabel?: 'Seller' | 'Provider';
+  roleLabel?: 'Trader' | 'Lapidary' | 'Gem Lab' | 'Seller' | 'Provider';
 };
 
 /**
- * Seller / Provider tile for 2-column ecommerce grids.
- * Cover-led with overlapping logo, compact trust signals.
+ * Directory tile for traders, lapidaries, and gem labs.
  */
 export function BusinessCard({ business, onPress, roleLabel }: BusinessCardProps) {
   const { colors } = useAppTheme();
@@ -37,7 +36,11 @@ export function BusinessCard({ business, onPress, roleLabel }: BusinessCardProps
   const endorsements = business.badges.endorsementCount;
   const inferredRole =
     roleLabel ??
-    (business.sellerProfile ? 'Seller' : business.providerProfile ? 'Provider' : undefined);
+    (business.businessType === 'gem_lab' || business.labProfile
+      ? 'Gem Lab'
+      : business.businessType === 'lapidary' || business.providerProfile
+        ? 'Lapidary'
+        : 'Trader');
 
   return (
     <Pressable

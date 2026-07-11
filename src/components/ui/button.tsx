@@ -32,6 +32,7 @@ export function Button({
   disabled,
   style,
   textStyle,
+  accessibilityLabel,
   ...props
 }: ButtonProps) {
   const { colors } = useAppTheme();
@@ -69,6 +70,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
       style={({ pressed }) => [
         styles.base,
         v.container,

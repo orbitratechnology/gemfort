@@ -27,29 +27,50 @@ service cloud.firestore {
     }
 
     function isNotSuspended() {
-      return getUserData().isSuspended == false;
+      // Prefer != true so missing/null isSuspended does not deny legitimate writes.
+      return getUserData().get('isSuspended', false) != true;
+    }
+
+    function resourceNotSuspended() {
+      return resource.data.get('isSuspended', false) != true;
     }
 
     function isAdmin() {
       return isSignedIn() && getUserRole() == 'admin';
     }
 
-    function isVerifiedSeller() {
+    function isVerifiedTrader() {
       return isSignedIn()
-        && getUserRole() == 'verified_seller'
+        && (getUserRole() == 'trader' || getUserRole() == 'verified_seller')
         && getUserData().verificationStatus == 'verified'
         && isNotSuspended();
+    }
+
+    function isVerifiedLapidary() {
+      return isSignedIn()
+        && (getUserRole() == 'lapidary' || getUserRole() == 'verified_provider')
+        && getUserData().verificationStatus == 'verified'
+        && isNotSuspended();
+    }
+
+    function isVerifiedGemLab() {
+      return isSignedIn()
+        && getUserRole() == 'gem_lab'
+        && getUserData().verificationStatus == 'verified'
+        && isNotSuspended();
+    }
+
+    // Legacy aliases
+    function isVerifiedSeller() {
+      return isVerifiedTrader();
     }
 
     function isVerifiedProvider() {
-      return isSignedIn()
-        && getUserRole() == 'verified_provider'
-        && getUserData().verificationStatus == 'verified'
-        && isNotSuspended();
+      return isVerifiedLapidary();
     }
 
     function isVerifiedMember() {
-      return isVerifiedSeller() || isVerifiedProvider();
+      return isVerifiedTrader() || isVerifiedLapidary() || isVerifiedGemLab();
     }
 
     function isAnySignedIn() {
@@ -85,17 +106,36 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
 
       allow create: if isOwner(userId)
-        && request.resource.data.role == 'normal_user'
+        && request.resource.data.role in ['trader', 'lapidary', 'gem_lab']
         && request.resource.data.isSuspended == false
         && request.resource.data.verificationStatus == 'none';
 
+      // Push token / profile field updates — use resource.data (not get()) so
+      // concurrent writes to the same user doc do not fail isNotSuspended().
       allow update: if isOwner(userId)
-        && isNotSuspended()
+        && resourceNotSuspended()
         && !request.resource.data.diff(resource.data)
            .affectedKeys().hasAny([
              'role', 'verificationStatus', 'isSuspended',
              'isActive', 'suspendedReason', 'suspendedAt'
            ]);
+
+      // Narrow allow for FCM token registration (owner only).
+      allow update: if isOwner(userId)
+        && resourceNotSuspended()
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly(['fcmToken', 'updatedAt']);
+
+      // Applicant may mark themselves pending after submitting verification.
+      // Cannot set verified/revoked — those remain admin-only.
+      allow update: if isOwner(userId)
+        && resourceNotSuspended()
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly(['verificationStatus', 'updatedAt'])
+        && resource.data.verificationStatus in [
+             'none', 'rejected', 'pending', 'info_requested', 'under_review'
+           ]
+        && request.resource.data.verificationStatus == 'pending';
 
       allow update: if isAdmin();
 
@@ -177,8 +217,8 @@ service cloud.firestore {
       // Admin reads all
       allow read: if isAdmin();
 
-      // Only verified sellers create listings
-      allow create: if isVerifiedSeller()
+      // Only verified traders create listings
+      allow create: if isVerifiedTrader()
         && isOwner(request.resource.data.sellerUid)
         && request.resource.data.soldAt == null
         && request.resource.data.soldPrice == null
@@ -286,10 +326,65 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data)
            .affectedKeys().hasOnly(['isRead']);
 
-      // Created by Cloud Functions (Admin SDK) or admin console
-      allow create: if isAdmin();
+      // Cloud Functions (Admin SDK), admin, or signed-in users sending request notifications
+      allow create: if isAdmin()
+        || (isAnySignedIn()
+            && request.resource.data.recipientUid is string
+            && request.resource.data.recipientUid != uid()
+            && request.resource.data.type in [
+              'service_request_received', 'service_request_accepted', 'service_request_rejected',
+              'service_job_updated', 'cert_request_received', 'cert_request_accepted',
+              'cert_request_rejected', 'cert_ready'
+            ]
+            && request.resource.data.isRead == false);
       allow delete: if isOwner(resource.data.recipientUid)
                     || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    // SERVICE / CERT REQUESTS + PUBLIC CERTIFICATES
+    // ═══════════════════════════════════════════════
+
+    match /service_requests/{id} {
+      allow read: if isSignedIn()
+        && (resource.data.traderUid == uid() || resource.data.lapidaryUid == uid() || isAdmin());
+      allow create: if isVerifiedTrader()
+        && request.resource.data.traderUid == uid()
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && (resource.data.lapidaryUid == uid() || resource.data.traderUid == uid() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /certification_requests/{id} {
+      allow read: if isSignedIn()
+        && (resource.data.traderUid == uid() || resource.data.labUid == uid() || isAdmin());
+      allow create: if isVerifiedTrader()
+        && request.resource.data.traderUid == uid()
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && (resource.data.labUid == uid() || resource.data.traderUid == uid() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /lapidary_jobs/{id} {
+      allow read: if isSignedIn()
+        && (resource.data.lapidaryUid == uid() || resource.data.traderUid == uid() || isAdmin());
+      allow create: if isVerifiedLapidary()
+        && request.resource.data.lapidaryUid == uid();
+      allow update: if isSignedIn()
+        && (resource.data.lapidaryUid == uid() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /certificates/{id} {
+      allow read: if resource.data.visibility == 'public' || isAdmin()
+        || (isSignedIn() && (resource.data.labUid == uid() || resource.data.traderUid == uid()));
+      allow create: if isVerifiedGemLab()
+        && request.resource.data.labUid == uid()
+        && request.resource.data.visibility == 'public';
+      allow update: if isVerifiedGemLab() && resource.data.labUid == uid();
+      allow delete: if isAdmin() || (isVerifiedGemLab() && resource.data.labUid == uid());
     }
 
     // ═══════════════════════════════════════════════

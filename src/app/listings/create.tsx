@@ -31,7 +31,7 @@ export default function CreateListingScreen() {
   const [loading, setLoading] = useState(false);
 
   const isVerifiedSeller =
-    profile?.role === 'verified_seller' && profile?.verificationStatus === 'verified';
+    profile?.role === 'trader' && profile?.verificationStatus === 'verified';
 
   const { data: gems = [] } = useQuery({
     queryKey: ['gems', user?.uid],

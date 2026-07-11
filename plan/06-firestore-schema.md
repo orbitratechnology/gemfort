@@ -54,7 +54,7 @@
   phone:                  string,
   displayName:            string,
   role:                   string,
-  // "normal_user" | "verified_seller" | "verified_provider" | "admin"
+  // "trader" | "lapidary" | "gem_lab" | "admin"
   verificationStatus:     string,
   // "none" | "pending" | "info_requested" | "under_review"
   // "basic" | "verified" | "rejected" | "revoked"
@@ -78,7 +78,7 @@
   id:                     string,      // auto-generated document ID
   ownerUid:               string,
   businessType:           string,
-  // "seller" | "cutter" | "heat_treatment" | "chemical_treatment"
+  // "trader" | "lapidary" | "gem_lab"
   // "polisher" | "lab" | "jewelry_maker"
 
   // IDENTITY
@@ -353,7 +353,10 @@
   id:                     string,
   applicantUid:           string,
   businessId:             string,
-  applicationType:        string,          // "seller" | "provider"
+  applicationType:        string,          // "trader" | "lapidary" | "gem_lab"
+  servicesOffered:        string[],        // required for lapidary
+  documents: {
+    // + gemLicenseNumber, gemLicensePhotoUrl, tinNumber for trader/gem_lab
   status:                 string,
   // "pending" | "under_review" | "info_requested" | "approved" | "rejected"
   documents: {

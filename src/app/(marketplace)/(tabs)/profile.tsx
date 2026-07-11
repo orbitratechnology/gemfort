@@ -1,4 +1,5 @@
-import { router, type Href } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
+import { useCallback } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +12,7 @@ import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
 import { logoutUser } from '@/lib/firebase/auth-service';
 import type { ThemePreference } from '@/lib/theme-preference';
 import { useAuth } from '@/providers/auth-provider';
+import { ROLE_LABELS, isVerifiedRole, resolveProfileRole } from '@/constants/roles';
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
   { id: 'system', label: 'System', icon: 'brightness-auto' },
@@ -53,17 +55,16 @@ function Row({
   );
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  normal_user: 'Buyer / Trader',
-  verified_seller: 'Verified Gem Dealer',
-  verified_provider: 'Service Provider',
-  admin: 'Administrator',
-};
-
 export default function ProfileScreen() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
   const unread = useUnreadNotificationCount();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshProfile();
+    }, [refreshProfile]),
+  );
 
   if (!user) {
     return (
@@ -79,10 +80,11 @@ export default function ProfileScreen() {
     router.replace('/(marketplace)/(tabs)/home');
   }
 
+  const effectiveRole = resolveProfileRole(profile);
   const isVerified = profile?.verificationStatus === 'verified';
-  const isVerifiedSeller = profile?.role === 'verified_seller' && isVerified;
+  const isVerifiedTrader = isVerifiedRole(profile, 'trader');
   const initial = (profile?.displayName ?? '?').charAt(0).toUpperCase();
-  const roleLabel = ROLE_LABELS[profile?.role ?? 'normal_user'] ?? 'Member';
+  const roleLabel = ROLE_LABELS[effectiveRole] ?? 'Member';
   const memberYear = user.metadata?.creationTime
     ? new Date(user.metadata.creationTime).getFullYear()
     : new Date().getFullYear();
@@ -107,7 +109,7 @@ export default function ProfileScreen() {
           <Text style={[styles.name, { color: colors.primary }]}>{profile?.displayName}</Text>
           <View style={styles.roleRow}>
             <Text style={[styles.role, { color: colors.onSurfaceVariant }]}>{roleLabel}</Text>
-            {isVerifiedSeller ? (
+            {isVerifiedTrader ? (
               <View style={[styles.proPill, { backgroundColor: colors.secondaryContainer }]}>
                 <Text style={[styles.proText, { color: colors.onSecondaryContainer }]}>PRO</Text>
               </View>
@@ -139,7 +141,7 @@ export default function ProfileScreen() {
             subtitle="Update contact & info"
             onPress={() => router.push('/profile/business' as Href)}
           />
-          {isVerifiedSeller ? (
+          {isVerifiedTrader ? (
             <>
               <Divider colors={colors} />
               <Row

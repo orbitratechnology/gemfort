@@ -11,13 +11,13 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-simulator/SKILL.md",
-      "computedHash": "11ea39bdd4a9dfd6fb91a195eefdd0fbba8367b99f7828daa397b0475e1d448a"
+      "computedHash": "c5f0238322882b8dd107ec9992905c30dcd4b30509cbdd5426925cf17696d39e"
     },
     "eas-update-insights": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-update-insights/SKILL.md",
-      "computedHash": "f20cd2dd96b9d8f33b3635f8c985b7159155e24658f93db878aa8c444ceda181"
+      "computedHash": "e78e1c248574f2cebaa8a5ca6aa4d4290f5f9876434cdfed017c42a8219eb912"
     },
     "expo-api-routes": {
       "source": "expo/skills",
@@ -29,25 +29,25 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-dev-client/SKILL.md",
-      "computedHash": "be547abb49d18b04f9c6b97f64ae0c83174c72d527d76497ca18fdd94ec22280"
+      "computedHash": "f670f6151c89b9f0775d3b2dbd9507adf8da4be2782174cec764e1a6e57becf3"
     },
     "expo-module": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-module/SKILL.md",
-      "computedHash": "4b4bf1f2288f62bfbfee2e20b0bd9c8ad321537cb4c47def9c560ae84119562b"
+      "computedHash": "eff980a24387eea154816cc2c77c3823eb6678be796b33e4eace066bd05d1a97"
     },
     "expo-skill-eval": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": ".claude/skills/expo-skill-eval/SKILL.md",
-      "computedHash": "6c7a537957248be7cff8f7a497deb2f07374dcf8f730526f8366f13433c31656"
+      "computedHash": "e494afa8e07acd87d406da0df5b6a8eb86e5ee8a4a32a3685047d07a7165e19e"
     },
     "expo-ui": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
-      "computedHash": "39c617d5aff2e0123caa35c13991e2c6d33ea3dc154b432972fb6ecbc73c2434"
+      "computedHash": "721bcc04ea368d36410def02ae3414d822e9a88cc6c92016623a348c877a520d"
     },
     "native-data-fetching": {
       "source": "expo/skills",

@@ -8,4 +8,6 @@ export {
   onAuthStateChanged,
   linkWithCredential,
   PhoneAuthProvider,
+  signInWithPhoneNumber,
+  getIdToken,
 } from './auth.native';

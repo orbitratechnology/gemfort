@@ -1,11 +1,12 @@
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FraudReportSheet } from '@/components/marketplace/fraud-report-sheet';
+import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -37,16 +38,10 @@ function initials(name: string) {
 }
 
 function roleLabel(type: BusinessType, isProvider: boolean): string {
-  if (!isProvider) return 'Seller';
-  const map: Partial<Record<BusinessType, string>> = {
-    cutter: 'Cutter',
-    heat_treatment: 'Heat treatment',
-    chemical_treatment: 'Chemical treatment',
-    polisher: 'Polisher',
-    lab: 'Lab',
-    jewelry_maker: 'Jewelry maker',
-  };
-  return map[type] ?? 'Service provider';
+  if (type === 'gem_lab' || type === 'lab') return 'Gem Lab';
+  if (type === 'trader' || type === 'seller') return 'Trader';
+  if (type === 'lapidary' || isProvider) return 'Lapidary';
+  return isProvider ? 'Lapidary' : 'Trader';
 }
 
 function tierLabel(tier: Business['verificationTier']): string {
@@ -112,8 +107,15 @@ export default function BusinessProfileScreen() {
   const isOwnBusiness = !!user && user.uid === business?.ownerUid;
   const isVerifiedMember =
     profile?.verificationStatus === 'verified' &&
-    (profile?.role === 'verified_seller' || profile?.role === 'verified_provider');
+    (profile?.role === 'trader' || profile?.role === 'lapidary' || profile?.role === 'gem_lab');
+  const isVerifiedTrader = profile?.verificationStatus === 'verified' && profile?.role === 'trader';
   const canEndorse = !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
+  const isLab =
+    business?.businessType === 'gem_lab' ||
+    business?.businessType === 'lab' ||
+    !!business?.labProfile;
+  const canRequestService = isVerifiedTrader && isProvider && !isOwnBusiness && !isLab;
+  const canRequestCert = isVerifiedTrader && isLab && !isOwnBusiness;
 
   const stats: StatItem[] = useMemo(() => {
     if (!business) return [];
@@ -190,8 +192,8 @@ export default function BusinessProfileScreen() {
   const locationLine = [business.city, business.district, business.country]
     .filter(Boolean)
     .join(', ');
-  const hasWhatsApp = business.contacts.whatsapp?.isVisible;
-  const hasPhone = business.contacts.phone?.isVisible;
+  const hasWhatsApp = business.contacts?.whatsapp?.isVisible;
+  const hasPhone = business.contacts?.phone?.isVisible;
   const hasEmail = business.contacts.email?.isVisible;
 
   return (
@@ -358,7 +360,8 @@ export default function BusinessProfileScreen() {
                 ]}
                 onPress={() => {
                   void trackBusinessAnalytics(business.id, 'whatsappTapsTotal');
-                  Linking.openURL(openWhatsApp(business.contacts.whatsapp.value));
+                  const wa = business.contacts?.whatsapp?.value;
+                  if (wa) Linking.openURL(openWhatsApp(wa));
                 }}>
                 <Icon name="chat" size={18} color={BrandPalette.white} />
                 <Text style={[styles.contactPrimaryText, { color: BrandPalette.white }]}>WhatsApp</Text>
@@ -378,7 +381,8 @@ export default function BusinessProfileScreen() {
                 ]}
                 onPress={() => {
                   void trackBusinessAnalytics(business.id, 'phoneTapsTotal');
-                  Linking.openURL(openPhone(business.contacts.phone.value));
+                  const phone = business.contacts?.phone?.value;
+                  if (phone) Linking.openURL(openPhone(phone));
                 }}>
                 <Icon name="call" size={18} color={colors.primary} />
               </Pressable>
@@ -398,6 +402,35 @@ export default function BusinessProfileScreen() {
                 onPress={() => Linking.openURL(`mailto:${business.contacts.email.value}`)}>
                 <Icon name="mail-outline" size={18} color={colors.primary} />
               </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {canRequestService || canRequestCert ? (
+          <View style={{ gap: 8 }}>
+            {canRequestService ? (
+              <Button
+                title="Request service"
+                icon="handyman"
+                onPress={() =>
+                  router.push({
+                    pathname: '/request/[businessId]',
+                    params: { businessId: business.id, mode: 'service' },
+                  })
+                }
+              />
+            ) : null}
+            {canRequestCert ? (
+              <Button
+                title="Request certification"
+                icon="workspace-premium"
+                onPress={() =>
+                  router.push({
+                    pathname: '/request/[businessId]',
+                    params: { businessId: business.id, mode: 'cert' },
+                  })
+                }
+              />
             ) : null}
           </View>
         ) : null}

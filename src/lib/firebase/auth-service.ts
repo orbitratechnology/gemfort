@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  getIdToken,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
@@ -14,6 +15,7 @@ import {
   updateDoc,
 } from '@/lib/firebase/db';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
+import { isRegisterableRole } from '@/constants/roles';
 import type { UserProfile, UserRole } from '@/types';
 
 export type { AuthUser } from '@/lib/firebase/auth-types';
@@ -23,8 +25,12 @@ export async function registerUser(input: {
   password: string;
   displayName: string;
   phone: string;
-  roleIntent: UserRole;
+  role: UserRole;
 }) {
+  if (!isRegisterableRole(input.role)) {
+    throw new Error('Select Trader, Lapidary, or Gem Lab to continue.');
+  }
+
   const credential = await createUserWithEmailAndPassword(
     getFirebaseAuth(),
     input.email.trim(),
@@ -41,7 +47,8 @@ export async function registerUser(input: {
     email: input.email.trim().toLowerCase(),
     phone: normalizePhoneNumber(input.phone),
     displayName: input.displayName.trim(),
-    role: 'normal_user',
+    role: input.role,
+    roleIntent: input.role,
     verificationStatus: 'none',
     preferredCurrency: 'LKR',
     preferredLanguage: 'en',
@@ -57,10 +64,7 @@ export async function registerUser(input: {
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(doc(getFirebaseDb(), 'users', credential.user.uid), {
-    ...profile,
-    roleIntent: input.roleIntent,
-  });
+  await setDoc(doc(getFirebaseDb(), 'users', credential.user.uid), profile);
 
   return { user: credential.user, phone: normalizePhoneNumber(input.phone) };
 }
@@ -109,6 +113,15 @@ export function needsPhoneVerification(profile: UserProfile | null): boolean {
 }
 
 export async function updateFcmToken(uid: string, token: string | null) {
+  const auth = getFirebaseAuth();
+  const current = auth.currentUser;
+  if (!current || current.uid !== uid) {
+    throw new Error('Not signed in as the target user');
+  }
+  // Ensure Auth ID token is attached before the Firestore write (avoids
+  // permission-denied when push registration races auth restore on Android).
+  await getIdToken(current);
+
   await updateDoc(doc(getFirebaseDb(), 'users', uid), {
     fcmToken: token,
     updatedAt: serverTimestamp(),
