@@ -42,20 +42,27 @@ service cloud.firestore {
 
     function isVerifiedSeller() {
       return isSignedIn()
-        && getUserRole() == 'verified_seller'
+        && (getUserRole() == 'trader' || getUserRole() == 'verified_seller')
         && getUserData().verificationStatus == 'verified'
         && isNotSuspended();
     }
 
     function isVerifiedProvider() {
       return isSignedIn()
-        && getUserRole() == 'verified_provider'
+        && (getUserRole() == 'lapidary' || getUserRole() == 'verified_provider')
+        && getUserData().verificationStatus == 'verified'
+        && isNotSuspended();
+    }
+
+    function isVerifiedGemLab() {
+      return isSignedIn()
+        && getUserRole() == 'gem_lab'
         && getUserData().verificationStatus == 'verified'
         && isNotSuspended();
     }
 
     function isVerifiedMember() {
-      return isVerifiedSeller() || isVerifiedProvider();
+      return isVerifiedSeller() || isVerifiedProvider() || isVerifiedGemLab();
     }
 
     function isAnySignedIn() {

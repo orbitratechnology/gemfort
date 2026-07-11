@@ -1,10 +1,14 @@
-import auth from '@react-native-firebase/auth';
+import {
+  linkWithCredential,
+  PhoneAuthProvider,
+  signInWithPhoneNumber,
+} from '@react-native-firebase/auth';
 
+import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import { doc, serverTimestamp, updateDoc } from '@/lib/firebase/db';
-import { getFirebaseDb } from '@/lib/firebase/config';
 
 export async function sendPhoneVerificationCode(phoneE164: string): Promise<string> {
-  const confirmation = await auth().signInWithPhoneNumber(phoneE164);
+  const confirmation = await signInWithPhoneNumber(getFirebaseAuth(), phoneE164);
   if (!confirmation.verificationId) {
     throw new Error('Phone verification could not be started.');
   }
@@ -15,11 +19,11 @@ export async function confirmPhoneVerificationCode(
   verificationId: string,
   code: string,
 ): Promise<void> {
-  const user = auth().currentUser;
+  const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error('You must be signed in to verify your phone.');
 
-  const credential = auth.PhoneAuthProvider.credential(verificationId, code);
-  await user.linkWithCredential(credential);
+  const credential = PhoneAuthProvider.credential(verificationId, code);
+  await linkWithCredential(user, credential);
 
   await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
     phoneVerified: true,

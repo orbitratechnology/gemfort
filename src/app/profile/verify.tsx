@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import { submitVerificationApplication } from '@/features/workspace/workspace-service';
@@ -21,51 +22,91 @@ import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 
-const STEPS = ['Documents', 'Face Match', 'Review'];
+const STEPS = ['Documents', 'Review'];
 
 export default function VerifyApplicationScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
+  const role = resolveProfileRole(profile);
+  const needsTradeDocs = role === 'trader' || role === 'gem_lab';
+  const isLapidary = role === 'lapidary';
+
   const [brNumber, setBrNumber] = useState('');
-  const [ngjaNumber, setNgjaNumber] = useState('');
-  const [applicationType, setApplicationType] = useState<'seller' | 'provider'>('seller');
+  const [gemLicenseNumber, setGemLicenseNumber] = useState('');
+  const [tinNumber, setTinNumber] = useState('');
+  const [servicesOffered, setServicesOffered] = useState<string[]>([]);
   const [idPhoto, setIdPhoto] = useState<LocalMedia | null>(null);
   const [brPhoto, setBrPhoto] = useState<LocalMedia | null>(null);
+  const [licensePhoto, setLicensePhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function toggleService(id: string) {
+    setServicesOffered((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+  }
 
   if (!user) return <Redirect href="/(auth)/login" />;
 
   async function handleSubmit() {
     if (!user) return;
-    if (!brNumber) {
-      toast.error('Enter your business registration number to continue.');
+    if (needsTradeDocs) {
+      if (!brNumber.trim() || !gemLicenseNumber.trim() || !tinNumber.trim()) {
+        toast.error('BR number, Gem License, and TIN are required.');
+        return;
+      }
+      if (!idPhoto || !brPhoto || !licensePhoto) {
+        toast.error('Upload NIC, BR, and Gem License photos.');
+        return;
+      }
+    }
+    if (isLapidary && servicesOffered.length === 0) {
+      toast.error('Select at least one service you provide.');
       return;
     }
+    if (isLapidary && !idPhoto) {
+      toast.error('Upload your NIC photo.');
+      return;
+    }
+
     setLoading(true);
     try {
       let nicPhotoUrl: string | null = null;
       let brPhotoUrl: string | null = null;
+      let gemLicensePhotoUrl: string | null = null;
 
       if (idPhoto) {
-        const ext = extensionForMedia(idPhoto);
-        nicPhotoUrl = await uploadLocalMedia(idPhoto, `verification/${user.uid}/nic.${ext}`);
+        nicPhotoUrl = await uploadLocalMedia(
+          idPhoto,
+          `verification/${user.uid}/nic.${extensionForMedia(idPhoto)}`,
+        );
       }
       if (brPhoto) {
-        const ext = extensionForMedia(brPhoto);
-        brPhotoUrl = await uploadLocalMedia(brPhoto, `verification/${user.uid}/br.${ext}`);
+        brPhotoUrl = await uploadLocalMedia(
+          brPhoto,
+          `verification/${user.uid}/br.${extensionForMedia(brPhoto)}`,
+        );
+      }
+      if (licensePhoto) {
+        gemLicensePhotoUrl = await uploadLocalMedia(
+          licensePhoto,
+          `verification/${user.uid}/gem-license.${extensionForMedia(licensePhoto)}`,
+        );
       }
 
       const business = await fetchBusinessByOwnerUid(user.uid);
       await submitVerificationApplication(user.uid, {
         businessId: business?.id ?? 'pending',
-        applicationType,
+        applicationType: role === 'admin' ? 'trader' : role,
+        servicesOffered: isLapidary ? servicesOffered : [],
         documents: {
-          brNumber,
+          brNumber: brNumber.trim() || null,
           brPhotoUrl,
-          ngjaNumber: ngjaNumber || null,
+          ngjaNumber: null,
           ngjaPhotoUrl: null,
           nicPhotoUrl,
+          gemLicenseNumber: gemLicenseNumber.trim() || null,
+          gemLicensePhotoUrl,
+          tinNumber: tinNumber.trim() || null,
           businessPhotosUrls: [],
           addressProofUrl: null,
           otherDocUrls: [],
@@ -83,7 +124,7 @@ export default function VerifyApplicationScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header]}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Icon name="diamond" size={22} color={colors.primary} />
           <Text style={[styles.brand, { color: colors.primary }]}>GemFort</Text>
@@ -94,121 +135,97 @@ export default function VerifyApplicationScreen() {
       </View>
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.title, { color: colors.primary }]}>Apply for verification</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          Verifying as {ROLE_LABELS[role]}. Your registration role is locked for this application.
+        </Text>
+
         <View style={styles.steps}>
-          {STEPS.map((label, i) => {
-            const active = i === 0;
-            return (
-              <View key={label} style={styles.stepCol}>
-                <View
-                  style={[
-                    styles.stepCircle,
-                    active
-                      ? { backgroundColor: colors.accent }
-                      : { backgroundColor: colors.surfaceVariant },
-                  ]}>
-                  <Text
+          {STEPS.map((label, i) => (
+            <View key={label} style={[styles.step, i === 0 && { backgroundColor: colors.primaryMuted }]}>
+              <Text style={[styles.stepText, { color: i === 0 ? colors.primary : colors.textMuted }]}>
+                {label}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={[styles.roleBanner, { backgroundColor: colors.surfaceContainerLow }]}>
+          <Icon name="verified-user" size={20} color={colors.primary} />
+          <Text style={[styles.roleBannerText, { color: colors.onSurface }]}>
+            Account type: {ROLE_LABELS[role]}
+          </Text>
+        </View>
+
+        {isLapidary ? (
+          <View style={styles.block}>
+            <Text style={[styles.blockTitle, { color: colors.primary }]}>Services you provide</Text>
+            <View style={styles.serviceWrap}>
+              {LAPIDARY_SERVICE_OPTIONS.map((s) => {
+                const active = servicesOffered.includes(s.id);
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => toggleService(s.id)}
                     style={[
-                      styles.stepNum,
-                      { color: active ? colors.onSecondary : colors.onSurfaceVariant },
+                      styles.serviceChip,
+                      {
+                        backgroundColor: active ? colors.primary : colors.surfaceContainerLow,
+                        borderColor: active ? colors.primary : colors.outlineVariant,
+                      },
                     ]}>
-                    {i + 1}
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.stepLabel, { color: active ? colors.accent : colors.textMuted }]}>
-                  {label}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.title, { color: colors.primary }]}>Identity Verification</Text>
-          <Text style={[styles.desc, { color: colors.onSurfaceVariant }]}>
-            To ensure a secure trading environment, please upload a government-issued ID and your
-            official business registration license.
-          </Text>
-        </View>
-
-        <View style={[styles.banner, { backgroundColor: colors.secondaryContainer + '55' }]}>
-          <View style={styles.bannerHeader}>
-            <Icon name="verified-user" size={18} color={colors.accent} />
-            <Text style={[styles.bannerTitle, { color: colors.accent }]}>Security Standards</Text>
+                    <Text style={{ color: active ? colors.onPrimary : colors.onSurface, fontWeight: '600' }}>
+                      {s.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <MediaField
+              label="NIC photo"
+              value={idPhoto}
+              onChange={setIdPhoto}
+              allows="images"
+              variant="row"
+            />
+            <Input
+              label="BR number (optional)"
+              value={brNumber}
+              onChangeText={setBrNumber}
+              leftIcon="badge"
+            />
           </View>
-          <View style={styles.bannerChecks}>
-            {['Clear photo', 'No glare', 'Valid dates'].map((c) => (
-              <View key={c} style={styles.checkItem}>
-                <Icon name="check-circle" size={16} color={colors.accent} />
-                <Text style={[styles.checkText, { color: colors.onSurfaceVariant }]}>{c}</Text>
-              </View>
-            ))}
+        ) : null}
+
+        {needsTradeDocs ? (
+          <View style={styles.block}>
+            <Text style={[styles.blockTitle, { color: colors.primary }]}>Required documents</Text>
+            <MediaField label="NIC (front/back)" value={idPhoto} onChange={setIdPhoto} allows="images" variant="row" />
+            <Input label="Business Registration (BR) number" value={brNumber} onChangeText={setBrNumber} leftIcon="badge" />
+            <MediaField label="BR certificate photo" value={brPhoto} onChange={setBrPhoto} allows="images" variant="row" />
+            <Input
+              label="Gem License number"
+              value={gemLicenseNumber}
+              onChangeText={setGemLicenseNumber}
+              leftIcon="workspace-premium"
+            />
+            <MediaField
+              label="Gem License photo"
+              value={licensePhoto}
+              onChange={setLicensePhoto}
+              allows="images"
+              variant="row"
+            />
+            <Input
+              label="TIN (Taxpayer Identification Number)"
+              value={tinNumber}
+              onChangeText={setTinNumber}
+              leftIcon="receipt"
+            />
           </View>
-        </View>
+        ) : null}
 
-        <View style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}>
-          {(['seller', 'provider'] as const).map((t) => {
-            const active = applicationType === t;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => setApplicationType(t)}
-                style={[styles.segmentBtn, active && { backgroundColor: colors.primary }]}>
-                <Text
-                  style={[
-                    styles.segmentText,
-                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}>
-                  {t === 'seller' ? 'Seller' : 'Service Provider'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <MediaField
-          label="Government ID"
-          hint="Passport, NIC, or Driver's License"
-          value={idPhoto}
-          onChange={setIdPhoto}
-          emptyTitle="Add ID photo"
-          emptySubtitle="Kept on device until you submit"
-        />
-
-        <MediaField
-          label="Business Registration"
-          hint="Authorized operating license for gem trading"
-          value={brPhoto}
-          onChange={setBrPhoto}
-          allows="all"
-          emptyTitle="Add BR document"
-          emptySubtitle="Photo or file. Uploads on submit"
-        />
-
-        <View style={styles.fields}>
-          <Input
-            label="BR Number"
-            value={brNumber}
-            onChangeText={setBrNumber}
-            placeholder="PV 00123456"
-            leftIcon="business"
-          />
-          <Input
-            label="NGJA Number (optional)"
-            value={ngjaNumber}
-            onChangeText={setNgjaNumber}
-            leftIcon="verified"
-          />
-        </View>
-
-        <View style={styles.encRow}>
-          <Icon name="lock" size={14} color={colors.textMuted} />
-          <Text style={[styles.encText, { color: colors.textMuted }]}>
-            ENCRYPTED &amp; SECURE 256-BIT PROCESSING
-          </Text>
-        </View>
-
-        <Button title="Continue" icon="arrow-forward" loading={loading} onPress={handleSubmit} />
+        <Button title="Submit for review" icon="send" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -225,49 +242,28 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brand: { ...Typography.headlineMdMobile },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  content: { padding: Spacing.containerMargin, gap: Spacing.xl, paddingBottom: 60 },
-
-  steps: {
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  content: { padding: Spacing.containerMargin, gap: Spacing.lg, paddingBottom: 48 },
+  title: { ...Typography.headlineSm, fontWeight: '700' },
+  subtitle: { ...Typography.bodyMd, marginTop: -8 },
+  steps: { flexDirection: 'row', gap: 8 },
+  step: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full },
+  stepText: { ...Typography.labelMd, fontWeight: '600' },
+  roleBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 8,
-  },
-  stepCol: { alignItems: 'center', gap: 6, flex: 1 },
-  stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
   },
-  stepNum: { ...Typography.labelMd },
-  stepLabel: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 0.5 },
-
-  section: { gap: Spacing.sm },
-  title: { ...Typography.headlineSm },
-  desc: { ...Typography.bodyLg },
-
-  banner: { borderRadius: Radius.lg, padding: 16, gap: 10 },
-  bannerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bannerTitle: { ...Typography.bodyLg, fontWeight: '700' },
-  bannerChecks: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  checkItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  checkText: { ...Typography.labelMd },
-
-  segment: { flexDirection: 'row', borderRadius: Radius.full, padding: 4, gap: 4 },
-  segmentBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: Radius.full },
-  segmentText: { ...Typography.labelMd },
-
-  fields: { gap: Spacing.md },
-  encRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  encText: { ...Typography.labelMd, letterSpacing: 0.5 },
+  roleBannerText: { ...Typography.labelMd, fontWeight: '600' },
+  block: { gap: Spacing.md },
+  blockTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
+  serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  serviceChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
 });

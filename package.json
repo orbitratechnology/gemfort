@@ -47,12 +47,15 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/jest": "29",
     "@types/react": "~19.2.2",
     "eas-build-cache-provider": "^20.0.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.0",
     "firebase-admin": "^14.1.0",
     "firebase-tools": "^15.22.4",
+    "jest": "29",
+    "jest-expo": "~57.0.0",
     "tsx": "^4.20.3",
     "typescript": "~6.0.3"
   },
@@ -69,8 +72,13 @@
     "prebuild": "expo prebuild",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:unit": "jest",
+    "test:rules": "node scripts/test-firestore-rules.mjs",
+    "test:functions": "npm --prefix functions run test",
     "seed": "npx tsx scripts/seed-marketplace.ts",
     "seed:admin": "node scripts/seed-admin.mjs",
+    "seed:qa": "node scripts/seed-qa.mjs",
     "update:dev": "eas update --channel development --environment development",
     "update:preview": "eas update --channel preview --environment preview",
     "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions"

@@ -43,9 +43,13 @@ export default function OnboardingScreen() {
   }
 
   function handleContinue() {
-    if (isLast) return;
-    listRef.current?.scrollToIndex({ index: page + 1, animated: true });
-    setPage(page + 1);
+    if (isLast) {
+      void finish('/(marketplace)/(tabs)/home');
+      return;
+    }
+    const next = Math.min(page + 1, OnboardingChapters.length - 1);
+    listRef.current?.scrollToIndex({ index: next, animated: true });
+    setPage(next);
   }
 
   return (
@@ -85,6 +89,7 @@ export default function OnboardingScreen() {
               listRef.current?.scrollToIndex({ index: i, animated: true });
               setPage(i);
             }}
+            accessibilityRole="button"
             accessibilityLabel={`Chapter ${i + 1}`}
             style={[
               styles.dot,

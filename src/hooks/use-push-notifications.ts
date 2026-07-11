@@ -20,37 +20,57 @@ Notifications.setNotificationHandler({
 });
 
 export function usePushNotifications() {
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const uidRef = useRef<string | null>(null);
+  const registeringRef = useRef(false);
 
   useEffect(() => {
     uidRef.current = user?.uid ?? null;
   }, [user]);
 
   useEffect(() => {
-    if (isLoading || !user || !canRegisterForPushNotifications()) return;
+    // Wait until a Firestore profile exists — prevents permission-denied when
+    // Auth restores before/without a users/{uid} document.
+    if (isLoading || !user || !profile || !canRegisterForPushNotifications()) return;
 
     let pushTokenSubscription: Notifications.EventSubscription | undefined;
     let cancelled = false;
 
-    pushTokenSubscription = Notifications.addPushTokenListener((nextToken) => {
+    const saveToken = async (tokenValue: string) => {
       const uid = uidRef.current;
-      const tokenValue = typeof nextToken.data === 'string' ? nextToken.data.trim() : '';
-      if (!uid || !tokenValue) return;
-      void updateFcmToken(uid, tokenValue).catch((error) => {
+      if (!uid) return;
+      try {
+        await updateFcmToken(uid, tokenValue);
+      } catch (error) {
         if (__DEV__) console.warn('[push] Token refresh save failed', error);
-      });
+      }
+    };
+
+    const register = async () => {
+      if (cancelled || registeringRef.current || !uidRef.current) return;
+      registeringRef.current = true;
+      try {
+        await registerPushTokenForUser(uidRef.current);
+      } catch (error) {
+        if (!cancelled && __DEV__) {
+          console.warn('[push] Initial registration failed', error);
+        }
+      } finally {
+        registeringRef.current = false;
+      }
+    };
+
+    pushTokenSubscription = Notifications.addPushTokenListener((nextToken) => {
+      const tokenValue = typeof nextToken.data === 'string' ? nextToken.data.trim() : '';
+      if (!tokenValue) return;
+      void saveToken(tokenValue);
     });
 
-    void registerPushTokenForUser(user.uid).catch((error) => {
-      if (!cancelled && __DEV__) {
-        console.warn('[push] Initial registration failed', error);
-      }
-    });
+    void register();
 
     const onAppStateChange = (state: AppStateStatus) => {
       if (state !== 'active' || !uidRef.current) return;
-      void registerPushTokenForUser(uidRef.current).catch(() => {});
+      void register();
     };
 
     const appStateSub = AppState.addEventListener('change', onAppStateChange);
@@ -60,5 +80,5 @@ export function usePushNotifications() {
       pushTokenSubscription?.remove();
       appStateSub.remove();
     };
-  }, [user, isLoading]);
+  }, [user, profile, isLoading]);
 }

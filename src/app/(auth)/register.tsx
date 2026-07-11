@@ -1,6 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
@@ -20,9 +20,9 @@ import { useToast } from '@/providers/toast-provider';
 import type { UserRole } from '@/types';
 
 const ROLES: { value: UserRole; label: string; subtitle: string }[] = [
-  { value: 'normal_user', label: 'Buyer / Trader', subtitle: 'Browse and track stones' },
-  { value: 'verified_seller', label: 'Seller', subtitle: 'List gems for sale' },
-  { value: 'verified_provider', label: 'Service provider', subtitle: 'Cutting, heating, polish' },
+  { value: 'trader', label: 'Trader', subtitle: 'Buy and sell gemstones' },
+  { value: 'lapidary', label: 'Lapidary', subtitle: 'Cutting, heating, polishing & more' },
+  { value: 'gem_lab', label: 'Gem Lab', subtitle: 'Issue and verify certificates' },
 ];
 
 export default function RegisterScreen() {
@@ -32,7 +32,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [roleIntent, setRoleIntent] = useState<UserRole>('normal_user');
+  const [role, setRole] = useState<UserRole>('trader');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -46,12 +46,13 @@ export default function RegisterScreen() {
   }
 
   async function handleRegister() {
+    Keyboard.dismiss();
     const result = parseForm(registerSchema, {
       displayName,
       email,
       phone,
       password,
-      roleIntent,
+      role,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -68,7 +69,7 @@ export default function RegisterScreen() {
         password: data.password,
         displayName: data.displayName,
         phone: data.phone,
-        roleIntent: data.roleIntent,
+        role: data.role,
       });
       router.replace({ pathname: '/(auth)/verify-otp', params: { phone: verifiedPhone } });
     } catch (e) {
@@ -145,6 +146,9 @@ export default function RegisterScreen() {
               autoComplete="new-password"
               textContentType="newPassword"
               placeholder="At least 8 characters"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={handleRegister}
               error={errors.password}
             />
           </FormSection>
@@ -153,12 +157,12 @@ export default function RegisterScreen() {
             <ChipSelect
               layout="stack"
               options={ROLES}
-              value={roleIntent}
+              value={role}
               onChange={(v) => {
-                setRoleIntent(v);
-                clearField('roleIntent');
+                setRole(v);
+                clearField('role');
               }}
-              error={errors.roleIntent}
+              error={errors.role}
             />
           </FormSection>
 

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -25,6 +25,7 @@ export default function ForgotPasswordScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function handleReset() {
+    Keyboard.dismiss();
     const result = parseForm(forgotPasswordSchema, { email });
     if (!result.success) {
       setErrors(result.errors);
@@ -74,6 +75,9 @@ export default function ForgotPasswordScreen() {
               keyboardType="email-address"
               textContentType="emailAddress"
               placeholder="you@example.com"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={handleReset}
               error={errors.email}
             />
           </FormSection>

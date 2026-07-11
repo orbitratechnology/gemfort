@@ -1,5 +1,18 @@
+import { getApp } from '@react-native-firebase/app';
+import { getAuth } from '@react-native-firebase/auth';
+import { getFirestore } from '@react-native-firebase/firestore';
+import { getStorage } from '@react-native-firebase/storage';
+
 export { firebaseConfig, isFirebaseConfigured } from './firebase-config';
 
-export { getAuth as getFirebaseAuth } from '@react-native-firebase/auth';
-export { getFirestore as getFirebaseDb } from '@react-native-firebase/firestore';
-export { getStorage as getFirebaseStorage } from '@react-native-firebase/storage';
+export function getFirebaseAuth() {
+  return getAuth(getApp());
+}
+
+export function getFirebaseDb() {
+  return getFirestore(getApp());
+}
+
+export function getFirebaseStorage() {
+  return getStorage(getApp());
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Animated,
   Modal,
@@ -30,8 +30,8 @@ type BottomSheetProps = {
 export function BottomSheet({ visible, onClose, title, children, footer }: BottomSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(600)).current;
-  const backdrop = useRef(new Animated.Value(0)).current;
+  const [translateY] = useState(() => new Animated.Value(600));
+  const [backdrop] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (visible) {

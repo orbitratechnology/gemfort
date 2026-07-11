@@ -13,11 +13,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
-import { Icon, type IconName } from '@/components/ui/icon';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography, type ThemeColors } from '@/constants/design-tokens';
 import {
+  accountTypeLabelFromRegistration,
+  businessTypeFromRegistration,
   createBusinessProfile,
   fetchBusinessByOwnerUid,
   updateBusinessProfile,
@@ -27,7 +29,7 @@ import { friendlyError } from '@/lib/errors';
 import type { AuthUser } from '@/lib/firebase/auth-types';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import type { Business, BusinessType, UserProfile } from '@/types';
+import type { Business, UserProfile } from '@/types';
 
 function initials(name: string) {
   return name
@@ -93,11 +95,6 @@ function StatusPill({
   );
 }
 
-const TYPE_OPTIONS: { id: BusinessType; label: string; subtitle: string; icon: IconName }[] = [
-  { id: 'seller', label: 'Gem Seller', subtitle: 'List and sell gemstones', icon: 'diamond' },
-  { id: 'cutter', label: 'Service Provider', subtitle: 'Cutting, heat, lab & more', icon: 'build' },
-];
-
 type FormProps = {
   business: Business | null | undefined;
   user: AuthUser;
@@ -112,16 +109,16 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [shortDescription, setShortDescription] = useState(business?.shortDescription ?? '');
   const [city, setCity] = useState(business?.city ?? 'Beruwala');
   const [address, setAddress] = useState(business?.address ?? '');
-  const [whatsapp, setWhatsapp] = useState(business?.contacts.whatsapp?.value ?? '');
-  const [phone, setPhone] = useState(business?.contacts.phone?.value ?? '');
-  const [whatsappVisible, setWhatsappVisible] = useState(business?.contacts.whatsapp?.isVisible ?? true);
-  const [phoneVisible, setPhoneVisible] = useState(business?.contacts.phone?.isVisible ?? true);
-  const [businessType, setBusinessType] = useState<BusinessType>(business?.businessType ?? 'seller');
+  const [whatsapp, setWhatsapp] = useState(business?.contacts?.whatsapp?.value ?? '');
+  const [phone, setPhone] = useState(business?.contacts?.phone?.value ?? '');
+  const [whatsappVisible, setWhatsappVisible] = useState(business?.contacts?.whatsapp?.isVisible ?? true);
+  const [phoneVisible, setPhoneVisible] = useState(business?.contacts?.phone?.isVisible ?? true);
   const [loading, setLoading] = useState(false);
 
+  const accountTypeLabel = accountTypeLabelFromRegistration(profile);
+  const derivedBusinessType = businessTypeFromRegistration(profile);
   const isVerified = business?.verificationStatus === 'verified';
   const isPending = business?.verificationStatus === 'pending';
-  const isCreate = !business;
 
   const previewName = businessName.trim() || 'Your Business';
   const previewCity = city.trim() || 'Sri Lanka';
@@ -144,7 +141,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   const memberSince = business?.createdAt?.toDate?.().getFullYear();
 
-  const canSave = businessName.trim().length > 0 && city.trim().length > 0;
+  const canSave =
+    businessName.trim().length > 0 &&
+    city.trim().length > 0 &&
+    (!!business || !!derivedBusinessType);
 
   async function handleSave() {
     if (!canSave) {
@@ -165,9 +165,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           phoneVisible: phoneVisible && !!phone.trim(),
         });
       } else {
+        if (!derivedBusinessType) {
+          toast.error('Create a business profile after registering as Trader, Lapidary, or Gem Lab.');
+          return;
+        }
         await createBusinessProfile(user.uid, profile?.displayName ?? 'Owner', {
           businessName,
-          businessType,
+          businessType: derivedBusinessType,
           city,
           shortDescription: shortDescription || 'Gem business in Beruwala.',
           whatsapp: whatsapp || profile?.phone || undefined,
@@ -239,49 +243,36 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         <View style={[styles.hintCard, { backgroundColor: colors.surfaceContainerLow }]}>
           <Icon name="info-outline" size={20} color={colors.primary} />
           <Text style={[styles.hintText, { color: colors.onSurfaceVariant }]}>
-            Create your business profile before publishing listings. Buyers will find you in the GemFort
-            directory after verification.
+            Create your business profile before publishing. Directory visitors find you after verification.
           </Text>
         </View>
       )}
 
-      {/* Business type (create only) */}
-      {isCreate ? (
-        <SectionCard
-          title="Business type"
-          subtitle="Choose how you appear in the marketplace"
-          colors={colors}>
-          <View style={styles.typeGrid}>
-            {TYPE_OPTIONS.map((opt) => {
-              const active = businessType === opt.id;
-              return (
-                <Pressable
-                  key={opt.id}
-                  onPress={() => setBusinessType(opt.id)}
-                  style={[
-                    styles.typeOption,
-                    {
-                      backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerHigh,
-                      borderColor: active ? colors.primary : colors.outlineVariant,
-                    },
-                  ]}>
-                  <View
-                    style={[
-                      styles.typeIconWrap,
-                      { backgroundColor: active ? colors.primary : colors.surfaceContainerHighest },
-                    ]}>
-                    <Icon name={opt.icon} size={20} color={active ? colors.onPrimary : colors.onSurfaceVariant} />
-                  </View>
-                  <Text style={[styles.typeLabel, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>
-                    {opt.label}
-                  </Text>
-                  <Text style={[styles.typeSub, { color: colors.textMuted }]}>{opt.subtitle}</Text>
-                </Pressable>
-              );
-            })}
+      {/* Account type from registration — not editable here */}
+      <SectionCard
+        title="Account type"
+        subtitle="Set when you registered — contact support to change"
+        colors={colors}>
+        <View
+          style={[
+            styles.accountTypeRow,
+            { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant },
+          ]}>
+          <Icon
+            name={derivedBusinessType === 'lapidary' ? 'build' : derivedBusinessType === 'gem_lab' ? 'workspace-premium' : 'diamond'}
+            size={20}
+            color={colors.primary}
+          />
+          <View style={styles.accountTypeText}>
+            <Text style={[styles.accountTypeLabel, { color: colors.onSurface }]}>{accountTypeLabel}</Text>
+            <Text style={[styles.accountTypeSub, { color: colors.textMuted }]}>
+              {derivedBusinessType
+                ? 'Used for your directory listing and business profile'
+                : 'Choose Trader, Lapidary, or Gem Lab at registration'}
+            </Text>
           </View>
-        </SectionCard>
-      ) : null}
+        </View>
+      </SectionCard>
 
       {/* Identity */}
       <SectionCard title="Identity" subtitle="How buyers recognize you" colors={colors}>
@@ -555,25 +546,18 @@ const styles = StyleSheet.create({
   cardHeader: { gap: 4 },
   cardTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
   cardSubtitle: { ...Typography.bodySmall },
-  typeGrid: { flexDirection: 'row', gap: Spacing.md },
-  typeOption: {
-    flex: 1,
+  accountTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    padding: Spacing.md,
     borderRadius: Radius.lg,
     borderCurve: 'continuous',
-    borderWidth: 1.5,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    borderWidth: 1,
   },
-  typeIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typeLabel: { ...Typography.labelMd, fontWeight: '600' },
-  typeSub: { ...Typography.bodySmall, lineHeight: 18 },
+  accountTypeText: { flex: 1, gap: 2 },
+  accountTypeLabel: { ...Typography.labelMd, fontWeight: '600' },
+  accountTypeSub: { ...Typography.bodySmall, lineHeight: 18 },
   fieldStack: { gap: Spacing.md },
   textArea: { minHeight: 96, textAlignVertical: 'top', paddingTop: 12 },
   toggleRow: {

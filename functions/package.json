@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
+    "test": "tsx --test src/notifications/__tests__/types.test.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },
@@ -17,6 +18,7 @@
     "firebase-functions": "^6.6.0"
   },
   "devDependencies": {
+    "tsx": "^4.20.3",
     "typescript": "^5.9.3"
   }
 }

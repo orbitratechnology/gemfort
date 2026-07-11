@@ -1,4 +1,6 @@
-import firestore from '@react-native-firebase/firestore';
+import { enableNetwork } from '@react-native-firebase/firestore';
+
+import { getFirebaseDb } from '@/lib/firebase/config';
 
 let warmUpPromise: Promise<void> | null = null;
 
@@ -8,8 +10,7 @@ let warmUpPromise: Promise<void> | null = null;
  */
 export function warmUpFirestore(): Promise<void> {
   if (!warmUpPromise) {
-    warmUpPromise = firestore()
-      .enableNetwork()
+    warmUpPromise = enableNetwork(getFirebaseDb())
       .then(() => undefined)
       .catch(() => undefined);
   }

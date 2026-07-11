@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'normal_user' | 'verified_seller' | 'verified_provider' | 'admin';
+export type UserRole = 'trader' | 'lapidary' | 'gem_lab' | 'admin';
 export type VerificationStatus =
   | 'none'
   | 'pending'
@@ -17,6 +17,8 @@ export type UserProfile = {
   phone: string;
   displayName: string;
   role: UserRole;
+  /** Legacy signup field; prefer `role` (set at registration). */
+  roleIntent?: UserRole | string;
   verificationStatus: VerificationStatus;
   preferredCurrency: string;
   preferredLanguage: string;
@@ -38,14 +40,7 @@ export type UserProfile = {
   updatedAt: Timestamp;
 };
 
-export type BusinessType =
-  | 'seller'
-  | 'cutter'
-  | 'heat_treatment'
-  | 'chemical_treatment'
-  | 'polisher'
-  | 'lab'
-  | 'jewelry_maker';
+export type BusinessType = 'trader' | 'lapidary' | 'gem_lab' | string;
 
 export type Business = {
   id: string;
@@ -55,6 +50,8 @@ export type Business = {
   ownerName: string;
   brNumber: string;
   ngjaNumber: string;
+  gemLicenseNumber?: string;
+  tinNumber?: string;
   yearEstablished: number | null;
   shortDescription: string;
   address: string;
@@ -97,9 +94,16 @@ export type Business = {
       description: string;
       isActive: boolean;
     }[];
+    servicesOffered?: string[];
     gemSpecializations: string[];
     isAcceptingOrders: boolean;
     portfolioCount: number;
+  } | null;
+  labProfile?: {
+    accreditations: string[];
+    reportTypes: string[];
+    isAcceptingOrders: boolean;
+    certificatesIssued: number;
   } | null;
   contacts: Record<
     string,
@@ -116,6 +120,12 @@ export type Business = {
     caption: string | null;
     uploadedAt: Timestamp;
   }[];
+  analytics?: {
+    profileViewsTotal: number;
+    listingViewsTotal: number;
+    whatsappTapsTotal: number;
+    phoneTapsTotal: number;
+  };
   isFeatured: boolean;
   isActive: boolean;
   createdAt: Timestamp;
@@ -550,17 +560,102 @@ export type VerificationApplication = {
   id: string;
   applicantUid: string;
   businessId: string;
-  applicationType: 'seller' | 'provider';
+  applicationType: 'trader' | 'lapidary' | 'gem_lab' | string;
   status: string;
+  servicesOffered?: string[];
   documents: {
     brNumber: string | null;
     brPhotoUrl: string | null;
     ngjaNumber: string | null;
     ngjaPhotoUrl: string | null;
     nicPhotoUrl: string | null;
+    gemLicenseNumber?: string | null;
+    gemLicensePhotoUrl?: string | null;
+    tinNumber?: string | null;
     businessPhotosUrls: string[];
     addressProofUrl: string | null;
     otherDocUrls: string[];
   };
   submittedAt: Timestamp;
+};
+
+export type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'completed';
+
+export type ServiceRequest = {
+  id: string;
+  traderUid: string;
+  traderBusinessId: string | null;
+  lapidaryUid: string;
+  lapidaryBusinessId: string;
+  gemId: string;
+  gemName: string;
+  serviceTypes: string[];
+  notes: string | null;
+  status: RequestStatus;
+  jobId: string | null;
+  serviceRecordId: string | null;
+  rejectReason: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  respondedAt: Timestamp | null;
+};
+
+export type LapidaryJob = {
+  id: string;
+  serviceRequestId: string;
+  lapidaryUid: string;
+  lapidaryBusinessId: string;
+  traderUid: string;
+  gemId: string;
+  gemName: string;
+  serviceTypes: string[];
+  status: 'queued' | 'in_progress' | 'ready' | 'returned' | 'cancelled';
+  notes: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type CertificationRequest = {
+  id: string;
+  traderUid: string;
+  traderBusinessId: string | null;
+  labUid: string;
+  labBusinessId: string;
+  gemId: string;
+  gemName: string;
+  reportType: string;
+  notes: string | null;
+  status: RequestStatus;
+  certificateId: string | null;
+  rejectReason: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  respondedAt: Timestamp | null;
+};
+
+export type PublicCertificate = {
+  id: string;
+  labUid: string;
+  labBusinessId: string;
+  labName: string;
+  certificateNumber: string;
+  verificationCode: string | null;
+  reportType: string;
+  certificateDate: Timestamp | null;
+  fileUrl: string;
+  fileType: string;
+  gemId: string | null;
+  gemName: string | null;
+  traderUid: string | null;
+  certificationRequestId: string | null;
+  resultsSummary: {
+    weight: string | null;
+    color: string | null;
+    origin: string | null;
+    treatment: string | null;
+    clarity: string | null;
+  };
+  visibility: 'public';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };

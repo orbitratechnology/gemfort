@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { onAuthStateChanged } from '@/lib/firebase/auth';
+import { onAuthStateChanged, signOut } from '@/lib/firebase/auth';
 import type { AuthUser } from '@/lib/firebase/auth-types';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase/config';
 import { getUserProfile } from '@/lib/firebase/auth-service';
@@ -31,9 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async (uid: string) => {
     const requestId = ++profileRequestRef.current;
-    const data = await getUserProfile(uid);
-    if (requestId === profileRequestRef.current) {
+    try {
+      const data = await getUserProfile(uid);
+      if (requestId !== profileRequestRef.current) return;
+
+      // Orphan Auth session (e.g. Firestore wiped): sign out so the app does
+      // not sit in a half-authenticated state with permission-denied spam.
+      if (!data) {
+        if (__DEV__) {
+          console.warn('[auth] No Firestore profile for uid; signing out', uid);
+        }
+        setProfile(null);
+        setUser(null);
+        await signOut(getFirebaseAuth());
+        return;
+      }
+
       setProfile(data);
+    } catch (error) {
+      if (__DEV__) console.warn('[auth] Failed to load profile', error);
+      if (requestId === profileRequestRef.current) {
+        setProfile(null);
+      }
     }
   }, []);
 

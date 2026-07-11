@@ -50,17 +50,17 @@ At any moment a gem businessman does not know:
 
 ### 2.5 User Personas
 
-**Persona 1 — The Individual Trader (Primary)**
-Mahesh is a gem dealer in Beruwala. He buys rough stones from Ratnapura and Tanzania, sends them to cutters and heaters, and sells finished gems through brokers in Patha and on selling trips to Bangkok. He has 12 stones out with different people right now and holds 7 post-dated cheques. He tracks everything in a notebook.
+**Persona 1 — The Trader (Primary)**
+Mahesh is a gem trader in Beruwala. He buys rough stones, sends them to lapidaries and gem labs, and sells finished gems. He tracks inventory, trips, AP, and cheques in GemTrack.
 
-**Persona 2 — The Service Provider**
-Kamal runs a gem cutting workshop in Beruwala. He cuts sapphires for 15 regular clients. He needs clients to find him, trust his work, and send him stones consistently. He has no online presence.
+**Persona 2 — The Lapidary**
+Kamal runs a cutting/polishing workshop. Traders request jobs from his profile; he accepts and tracks workshop stones in Jobs.
 
-**Persona 3 — The Company Manager**
-Priya manages a gem trading company with 8 employees. She needs to see what every employee is doing, approve major deals, and produce financial reports for the company accountant. She cannot afford enterprise software built for another industry.
+**Persona 3 — The Gem Lab**
+Nisha’s lab issues certificates/reports. Traders request certification; published reports are publicly verifiable by certificate number.
 
-**Persona 4 — The Buyer (Guest)**
-Ahmed is a gem buyer from Dubai visiting Beruwala. He needs to find verified sapphire dealers quickly, see their work, and get a WhatsApp number to contact them before his visit.
+**Persona 4 — The Guest**
+Ahmed browses Traders / Lapidaries / Gem Labs and can verify a certificate without an account.
 
 ### 2.6 Functional Requirements
 
@@ -68,12 +68,10 @@ Ahmed is a gem buyer from Dubai visiting Beruwala. He needs to find verified sap
 
 ```
   GN-FR-001   Users can browse the directory without logging in
-  GN-FR-002   Directory shows verified sellers and service providers
-  GN-FR-003   Businesses can be filtered by type, location, and
-              verification status
-  GN-FR-004   Business profiles show 4 sections only
-  GN-FR-005   Contact channels are individually toggled by owner
-  GN-FR-006   Verified sellers can create gem listings
+  GN-FR-002   Directory shows verified traders, lapidaries, and gem labs
+  GN-FR-006   Verified traders can create gem listings
+  GN-FR-010   Guests can verify certificates by report number
+  GN-FR-011   Traders can request services / certification; targets accept or reject
   GN-FR-007   Gem listings have 3 visibility levels
   GN-FR-008   Listings generate a shareable public link
   GN-FR-009   Announcements board shows 4 content types

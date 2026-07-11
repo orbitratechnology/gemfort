@@ -9,7 +9,21 @@ import { ToastProvider } from '@/providers/toast-provider';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+
+/** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
+const BOOT_BG = '#1A3A5C';
+
 SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({ duration: 400, fade: true });
+
+function BootPlaceholder() {
+  return (
+    <View style={styles.boot} accessibilityLabel="Loading GemFort">
+      <ActivityIndicator color="#FFFFFF" size="large" />
+    </View>
+  );
+}
 
 function RootNavigator() {
   const { colors } = useAppTheme();
@@ -38,6 +52,8 @@ function RootNavigator() {
       />
       <Stack.Screen name="profile/verify" options={{ headerShown: false }} />
       <Stack.Screen name="profile/business" options={{ headerShown: false }} />
+      <Stack.Screen name="request/[businessId]" options={{ headerShown: false }} />
+      <Stack.Screen name="verify-certificate" options={{ headerShown: false }} />
       <Stack.Screen
         name="notifications"
         options={{ headerShown: true, title: 'Notifications', headerBackTitle: 'Back' }}
@@ -55,12 +71,24 @@ export default function RootLayout() {
       return;
     }
 
+    let cancelled = false;
     void warmUpFirestore()
-      .then(() => setFirebaseReady(true))
-      .finally(() => SplashScreen.hideAsync());
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) {
+          setFirebaseReady(true);
+          void SplashScreen.hideAsync();
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (!firebaseReady) return null;
+  if (!firebaseReady) {
+    return <BootPlaceholder />;
+  }
 
   return (
     <ThemeProvider>
@@ -75,3 +103,12 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    backgroundColor: BOOT_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

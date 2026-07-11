@@ -9,6 +9,14 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_overdue',
   'payment_due_soon',
   'payment_overdue',
+  'service_request_received',
+  'service_request_accepted',
+  'service_request_rejected',
+  'service_job_updated',
+  'cert_request_received',
+  'cert_request_accepted',
+  'cert_request_rejected',
+  'cert_ready',
 ] as const;
 
 export const GEMNET_NOTIFICATION_TYPES = [

@@ -26,6 +26,13 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import type { ThemeColors } from '@/constants/design-tokens';
+import { canAccessModule, resolveProfileRole } from '@/constants/roles';
+import {
+  fetchIncomingCertRequests,
+  fetchIncomingServiceRequests,
+  fetchLapidaryJobs,
+  fetchLabCertificates,
+} from '@/features/marketplace/request-service';
 
 const WORKSPACE = '/(marketplace)/(tabs)/workspace';
 
@@ -60,26 +67,27 @@ function toneColors(tone: AlertItem['tone'], colors: ThemeColors) {
 }
 
 export default function WorkspaceHub() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { colors } = useAppTheme();
   const userId = user?.uid;
+  const role = resolveProfileRole(profile);
 
   const { data: gems = [] } = useQuery({
     queryKey: ['gems', userId],
     queryFn: () => fetchGems(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'gems'),
   });
 
   const { data: services = [] } = useQuery({
     queryKey: ['services', userId],
     queryFn: () => fetchServices(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'services'),
   });
 
   const { data: apRecords = [] } = useQuery({
     queryKey: ['ap', userId],
     queryFn: () => fetchApRecords(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'ap'),
   });
 
   const { data: contacts = [] } = useQuery({
@@ -91,19 +99,43 @@ export default function WorkspaceHub() {
   const { data: transactions = [] } = useQuery({
     queryKey: ['transactions', userId],
     queryFn: () => fetchTransactions(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'money'),
   });
 
   const { data: cheques = [] } = useQuery({
     queryKey: ['cheques', userId],
     queryFn: () => fetchCheques(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'cheques'),
   });
 
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', userId],
     queryFn: () => fetchTrips(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, 'trips'),
+  });
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['lapidary-jobs', userId],
+    queryFn: () => fetchLapidaryJobs(userId!),
+    enabled: !!userId && canAccessModule(role, 'jobs'),
+  });
+
+  const { data: certificates = [] } = useQuery({
+    queryKey: ['lab-certificates', userId],
+    queryFn: () => fetchLabCertificates(userId!),
+    enabled: !!userId && canAccessModule(role, 'certificates'),
+  });
+
+  const { data: incomingServiceRequests = [] } = useQuery({
+    queryKey: ['incoming-service-requests', userId],
+    queryFn: () => fetchIncomingServiceRequests(userId!),
+    enabled: !!userId && role === 'lapidary',
+  });
+
+  const { data: incomingCertRequests = [] } = useQuery({
+    queryKey: ['incoming-cert-requests', userId],
+    queryFn: () => fetchIncomingCertRequests(userId!),
+    enabled: !!userId && role === 'gem_lab',
   });
 
   if (!user) {
@@ -112,6 +144,18 @@ export default function WorkspaceHub() {
         title="Your workspace"
         message="Sign in to manage your private gem inventory, services, and finances."
       />
+    );
+  }
+
+  // Avoid flashing trader inventory while the Firestore profile is still loading.
+  if (!profile) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+        <StackHeader title="Workspace" showBack={false} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -136,7 +180,7 @@ export default function WorkspaceHub() {
     ['with_cutter', 'with_heater', 'with_polisher'].includes(g.status),
   ).length;
 
-  const modules: ModuleItem[] = [
+  const allModules: ModuleItem[] = [
     {
       label: 'Gems',
       value: gems.length,
@@ -145,11 +189,31 @@ export default function WorkspaceHub() {
       hint: readyGems > 0 ? `${readyGems} ready` : undefined,
     },
     {
+      label: 'Jobs',
+      value: jobs.length,
+      icon: 'construction',
+      route: `${WORKSPACE}/jobs`,
+      hint:
+        incomingServiceRequests.filter((r) => r.status === 'pending').length > 0
+          ? `${incomingServiceRequests.filter((r) => r.status === 'pending').length} new`
+          : undefined,
+    },
+    {
       label: 'Services',
       value: services.length,
       icon: 'handyman',
       route: `${WORKSPACE}/services`,
       hint: inService > 0 ? `${inService} out` : undefined,
+    },
+    {
+      label: 'Certificates',
+      value: certificates.length,
+      icon: 'workspace-premium',
+      route: `${WORKSPACE}/certificates`,
+      hint:
+        incomingCertRequests.filter((r) => r.status === 'pending').length > 0
+          ? `${incomingCertRequests.filter((r) => r.status === 'pending').length} requests`
+          : undefined,
     },
     {
       label: 'Trips',
@@ -178,14 +242,49 @@ export default function WorkspaceHub() {
       icon: 'group',
       route: `${WORKSPACE}/contacts`,
     },
+    {
+      label: 'Requests',
+      value: 0,
+      icon: 'outgoing-mail',
+      route: `${WORKSPACE}/requests`,
+    },
   ];
 
-  const actions: { label: string; icon: IconName; route: string; primary?: boolean }[] = [
-    { label: 'Add gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
-    { label: 'Plan trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
-    { label: 'Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
-    { label: 'Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
-  ];
+  const modules = allModules.filter((m) => {
+    if (m.label === 'Jobs') return canAccessModule(role, 'jobs');
+    if (m.label === 'Certificates') return canAccessModule(role, 'certificates');
+    if (m.label === 'Gems') return canAccessModule(role, 'gems');
+    if (m.label === 'Services') return canAccessModule(role, 'services') || role === 'lapidary';
+    if (m.label === 'Trips') return canAccessModule(role, 'trips');
+    if (m.label === 'AP') return canAccessModule(role, 'ap');
+    if (m.label === 'Cheques') return canAccessModule(role, 'cheques');
+    if (m.label === 'Requests') return canAccessModule(role, 'requests');
+    if (m.label === 'Contacts') return role === 'trader' || role === 'admin';
+    return true;
+  });
+
+  const actions: { label: string; icon: IconName; route: string; primary?: boolean }[] =
+    role === 'gem_lab'
+      ? [
+          {
+            label: 'Add certificate',
+            icon: 'workspace-premium',
+            route: `${WORKSPACE}/certificates/add`,
+            primary: true,
+          },
+          { label: 'Requests', icon: 'inbox', route: `${WORKSPACE}/certificates` },
+        ]
+      : role === 'lapidary'
+        ? [
+            { label: 'Jobs', icon: 'construction', route: `${WORKSPACE}/jobs`, primary: true },
+            { label: 'Services', icon: 'handyman', route: `${WORKSPACE}/services` },
+          ]
+        : [
+            { label: 'Add gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
+            { label: 'Plan trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
+            { label: 'Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
+            { label: 'Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
+          ];
 
   const alerts: AlertItem[] = [
     ...overdueAp.map((a) => ({
@@ -222,6 +321,48 @@ export default function WorkspaceHub() {
     })),
   ];
 
+  const showGemsHero = canAccessModule(role, 'gems');
+  const showJobsHero = canAccessModule(role, 'jobs');
+  const showCertsHero = canAccessModule(role, 'certificates');
+  const showTripsOverview = canAccessModule(role, 'trips');
+  const showChequesOverview = canAccessModule(role, 'cheques');
+
+  const heroTitle = showGemsHero
+    ? 'Inventory value'
+    : showJobsHero
+      ? 'Workshop jobs'
+      : showCertsHero
+        ? 'Certificates published'
+        : 'Workspace';
+  const heroValue = showGemsHero
+    ? formatCurrency(totalInventoryValue)
+    : showJobsHero
+      ? String(jobs.length)
+      : showCertsHero
+        ? String(certificates.length)
+        : formatCurrency(monthNet);
+  const heroRoute = showGemsHero
+    ? `${WORKSPACE}/gems`
+    : showJobsHero
+      ? `${WORKSPACE}/jobs`
+      : showCertsHero
+        ? `${WORKSPACE}/certificates`
+        : `${WORKSPACE}/money`;
+  const heroLink = showGemsHero
+    ? 'Open inventory'
+    : showJobsHero
+      ? 'Open jobs'
+      : showCertsHero
+        ? 'Open certificates'
+        : 'Open money';
+  const heroIcon: IconName = showGemsHero
+    ? 'diamond'
+    : showJobsHero
+      ? 'construction'
+      : showCertsHero
+        ? 'workspace-premium'
+        : 'account-balance-wallet';
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Workspace" showBack={false} />
@@ -229,7 +370,7 @@ export default function WorkspaceHub() {
       <ThemedScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <Pressable
-          onPress={() => router.push(`${WORKSPACE}/gems` as never)}
+          onPress={() => router.push(heroRoute as never)}
           style={({ pressed }) => [
             styles.hero,
             { backgroundColor: colors.primary, opacity: pressed ? 0.96 : 1 },
@@ -237,41 +378,59 @@ export default function WorkspaceHub() {
           <View style={styles.heroTop}>
             <View style={styles.heroCopy}>
               <Text style={[styles.heroLabel, { color: colors.onPrimary + 'B3' }]}>
-                Inventory value
+                {heroTitle}
               </Text>
               <Text style={[styles.heroValue, { color: colors.onPrimary }]} selectable>
-                {formatCurrency(totalInventoryValue)}
+                {heroValue}
               </Text>
             </View>
             <View style={[styles.heroBadge, { backgroundColor: colors.onPrimary + '1F' }]}>
-              <Icon name="diamond" size={22} color={colors.onPrimary} />
+              <Icon name={heroIcon} size={22} color={colors.onPrimary} />
             </View>
           </View>
 
           <View style={styles.heroMetaRow}>
-            <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-              <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                {gems.length} {gems.length === 1 ? 'gem' : 'gems'}
-              </Text>
-            </View>
-            {readyGems > 0 ? (
+            {showGemsHero ? (
+              <>
+                <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+                  <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                    {gems.length} {gems.length === 1 ? 'gem' : 'gems'}
+                  </Text>
+                </View>
+                {readyGems > 0 ? (
+                  <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+                    <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                      {readyGems} ready to sell
+                    </Text>
+                  </View>
+                ) : null}
+                {inService > 0 ? (
+                  <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
+                    <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
+                      {inService} in service
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+            {showJobsHero ? (
               <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
                 <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                  {readyGems} ready to sell
+                  {incomingServiceRequests.filter((r) => r.status === 'pending').length} pending requests
                 </Text>
               </View>
             ) : null}
-            {inService > 0 ? (
+            {showCertsHero ? (
               <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
                 <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                  {inService} in service
+                  {incomingCertRequests.filter((r) => r.status === 'pending').length} open requests
                 </Text>
               </View>
             ) : null}
           </View>
 
           <View style={styles.heroFooter}>
-            <Text style={[styles.heroLink, { color: colors.onPrimary + 'CC' }]}>Open inventory</Text>
+            <Text style={[styles.heroLink, { color: colors.onPrimary + 'CC' }]}>{heroLink}</Text>
             <Icon name="chevron-right" size={18} color={colors.onPrimary + 'CC'} />
           </View>
         </Pressable>
@@ -459,47 +618,112 @@ export default function WorkspaceHub() {
             </Pressable>
 
             <View style={styles.overviewSide}>
-              <Pressable
-                onPress={() => router.push(`${WORKSPACE}/trips` as never)}
-                style={({ pressed }) => [
-                  styles.overviewHalf,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                ]}>
-                <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                  <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
-                </View>
-                <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                  {activeTrips.length}
-                </Text>
-                <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
-                <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                  {ongoingTrips[0]?.tripName ?? 'No live trips'}
-                </Text>
-              </Pressable>
+              {showTripsOverview ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/trips` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {activeTrips.length}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    {ongoingTrips[0]?.tripName ?? 'No live trips'}
+                  </Text>
+                </Pressable>
+              ) : showJobsHero ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="construction" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>{jobs.length}</Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active jobs</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Workshop queue
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/certificates` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="workspace-premium" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {certificates.length}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Certificates</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Published reports
+                  </Text>
+                </Pressable>
+              )}
 
-              <Pressable
-                onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
-                style={({ pressed }) => [
-                  styles.overviewHalf,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    opacity: pressed ? 0.94 : 1,
-                  },
-                ]}>
-                <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
-                  <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
-                </View>
-                <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                  {chequeSummary.holdingCount}
-                </Text>
-                <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
-                <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                  {formatCurrency(chequeSummary.clearingThisMonth)} clearing
-                </Text>
-              </Pressable>
+              {showChequesOverview ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
+                    <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {chequeSummary.holdingCount}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    {formatCurrency(chequeSummary.clearingThisMonth)} clearing
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/money` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
+                    <Icon name="account-balance-wallet" size={16} color={colors.onSecondaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {formatCurrency(monthNet)}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>This month</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Money overview
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>

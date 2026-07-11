@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, isWithinInterval } from 'date-fns';
+import { differenceInCalendarDays, format } from 'date-fns';
 
 import type { Trip, TripExpense, TripGem, TripStatus, WorkspaceGem } from '@/types';
 

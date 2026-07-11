@@ -1,6 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
@@ -36,6 +36,7 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
+    Keyboard.dismiss();
     const result = parseForm(loginSchema, { email, password });
     if (!result.success) {
       setErrors(result.errors);
@@ -98,6 +99,8 @@ export default function LoginScreen() {
               keyboardType="email-address"
               textContentType="emailAddress"
               placeholder="you@example.com"
+              returnKeyType="next"
+              blurOnSubmit={false}
               error={errors.email}
             />
             <Input
@@ -112,6 +115,9 @@ export default function LoginScreen() {
               autoComplete="password"
               textContentType="password"
               placeholder="Enter password"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={handleLogin}
               error={errors.password}
             />
           </FormSection>

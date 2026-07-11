@@ -150,7 +150,7 @@ export const registerSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(72, 'Password is too long')
     .refine((v) => /[A-Za-z]/.test(v) && /\d/.test(v), 'Include letters and a number'),
-  roleIntent: z.enum(['normal_user', 'verified_seller', 'verified_provider']),
+  role: z.enum(['trader', 'lapidary', 'gem_lab']),
 });
 
 export type RegisterForm = z.infer<typeof registerSchema>;
