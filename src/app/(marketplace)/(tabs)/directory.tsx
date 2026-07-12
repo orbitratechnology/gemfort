@@ -1,90 +1,98 @@
-import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BusinessCard } from '@/components/marketplace/business-card';
-import { ListingCard } from '@/components/marketplace/listing-card';
-import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
-import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Icon } from '@/components/ui/icon';
-import { ProductGrid } from '@/components/ui/product-grid';
-import { StackHeader } from '@/components/ui/stack-header';
-import { SkeletonList } from '@/components/ui/skeleton-list';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { GEM_TYPES } from '@/constants/gem-options';
-import { useAppTheme } from '@/hooks/use-app-theme';
+import { BusinessCard } from "@/components/marketplace/business-card";
+import { ListingCard } from "@/components/marketplace/listing-card";
+import { BottomSheet, FilterChipGroup } from "@/components/ui/bottom-sheet";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon, type IconName } from "@/components/ui/icon";
+import { ProductGrid } from "@/components/ui/product-grid";
+import { SkeletonList } from "@/components/ui/skeleton-list";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { GEM_TYPES } from "@/constants/gem-options";
 import {
-  demoBusinesses,
-  demoListings,
-  fetchBusinesses,
-  fetchPublicListings,
-  filterListings,
-  searchBusinesses,
-  searchListings,
-  type ListingFilters,
-} from '@/features/marketplace/marketplace-service';
-import { isFirebaseConfigured } from '@/lib/firebase/config';
-import type { Business, MarketplaceListing } from '@/types';
+    demoBusinesses,
+    demoListings,
+    fetchBusinesses,
+    fetchPublicListings,
+    filterListings,
+    searchBusinesses,
+    searchListings,
+    type ListingFilters,
+} from "@/features/marketplace/marketplace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
+import type { Business, MarketplaceListing } from "@/types";
 
-type Tab = 'gems' | 'traders' | 'lapidaries' | 'labs';
-type BusinessSortBy = 'featured' | 'rating' | 'name';
+type Tab = "gems" | "traders" | "lapidaries" | "labs";
+type BusinessSortBy = "featured" | "rating" | "name";
 const PAGE_SIZE = 20;
 
 const QUICK_TYPES: { id: string; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'blue_sapphire', label: 'Sapphires' },
-  { id: 'ruby', label: 'Rubies' },
-  { id: 'emerald', label: 'Emeralds' },
+  { id: "all", label: "All" },
+  { id: "blue_sapphire", label: "Sapphires" },
+  { id: "ruby", label: "Rubies" },
+  { id: "emerald", label: "Emeralds" },
 ];
 
-const GEM_SORT_OPTIONS: { id: NonNullable<ListingFilters['sort']>; label: string }[] = [
-  { id: 'recent', label: 'Most Recent' },
-  { id: 'price_low', label: 'Price: Low to High' },
-  { id: 'price_high', label: 'Price: High to Low' },
+const GEM_SORT_OPTIONS: {
+  id: NonNullable<ListingFilters["sort"]>;
+  label: string;
+}[] = [
+  { id: "recent", label: "Most Recent" },
+  { id: "price_low", label: "Price: Low to High" },
+  { id: "price_high", label: "Price: High to Low" },
 ];
 
 const BUSINESS_SORT_OPTIONS: { id: BusinessSortBy; label: string }[] = [
-  { id: 'featured', label: 'Featured' },
-  { id: 'rating', label: 'Top Rated' },
-  { id: 'name', label: 'Name (A–Z)' },
+  { id: "featured", label: "Featured" },
+  { id: "rating", label: "Top Rated" },
+  { id: "name", label: "Name (A–Z)" },
 ];
 
 export default function DirectoryScreen() {
   const { colors } = useAppTheme();
-  const [tab, setTab] = useState<Tab>('gems');
-  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<Tab>("gems");
+  const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filterOpen, setFilterOpen] = useState(false);
 
   // Gem filters
-  const [gemType, setGemType] = useState('all');
-  const [gemSort, setGemSort] = useState<NonNullable<ListingFilters['sort']>>('recent');
-  const [draftGemType, setDraftGemType] = useState('all');
-  const [draftGemSort, setDraftGemSort] = useState<NonNullable<ListingFilters['sort']>>('recent');
+  const [gemType, setGemType] = useState("all");
+  const [gemSort, setGemSort] =
+    useState<NonNullable<ListingFilters["sort"]>>("recent");
+  const [draftGemType, setDraftGemType] = useState("all");
+  const [draftGemSort, setDraftGemSort] =
+    useState<NonNullable<ListingFilters["sort"]>>("recent");
 
   // Business filters
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [city, setCity] = useState('all');
-  const [businessSort, setBusinessSort] = useState<BusinessSortBy>('featured');
+  const [city, setCity] = useState("all");
+  const [businessSort, setBusinessSort] = useState<BusinessSortBy>("featured");
   const [draftBusiness, setDraftBusiness] = useState<{
-    verified: 'all' | 'verified';
+    verified: "all" | "verified";
     city: string;
     sort: BusinessSortBy;
-  }>({ verified: 'all', city: 'all', sort: 'featured' });
+  }>({ verified: "all", city: "all", sort: "featured" });
 
   const businessType =
-    tab === 'traders' ? ('trader' as const) : tab === 'labs' ? ('gem_lab' as const) : ('lapidary' as const);
+    tab === "traders"
+      ? ("trader" as const)
+      : tab === "labs"
+        ? ("gem_lab" as const)
+        : ("lapidary" as const);
 
   const {
     data: businesses,
@@ -92,13 +100,13 @@ export default function DirectoryScreen() {
     refetch: refetchBusinesses,
     isRefetching: businessesRefetching,
   } = useQuery({
-    queryKey: ['businesses', tab],
+    queryKey: ["businesses", tab],
     queryFn: async () => {
       const filters = { businessType };
       if (!isFirebaseConfigured) return demoBusinesses(filters);
       return fetchBusinesses(filters);
     },
-    enabled: tab !== 'gems',
+    enabled: tab !== "gems",
   });
 
   const {
@@ -107,17 +115,17 @@ export default function DirectoryScreen() {
     refetch: refetchListings,
     isRefetching: listingsRefetching,
   } = useQuery({
-    queryKey: ['public-listings'],
+    queryKey: ["public-listings"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoListings();
       return fetchPublicListings();
     },
-    enabled: tab === 'gems',
+    enabled: tab === "gems",
   });
 
   const cities = useMemo(() => {
     const set = new Set((businesses ?? []).map((b) => b.city).filter(Boolean));
-    return ['all', ...Array.from(set).sort()];
+    return ["all", ...Array.from(set).sort()];
   }, [businesses]);
 
   const filteredGems = useMemo(() => {
@@ -128,11 +136,13 @@ export default function DirectoryScreen() {
   const filteredBusinesses = useMemo(() => {
     let result = searchBusinesses(search, businesses ?? []);
     if (verifiedOnly) result = result.filter((b) => b.badges.isVerified);
-    if (city !== 'all') result = result.filter((b) => b.city === city);
+    if (city !== "all") result = result.filter((b) => b.city === city);
     const sorted = [...result];
-    if (businessSort === 'rating') {
-      sorted.sort((a, b) => b.badges.endorsementCount - a.badges.endorsementCount);
-    } else if (businessSort === 'name') {
+    if (businessSort === "rating") {
+      sorted.sort(
+        (a, b) => b.badges.endorsementCount - a.badges.endorsementCount,
+      );
+    } else if (businessSort === "name") {
       sorted.sort((a, b) => a.businessName.localeCompare(b.businessName));
     } else {
       sorted.sort((a, b) => {
@@ -152,26 +162,29 @@ export default function DirectoryScreen() {
     [filteredBusinesses, visibleCount],
   );
 
-  const segments: { id: Tab; label: string }[] = [
-    { id: 'gems', label: 'Gems' },
-    { id: 'traders', label: 'Traders' },
-    { id: 'lapidaries', label: 'Lapidaries' },
-    { id: 'labs', label: 'Gem Labs' },
+  const segments: { id: Tab; label: string; icon: IconName }[] = [
+    { id: "gems", label: "Gems", icon: "diamond" },
+    { id: "traders", label: "Traders", icon: "storefront" },
+    { id: "lapidaries", label: "Lapidaries", icon: "handyman" },
+    { id: "labs", label: "Labs", icon: "workspace-premium" },
   ];
 
-  const isLoading = tab === 'gems' ? listingsLoading : businessesLoading;
-  const isRefetching = tab === 'gems' ? listingsRefetching : businessesRefetching;
-  const gemFilterActive = gemType !== 'all' || gemSort !== 'recent';
+  const isLoading = tab === "gems" ? listingsLoading : businessesLoading;
+  const isRefetching =
+    tab === "gems" ? listingsRefetching : businessesRefetching;
+  const gemFilterActive = gemType !== "all" || gemSort !== "recent";
   const businessFilterCount =
-    (verifiedOnly ? 1 : 0) + (city !== 'all' ? 1 : 0) + (businessSort !== 'featured' ? 1 : 0);
+    (verifiedOnly ? 1 : 0) +
+    (city !== "all" ? 1 : 0) +
+    (businessSort !== "featured" ? 1 : 0);
 
   function openFilter() {
-    if (tab === 'gems') {
+    if (tab === "gems") {
       setDraftGemType(gemType);
       setDraftGemSort(gemSort);
     } else {
       setDraftBusiness({
-        verified: verifiedOnly ? 'verified' : 'all',
+        verified: verifiedOnly ? "verified" : "all",
         city,
         sort: businessSort,
       });
@@ -180,11 +193,11 @@ export default function DirectoryScreen() {
   }
 
   function applyFilter() {
-    if (tab === 'gems') {
+    if (tab === "gems") {
       setGemType(draftGemType);
       setGemSort(draftGemSort);
     } else {
-      setVerifiedOnly(draftBusiness.verified === 'verified');
+      setVerifiedOnly(draftBusiness.verified === "verified");
       setCity(draftBusiness.city);
       setBusinessSort(draftBusiness.sort);
     }
@@ -198,24 +211,33 @@ export default function DirectoryScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Directory" showBack={false} />
-
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <ScrollView
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={tab === 'gems' ? refetchListings : refetchBusinesses}
+            onRefresh={tab === "gems" ? refetchListings : refetchBusinesses}
           />
         }
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
-        <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
           <Icon name="search" size={22} color={colors.textMuted} />
           <TextInput
             style={[styles.searchInput, { color: colors.textMain }]}
             placeholder={
-              tab === 'gems' ? 'Search gems, origins…' : 'Search traders, lapidaries, labs…'
+              tab === "gems"
+                ? "Search gems, origins…"
+                : "Search traders, lapidaries, labs…"
             }
             placeholderTextColor={colors.textMuted}
             value={search}
@@ -226,42 +248,60 @@ export default function DirectoryScreen() {
           />
         </View>
 
-        <View style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}>
-          {segments.map((s) => {
-            const active = tab === s.id;
-            return (
-              <Pressable
-                key={s.id}
-                onPress={() => switchTab(s.id)}
-                style={[styles.segmentBtn, active && { backgroundColor: colors.primary }]}>
-                <Text
-                  style={[
-                    styles.segmentText,
-                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}>
-                  {s.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {tab === 'gems' ? (
+        <View
+          style={[
+            styles.segmentTrack,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}>
+            contentContainerStyle={styles.segment}
+          >
+            {segments.map((s) => {
+              const active = tab === s.id;
+              const tone = active ? colors.onPrimary : colors.onSurfaceVariant;
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => switchTab(s.id)}
+                  style={[
+                    styles.segmentBtn,
+                    active && { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Icon name={s.icon} size={16} color={tone} />
+                  <Text style={[styles.segmentText, { color: tone }]}>
+                    {s.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {tab === "gems" ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
             <Pressable
               onPress={openFilter}
               style={[
                 styles.filterChip,
                 gemFilterActive
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ? {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    }
                   : {
                       backgroundColor: colors.surfaceContainerLowest,
                       borderColor: colors.outlineVariant,
                     },
-              ]}>
+              ]}
+            >
               <Icon
                 name="tune"
                 size={16}
@@ -270,8 +310,11 @@ export default function DirectoryScreen() {
               <Text
                 style={[
                   styles.filterText,
-                  { color: gemFilterActive ? colors.onPrimary : colors.textMain },
-                ]}>
+                  {
+                    color: gemFilterActive ? colors.onPrimary : colors.textMain,
+                  },
+                ]}
+              >
                 Filter
               </Text>
             </Pressable>
@@ -287,17 +330,22 @@ export default function DirectoryScreen() {
                   style={[
                     styles.filterChip,
                     active
-                      ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
                       : {
                           backgroundColor: colors.surfaceContainerLowest,
                           borderColor: colors.outlineVariant,
                         },
-                  ]}>
+                  ]}
+                >
                   <Text
                     style={[
                       styles.filterText,
                       { color: active ? colors.onPrimary : colors.textMain },
-                    ]}>
+                    ]}
+                  >
                     {t.label}
                   </Text>
                 </Pressable>
@@ -308,29 +356,43 @@ export default function DirectoryScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}>
+            contentContainerStyle={styles.filterRow}
+          >
             <Pressable
               onPress={openFilter}
               style={[
                 styles.filterChip,
                 businessFilterCount > 0
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ? {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    }
                   : {
                       backgroundColor: colors.surfaceContainerLowest,
                       borderColor: colors.outlineVariant,
                     },
-              ]}>
+              ]}
+            >
               <Icon
                 name="tune"
                 size={16}
-                color={businessFilterCount > 0 ? colors.onPrimary : colors.textMain}
+                color={
+                  businessFilterCount > 0 ? colors.onPrimary : colors.textMain
+                }
               />
               <Text
                 style={[
                   styles.filterText,
-                  { color: businessFilterCount > 0 ? colors.onPrimary : colors.textMain },
-                ]}>
-                Filters{businessFilterCount > 0 ? ` (${businessFilterCount})` : ''}
+                  {
+                    color:
+                      businessFilterCount > 0
+                        ? colors.onPrimary
+                        : colors.textMain,
+                  },
+                ]}
+              >
+                Filters
+                {businessFilterCount > 0 ? ` (${businessFilterCount})` : ""}
               </Text>
             </Pressable>
             <Pressable
@@ -341,17 +403,22 @@ export default function DirectoryScreen() {
               style={[
                 styles.filterChip,
                 verifiedOnly
-                  ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                  ? {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    }
                   : {
                       backgroundColor: colors.surfaceContainerLowest,
                       borderColor: colors.outlineVariant,
                     },
-              ]}>
+              ]}
+            >
               <Text
                 style={[
                   styles.filterText,
                   { color: verifiedOnly ? colors.onPrimary : colors.textMain },
-                ]}>
+                ]}
+              >
                 Verified
               </Text>
               <Icon
@@ -360,18 +427,24 @@ export default function DirectoryScreen() {
                 color={verifiedOnly ? colors.onPrimary : colors.textMain}
               />
             </Pressable>
-            {city !== 'all' ? (
+            {city !== "all" ? (
               <Pressable
                 onPress={() => {
-                  setCity('all');
+                  setCity("all");
                   setVisibleCount(PAGE_SIZE);
                 }}
                 style={[
                   styles.filterChip,
-                  { backgroundColor: colors.primary, borderColor: colors.primary },
-                ]}>
+                  {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
                 <Icon name="location-on" size={16} color={colors.onPrimary} />
-                <Text style={[styles.filterText, { color: colors.onPrimary }]}>{city}</Text>
+                <Text style={[styles.filterText, { color: colors.onPrimary }]}>
+                  {city}
+                </Text>
                 <Icon name="close" size={14} color={colors.onPrimary} />
               </Pressable>
             ) : null}
@@ -381,7 +454,7 @@ export default function DirectoryScreen() {
         <View style={styles.grid}>
           {isLoading ? (
             <SkeletonList />
-          ) : tab === 'gems' ? (
+          ) : tab === "gems" ? (
             filteredGems.length ? (
               <>
                 <ProductGrid>
@@ -389,7 +462,9 @@ export default function DirectoryScreen() {
                     <ListingCard
                       key={gem.id}
                       listing={gem}
-                      onPress={() => router.push(`/listing/${gem.shareableSlug}`)}
+                      onPress={() =>
+                        router.push(`/listing/${gem.shareableSlug}`)
+                      }
                     />
                   ))}
                 </ProductGrid>
@@ -406,7 +481,9 @@ export default function DirectoryScreen() {
                 icon="diamond"
                 title="No gems match"
                 subtitle={
-                  gemType === 'all' ? 'Try a different search.' : 'Try clearing gem type filters.'
+                  gemType === "all"
+                    ? "Try a different search."
+                    : "Try clearing gem type filters."
                 }
               />
             )
@@ -418,7 +495,11 @@ export default function DirectoryScreen() {
                     key={b.id}
                     business={b}
                     roleLabel={
-                      tab === 'labs' ? 'Gem Lab' : tab === 'lapidaries' ? 'Lapidary' : 'Trader'
+                      tab === "labs"
+                        ? "Gem Lab"
+                        : tab === "lapidaries"
+                          ? "Lapidary"
+                          : "Trader"
                     }
                     onPress={() => router.push(`/business/${b.id}`)}
                   />
@@ -436,18 +517,18 @@ export default function DirectoryScreen() {
             <EmptyState
               icon="business"
               title={
-                tab === 'labs'
-                  ? 'No gem labs yet'
-                  : tab === 'lapidaries'
-                    ? 'No lapidaries yet'
-                    : 'No traders match'
+                tab === "labs"
+                  ? "No gem labs yet"
+                  : tab === "lapidaries"
+                    ? "No lapidaries yet"
+                    : "No traders match"
               }
               subtitle={
-                tab === 'labs'
-                  ? 'Verified gem labs will appear here.'
-                  : tab === 'lapidaries'
-                    ? 'Verified lapidaries will appear here.'
-                    : 'Try clearing filters or check back after verification.'
+                tab === "labs"
+                  ? "Verified gem labs will appear here."
+                  : tab === "lapidaries"
+                    ? "Verified lapidaries will appear here."
+                    : "Try clearing filters or check back after verification."
               }
             />
           )}
@@ -457,32 +538,41 @@ export default function DirectoryScreen() {
       <BottomSheet
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
-        title={tab === 'gems' ? 'Filter Gems' : 'Filter Directory'}
+        title={tab === "gems" ? "Filter Gems" : "Filter Directory"}
         footer={
           <>
-            <Button title="Apply Filters" icon="filter-list" onPress={applyFilter} />
+            <Button
+              title="Apply Filters"
+              icon="filter-list"
+              onPress={applyFilter}
+            />
             <Button
               title="Reset"
               variant="ghost"
               onPress={() => {
-                if (tab === 'gems') {
-                  setDraftGemType('all');
-                  setDraftGemSort('recent');
+                if (tab === "gems") {
+                  setDraftGemType("all");
+                  setDraftGemSort("recent");
                 } else {
-                  setDraftBusiness({ verified: 'all', city: 'all', sort: 'featured' });
+                  setDraftBusiness({
+                    verified: "all",
+                    city: "all",
+                    sort: "featured",
+                  });
                 }
               }}
             />
           </>
-        }>
-        {tab === 'gems' ? (
+        }
+      >
+        {tab === "gems" ? (
           <>
             <FilterChipGroup
               label="Gem Type"
               value={draftGemType}
               onChange={setDraftGemType}
               options={[
-                { id: 'all', label: 'All' },
+                { id: "all", label: "All" },
                 ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label })),
               ]}
             />
@@ -500,15 +590,18 @@ export default function DirectoryScreen() {
               value={draftBusiness.verified}
               onChange={(v) => setDraftBusiness((d) => ({ ...d, verified: v }))}
               options={[
-                { id: 'all', label: 'All' },
-                { id: 'verified', label: 'Verified only' },
+                { id: "all", label: "All" },
+                { id: "verified", label: "Verified only" },
               ]}
             />
             <FilterChipGroup
               label="Location"
               value={draftBusiness.city}
               onChange={(v) => setDraftBusiness((d) => ({ ...d, city: v }))}
-              options={cities.map((c) => ({ id: c, label: c === 'all' ? 'All cities' : c }))}
+              options={cities.map((c) => ({
+                id: c,
+                label: c === "all" ? "All cities" : c,
+              }))}
             />
             <FilterChipGroup
               label="Sort By"
@@ -525,35 +618,50 @@ export default function DirectoryScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, paddingBottom: 100, gap: Spacing.gutterMd },
+  content: {
+    padding: Spacing.containerMargin,
+    paddingBottom: 100,
+    gap: Spacing.gutterMd,
+  },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     borderRadius: Radius.full,
     paddingHorizontal: 16,
     height: 48,
   },
   searchInput: { flex: 1, ...Typography.bodyMd },
-  segment: {
-    flexDirection: 'row',
-    alignSelf: 'stretch',
+  segmentTrack: {
+    alignSelf: "stretch",
     borderRadius: Radius.full,
+    overflow: "hidden",
+  },
+  segment: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 4,
     gap: 4,
   },
-  segmentBtn: { flex: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full, alignItems: 'center' },
+  segmentBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+  },
   segmentText: { ...Typography.labelMd },
-  filterRow: { flexDirection: 'row', gap: Spacing.stackSm, paddingVertical: 4 },
+  filterRow: { flexDirection: "row", gap: Spacing.stackSm, paddingVertical: 4 },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: Radius.full,
     borderWidth: 1,
-    shadowColor: '#00162C',
+    shadowColor: "#00162C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 10,

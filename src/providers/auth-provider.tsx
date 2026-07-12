@@ -32,7 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (uid: string) => {
     const requestId = ++profileRequestRef.current;
     try {
-      const data = await getUserProfile(uid);
+      // Registration writes the Firestore user doc right after Auth create.
+      // Auth state can fire first — retry briefly before treating as orphan.
+      let data = await getUserProfile(uid);
+      if (!data) {
+        for (const delayMs of [250, 500, 1000]) {
+          if (requestId !== profileRequestRef.current) return;
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          data = await getUserProfile(uid);
+          if (data) break;
+        }
+      }
       if (requestId !== profileRequestRef.current) return;
 
       // Orphan Auth session (e.g. Firestore wiped): sign out so the app does

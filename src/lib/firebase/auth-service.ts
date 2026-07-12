@@ -31,22 +31,27 @@ export async function registerUser(input: {
     throw new Error('Select Trader, Lapidary, or Gem Lab to continue.');
   }
 
+  const auth = getFirebaseAuth();
   const credential = await createUserWithEmailAndPassword(
-    getFirebaseAuth(),
+    auth,
     input.email.trim(),
     input.password,
   );
-  await updateProfile(credential.user, { displayName: input.displayName.trim() });
+  const uid = credential.user.uid;
+  const displayName = input.displayName.trim();
 
+  // Write Firestore BEFORE Auth profile updates. AuthProvider loads the user
+  // doc on auth state change; if it's missing it signs out as an "orphan",
+  // which races updateProfile and causes auth/no-current-user.
   const profile: Omit<UserProfile, 'createdAt' | 'lastActiveAt' | 'updatedAt'> & {
     createdAt: ReturnType<typeof serverTimestamp>;
     lastActiveAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
   } = {
-    uid: credential.user.uid,
+    uid,
     email: input.email.trim().toLowerCase(),
     phone: normalizePhoneNumber(input.phone),
-    displayName: input.displayName.trim(),
+    displayName,
     role: input.role,
     roleIntent: input.role,
     verificationStatus: 'none',
@@ -64,7 +69,17 @@ export async function registerUser(input: {
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(doc(getFirebaseDb(), 'users', credential.user.uid), profile);
+  await setDoc(doc(getFirebaseDb(), 'users', uid), profile);
+
+  // Auth displayName is optional — Firestore is the source of truth.
+  const current = auth.currentUser;
+  if (current?.uid === uid) {
+    try {
+      await updateProfile(current, { displayName });
+    } catch {
+      // Non-fatal (e.g. brief session race); profile doc already has the name.
+    }
+  }
 
   return { user: credential.user, phone: normalizePhoneNumber(input.phone) };
 }

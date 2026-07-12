@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 /** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
-const BOOT_BG = '#1A3A5C';
+const BOOT_BG = '#001618';
 
 SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 400, fade: true });

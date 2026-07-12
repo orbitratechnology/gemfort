@@ -1,7 +1,7 @@
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,12 @@ export default function LabCertificatesScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const role = resolveProfileRole(profile);
-  const [showAdd, setShowAdd] = useState(false);
+  const { add } = useLocalSearchParams<{ add?: string }>();
+  const [showAdd, setShowAdd] = useState(add === '1');
+
+  useEffect(() => {
+    if (add === '1') setShowAdd(true);
+  }, [add]);
   const [certNumber, setCertNumber] = useState('');
   const [reportType, setReportType] = useState('full');
   const [file, setFile] = useState<LocalMedia | null>(null);
@@ -73,6 +78,7 @@ export default function LabCertificatesScreen() {
     gemId?: string | null;
     gemName?: string | null;
   }) {
+    Keyboard.dismiss();
     if (!user || !business) {
       toast.error('Create your business profile first.');
       return;

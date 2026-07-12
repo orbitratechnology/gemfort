@@ -38,7 +38,7 @@ export type WorkspaceModule =
   | 'requests';
 
 const MODULES_BY_ROLE: Record<Exclude<UserRole, 'admin'>, WorkspaceModule[]> = {
-  trader: ['gems', 'trips', 'ap', 'money', 'cheques', 'requests'],
+  trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'requests'],
   lapidary: ['services', 'jobs', 'money'],
   gem_lab: ['certificates', 'money'],
 };

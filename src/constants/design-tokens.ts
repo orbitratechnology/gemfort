@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 
 /** Shared brand & semantic action colors — same in light and dark */
 export const BrandPalette = {
-  primary: '#0c433c',
+  primary: '#0f766e',
   onPrimary: '#ffffff',
   primaryContainer: '#ccfbf1',
   onPrimaryContainer: '#134e4a',
@@ -24,12 +24,14 @@ export const BrandPalette = {
   onErrorContainer: '#93000a',
   successEmerald: '#15803d',
   warningAmber: '#D97706',
-  gemBlue: '#0f766e',
-  gemBlueDark: '#0b3d39',
+  gemBlue: '#14b8a6',
+  gemBlueDark: '#001618',
   gemGold: '#15803d',
   gemGoldSoft: '#dcfce7',
-  facetTeal: '#14b8a6',
+  facetTeal: '#2dd4bf',
   white: '#FFFFFF',
+  brandInk: '#001618',
+  brandTeal: '#14b8a6',
   verifiedGreen: '#2A7A4B',
   basicBlue: '#2563A8',
   pendingAmber: '#A66B12',

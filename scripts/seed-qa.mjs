@@ -7,6 +7,7 @@
  *   qa-trader@gemfort.test   — verified trader
  *   qa-lapidary@gemfort.test — verified lapidary
  *   qa-lab@gemfort.test      — verified gem lab
+ *   qa-suspended@gemfort.test — suspended lockout (AC-AUTH-003)
  */
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -295,7 +296,7 @@ async function main() {
       isNatural: true,
       treatmentStatus: 'untreated',
       treatmentDetails: null,
-      status: 'rough',
+      status: 'ready_for_sale',
       currentLocation: 'Vault',
       currentHolderContactId: null,
       totalCost: 150000,
@@ -320,7 +321,7 @@ async function main() {
       ownerUid: uids.trader,
       eventType: 'created',
       fromStatus: null,
-      toStatus: 'rough',
+      toStatus: 'ready_for_sale',
       weight: 3.2,
       note: 'Seeded for QA',
       photoUrl: null,
@@ -329,10 +330,135 @@ async function main() {
     { merge: true },
   );
 
+  // Trader contact + cheque + deep-link notification
+  await db.collection('gemtrack_contacts').doc('qa-trader-contact-1').set(
+    {
+      ownerUid: uids.trader,
+      displayName: 'QA Broker Ravi',
+      companyName: 'Ravi Gems',
+      phone: '+94771112233',
+      whatsapp: '+94771112233',
+      email: null,
+      contactTypes: ['broker', 'ap_holder', 'cutter'],
+      notes: 'Seeded contact for cheque/AP/cutting',
+      isFavourite: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
+
+  const maturity = Timestamp.fromMillis(now.toMillis() + 14 * 86400000);
+  await db.collection('gemtrack_cheques').doc('qa-cheque-1').set(
+    {
+      ownerUid: uids.trader,
+      direction: 'received',
+      chequeNumber: 'QA-CHQ-001',
+      bankName: 'Commercial Bank',
+      branch: 'Beruwala',
+      amount: 25000,
+      currency: 'LKR',
+      amountBase: 25000,
+      counterpartyContactId: 'qa-trader-contact-1',
+      issuedBy: 'QA Broker Ravi',
+      issueDate: now,
+      maturityDate: maturity,
+      depositedDate: null,
+      clearedDate: null,
+      status: 'holding',
+      bouncedReason: null,
+      replacementChequeId: null,
+      photoUrl: null,
+      gemId: null,
+      apRecordId: null,
+      tripId: null,
+      notes: 'Seeded cheque for QA',
+      createdAt: now,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
+
+  await db.collection('notifications').doc('qa-trader-notif-1').set(
+    {
+      recipientUid: uids.trader,
+      type: 'cheque_alert',
+      title: 'QA deep-link check',
+      message: 'Tap to open cheque QA-CHQ-001',
+      referenceType: 'cheque',
+      referenceId: 'qa-cheque-1',
+      isRead: false,
+      isPushSent: false,
+      createdAt: now,
+    },
+    { merge: true },
+  );
+
+  await db.collection('notifications').doc('welcome-trader').set(
+    {
+      recipientUid: uids.trader,
+      type: 'announcement_platform',
+      title: 'Welcome to GemFort QA',
+      message: 'Seeded announcement for dogfood. Find verified businesses in Directory.',
+      referenceType: 'announcement',
+      referenceId: 'welcome',
+      priority: 'low',
+      isRead: false,
+      isPushSent: false,
+      createdAt: now,
+    },
+    { merge: true },
+  );
+
+  // Suspended persona for AC-AUTH-003
+  let suspendedUid;
+  try {
+    const existing = await auth.getUserByEmail('qa-suspended@gemfort.test');
+    suspendedUid = existing.uid;
+    await auth.updateUser(suspendedUid, {
+      password: QA_PASSWORD,
+      displayName: 'QA Suspended User',
+      emailVerified: true,
+      disabled: false,
+    });
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') throw e;
+    suspendedUid = (
+      await auth.createUser({
+        email: 'qa-suspended@gemfort.test',
+        password: QA_PASSWORD,
+        displayName: 'QA Suspended User',
+        emailVerified: true,
+      })
+    ).uid;
+  }
+  await db
+    .collection('users')
+    .doc(suspendedUid)
+    .set(
+      {
+        uid: suspendedUid,
+        email: 'qa-suspended@gemfort.test',
+        displayName: 'QA Suspended User',
+        phone: '+94770000099',
+        role: 'trader',
+        roleIntent: 'trader',
+        verificationStatus: 'unverified',
+        isSuspended: true,
+        suspendedReason: 'QA lockout test',
+        suspendedAt: now,
+        createdAt: now,
+        lastActiveAt: now,
+        updatedAt: now,
+      },
+      { merge: true },
+    );
+  console.log(`OK suspended: qa-suspended@gemfort.test → ${suspendedUid}`);
+
   console.log('\nQA seed complete.');
   console.log('Password for all personas:', QA_PASSWORD);
   console.log('Public cert number: GF-2026-0001');
-  console.log(JSON.stringify(uids, null, 2));
+  console.log(JSON.stringify({ ...uids, suspended: suspendedUid }, null, 2));
 }
 
 main().catch((err) => {
