@@ -1,28 +1,48 @@
+import { Image } from 'expo-image';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-import { Palette, Radius, Typography } from '@/constants/design-tokens';
+import { Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type BrandMarkProps = {
   size?: 'sm' | 'md' | 'lg';
   showWordmark?: boolean;
+  /** Prefer mark-only in tight chrome; wordmark lockup uses logo.png */
+  variant?: 'mark' | 'lockup';
   style?: ViewStyle;
 };
 
-const sizes = { sm: 32, md: 44, lg: 56 } as const;
+const sizes = { sm: 32, md: 44, lg: 64 } as const;
 
-/** Geometric gem facet mark — brand logo without external assets */
-export function BrandMark({ size = 'md', showWordmark = false, style }: BrandMarkProps) {
+/** GemFort brand mark — faceted G from assets/images */
+export function BrandMark({
+  size = 'md',
+  showWordmark = false,
+  variant = 'mark',
+  style,
+}: BrandMarkProps) {
   const { colors } = useAppTheme();
   const dim = sizes[size];
 
-  return (
-    <View style={[styles.wrap, style]}>
-      <View style={[styles.mark, { width: dim, height: dim, borderRadius: dim * 0.22 }]}>
-        <View style={[styles.facetTop, { borderBottomColor: colors.accent }]} />
-        <View style={[styles.facetBottom, { backgroundColor: colors.primary }]} />
-        <View style={[styles.facetShine, { backgroundColor: colors.accentSoft }]} />
+  if (variant === 'lockup') {
+    return (
+      <View style={[styles.wrap, style]} accessibilityRole="image" accessibilityLabel="GemFort">
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={[styles.lockup, { height: dim * 1.15 }]}
+          contentFit="contain"
+        />
       </View>
+    );
+  }
+
+  return (
+    <View style={[styles.wrap, style]} accessibilityRole="image" accessibilityLabel="GemFort">
+      <Image
+        source={require('@/assets/images/icon-transparent.png')}
+        style={{ width: dim, height: dim }}
+        contentFit="contain"
+      />
       {showWordmark ? (
         <Text style={[styles.wordmark, { color: colors.text }]}>GemFort</Text>
       ) : null}
@@ -36,39 +56,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  mark: {
-    overflow: 'hidden',
-    backgroundColor: Palette.gemBlueDark,
-  },
-  facetTop: {
-    position: 'absolute',
-    top: 0,
-    left: '15%',
-    right: '15%',
-    height: '42%',
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 28,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    opacity: 0.95,
-  },
-  facetBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '58%',
-    opacity: 0.92,
-  },
-  facetShine: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    opacity: 0.7,
+  lockup: {
+    width: 220,
+    maxWidth: '100%',
   },
   wordmark: {
     ...Typography.h2,

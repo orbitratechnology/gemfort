@@ -22,6 +22,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   platforms: ['ios', 'android'],
   orientation: 'portrait',
   icon: './assets/images/icon.png',
+  primaryColor: '#14b8a6',
+  backgroundColor: '#001618',
   scheme: 'gemfort',
   userInterfaceStyle: 'automatic',
   buildCacheProvider: 'eas',
@@ -32,7 +34,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     policy: 'appVersion',
   },
   ios: {
-    icon: './assets/expo.icon',
+    // SDK 54+: Icon Composer .icon (Liquid Glass). Fallback PNGs kept for tooling.
+    icon: './assets/app-icon.icon',
     bundleIdentifier: bundleId,
     supportsTablet: false,
     infoPlist: {
@@ -49,11 +52,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: bundleId,
     adaptiveIcon: {
-      backgroundColor: '#1A3A5C',
+      // Brand plate #001618 — matches opaque icon / splash
+      backgroundColor: '#001618',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
+    // Pre-adaptive / Play listing fallback
+    icon: './assets/images/icon.png',
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ?? './google-services/google-services.json',
     intentFilters:
@@ -81,6 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
     '@react-native-vector-icons/material-icons',
+    '@react-native-vector-icons/fontawesome6',
     [
       'expo-build-properties',
       {
@@ -93,16 +100,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-splash-screen',
       {
-        backgroundColor: '#1A3A5C',
+        backgroundColor: '#001618',
         image: './assets/images/splash-icon.png',
-        imageWidth: 76,
+        imageWidth: 200,
+        resizeMode: 'contain',
+        dark: {
+          backgroundColor: '#001618',
+          image: './assets/images/splash-icon.png',
+        },
       },
     ],
     [
       'expo-notifications',
       {
-        icon: './assets/images/icon.png',
-        color: '#1A3A5C',
+        // Android status-bar small icon must be white alpha silhouette
+        icon: './assets/images/notification-icon.png',
+        color: '#14b8a6',
         defaultChannel: 'default',
       },
     ],

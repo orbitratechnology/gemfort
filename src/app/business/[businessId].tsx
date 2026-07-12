@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { FontAwesome6 } from '@react-native-vector-icons/fontawesome6/static';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -132,13 +133,13 @@ export default function BusinessProfileScreen() {
       },
     ];
     if (business.badges.isNgjaRegistered) {
-      items.push({ label: 'NGJA', value: 'Yes', icon: 'verified' });
+      items.push({ label: 'NGJA', value: 'Yes', icon: 'workspace-premium' });
     }
     if (isProvider) {
       items.push({
         label: 'Orders',
         value: business.providerProfile?.isAcceptingOrders ? 'Open' : 'Closed',
-        icon: 'inventory',
+        icon: business.providerProfile?.isAcceptingOrders ? 'lock-open' : 'lock',
       });
     } else if (business.sellerProfile?.priceRangeMin != null) {
       items.push({
@@ -225,49 +226,75 @@ export default function BusinessProfileScreen() {
                 contentFit="cover"
               />
             ) : (
-              <View style={[styles.cover, { backgroundColor: colors.primaryContainer }]} />
+              <View
+                style={[
+                  styles.cover,
+                  {
+                    backgroundColor: colors.primaryContainer,
+                  },
+                ]}>
+                <View style={styles.coverFallbackPattern}>
+                  <Icon name="diamond" size={48} color={colors.onPrimaryContainer + '33'} />
+                </View>
+              </View>
             )}
             <View style={styles.coverScrim} />
           </View>
 
-          <View style={styles.identity}>
-            <View
-              style={[
-                styles.logo,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.background,
-                },
-              ]}>
-              {business.logoUrl ? (
-                <Image source={{ uri: business.logoUrl }} style={styles.logoImg} contentFit="cover" />
-              ) : (
-                <Text style={[styles.logoInitials, { color: colors.primary }]}>
-                  {initials(business.businessName)}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.identityText}>
-              <View style={styles.nameRow}>
-                <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={2}>
-                  {business.businessName}
-                </Text>
-                {business.badges.isVerified ? (
-                  <Icon name="verified" size={20} color={colors.accent} />
-                ) : null}
+          <View style={styles.avatarRow}>
+            <View style={styles.logoWrap}>
+              <View
+                style={[
+                  styles.logo,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.background,
+                  },
+                ]}>
+                {business.logoUrl ? (
+                  <Image
+                    source={{ uri: business.logoUrl }}
+                    style={styles.logoImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={[styles.logoInitials, { color: colors.primary }]}>
+                    {initials(business.businessName)}
+                  </Text>
+                )}
               </View>
-              <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
-                {role}
-                {business.ownerName ? ` · ${business.ownerName}` : ''}
-              </Text>
+              {business.badges.isVerified ? (
+                <View
+                  style={[
+                    styles.verifiedBadge,
+                    {
+                      backgroundColor: colors.accent,
+                      borderColor: colors.background,
+                    },
+                  ]}
+                  accessibilityLabel="Verified business">
+                  <Icon name="verified" size={14} color={colors.onSecondary} />
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.identityBelow}>
+            <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={2}>
+              {business.businessName}
+            </Text>
+            <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
+              {role}
+              {business.ownerName ? ` · ${business.ownerName}` : ''}
+            </Text>
+            {locationLine ? (
               <View style={styles.locRow}>
                 <Icon name="location-on" size={14} color={colors.textMuted} />
                 <Text style={[styles.locText, { color: colors.textMuted }]} numberOfLines={1}>
                   {locationLine}
                 </Text>
               </View>
-            </View>
+            ) : null}
           </View>
         </View>
 
@@ -338,6 +365,7 @@ export default function BusinessProfileScreen() {
                     borderRightColor: colors.outlineVariant,
                   },
                 ]}>
+                <Icon name={stat.icon} size={18} color={colors.primary} />
                 <Text style={[styles.statValue, { color: colors.onSurface }]} numberOfLines={1}>
                   {stat.value}
                 </Text>
@@ -363,7 +391,7 @@ export default function BusinessProfileScreen() {
                   const wa = business.contacts?.whatsapp?.value;
                   if (wa) Linking.openURL(openWhatsApp(wa));
                 }}>
-                <Icon name="chat" size={18} color={BrandPalette.white} />
+                <FontAwesome6 name="whatsapp" iconStyle="brand" size={18} color={BrandPalette.white} />
                 <Text style={[styles.contactPrimaryText, { color: BrandPalette.white }]}>WhatsApp</Text>
               </Pressable>
             ) : null}
@@ -646,28 +674,36 @@ const styles = StyleSheet.create({
 
   hero: { marginBottom: 4 },
   coverWrap: {
-    height: 140,
+    height: 168,
     marginHorizontal: Spacing.containerMargin,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
   cover: { width: '100%', height: '100%' },
+  coverFallbackPattern: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   coverScrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(12, 67, 60, 0.18)',
+    backgroundColor: 'rgba(12, 67, 60, 0.14)',
   },
-  identity: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
+  avatarRow: {
     paddingHorizontal: Spacing.containerMargin,
-    marginTop: -28,
+    marginTop: -36,
+    zIndex: 2,
+  },
+  logoWrap: {
+    width: 80,
+    height: 80,
+    position: 'relative',
   },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 24,
     borderCurve: 'continuous',
     borderWidth: 3,
     overflow: 'hidden',
@@ -675,10 +711,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoImg: { width: '100%', height: '100%' },
-  logoInitials: { fontSize: 22, fontWeight: '700' },
-  identityText: { flex: 1, paddingBottom: 2, gap: 2 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { ...Typography.headlineSm, flexShrink: 1 },
+  logoInitials: { fontSize: 24, fontWeight: '700' },
+  verifiedBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  identityBelow: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackMd,
+    gap: 4,
+  },
+  name: { ...Typography.headlineMdMobile },
   roleLine: { ...Typography.bodyMd },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
   locText: { ...Typography.caption, flex: 1 },
@@ -711,7 +761,7 @@ const styles = StyleSheet.create({
   statCell: {
     flex: 1,
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
     paddingHorizontal: 4,
   },
   statValue: {

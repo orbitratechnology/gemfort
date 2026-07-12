@@ -5,10 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SignInPrompt } from '@/components/auth/sign-in-prompt';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography, type ThemeColors } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
 import { logoutUser } from '@/lib/firebase/auth-service';
 import type { ThemePreference } from '@/lib/theme-preference';
 import { useAuth } from '@/providers/auth-provider';
@@ -58,7 +56,6 @@ function Row({
 export default function ProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
-  const unread = useUnreadNotificationCount();
 
   useFocusEffect(
     useCallback(() => {
@@ -91,8 +88,6 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Profile" showBack={false} />
-
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Identity */}
         <View style={styles.identity}>
@@ -181,20 +176,6 @@ export default function ProfileScreen() {
         <View style={[styles.group, { backgroundColor: colors.surfaceContainerLowest }]}>
           <Row
             colors={colors}
-            icon="notifications-none"
-            label="Notifications"
-            onPress={() => router.push('/notifications')}
-            trailing={
-              unread > 0 ? (
-                <View style={[styles.countPill, { backgroundColor: colors.error }]}>
-                  <Text style={styles.countPillText}>{unread > 99 ? '99+' : unread}</Text>
-                </View>
-              ) : undefined
-            }
-          />
-          <Divider colors={colors} />
-          <Row
-            colors={colors}
             icon="help-outline"
             label="Help Center"
             onPress={() => Linking.openURL('mailto:support@gemfort.app')}
@@ -210,6 +191,8 @@ export default function ProfileScreen() {
 
         {/* Log out */}
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Log Out"
           onPress={() =>
             Alert.alert('Sign out?', 'You can sign back in anytime.', [
               { text: 'Cancel', style: 'cancel' },
@@ -279,8 +262,6 @@ const styles = StyleSheet.create({
   rowSub: { ...Typography.bodyMd, marginTop: 1 },
   trailingValue: { ...Typography.labelMd, fontWeight: '700' },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 64 },
-  countPill: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  countPillText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   segment: { flexDirection: 'row', borderRadius: Radius.full, padding: 4, gap: 4 },
   segmentBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: Radius.full },

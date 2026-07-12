@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
+import { ChequePreviewCard } from '@/components/workspace/cheque-preview-card';
 import { ContactPicker } from '@/components/workspace/contact-picker';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { createCheque, fetchContacts } from '@/features/workspace/workspace-service';
@@ -162,6 +163,16 @@ export default function AddChequeScreen() {
         <Text style={[styles.lead, { color: colors.textMuted }]}>
           Track post-dated cheques and maturity dates.
         </Text>
+
+        <ChequePreviewCard
+          direction={direction}
+          chequeNumber={chequeNumber}
+          bankName={bankName}
+          branch={branch}
+          amount={amount}
+          issuedBy={issuedBy || selectedContact?.displayName || ''}
+          maturityDateLabel={maturityPreview}
+        />
 
         <FormSection title="Direction">
           <ChipSelect

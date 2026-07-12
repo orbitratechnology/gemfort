@@ -19,6 +19,9 @@ export default function MarketplaceTabLayout() {
       <NativeTabs.Trigger name="home">
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+        {unread > 0 ? (
+          <NativeTabs.Trigger.Badge>{unread > 99 ? '99+' : String(unread)}</NativeTabs.Trigger.Badge>
+        ) : null}
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="directory">
@@ -43,9 +46,6 @@ export default function MarketplaceTabLayout() {
           md="person"
         />
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-        {unread > 0 ? (
-          <NativeTabs.Trigger.Badge>{unread > 99 ? '99+' : String(unread)}</NativeTabs.Trigger.Badge>
-        ) : null}
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SignInPrompt } from '@/components/auth/sign-in-prompt';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { getMonthTotals } from '@/features/workspace/money-utils';
@@ -151,7 +150,6 @@ export default function WorkspaceHub() {
   if (!profile) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-        <StackHeader title="Workspace" showBack={false} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
         </View>
@@ -269,7 +267,7 @@ export default function WorkspaceHub() {
           {
             label: 'Add certificate',
             icon: 'workspace-premium',
-            route: `${WORKSPACE}/certificates/add`,
+            route: `${WORKSPACE}/certificates?add=1`,
             primary: true,
           },
           { label: 'Requests', icon: 'inbox', route: `${WORKSPACE}/certificates` },
@@ -365,8 +363,6 @@ export default function WorkspaceHub() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Workspace" showBack={false} />
-
       <ThemedScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <Pressable
