@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
+import { type TextStyle, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
 

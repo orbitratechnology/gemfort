@@ -1,6 +1,9 @@
 /**
  * Pure auth helpers — mocked Firebase so Jest does not load native modules.
  */
+import { needsPhoneVerification } from '@/lib/firebase/auth-service';
+import type { UserProfile } from '@/types';
+
 jest.mock('@/lib/firebase/auth', () => ({
   createUserWithEmailAndPassword: jest.fn(),
   sendPasswordResetEmail: jest.fn(),
@@ -19,9 +22,6 @@ jest.mock('@/lib/firebase/db', () => ({
   updateDoc: jest.fn(),
   serverTimestamp: jest.fn(() => 'SERVER_TS'),
 }));
-
-import { needsPhoneVerification } from '@/lib/firebase/auth-service';
-import type { UserProfile } from '@/types';
 
 describe('needsPhoneVerification', () => {
   it('requires verification when phone present and not verified', () => {
