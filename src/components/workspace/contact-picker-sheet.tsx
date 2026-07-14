@@ -46,6 +46,11 @@ type ContactPickerSheetProps = {
   title?: string;
   typeFilter?: string | null;
   emptyHint?: string;
+  /** Allow picking a typed name when the buyer is not in contacts. */
+  allowCustomName?: boolean;
+  customName?: string;
+  onSelectCustomName?: (name: string) => void;
+  customNameLabel?: string;
 };
 
 type ProviderPickerSheetProps = {
@@ -212,23 +217,69 @@ export function ContactPickerSheet({
   title = 'Select contact',
   typeFilter = null,
   emptyHint = 'Add a contact in Workspace → Contacts first.',
+  allowCustomName = false,
+  customName = '',
+  onSelectCustomName,
+  customNameLabel = 'Use this name',
 }: ContactPickerSheetProps) {
+  const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
   const filtered = useMemo(
     () => filterContacts(contacts, query, typeFilter),
     [contacts, query, typeFilter],
   );
+  const trimmed = query.trim();
+  const canUseCustom = allowCustomName && !!onSelectCustomName && trimmed.length > 0;
+
+  function closeSheet() {
+    setQuery('');
+    onClose();
+  }
 
   return (
     <BottomSheet
       visible={visible}
-      onClose={() => {
-        setQuery('');
-        onClose();
-      }}
+      onClose={closeSheet}
       title={title}
       scrollable={false}>
-      <SearchBox value={query} onChange={setQuery} placeholder="Search name, phone…" />
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder={allowCustomName ? 'Search or type a name…' : 'Search name, phone…'}
+      />
+      {canUseCustom ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${customNameLabel}: ${trimmed}`}
+          onPress={() => {
+            onSelectCustomName(trimmed);
+            closeSheet();
+          }}
+          style={({ pressed }) => [
+            styles.customRow,
+            {
+              backgroundColor: colors.primaryContainer,
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}>
+          <View style={[styles.fieldIcon, { backgroundColor: colors.primary }]}>
+            <Icon name="person-add" size={18} color={colors.onPrimary} />
+          </View>
+          <View style={styles.fieldBody}>
+            <Text style={[styles.name, { color: colors.onPrimaryContainer }]} numberOfLines={1}>
+              {trimmed}
+            </Text>
+            <Text style={[styles.meta, { color: colors.onPrimaryContainer + 'AA' }]}>
+              {customNameLabel} · not in contacts
+            </Text>
+          </View>
+          {customName.trim().toLowerCase() === trimmed.toLowerCase() ? (
+            <Icon name="check-circle" size={22} color={colors.primary} />
+          ) : (
+            <Icon name="arrow-forward" size={20} color={colors.onPrimaryContainer} />
+          )}
+        </Pressable>
+      ) : null}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
@@ -240,7 +291,15 @@ export function ContactPickerSheet({
           <EmptyState
             icon="person-search"
             title={contacts.length === 0 ? 'No contacts' : 'No matches'}
-            subtitle={contacts.length === 0 ? emptyHint : 'Try a different search.'}
+            subtitle={
+              allowCustomName
+                ? contacts.length === 0
+                  ? 'Type a name above, then tap to use it.'
+                  : 'Try another search, or use the typed name above.'
+                : contacts.length === 0
+                  ? emptyHint
+                  : 'Try a different search.'
+            }
           />
         }
         renderItem={({ item }) => (
@@ -249,8 +308,7 @@ export function ContactPickerSheet({
             selected={value === item.id}
             onPress={() => {
               onSelect(item);
-              setQuery('');
-              onClose();
+              closeSheet();
             }}
           />
         )}
@@ -495,6 +553,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.stackMd,
   },
   searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
+  customRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.stackMd,
+    minHeight: 56,
+  },
   tabs: {
     flexDirection: 'row',
     borderRadius: Radius.full,

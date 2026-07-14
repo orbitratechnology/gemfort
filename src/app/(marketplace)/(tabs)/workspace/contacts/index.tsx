@@ -1,16 +1,16 @@
-import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  FlatList,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    FlatList,
+    Linking,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,7 +36,11 @@ export default function ContactsListScreen() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  const { data: contacts = [], refetch, isRefetching } = useQuery({
+  const {
+    data: contacts = [],
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
     enabled: !!user,
@@ -51,7 +55,11 @@ export default function ContactsListScreen() {
     const now = new Date();
     return contacts.filter((c) => {
       const d = c.createdAt?.toDate?.();
-      return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return (
+        d &&
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
     }).length;
   }, [contacts]);
 
@@ -59,12 +67,18 @@ export default function ContactsListScreen() {
     if (/buyer|client/i.test(type))
       return { bg: colors.secondaryContainer, fg: colors.onSecondaryContainer };
     if (/broker|supplier|seller/i.test(type))
-      return { bg: colors.surfaceContainerHighest, fg: colors.onSurfaceVariant };
+      return {
+        bg: colors.surfaceContainerHighest,
+        fg: colors.onSurfaceVariant,
+      };
     return { bg: colors.primaryMuted, fg: colors.primary };
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title="Contacts" />
 
       <FlatList
@@ -72,23 +86,39 @@ export default function ContactsListScreen() {
         keyExtractor={(c) => c.id}
         onRefresh={refetch}
         refreshing={isRefetching}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-              Manage brokers, buyers, and partners — including people from your phone.
-            </Text>
-
             <View style={styles.statRow}>
-              <View style={[styles.statCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>ACTIVE NETWORK</Text>
-                <Text style={[styles.statValue, { color: colors.primary }]}>{contacts.length}</Text>
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
+                  ACTIVE NETWORK
+                </Text>
+                <Text style={[styles.statValue, { color: colors.primary }]}>
+                  {contacts.length}
+                </Text>
               </View>
-              <View style={[styles.statCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>NEW THIS MONTH</Text>
-                <Text style={[styles.statValue, { color: colors.accent }]}>+{newThisMonth}</Text>
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
+                  NEW THIS MONTH
+                </Text>
+                <Text style={[styles.statValue, { color: colors.accent }]}>
+                  +{newThisMonth}
+                </Text>
               </View>
             </View>
 
@@ -103,20 +133,41 @@ export default function ContactsListScreen() {
                   borderColor: colors.outlineVariant,
                   opacity: pressed ? 0.9 : 1,
                 },
-              ]}>
-              <View style={[styles.importIcon, { backgroundColor: colors.primaryContainer }]}>
-                <Icon name="contacts" size={20} color={colors.onPrimaryContainer} />
+              ]}
+            >
+              <View
+                style={[
+                  styles.importIcon,
+                  { backgroundColor: colors.primaryContainer },
+                ]}
+              >
+                <Icon
+                  name="contacts"
+                  size={20}
+                  color={colors.onPrimaryContainer}
+                />
               </View>
               <View style={styles.importBody}>
-                <Text style={[styles.importTitle, { color: colors.onSurface }]}>Import from phone</Text>
+                <Text style={[styles.importTitle, { color: colors.onSurface }]}>
+                  Import from phone
+                </Text>
                 <Text style={[styles.importSub, { color: colors.textMuted }]}>
                   Sync names, numbers, and contact photos
                 </Text>
               </View>
-              <Icon name="chevron-right" size={22} color={colors.onSurfaceVariant} />
+              <Icon
+                name="chevron-right"
+                size={22}
+                color={colors.onSurfaceVariant}
+              />
             </Pressable>
 
-            <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+            <View
+              style={[
+                styles.searchBox,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
               <Icon name="search" size={22} color={colors.outline} />
               <TextInput
                 style={[styles.searchInput, { color: colors.onSurface }]}
@@ -127,7 +178,11 @@ export default function ContactsListScreen() {
               />
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
               <Pressable
                 onPress={() => setTypeFilter(null)}
                 style={[
@@ -135,12 +190,19 @@ export default function ContactsListScreen() {
                   typeFilter === null
                     ? { backgroundColor: colors.primary }
                     : { backgroundColor: colors.surfaceContainerHighest },
-                ]}>
+                ]}
+              >
                 <Text
                   style={[
                     styles.chipText,
-                    { color: typeFilter === null ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}>
+                    {
+                      color:
+                        typeFilter === null
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
                   All
                 </Text>
               </Pressable>
@@ -155,12 +217,18 @@ export default function ContactsListScreen() {
                       active
                         ? { backgroundColor: colors.primary }
                         : { backgroundColor: colors.surfaceContainerHighest },
-                    ]}>
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.chipText,
-                        { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                      ]}>
+                        {
+                          color: active
+                            ? colors.onPrimary
+                            : colors.onSurfaceVariant,
+                        },
+                      ]}
+                    >
                       {type}
                     </Text>
                   </Pressable>
@@ -185,35 +253,67 @@ export default function ContactsListScreen() {
           const meta = typeMeta(primaryType);
           return (
             <Pressable
-              style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}
-              onPress={() => router.push(`/(marketplace)/(tabs)/workspace/contacts/${item.id}`)}>
-              <ContactAvatar name={item.displayName} photoUrl={item.photoUrl} size={48} />
+              style={[
+                styles.card,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}
+              onPress={() =>
+                router.push(
+                  `/(marketplace)/(tabs)/workspace/contacts/${item.id}`,
+                )
+              }
+            >
+              <ContactAvatar
+                name={item.displayName}
+                photoUrl={item.photoUrl}
+                size={48}
+              />
               <View style={styles.cardBody}>
                 <View style={styles.cardNameRow}>
-                  <Text style={[styles.cardName, { color: colors.primary }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.cardName, { color: colors.primary }]}
+                    numberOfLines={1}
+                  >
                     {item.displayName}
                   </Text>
-                  <View style={[styles.typeBadge, { backgroundColor: meta.bg }]}>
-                    <Text style={[styles.typeBadgeText, { color: meta.fg }]}>{primaryType}</Text>
+                  <View
+                    style={[styles.typeBadge, { backgroundColor: meta.bg }]}
+                  >
+                    <Text style={[styles.typeBadgeText, { color: meta.fg }]}>
+                      {primaryType}
+                    </Text>
                   </View>
                 </View>
                 {item.companyName ? (
-                  <Text style={[styles.cardCompany, { color: colors.textMuted }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.cardCompany, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
                     {item.companyName}
                   </Text>
                 ) : null}
               </View>
               <View style={styles.cardActions}>
                 {item.phone ? (
-                  <Pressable onPress={() => Linking.openURL(openPhone(item.phone!))} style={styles.actionBtn}>
+                  <Pressable
+                    onPress={() => Linking.openURL(openPhone(item.phone!))}
+                    style={styles.actionBtn}
+                  >
                     <Icon name="call" size={20} color={colors.primary} />
                   </Pressable>
                 ) : null}
                 {item.whatsapp ? (
                   <Pressable
-                    onPress={() => Linking.openURL(openWhatsApp(item.whatsapp!))}
-                    style={styles.actionBtn}>
-                    <Icon name="chat-bubble-outline" size={20} color={colors.primary} />
+                    onPress={() =>
+                      Linking.openURL(openWhatsApp(item.whatsapp!))
+                    }
+                    style={styles.actionBtn}
+                  >
+                    <Icon
+                      name="chat-bubble-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
                   </Pressable>
                 ) : null}
               </View>
@@ -224,7 +324,10 @@ export default function ContactsListScreen() {
 
       <Pressable
         style={[styles.fab, { backgroundColor: colors.accent }]}
-        onPress={() => router.push("/(marketplace)/(tabs)/workspace/contacts/add")}>
+        onPress={() =>
+          router.push("/(marketplace)/(tabs)/workspace/contacts/add")
+        }
+      >
         <Icon name="person-add" size={26} color={colors.onSecondary} />
       </Pressable>
 
@@ -245,7 +348,11 @@ export default function ContactsListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, paddingBottom: 100, gap: Spacing.stackMd },
+  content: {
+    padding: Spacing.containerMargin,
+    paddingBottom: 100,
+    gap: Spacing.stackMd,
+  },
   listHeader: { gap: Spacing.gutterMd, marginBottom: Spacing.stackSm },
   subtitle: { ...Typography.bodyMd },
   statRow: { flexDirection: "row", gap: Spacing.gutterMd },
@@ -255,7 +362,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderCurve: "continuous",
   },
-  statLabel: { ...Typography.labelMd, textTransform: "uppercase", marginBottom: 6 },
+  statLabel: {
+    ...Typography.labelMd,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
   statValue: { ...Typography.displayLg, fontSize: 26 },
   importBtn: {
     flexDirection: "row",
@@ -287,7 +398,11 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, ...Typography.bodyMd },
   filterRow: { flexDirection: "row", gap: Spacing.stackSm, paddingVertical: 2 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.full },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+  },
   chipText: { ...Typography.labelMd, textTransform: "capitalize" },
   card: {
     flexDirection: "row",
@@ -301,7 +416,11 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1, minWidth: 0 },
   cardNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
-  typeBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.sm },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
   typeBadgeText: {
     fontSize: 10,
     fontWeight: "700",

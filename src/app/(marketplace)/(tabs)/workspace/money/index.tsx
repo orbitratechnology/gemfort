@@ -96,17 +96,7 @@ export default function MoneyDashboard() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader
-        title="Money"
-        right={
-          <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money/record-sale` as never)}
-            hitSlop={8}
-            style={[styles.headerAdd, { backgroundColor: colors.primary + '14' }]}>
-            <Icon name="add" size={22} color={colors.primary} />
-          </Pressable>
-        }
-      />
+      <StackHeader title="Money" />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
@@ -389,6 +379,18 @@ export default function MoneyDashboard() {
           )}
         </View>
       </ThemedScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Record a sale"
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push(`${WORKSPACE}/money/record-sale` as never)}>
+        <Icon name="add" size={28} color={colors.onPrimary} />
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -401,7 +403,18 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
     gap: Spacing.gutterMd,
   },
-  headerAdd: { width: 36, height: 36, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 8px 20px rgba(15, 118, 110, 0.28)',
+    zIndex: 100,
+  },
 
   segment: { flexDirection: 'row', padding: 4, borderRadius: Radius.full, gap: 4 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.full, alignItems: 'center' },

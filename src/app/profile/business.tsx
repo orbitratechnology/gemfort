@@ -1,96 +1,103 @@
-import { Redirect, router } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Image } from "expo-image";
+import { Redirect, router } from "expo-router";
+import { useMemo, useState, type ReactNode } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
-import { StackHeader } from '@/components/ui/stack-header';
-import { Radius, Spacing, Typography, type ThemeColors } from '@/constants/design-tokens';
+import { WebsiteFaviconPreview } from "@/components/marketplace/business-social-links";
+import { Button } from "@/components/ui/button";
+import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { StackHeader } from "@/components/ui/stack-header";
 import {
-  accountTypeLabelFromRegistration,
-  businessTypeFromRegistration,
-  createBusinessProfile,
-  fetchBusinessByOwnerUid,
-  updateBusinessProfile,
-} from '@/features/marketplace/marketplace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { friendlyError } from '@/lib/errors';
-import type { AuthUser } from '@/lib/firebase/auth-types';
-import { useAuth } from '@/providers/auth-provider';
-import { useToast } from '@/providers/toast-provider';
-import type { Business, UserProfile } from '@/types';
+    Palette,
+    Radius,
+    Spacing,
+    Typography,
+    type ThemeColors,
+} from "@/constants/design-tokens";
+import { websiteHostname } from "@/features/marketplace/business-links";
+import {
+    accountTypeLabelFromRegistration,
+    businessTypeFromRegistration,
+    createBusinessProfile,
+    fetchBusinessByOwnerUid,
+    isBusinessVerified,
+    syncBusinessVerificationFromProfile,
+    updateBusinessProfile,
+} from "@/features/marketplace/marketplace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
+import type { AuthUser } from "@/lib/firebase/auth-types";
+import {
+    extensionForMedia,
+    pickLocalMedia,
+    uploadLocalMedia,
+    type LocalMedia,
+} from "@/lib/firebase/storage-service";
+import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
+import type { Business, UserProfile } from "@/types";
+
+const BANNER_H = COVER_BANNER_HEIGHT;
+const AVATAR = 96;
+const AVATAR_OVERLAP = 48;
 
 function initials(name: string) {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
-
-function SectionCard({
-  title,
-  subtitle,
-  children,
-  colors,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  colors: ThemeColors;
-}) {
   return (
-    <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-      <View style={styles.cardHeader}>
-        <Text style={[styles.cardTitle, { color: colors.primary }]}>{title}</Text>
-        {subtitle ? (
-          <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-        ) : null}
-      </View>
-      {children}
-    </View>
+    name
+      .split(" ")
+      .map((n) => n[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?"
   );
 }
 
-function StatusPill({
-  label,
-  tone,
+function SectionLabel({
+  title,
   colors,
 }: {
-  label: string;
-  tone: 'verified' | 'pending' | 'none';
+  title: string;
   colors: ThemeColors;
 }) {
-  const bg =
-    tone === 'verified'
-      ? colors.secondaryContainer
-      : tone === 'pending'
-        ? colors.surfaceContainerHighest
-        : colors.surfaceContainerHigh;
-  const fg =
-    tone === 'verified'
-      ? colors.onSecondaryContainer
-      : tone === 'pending'
-        ? colors.warningAmber
-        : colors.onSurfaceVariant;
-
   return (
-    <View style={[styles.statusPill, { backgroundColor: bg }]}>
-      {tone === 'verified' ? <Icon name="verified" size={14} color={fg} /> : null}
-      <Text style={[styles.statusPillText, { color: fg }]}>{label}</Text>
+    <Text
+      style={[styles.sectionLabel, { color: colors.textMuted }]}
+      accessibilityRole="header"
+    >
+      {title}
+    </Text>
+  );
+}
+
+/** Full-bleed group — Instagram-like form block. */
+function SectionGroup({
+  children,
+  colors,
+}: {
+  children: ReactNode;
+  colors: ThemeColors;
+}) {
+  return (
+    <View
+      style={[
+        styles.sectionGroup,
+        { backgroundColor: colors.surfaceContainerLowest },
+      ]}
+    >
+      {children}
     </View>
   );
 }
@@ -105,54 +112,96 @@ type FormProps = {
 function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [businessName, setBusinessName] = useState(business?.businessName ?? '');
-  const [shortDescription, setShortDescription] = useState(business?.shortDescription ?? '');
-  const [city, setCity] = useState(business?.city ?? 'Beruwala');
-  const [address, setAddress] = useState(business?.address ?? '');
-  const [whatsapp, setWhatsapp] = useState(business?.contacts?.whatsapp?.value ?? '');
-  const [phone, setPhone] = useState(business?.contacts?.phone?.value ?? '');
-  const [whatsappVisible, setWhatsappVisible] = useState(business?.contacts?.whatsapp?.isVisible ?? true);
-  const [phoneVisible, setPhoneVisible] = useState(business?.contacts?.phone?.isVisible ?? true);
+
+  const [businessName, setBusinessName] = useState(
+    business?.businessName ?? "",
+  );
+  const [shortDescription, setShortDescription] = useState(
+    business?.shortDescription ?? "",
+  );
+  const [city, setCity] = useState(business?.city ?? "Beruwala");
+  const [address, setAddress] = useState(business?.address ?? "");
+  const [whatsapp, setWhatsapp] = useState(
+    business?.contacts?.whatsapp?.value ?? "",
+  );
+  const [phone, setPhone] = useState(business?.contacts?.phone?.value ?? "");
+  const [website, setWebsite] = useState(business?.socialLinks?.website ?? "");
+  const [instagram, setInstagram] = useState(
+    business?.socialLinks?.instagram ?? "",
+  );
+  const [tiktok, setTiktok] = useState(business?.socialLinks?.tiktok ?? "");
+  const [facebook, setFacebook] = useState(
+    business?.socialLinks?.facebook ?? "",
+  );
+  const [wechat, setWechat] = useState(business?.socialLinks?.wechat ?? "");
+  const [coverUri, setCoverUri] = useState<string | null>(
+    business?.coverPhotoUrl ?? null,
+  );
+  const [logoUri, setLogoUri] = useState<string | null>(
+    business?.logoUrl ?? null,
+  );
+  const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
+  const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
 
   const accountTypeLabel = accountTypeLabelFromRegistration(profile);
   const derivedBusinessType = businessTypeFromRegistration(profile);
-  const isVerified = business?.verificationStatus === 'verified';
-  const isPending = business?.verificationStatus === 'pending';
-
-  const previewName = businessName.trim() || 'Your Business';
-  const previewCity = city.trim() || 'Sri Lanka';
-
-  const statusTone = isVerified ? 'verified' : isPending ? 'pending' : 'none';
-  const statusLabel = isVerified
-    ? 'Verified in Directory'
-    : isPending
-      ? 'Verification pending'
-      : business
-        ? 'Not yet verified'
-        : 'Profile not created';
-
-  const tierLabel =
-    business?.verificationTier === 'full'
-      ? 'Gold Merchant'
-      : business?.verificationTier === 'basic'
-        ? 'Verified Merchant'
-        : 'Member';
-
-  const memberSince = business?.createdAt?.toDate?.().getFullYear();
+  const isVerified =
+    isBusinessVerified(business) || profile?.verificationStatus === "verified";
+  const websiteHost = websiteHostname(website);
+  const displayName = businessName.trim() || "Your Business";
 
   const canSave =
     businessName.trim().length > 0 &&
     city.trim().length > 0 &&
     (!!business || !!derivedBusinessType);
 
+  async function pickCover() {
+    try {
+      const media = await pickLocalMedia({ allows: "images" });
+      if (!media) return;
+      setCoverLocal(media);
+      setCoverUri(media.uri);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not pick cover photo."));
+    }
+  }
+
+  async function pickLogo() {
+    try {
+      const media = await pickLocalMedia({ allows: "images" });
+      if (!media) return;
+      setLogoLocal(media);
+      setLogoUri(media.uri);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not pick profile photo."));
+    }
+  }
+
   async function handleSave() {
     if (!canSave) {
-      toast.error('Business name and city are required.');
+      toast.error("Business name and city are required.");
       return;
     }
     setLoading(true);
     try {
+      const socialLinks = { website, instagram, tiktok, facebook, wechat };
+      let nextLogo = logoUri;
+      let nextCover = coverUri;
+
+      if (logoLocal) {
+        nextLogo = await uploadLocalMedia(
+          logoLocal,
+          `businesses/${user.uid}/logo.${extensionForMedia(logoLocal)}`,
+        );
+      }
+      if (coverLocal) {
+        nextCover = await uploadLocalMedia(
+          coverLocal,
+          `businesses/${user.uid}/cover.${extensionForMedia(coverLocal)}`,
+        );
+      }
+
       if (business) {
         await updateBusinessProfile(business.id, {
           businessName,
@@ -161,27 +210,52 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           address,
           whatsapp,
           phone,
-          whatsappVisible: whatsappVisible && !!whatsapp.trim(),
-          phoneVisible: phoneVisible && !!phone.trim(),
+          socialLinks,
+          logoUrl: nextLogo,
+          coverPhotoUrl: nextCover,
         });
       } else {
         if (!derivedBusinessType) {
-          toast.error('Create a business profile after registering as Trader, Lapidary, or Gem Lab.');
+          toast.error(
+            "Create a business profile after registering as Trader, Lapidary, or Gem Lab.",
+          );
           return;
         }
-        await createBusinessProfile(user.uid, profile?.displayName ?? 'Owner', {
-          businessName,
-          businessType: derivedBusinessType,
-          city,
-          shortDescription: shortDescription || 'Gem business in Beruwala.',
-          whatsapp: whatsapp || profile?.phone || undefined,
-          phone: phone || profile?.phone || undefined,
+        const id = await createBusinessProfile(
+          user.uid,
+          profile?.displayName ?? "Owner",
+          {
+            businessName,
+            businessType: derivedBusinessType,
+            city,
+            address,
+            shortDescription: shortDescription || "Gem business in Beruwala.",
+            whatsapp: whatsapp || profile?.phone || undefined,
+            phone: phone || profile?.phone || undefined,
+            socialLinks,
+          },
+        );
+        if (nextLogo || nextCover) {
+          await updateBusinessProfile(id, {
+            logoUrl: nextLogo,
+            coverPhotoUrl: nextCover,
+          });
+        }
+      }
+
+      setCoverLocal(null);
+      setLogoLocal(null);
+      await queryClient.invalidateQueries({ queryKey: ["my-business"] });
+      if (business) {
+        await queryClient.invalidateQueries({
+          queryKey: ["business", business.id],
         });
       }
-      await queryClient.invalidateQueries({ queryKey: ['my-business'] });
-      toast.success(business ? 'Business profile updated.' : 'Business profile created.');
+      toast.success(
+        business ? "Business profile updated." : "Business profile created.",
+      );
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not save.'));
+      toast.error(friendlyError(e, "Could not save."));
     } finally {
       setLoading(false);
     }
@@ -189,174 +263,252 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   return (
     <>
-      {/* Live preview */}
-      <View style={[styles.previewCard, { backgroundColor: colors.primary }]}>
-        <View style={styles.previewGlow} />
-        <View style={styles.previewRow}>
-          <View style={[styles.previewLogo, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.previewInitials, { color: colors.primary }]}>
-              {initials(previewName)}
-            </Text>
-          </View>
-          <View style={styles.previewText}>
-            <Text style={[styles.previewName, { color: colors.onPrimary }]} numberOfLines={1}>
-              {previewName}
-            </Text>
-            <View style={styles.previewLocRow}>
-              <Icon name="location-on" size={14} color={colors.onPrimary + 'CC'} />
-              <Text style={[styles.previewLoc, { color: colors.onPrimary + 'CC' }]} numberOfLines={1}>
-                {previewCity}, Sri Lanka
-              </Text>
+      {/* Edge-to-edge banner + centered avatar (Instagram edit profile) */}
+      <View style={styles.hero}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change cover photo"
+          onPress={() => void pickCover()}
+          style={({ pressed }) => pressed && { opacity: 0.92 }}
+        >
+          <CoverBanner uri={coverUri} height={BANNER_H}>
+            <View
+              style={[
+                styles.bannerEdit,
+                { backgroundColor: "rgba(0,0,0,0.55)" },
+              ]}
+            >
+              <Icon name="photo-camera" size={16} color="#FFFFFF" />
+              <Text style={styles.bannerEditText}>Edit cover</Text>
             </View>
-          </View>
-          <StatusPill label={statusLabel} tone={statusTone} colors={colors} />
-        </View>
-        {shortDescription.trim() ? (
-          <Text style={[styles.previewDesc, { color: colors.onPrimary + 'B3' }]} numberOfLines={2}>
-            {shortDescription.trim()}
+          </CoverBanner>
+        </Pressable>
+
+        <View style={styles.avatarBlock}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+            onPress={() => void pickLogo()}
+            style={({ pressed }) => [
+              styles.avatarPress,
+              pressed && { opacity: 0.92 },
+            ]}
+          >
+            <View
+              style={[
+                styles.avatarRing,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderColor: colors.background,
+                },
+              ]}
+            >
+              {logoUri ? (
+                <Image
+                  source={{ uri: logoUri }}
+                  style={styles.avatarImg}
+                  contentFit="cover"
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    { backgroundColor: colors.primaryMuted },
+                  ]}
+                >
+                  <Text
+                    style={[styles.avatarInitials, { color: colors.primary }]}
+                  >
+                    {initials(displayName)}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {isVerified ? (
+              <View
+                style={[
+                  styles.verifiedBadge,
+                  {
+                    backgroundColor: colors.accent,
+                    borderColor: colors.background,
+                  },
+                ]}
+              >
+                <Icon name="verified" size={16} color={colors.onSecondary} />
+              </View>
+            ) : null}
+            <View
+              style={[styles.avatarCam, { backgroundColor: colors.primary }]}
+            >
+              <Icon name="photo-camera" size={14} color={colors.onPrimary} />
+            </View>
+          </Pressable>
+
+          <Text
+            style={[styles.heroName, { color: colors.onSurface }]}
+            numberOfLines={2}
+          >
+            {displayName}
           </Text>
-        ) : null}
+          <Text style={[styles.heroMeta, { color: colors.textMuted }]}>
+            {accountTypeLabel}
+            {isVerified ? " · Verified" : ""}
+          </Text>
+        </View>
       </View>
 
-      {/* Merchant status (edit only) */}
-      {business ? (
-        <View style={[styles.statusCard, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.statusHeading, { color: colors.onPrimary + '99' }]}>MERCHANT STATUS</Text>
-          <View style={styles.statusRow}>
-            <Text style={[styles.statusLabel, { color: colors.onPrimary + 'AA' }]}>Member since</Text>
-            <Text style={[styles.statusValue, { color: colors.onPrimary }]} selectable>
-              {memberSince ?? '—'}
-            </Text>
-          </View>
-          <View style={styles.statusRow}>
-            <Text style={[styles.statusLabel, { color: colors.onPrimary + 'AA' }]}>Tier</Text>
-            <Text style={[styles.statusValueAccent, { color: colors.accent }]}>{tierLabel}</Text>
-          </View>
-          <View style={[styles.statusRow, styles.statusRowLast]}>
-            <Text style={[styles.statusLabel, { color: colors.onPrimary + 'AA' }]}>Directory</Text>
-            <Text style={[styles.statusValue, { color: colors.onPrimary }]}>
-              {isVerified ? 'Live & searchable' : 'Hidden until verified'}
-            </Text>
-          </View>
-        </View>
-      ) : (
-        <View style={[styles.hintCard, { backgroundColor: colors.surfaceContainerLow }]}>
-          <Icon name="info-outline" size={20} color={colors.primary} />
-          <Text style={[styles.hintText, { color: colors.onSurfaceVariant }]}>
-            Create your business profile before publishing. Directory visitors find you after verification.
-          </Text>
-        </View>
-      )}
-
-      {/* Account type from registration — not editable here */}
-      <SectionCard
-        title="Account type"
-        subtitle="Set when you registered — contact support to change"
-        colors={colors}>
-        <View
-          style={[
-            styles.accountTypeRow,
-            { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.outlineVariant },
-          ]}>
-          <Icon
-            name={derivedBusinessType === 'lapidary' ? 'build' : derivedBusinessType === 'gem_lab' ? 'workspace-premium' : 'diamond'}
-            size={20}
-            color={colors.primary}
-          />
-          <View style={styles.accountTypeText}>
-            <Text style={[styles.accountTypeLabel, { color: colors.onSurface }]}>{accountTypeLabel}</Text>
-            <Text style={[styles.accountTypeSub, { color: colors.textMuted }]}>
-              {derivedBusinessType
-                ? 'Used for your directory listing and business profile'
-                : 'Choose Trader, Lapidary, or Gem Lab at registration'}
-            </Text>
-          </View>
-        </View>
-      </SectionCard>
-
-      {/* Identity */}
-      <SectionCard title="Identity" subtitle="How buyers recognize you" colors={colors}>
-        <View style={styles.fieldStack}>
-          <Input label="Business name" value={businessName} onChangeText={setBusinessName} placeholder="e.g. Celestial Sapphires" leftIcon="business" />
-        </View>
-      </SectionCard>
-
-      {/* Location */}
-      <SectionCard title="Location" subtitle="Where you operate from" colors={colors}>
-        <View style={styles.fieldStack}>
-          <Input label="City" value={city} onChangeText={setCity} placeholder="Beruwala" leftIcon="place" />
-          <Input label="Address" value={address} onChangeText={setAddress} placeholder="Street, building, area" leftIcon="home" />
-        </View>
-      </SectionCard>
-
-      {/* About */}
-      <SectionCard title="About" subtitle="Tell buyers what makes you unique" colors={colors}>
+      <SectionLabel title="IDENTITY" colors={colors} />
+      <SectionGroup colors={colors}>
         <Input
-          label="Short description"
+          label="Business name"
+          value={businessName}
+          onChangeText={setBusinessName}
+          placeholder="e.g. Celestial Sapphires"
+          leftIcon="business"
+        />
+        <Input
+          label="Bio"
           value={shortDescription}
           onChangeText={setShortDescription}
-          placeholder="Specializing in Ceylon sapphires, ethically sourced from Ratnapura…"
+          placeholder="Tell buyers what you specialize in…"
           multiline
           style={styles.textArea}
           leftIcon="notes"
         />
-      </SectionCard>
+      </SectionGroup>
 
-      {/* Contact */}
-      <SectionCard title="Contact" subtitle="How buyers reach you" colors={colors}>
-        <View style={styles.fieldStack}>
-          <Input
-            label="WhatsApp"
-            value={whatsapp}
-            onChangeText={setWhatsapp}
-            keyboardType="phone-pad"
-            placeholder="+94 77X XXX XXXX"
-            leftIcon="chat"
-          />
-          {business ? (
-            <View style={styles.toggleRow}>
-              <View style={styles.toggleText}>
-                <Text style={[styles.toggleLabel, { color: colors.onSurface }]}>Show WhatsApp</Text>
-                <Text style={[styles.toggleSub, { color: colors.textMuted }]}>Visible on your public profile</Text>
-              </View>
-              <Switch
-                value={whatsappVisible}
-                onValueChange={setWhatsappVisible}
-                trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary + '80' }}
-                thumbColor={whatsappVisible ? colors.primary : colors.outlineVariant}
-              />
-            </View>
-          ) : null}
+      <SectionLabel title="LOCATION" colors={colors} />
+      <SectionGroup colors={colors}>
+        <Input
+          label="City"
+          value={city}
+          onChangeText={setCity}
+          placeholder="Beruwala"
+          leftIcon="place"
+        />
+        <Input
+          label="Address"
+          value={address}
+          onChangeText={setAddress}
+          placeholder="Street, building, area"
+          leftIcon="home"
+        />
+      </SectionGroup>
 
-          <Input
-            label="Phone"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="+94 XX XXX XXXX"
-            leftIcon="phone"
-          />
-          {business ? (
-            <View style={styles.toggleRow}>
-              <View style={styles.toggleText}>
-                <Text style={[styles.toggleLabel, { color: colors.onSurface }]}>Show phone</Text>
-                <Text style={[styles.toggleSub, { color: colors.textMuted }]}>Visible on your public profile</Text>
-              </View>
-              <Switch
-                value={phoneVisible}
-                onValueChange={setPhoneVisible}
-                trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary + '80' }}
-                thumbColor={phoneVisible ? colors.primary : colors.outlineVariant}
-              />
-            </View>
-          ) : null}
-        </View>
-      </SectionCard>
+      <SectionLabel title="CONTACT" colors={colors} />
+      <SectionGroup colors={colors}>
+        <Input
+          label="WhatsApp"
+          value={whatsapp}
+          onChangeText={setWhatsapp}
+          keyboardType="phone-pad"
+          placeholder="+94 77X XXX XXXX"
+          leftElement={
+            <FontAwesome6
+              name="whatsapp"
+              iconStyle="brand"
+              size={20}
+              color={Palette.whatsapp}
+            />
+          }
+        />
+        <Input
+          label="Phone"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          placeholder="+94 XX XXX XXXX"
+          leftIcon="phone"
+        />
+      </SectionGroup>
 
-      {/* Actions */}
+      <SectionLabel title="WEBSITE" colors={colors} />
+      <SectionGroup colors={colors}>
+        <Input
+          label="Website"
+          value={website}
+          onChangeText={setWebsite}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          placeholder="yourbusiness.com"
+          leftIcon="language"
+        />
+        {websiteHost ? <WebsiteFaviconPreview url={website} /> : null}
+      </SectionGroup>
+
+      <SectionLabel title="SOCIAL" colors={colors} />
+      <SectionGroup colors={colors}>
+        <Input
+          label="Instagram"
+          value={instagram}
+          onChangeText={setInstagram}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="@username or profile URL"
+          leftElement={
+            <FontAwesome6
+              name="instagram"
+              iconStyle="brand"
+              size={20}
+              color="#E4405F"
+            />
+          }
+        />
+        <Input
+          label="TikTok"
+          value={tiktok}
+          onChangeText={setTiktok}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="@username or profile URL"
+          leftElement={
+            <FontAwesome6
+              name="tiktok"
+              iconStyle="brand"
+              size={20}
+              color={colors.onSurface}
+            />
+          }
+        />
+        <Input
+          label="Facebook"
+          value={facebook}
+          onChangeText={setFacebook}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Page name or profile URL"
+          leftElement={
+            <FontAwesome6
+              name="facebook"
+              iconStyle="brand"
+              size={20}
+              color="#1877F2"
+            />
+          }
+        />
+        <Input
+          label="WeChat"
+          value={wechat}
+          onChangeText={setWechat}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="WeChat ID"
+          helperText="Visitors can copy your ID from the public profile"
+          leftElement={
+            <FontAwesome6
+              name="weixin"
+              iconStyle="brand"
+              size={20}
+              color="#07C160"
+            />
+          }
+        />
+      </SectionGroup>
+
       <View style={styles.actions}>
         <Button
-          title={business ? 'Save changes' : 'Create business profile'}
+          title={business ? "Save changes" : "Create business profile"}
           icon="save"
           loading={loading}
           disabled={!canSave}
@@ -365,36 +517,42 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
         {business && isVerified ? (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View public profile"
             onPress={() => router.push(`/business/${business.id}`)}
             style={({ pressed }) => [
-              styles.secondaryAction,
-              { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
-              pressed && { opacity: 0.85 },
-            ]}>
+              styles.linkRow,
+              pressed && { opacity: 0.75 },
+            ]}
+          >
             <Icon name="visibility" size={20} color={colors.primary} />
-            <Text style={[styles.secondaryActionText, { color: colors.primary }]}>View public profile</Text>
+            <Text style={[styles.linkText, { color: colors.primary }]}>
+              View public profile
+            </Text>
             <Icon name="chevron-right" size={20} color={colors.outline} />
           </Pressable>
         ) : null}
 
         {business && !isVerified ? (
           <Pressable
-            onPress={() => router.push('/profile/verify')}
+            accessibilityRole="button"
+            accessibilityLabel="Apply for verification"
+            onPress={() => router.push("/profile/verify")}
             style={({ pressed }) => [
-              styles.secondaryAction,
-              { backgroundColor: colors.secondaryContainer, borderColor: 'transparent' },
-              pressed && { opacity: 0.85 },
-            ]}>
-            <Icon name="verified-user" size={20} color={colors.onSecondaryContainer} />
-            <View style={styles.verifyText}>
-              <Text style={[styles.verifyTitle, { color: colors.onSecondaryContainer }]}>
+              styles.linkRow,
+              pressed && { opacity: 0.75 },
+            ]}
+          >
+            <Icon name="verified-user" size={20} color={colors.primary} />
+            <View style={styles.linkBody}>
+              <Text style={[styles.linkText, { color: colors.primary }]}>
                 Apply for verification
               </Text>
-              <Text style={[styles.verifySub, { color: colors.onSecondaryContainer + 'CC' }]}>
+              <Text style={[styles.linkSub, { color: colors.textMuted }]}>
                 Get listed in the GemFort directory
               </Text>
             </View>
-            <Icon name="chevron-right" size={20} color={colors.onSecondaryContainer} />
+            <Icon name="chevron-right" size={20} color={colors.outline} />
           </Pressable>
         ) : null}
       </View>
@@ -407,32 +565,48 @@ export default function MyBusinessProfileScreen() {
   const { user, profile } = useAuth();
 
   const { data: business, isLoading } = useQuery({
-    queryKey: ['my-business', user?.uid],
-    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    queryKey: ["my-business", user?.uid, profile?.verificationStatus],
+    queryFn: async () => {
+      const biz = await fetchBusinessByOwnerUid(user!.uid);
+      if (!biz) return null;
+      return syncBusinessVerificationFromProfile(
+        biz,
+        profile?.verificationStatus === "verified",
+      );
+    },
     enabled: !!user,
   });
 
-  const screenTitle = useMemo(() => (business ? 'Edit Business' : 'My Business'), [business]);
+  const screenTitle = useMemo(
+    () => (business ? "Edit Business" : "My Business"),
+    [business],
+  );
 
   if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title={screenTitle} />
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading your business…</Text>
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>
+            Loading your business…
+          </Text>
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+        >
           <BusinessProfileForm
-            key={business?.id ?? 'create'}
+            key={business?.id ?? "create"}
             business={business}
             user={user}
             profile={profile}
@@ -447,143 +621,123 @@ export default function MyBusinessProfileScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.section,
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   loadingWrap: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.md,
   },
   loadingText: { ...Typography.bodyMd },
-  previewCard: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    overflow: 'hidden',
-    gap: Spacing.md,
-    boxShadow: '0 8px 24px rgba(15, 118, 110, 0.18)',
+
+  hero: {
+    marginBottom: Spacing.sm,
   },
-  previewGlow: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  previewLogo: {
-    width: 52,
-    height: 52,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewInitials: { ...Typography.headlineMdMobile, fontWeight: '700' },
-  previewText: { flex: 1, gap: 2, minWidth: 0 },
-  previewName: { ...Typography.headlineMdMobile, fontWeight: '700' },
-  previewLocRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  previewLoc: { ...Typography.bodySmall, flex: 1 },
-  previewDesc: { ...Typography.bodySmall, lineHeight: 20 },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  bannerEdit: {
+    position: "absolute",
+    right: Spacing.containerMargin,
+    top: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: Radius.full,
-    maxWidth: 130,
+    minHeight: 36,
   },
-  statusPillText: { ...Typography.labelMd, fontSize: 10, fontWeight: '600' },
-  statusCard: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  statusHeading: {
+  bannerEditText: {
     ...Typography.labelMd,
-    letterSpacing: 1.2,
-    marginBottom: Spacing.xs,
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+
+  avatarBlock: {
+    alignItems: "center",
+    marginTop: -AVATAR_OVERLAP,
+    paddingHorizontal: Spacing.containerMargin,
+    gap: 6,
+  },
+  avatarPress: {
+    position: "relative",
+    marginBottom: 4,
+  },
+  avatarRing: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: AVATAR / 2,
+    borderWidth: 3,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImg: { width: "100%", height: "100%" },
+  avatarFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: { ...Typography.headlineMdMobile, fontWeight: "700" },
+  verifiedBadge: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarCam: {
+    position: "absolute",
+    left: 2,
+    bottom: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroName: {
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  heroMeta: {
+    ...Typography.bodyMd,
+    textAlign: "center",
+  },
+
+  sectionLabel: {
+    ...Typography.labelMd,
+    letterSpacing: 1.1,
+    paddingHorizontal: Spacing.containerMargin,
+    marginTop: Spacing.sm,
+  },
+  sectionGroup: {
+    width: "100%",
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.md,
+  },
+  textArea: { minHeight: 96, textAlignVertical: "top", paddingTop: 12 },
+
+  actions: {
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 48,
     paddingVertical: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
   },
-  statusRowLast: { borderBottomWidth: 0 },
-  statusLabel: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 0.8 },
-  statusValue: { ...Typography.bodyMd, fontWeight: '600' },
-  statusValueAccent: { ...Typography.bodyMd, fontWeight: '700' },
-  hintCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-  },
-  hintText: { ...Typography.bodySmall, flex: 1, lineHeight: 20 },
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-  },
-  cardHeader: { gap: 4 },
-  cardTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
-  cardSubtitle: { ...Typography.bodySmall },
-  accountTypeRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-  },
-  accountTypeText: { flex: 1, gap: 2 },
-  accountTypeLabel: { ...Typography.labelMd, fontWeight: '600' },
-  accountTypeSub: { ...Typography.bodySmall, lineHeight: 18 },
-  fieldStack: { gap: Spacing.md },
-  textArea: { minHeight: 96, textAlignVertical: 'top', paddingTop: 12 },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  toggleText: { flex: 1, gap: 2 },
-  toggleLabel: { ...Typography.labelMd, fontWeight: '500' },
-  toggleSub: { ...Typography.bodySmall },
-  actions: { gap: Spacing.md, marginTop: Spacing.sm },
-  secondaryAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-    minHeight: 56,
-  },
-  secondaryActionText: { ...Typography.labelMd, fontWeight: '600', flex: 1 },
-  verifyText: { flex: 1, gap: 2 },
-  verifyTitle: { ...Typography.labelMd, fontWeight: '600' },
-  verifySub: { ...Typography.bodySmall },
+  linkBody: { flex: 1, gap: 2 },
+  linkText: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
+  linkSub: { ...Typography.bodySmall },
 });

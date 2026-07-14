@@ -1,35 +1,35 @@
-import { Image } from 'expo-image';
-import { useMemo, useState, type ReactNode } from 'react';
+import { Image } from "expo-image";
+import { useMemo, useState, type ReactNode } from "react";
 import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 
-import { BottomSheet } from '@/components/ui/bottom-sheet';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon, type IconName } from "@/components/ui/icon";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-  GEM_COLOR_FAMILIES,
-  GEM_CUTS,
-  GEM_CLARITIES,
-  GEM_ORIGINS,
-  GEM_SHAPES,
-  GEM_TREATMENTS,
-  GEM_TYPES,
-  flagUrl,
-  formatColorLabel,
-  formatOptionLabel,
-  formatOriginLabel,
-  type GemColorFamily,
-  type GemColorShade,
-  type GemOrigin,
-} from '@/constants/gem-options';
-import { useAppTheme } from '@/hooks/use-app-theme';
+    GEM_CLARITIES,
+    GEM_COLOR_FAMILIES,
+    GEM_CUTS,
+    GEM_ORIGINS,
+    GEM_SHAPES,
+    GEM_TREATMENTS,
+    GEM_TYPES,
+    flagUrl,
+    formatColorLabel,
+    formatOptionLabel,
+    formatOriginLabel,
+    type GemColorFamily,
+    type GemColorShade,
+    type GemOrigin,
+} from "@/constants/gem-options";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
 /** Reset local UI state when a sheet opens (render-phase, avoids set-state-in-effect). */
 function useOpenSession(visible: boolean): number {
@@ -54,7 +54,7 @@ type PickerFieldProps = {
 export function AttributePickerField({
   label,
   valueLabel,
-  placeholder = 'Select',
+  placeholder = "Select",
   onPress,
   error,
   leading,
@@ -64,7 +64,9 @@ export function AttributePickerField({
 
   return (
     <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
+        {label}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={hasValue ? `${label}: ${valueLabel}` : placeholder}
@@ -76,9 +78,15 @@ export function AttributePickerField({
             borderColor: error ? colors.error : colors.outlineVariant,
             opacity: pressed ? 0.92 : 1,
           },
-        ]}>
+        ]}
+      >
         {leading ?? (
-          <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
+          <View
+            style={[
+              styles.fieldIcon,
+              { backgroundColor: colors.surfaceContainerHigh },
+            ]}
+          >
             <Icon name="tune" size={18} color={colors.outline} />
           </View>
         )}
@@ -87,13 +95,17 @@ export function AttributePickerField({
             styles.fieldValue,
             { color: hasValue ? colors.onSurface : colors.outline },
           ]}
-          numberOfLines={1}>
+          numberOfLines={1}
+        >
           {hasValue ? valueLabel : placeholder}
         </Text>
         <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
       </Pressable>
       {error ? (
-        <Text style={[styles.error, { color: colors.error }]} accessibilityLiveRegion="polite">
+        <Text
+          style={[styles.error, { color: colors.error }]}
+          accessibilityLiveRegion="polite"
+        >
           {error}
         </Text>
       ) : null}
@@ -118,7 +130,7 @@ export function ColorSwatch({
         borderRadius: size / 2,
         backgroundColor: hex,
         borderWidth: 1,
-        borderColor: border ?? 'rgba(0,0,0,0.12)',
+        borderColor: border ?? "rgba(0,0,0,0.12)",
       }}
     />
   );
@@ -152,11 +164,11 @@ export function OptionPickerSheet({
 }: OptionPickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
-    setQuery('');
+    setQuery("");
   }
 
   const filtered = useMemo(() => {
@@ -171,9 +183,19 @@ export function OptionPickerSheet({
   }, [options, query]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title} scrollable={false}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={title}
+      scrollable={false}
+    >
       {searchable ? (
-        <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
           <Icon name="search" size={20} color={colors.outline} />
           <TextInput
             style={[styles.searchInput, { color: colors.onSurface }]}
@@ -191,7 +213,11 @@ export function OptionPickerSheet({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <EmptyState icon="search" title="No matches" subtitle="Try another search." />
+          <EmptyState
+            icon="search"
+            title="No matches"
+            subtitle="Try another search."
+          />
         }
         renderItem={({ item }) => {
           const active = item.value === value;
@@ -210,7 +236,8 @@ export function OptionPickerSheet({
                   borderColor: active ? colors.primary : colors.outlineVariant,
                   opacity: pressed ? 0.9 : 1,
                 },
-              ]}>
+              ]}
+            >
               {item.icon ? (
                 <View
                   style={[
@@ -220,7 +247,8 @@ export function OptionPickerSheet({
                         ? colors.primary
                         : colors.surfaceContainerHighest,
                     },
-                  ]}>
+                  ]}
+                >
                   <Icon
                     name={item.icon}
                     size={18}
@@ -231,11 +259,18 @@ export function OptionPickerSheet({
               <Text
                 style={[
                   styles.rowLabel,
-                  { color: active ? colors.onPrimaryContainer : colors.onSurface },
-                ]}>
+                  {
+                    color: active
+                      ? colors.onPrimaryContainer
+                      : colors.onSurface,
+                  },
+                ]}
+              >
                 {item.label}
               </Text>
-              {active ? <Icon name="check" size={20} color={colors.primary} /> : null}
+              {active ? (
+                <Icon name="check" size={20} color={colors.primary} />
+              ) : null}
             </Pressable>
           );
         }}
@@ -259,11 +294,11 @@ export function GemTypePickerSheet({
 }: GemTypePickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
-    setQuery('');
+    setQuery("");
   }
 
   const filtered = useMemo(() => {
@@ -275,8 +310,18 @@ export function GemTypePickerSheet({
   }, [query]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Gem type" scrollable={false}>
-      <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Gem type"
+      scrollable={false}
+    >
+      <View
+        style={[
+          styles.searchBox,
+          { backgroundColor: colors.surfaceContainerLow },
+        ]}
+      >
         <Icon name="search" size={20} color={colors.outline} />
         <TextInput
           style={[styles.searchInput, { color: colors.onSurface }]}
@@ -309,7 +354,8 @@ export function GemTypePickerSheet({
                   borderColor: active ? colors.primary : colors.outlineVariant,
                   opacity: pressed ? 0.9 : 1,
                 },
-              ]}>
+              ]}
+            >
               <Image
                 source={item.image}
                 style={styles.typePhoto}
@@ -318,11 +364,18 @@ export function GemTypePickerSheet({
               <Text
                 style={[
                   styles.rowLabel,
-                  { color: active ? colors.onPrimaryContainer : colors.onSurface },
-                ]}>
+                  {
+                    color: active
+                      ? colors.onPrimaryContainer
+                      : colors.onSurface,
+                  },
+                ]}
+              >
                 {item.label}
               </Text>
-              {active ? <Icon name="check" size={20} color={colors.primary} /> : null}
+              {active ? (
+                <Icon name="check" size={20} color={colors.primary} />
+              ) : null}
             </Pressable>
           );
         }}
@@ -346,12 +399,12 @@ export function ColorPickerSheet({
 }: ColorPickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [family, setFamily] = useState<GemColorFamily | null>(null);
   const [session, setSession] = useState(openSession);
   if (session !== openSession) {
     setSession(openSession);
-    setQuery('');
+    setQuery("");
     setFamily(null);
   }
 
@@ -382,11 +435,17 @@ export function ColorPickerSheet({
         visible={visible && !family}
         onClose={onClose}
         title="Color"
-        scrollable={false}>
+        scrollable={false}
+      >
         <Text style={[styles.hint, { color: colors.textMuted }]}>
           Choose a color family, then a shade.
         </Text>
-        <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
           <Icon name="search" size={20} color={colors.outline} />
           <TextInput
             style={[styles.searchInput, { color: colors.onSurface }]}
@@ -405,7 +464,7 @@ export function ColorPickerSheet({
           renderItem={({ item }) => (
             <Pressable
               onPress={() => {
-                setQuery('');
+                setQuery("");
                 setFamily(item);
               }}
               style={({ pressed }) => [
@@ -415,10 +474,17 @@ export function ColorPickerSheet({
                   borderColor: colors.outlineVariant,
                   opacity: pressed ? 0.9 : 1,
                 },
-              ]}>
-              <ColorSwatch hex={item.hex} size={32} border={colors.outlineVariant} />
+              ]}
+            >
+              <ColorSwatch
+                hex={item.hex}
+                size={32}
+                border={colors.outlineVariant}
+              />
               <View style={styles.colorText}>
-                <Text style={[styles.rowLabel, { color: colors.onSurface }]}>{item.label}</Text>
+                <Text style={[styles.rowLabel, { color: colors.onSurface }]}>
+                  {item.label}
+                </Text>
                 <Text style={[styles.meta, { color: colors.textMuted }]}>
                   {item.shades.length} shades
                 </Text>
@@ -432,9 +498,15 @@ export function ColorPickerSheet({
       <BottomSheet
         visible={visible && !!family}
         onClose={() => setFamily(null)}
-        title={family ? `${family.label} shades` : 'Shade'}
-        scrollable={false}>
-        <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+        title={family ? `${family.label} shades` : "Shade"}
+        scrollable={false}
+      >
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
           <Icon name="search" size={20} color={colors.outline} />
           <TextInput
             style={[styles.searchInput, { color: colors.onSurface }]}
@@ -451,7 +523,11 @@ export function ColorPickerSheet({
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            <EmptyState icon="search" title="No shades" subtitle="Try another search." />
+            <EmptyState
+              icon="search"
+              title="No shades"
+              subtitle="Try another search."
+            />
           }
           renderItem={({ item }) => {
             const active = item.value === value;
@@ -468,22 +544,38 @@ export function ColorPickerSheet({
                     backgroundColor: active
                       ? colors.primaryContainer
                       : colors.surfaceContainerLow,
-                    borderColor: active ? colors.primary : colors.outlineVariant,
+                    borderColor: active
+                      ? colors.primary
+                      : colors.outlineVariant,
                     opacity: pressed ? 0.9 : 1,
                   },
-                ]}>
-                <ColorSwatch hex={item.hex} size={32} border={colors.outlineVariant} />
+                ]}
+              >
+                <ColorSwatch
+                  hex={item.hex}
+                  size={32}
+                  border={colors.outlineVariant}
+                />
                 <View style={styles.colorText}>
                   <Text
                     style={[
                       styles.rowLabel,
-                      { color: active ? colors.onPrimaryContainer : colors.onSurface },
-                    ]}>
+                      {
+                        color: active
+                          ? colors.onPrimaryContainer
+                          : colors.onSurface,
+                      },
+                    ]}
+                  >
                     {item.label}
                   </Text>
-                  <Text style={[styles.meta, { color: colors.textMuted }]}>{item.hex}</Text>
+                  <Text style={[styles.meta, { color: colors.textMuted }]}>
+                    {item.hex}
+                  </Text>
                 </View>
-                {active ? <Icon name="check" size={20} color={colors.primary} /> : null}
+                {active ? (
+                  <Icon name="check" size={20} color={colors.primary} />
+                ) : null}
               </Pressable>
             );
           }}
@@ -508,11 +600,11 @@ export function OriginPickerSheet({
 }: OriginPickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
-    setQuery('');
+    setQuery("");
   }
 
   const filtered = useMemo(() => {
@@ -527,8 +619,18 @@ export function OriginPickerSheet({
   }, [query]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Origin" scrollable={false}>
-      <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title="Origin"
+      scrollable={false}
+    >
+      <View
+        style={[
+          styles.searchBox,
+          { backgroundColor: colors.surfaceContainerLow },
+        ]}
+      >
         <Icon name="search" size={20} color={colors.outline} />
         <TextInput
           style={[styles.searchInput, { color: colors.onSurface }]}
@@ -545,7 +647,11 @@ export function OriginPickerSheet({
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <EmptyState icon="public" title="No origins" subtitle="Try another search." />
+          <EmptyState
+            icon="public"
+            title="No origins"
+            subtitle="Try another search."
+          />
         }
         renderItem={({ item }) => {
           const active = item.value === value;
@@ -564,7 +670,8 @@ export function OriginPickerSheet({
                   borderColor: active ? colors.primary : colors.outlineVariant,
                   opacity: pressed ? 0.9 : 1,
                 },
-              ]}>
+              ]}
+            >
               <Image
                 source={{ uri: flagUrl(item.countryCode) }}
                 style={styles.flag}
@@ -574,17 +681,27 @@ export function OriginPickerSheet({
                 <Text
                   style={[
                     styles.rowLabel,
-                    { color: active ? colors.onPrimaryContainer : colors.onSurface },
-                  ]}>
+                    {
+                      color: active
+                        ? colors.onPrimaryContainer
+                        : colors.onSurface,
+                    },
+                  ]}
+                >
                   {item.label}
                 </Text>
                 {item.note ? (
-                  <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.meta, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
                     {item.note}
                   </Text>
                 ) : null}
               </View>
-              {active ? <Icon name="check" size={20} color={colors.primary} /> : null}
+              {active ? (
+                <Icon name="check" size={20} color={colors.primary} />
+              ) : null}
             </Pressable>
           );
         }}
@@ -594,90 +711,70 @@ export function OriginPickerSheet({
 }
 
 export function ShapePickerSheet(
-  props: Omit<OptionPickerSheetProps, 'title' | 'options'>,
+  props: Omit<OptionPickerSheetProps, "title" | "options">,
 ) {
-  return (
-    <OptionPickerSheet
-      {...props}
-      title="Shape"
-      options={GEM_SHAPES}
-    />
-  );
+  return <OptionPickerSheet {...props} title="Shape" options={GEM_SHAPES} />;
 }
 
 export function ClarityPickerSheet(
-  props: Omit<OptionPickerSheetProps, 'title' | 'options'>,
+  props: Omit<OptionPickerSheetProps, "title" | "options">,
 ) {
   return (
-    <OptionPickerSheet
-      {...props}
-      title="Clarity"
-      options={GEM_CLARITIES}
-    />
+    <OptionPickerSheet {...props} title="Clarity" options={GEM_CLARITIES} />
   );
 }
 
 export function CutPickerSheet(
-  props: Omit<OptionPickerSheetProps, 'title' | 'options'>,
+  props: Omit<OptionPickerSheetProps, "title" | "options">,
 ) {
-  return (
-    <OptionPickerSheet
-      {...props}
-      title="Cut"
-      options={GEM_CUTS}
-    />
-  );
+  return <OptionPickerSheet {...props} title="Cut" options={GEM_CUTS} />;
 }
 
 export function TreatmentPickerSheet(
-  props: Omit<OptionPickerSheetProps, 'title' | 'options'>,
+  props: Omit<OptionPickerSheetProps, "title" | "options">,
 ) {
   return (
-    <OptionPickerSheet
-      {...props}
-      title="Treatment"
-      options={GEM_TREATMENTS}
-    />
+    <OptionPickerSheet {...props} title="Treatment" options={GEM_TREATMENTS} />
   );
 }
 
 export {
-  formatColorLabel,
-  formatOptionLabel,
-  formatOriginLabel,
-  GEM_CUTS,
-  GEM_CLARITIES,
-  GEM_SHAPES,
-  GEM_TREATMENTS,
+    GEM_CLARITIES,
+    GEM_CUTS,
+    GEM_SHAPES,
+    GEM_TREATMENTS,
+    formatColorLabel,
+    formatOptionLabel,
+    formatOriginLabel
 };
 
 const styles = StyleSheet.create({
   fieldWrap: { gap: 8 },
   fieldLabel: { ...Typography.labelMd },
   field: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     minHeight: 52,
     paddingVertical: 8,
     paddingLeft: 8,
     paddingRight: 12,
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     borderWidth: 1.5,
   },
   fieldIcon: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  fieldValue: { ...Typography.bodyMd, fontWeight: '600', flex: 1 },
+  fieldValue: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
   error: { ...Typography.bodySmall },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     height: 44,
     borderRadius: Radius.lg,
@@ -688,8 +785,8 @@ const styles = StyleSheet.create({
   listContent: { gap: Spacing.stackSm, paddingBottom: Spacing.lg },
   hint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     minHeight: 52,
     paddingHorizontal: 12,
@@ -700,29 +797,27 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rowLabel: { ...Typography.bodyMd, fontWeight: '600', flex: 1 },
+  rowLabel: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
   typeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     minHeight: 64,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: Radius.lg,
-    borderWidth: 1.5,
   },
   typePhoto: {
     width: 48,
     height: 48,
     borderRadius: Radius.md,
-    backgroundColor: '#ddd',
   },
   colorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     minHeight: 56,
     paddingHorizontal: 12,
@@ -733,8 +828,8 @@ const styles = StyleSheet.create({
   colorText: { flex: 1, gap: 2 },
   meta: { ...Typography.caption },
   originRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     minHeight: 58,
     paddingHorizontal: 12,
@@ -746,6 +841,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 24,
     borderRadius: 4,
-    backgroundColor: '#ddd',
+    backgroundColor: "#ddd",
   },
 });

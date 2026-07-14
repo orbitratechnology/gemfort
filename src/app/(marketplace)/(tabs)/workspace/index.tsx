@@ -364,6 +364,177 @@ export default function WorkspaceHub() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <ThemedScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Operations overview */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Overview</Text>
+          <View style={styles.overviewGrid}>
+            <Pressable
+              onPress={() => router.push(`${WORKSPACE}/money` as never)}
+              style={({ pressed }) => [
+                styles.overviewWide,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  opacity: pressed ? 0.94 : 1,
+                },
+              ]}>
+              <View style={styles.overviewHeader}>
+                <Text style={[styles.overviewCaption, { color: colors.textMuted }]}>This month</Text>
+                <Icon name="account-balance-wallet" size={18} color={colors.primary} />
+              </View>
+              <Text
+                style={[
+                  styles.overviewNet,
+                  { color: monthNet >= 0 ? colors.successEmerald : colors.error },
+                ]}
+                selectable>
+                {monthNet >= 0 ? '+' : '-'}
+                {formatCurrency(Math.abs(monthNet))}
+              </Text>
+              <Text style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}>Net cashflow</Text>
+
+              <View style={styles.flowBlock}>
+                <View style={styles.flowRow}>
+                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Income</Text>
+                  <Text style={[styles.flowAmount, { color: colors.successEmerald }]}>
+                    {formatCurrency(monthIncome)}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <View
+                    style={[
+                      styles.fill,
+                      { backgroundColor: colors.successEmerald, width: `${incomePct}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.flowBlock}>
+                <View style={styles.flowRow}>
+                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Expenses</Text>
+                  <Text style={[styles.flowAmount, { color: colors.error }]}>
+                    {formatCurrency(monthExpense)}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <View
+                    style={[styles.fill, { backgroundColor: colors.error, width: `${expensePct}%` }]}
+                  />
+                </View>
+              </View>
+            </Pressable>
+
+            <View style={styles.overviewSide}>
+              {showTripsOverview ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/trips` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {activeTrips.length}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    {ongoingTrips[0]?.tripName ?? 'No live trips'}
+                  </Text>
+                </Pressable>
+              ) : showJobsHero ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="construction" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>{jobs.length}</Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active jobs</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Workshop queue
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/certificates` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name="workspace-premium" size={16} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {certificates.length}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Certificates</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Published reports
+                  </Text>
+                </Pressable>
+              )}
+
+              {showChequesOverview ? (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
+                    <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {chequeSummary.holdingCount}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    {formatCurrency(chequeSummary.clearingThisMonth)} clearing
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => router.push(`${WORKSPACE}/money` as never)}
+                  style={({ pressed }) => [
+                    styles.overviewHalf,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.94 : 1,
+                    },
+                  ]}>
+                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
+                    <Icon name="account-balance-wallet" size={16} color={colors.onSecondaryContainer} />
+                  </View>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {formatCurrency(monthNet)}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>This month</Text>
+                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                    Money overview
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </View>
+
         {/* Hero */}
         <Pressable
           onPress={() => router.push(heroRoute as never)}
@@ -552,177 +723,6 @@ export default function WorkspaceHub() {
             </View>
           </View>
         ) : null}
-
-        {/* Operations overview */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Overview</Text>
-          <View style={styles.overviewGrid}>
-            <Pressable
-              onPress={() => router.push(`${WORKSPACE}/money` as never)}
-              style={({ pressed }) => [
-                styles.overviewWide,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  opacity: pressed ? 0.94 : 1,
-                },
-              ]}>
-              <View style={styles.overviewHeader}>
-                <Text style={[styles.overviewCaption, { color: colors.textMuted }]}>This month</Text>
-                <Icon name="account-balance-wallet" size={18} color={colors.primary} />
-              </View>
-              <Text
-                style={[
-                  styles.overviewNet,
-                  { color: monthNet >= 0 ? colors.successEmerald : colors.error },
-                ]}
-                selectable>
-                {monthNet >= 0 ? '+' : '-'}
-                {formatCurrency(Math.abs(monthNet))}
-              </Text>
-              <Text style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}>Net cashflow</Text>
-
-              <View style={styles.flowBlock}>
-                <View style={styles.flowRow}>
-                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Income</Text>
-                  <Text style={[styles.flowAmount, { color: colors.successEmerald }]}>
-                    {formatCurrency(monthIncome)}
-                  </Text>
-                </View>
-                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
-                  <View
-                    style={[
-                      styles.fill,
-                      { backgroundColor: colors.successEmerald, width: `${incomePct}%` },
-                    ]}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.flowBlock}>
-                <View style={styles.flowRow}>
-                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Expenses</Text>
-                  <Text style={[styles.flowAmount, { color: colors.error }]}>
-                    {formatCurrency(monthExpense)}
-                  </Text>
-                </View>
-                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
-                  <View
-                    style={[styles.fill, { backgroundColor: colors.error, width: `${expensePct}%` }]}
-                  />
-                </View>
-              </View>
-            </Pressable>
-
-            <View style={styles.overviewSide}>
-              {showTripsOverview ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/trips` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {activeTrips.length}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    {ongoingTrips[0]?.tripName ?? 'No live trips'}
-                  </Text>
-                </Pressable>
-              ) : showJobsHero ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="construction" size={16} color={colors.onPrimaryContainer} />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>{jobs.length}</Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active jobs</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    Workshop queue
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/certificates` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="workspace-premium" size={16} color={colors.onPrimaryContainer} />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {certificates.length}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Certificates</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    Published reports
-                  </Text>
-                </Pressable>
-              )}
-
-              {showChequesOverview ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
-                    <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {chequeSummary.holdingCount}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    {formatCurrency(chequeSummary.clearingThisMonth)} clearing
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/money` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
-                    <Icon name="account-balance-wallet" size={16} color={colors.onSecondaryContainer} />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {formatCurrency(monthNet)}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>This month</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    Money overview
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </View>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.stackSm,
+    paddingTop: Spacing.containerMargin,
     paddingBottom: 120,
     gap: Spacing.sectionGap,
   },

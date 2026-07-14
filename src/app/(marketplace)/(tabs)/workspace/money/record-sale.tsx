@@ -1,23 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChipSelect } from "@/components/ui/chip-select";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
-import { Icon, type IconName } from "@/components/ui/icon";
+import { type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContactPicker } from "@/components/workspace/contact-picker";
+import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
 import {
-    createTransaction,
-    fetchGems,
-    updateGemStatus,
+  createTransaction,
+  fetchContacts,
+  fetchGems,
+  updateGemStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
@@ -45,8 +46,10 @@ export default function RecordSaleScreen() {
   const [selectedGemId, setSelectedGemId] = useState<string | null>(
     gemIdParam ?? null,
   );
+  const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [price, setPrice] = useState("");
-  const [buyer, setBuyer] = useState("");
+  const [buyerContactId, setBuyerContactId] = useState("");
+  const [buyerCustomName, setBuyerCustomName] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("transfer");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -54,6 +57,12 @@ export default function RecordSaleScreen() {
   const { data: gems = [] } = useQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    enabled: !!user,
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts", user?.uid],
+    queryFn: () => fetchContacts(user!.uid),
     enabled: !!user,
   });
 
@@ -65,6 +74,12 @@ export default function RecordSaleScreen() {
     () => gems.find((g) => g.id === selectedGemId) ?? null,
     [gems, selectedGemId],
   );
+  const buyerContact = useMemo(
+    () => contacts.find((c) => c.id === buyerContactId) ?? null,
+    [contacts, buyerContactId],
+  );
+  const buyerLabel =
+    buyerContact?.displayName?.trim() || buyerCustomName.trim() || "";
 
   const salePrice = parseFloat(price) || 0;
   const costBasis = gem?.totalCost ?? 0;
@@ -86,7 +101,7 @@ export default function RecordSaleScreen() {
     const result = parseForm(recordSaleSchema, {
       gemId: selectedGemId ?? "",
       price,
-      buyer: buyer || undefined,
+      buyer: buyerLabel || undefined,
       method,
     });
     if (!result.success) {
@@ -111,7 +126,7 @@ export default function RecordSaleScreen() {
         category: "sale",
         description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
         gemId: gem.id,
-        contactId: null,
+        contactId: buyerContactId || null,
         date: Timestamp.now(),
       });
       await updateGemStatus(
@@ -154,102 +169,17 @@ export default function RecordSaleScreen() {
           Log the sale price and update inventory.
         </Text>
 
-        {!gemIdParam ? (
-          <FormSection title="Stone" hint="Pick an unsold gem from your vault.">
-            {sellable.length === 0 ? (
-              <Text style={[styles.empty, { color: colors.textMuted }]}>
-                No sellable gems. Add inventory first.
-              </Text>
-            ) : (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.pickerRow}
-              >
-                {sellable.map((g) => {
-                  const active = g.id === selectedGemId;
-                  return (
-                    <Pressable
-                      key={g.id}
-                      onPress={() => {
-                        setSelectedGemId(g.id);
-                        clearField("gemId");
-                      }}
-                      style={({ pressed }) => [
-                        styles.pickerChip,
-                        {
-                          backgroundColor: active
-                            ? colors.primary
-                            : colors.surfaceContainerLow,
-                          borderColor: active
-                            ? colors.primary
-                            : errors.gemId
-                              ? colors.error
-                              : colors.outlineVariant,
-                        },
-                        pressed && { opacity: 0.9 },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerText,
-                          {
-                            color: active
-                              ? colors.onPrimary
-                              : colors.onSurfaceVariant,
-                          },
-                        ]}
-                      >
-                        {g.sku}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            )}
-            {errors.gemId ? (
-              <Text style={[styles.fieldError, { color: colors.error }]}>
-                {errors.gemId}
-              </Text>
-            ) : null}
-          </FormSection>
-        ) : null}
-
+        <GemSelectField
+          label="Stone"
+          gem={gem}
+          placeholder="Select a gem"
+          onPress={() => setGemSheetOpen(true)}
+          error={errors.gemId}
+        />
         {gem ? (
-          <View
-            style={[
-              styles.gemCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            <View
-              style={[
-                styles.thumb,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              {gem.photoUrls?.[0] ? (
-                <Image
-                  source={{ uri: gem.photoUrls[0] }}
-                  style={styles.thumbImg}
-                  contentFit="cover"
-                />
-              ) : (
-                <Icon name="diamond" size={28} color={colors.primary} />
-              )}
-            </View>
-            <View style={styles.gemInfo}>
-              <Text style={[styles.sku, { color: colors.primary }]} selectable>
-                {gem.sku}
-              </Text>
-              <Text style={[styles.gemName, { color: colors.onSurface }]}>
-                {gem.currentWeight} ct {formatGemType(gem.gemType)}
-              </Text>
-              <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
-                Cost basis {formatCurrency(costBasis)}
-              </Text>
-            </View>
-          </View>
+          <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
+            Cost basis {formatCurrency(costBasis)}
+          </Text>
         ) : null}
 
         <FormSection title="Sale details">
@@ -265,17 +195,27 @@ export default function RecordSaleScreen() {
             leftIcon="payments"
             error={errors.price}
           />
-          <Input
+          <ContactPicker
             label="Buyer"
-            value={buyer}
-            onChangeText={setBuyer}
-            placeholder="Optional"
-            leftIcon="person"
+            contacts={contacts}
+            value={buyerContactId}
+            onChange={(id) => {
+              setBuyerContactId(id);
+              clearField("buyer");
+            }}
+            allowCustomName
+            customName={buyerCustomName}
+            onCustomNameChange={(name) => {
+              setBuyerCustomName(name);
+              clearField("buyer");
+            }}
+            customNameLabel="Use as buyer"
+            emptyHint="Add buyers in Workspace → Contacts, or type a name."
             error={errors.buyer}
           />
           <ChipSelect
             label="Payment method"
-            layout="split"
+            layout="stack"
             options={METHODS}
             value={method}
             onChange={(v) => {
@@ -349,6 +289,20 @@ export default function RecordSaleScreen() {
         ) : null}
       </ThemedScrollView>
 
+      <GemPickerSheet
+        visible={gemSheetOpen}
+        onClose={() => setGemSheetOpen(false)}
+        gems={sellable}
+        value={selectedGemId ?? ""}
+        title="Select gem"
+        emptyHint="No sellable gems. Add inventory first."
+        initialTab="on_sale"
+        onSelect={(g) => {
+          setSelectedGemId(g.id);
+          clearField("gemId");
+        }}
+      />
+
       <FormFooter
         title={method === "cheque" ? "Sell & add cheque" : "Confirm sale"}
         icon="check-circle"
@@ -368,40 +322,7 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   lead: { ...Typography.bodyMd, lineHeight: 22 },
-  empty: { ...Typography.bodyMd },
-  pickerRow: { flexDirection: "row", gap: 8, paddingVertical: 2 },
-  pickerChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 44,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    justifyContent: "center",
-  },
-  pickerText: { ...Typography.labelMd, fontWeight: "600" },
-  fieldError: { ...Typography.bodySmall },
-  gemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
-  },
-  thumb: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.lg,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  thumbImg: { width: "100%", height: "100%" },
-  gemInfo: { flex: 1, gap: 2 },
-  sku: { ...Typography.caption, fontWeight: "700", letterSpacing: 0.4 },
-  gemName: { ...Typography.headlineSmMobile },
-  gemMeta: { ...Typography.bodySmall },
+  gemMeta: { ...Typography.bodySmall, marginTop: -4 },
   projection: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",

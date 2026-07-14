@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/icon';
 import { Radius, Typography } from '@/constants/design-tokens';
+import { formatGemType } from '@/constants/gem-options';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { Business } from '@/types';
 
@@ -24,16 +25,18 @@ type BusinessCardProps = {
 };
 
 /**
- * Directory tile for traders, lapidaries, and gem labs.
+ * Directory tile — recognition-first: logo, role, name, place, specialty.
  */
 export function BusinessCard({ business, onPress, roleLabel }: BusinessCardProps) {
   const { colors } = useAppTheme();
-  const specs =
+  const rawSpecs =
     business.sellerProfile?.gemSpecializations?.slice(0, 2) ??
     business.providerProfile?.gemSpecializations?.slice(0, 2) ??
+    business.labProfile?.reportTypes?.slice(0, 2) ??
     [];
+  const specs = rawSpecs.map((s) => formatGemType(s));
   const verified = business.badges.isVerified;
-  const endorsements = business.badges.endorsementCount;
+  const years = business.badges.yearsActive;
   const inferredRole =
     roleLabel ??
     (business.businessType === 'gem_lab' || business.labProfile
@@ -46,83 +49,70 @@ export function BusinessCard({ business, onPress, roleLabel }: BusinessCardProps
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={business.businessName}
+      accessibilityLabel={`${business.businessName}, ${inferredRole}, ${business.city}`}
       style={({ pressed }) => [
         styles.card,
         {
           backgroundColor: colors.surfaceContainerLowest,
-          opacity: pressed ? 0.92 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
+          opacity: pressed ? 0.94 : 1,
         },
       ]}>
-      <View style={styles.cover}>
-        {business.coverPhotoUrl ? (
-          <Image source={{ uri: business.coverPhotoUrl }} style={styles.coverImage} contentFit="cover" />
-        ) : (
-          <View style={[styles.coverImage, styles.coverPlaceholder, { backgroundColor: colors.surfaceContainerHigh }]}>
-            <Icon name="store" size={28} color={colors.outlineVariant} />
-          </View>
-        )}
-        <View style={styles.coverScrim} />
-        {verified ? (
-          <View style={[styles.verifiedPill, { backgroundColor: colors.surfaceGlass }]}>
-            <Icon name="verified" size={12} color={colors.accent} />
-          </View>
-        ) : null}
+      <View style={styles.header}>
         <View
           style={[
-            styles.logoWrap,
-            {
-              borderColor: colors.surfaceContainerLowest,
-              backgroundColor: colors.surfaceContainerHigh,
-            },
+            styles.logo,
+            { backgroundColor: colors.surfaceContainerHigh },
           ]}>
           {business.logoUrl ? (
-            <Image source={{ uri: business.logoUrl }} style={styles.logo} contentFit="cover" />
+            <Image source={{ uri: business.logoUrl }} style={styles.logoImg} contentFit="cover" />
+          ) : business.coverPhotoUrl ? (
+            <Image
+              source={{ uri: business.coverPhotoUrl }}
+              style={styles.logoImg}
+              contentFit="cover"
+            />
           ) : (
             <Text style={[styles.logoInitials, { color: colors.primary }]}>
               {initials(business.businessName)}
             </Text>
           )}
         </View>
+        {verified ? (
+          <View style={[styles.verified, { backgroundColor: colors.primaryContainer }]}>
+            <Icon name="verified" size={14} color={colors.onPrimaryContainer} />
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.body}>
-        {inferredRole ? (
-          <Text style={[styles.role, { color: colors.textMuted }]}>{inferredRole}</Text>
-        ) : null}
-        <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={2}>
-          {business.businessName}
+      <Text style={[styles.role, { color: colors.textMuted }]}>{inferredRole}</Text>
+      <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={2}>
+        {business.businessName}
+      </Text>
+
+      <View style={styles.locationRow}>
+        <Icon name="location-on" size={12} color={colors.textMuted} />
+        <Text style={[styles.location, { color: colors.textMuted }]} numberOfLines={1}>
+          {business.city}
+          {business.district ? `, ${business.district}` : ''}
+          {years > 0 ? ` · ${years}y` : ''}
         </Text>
-        <View style={styles.locationRow}>
-          <Icon name="location-on" size={12} color={colors.textMuted} />
-          <Text style={[styles.location, { color: colors.textMuted }]} numberOfLines={1}>
-            {business.city}
-            {business.district ? `, ${business.district}` : ''}
-          </Text>
-        </View>
-
-        {endorsements > 0 ? (
-          <View style={styles.ratingRow}>
-            <Icon name="star" size={12} color={colors.warningAmber} />
-            <Text style={[styles.ratingText, { color: colors.onSurfaceVariant }]}>
-              {endorsements}
-            </Text>
-          </View>
-        ) : null}
-
-        {specs.length > 0 ? (
-          <View style={styles.tags}>
-            {specs.map((s) => (
-              <View key={s} style={[styles.tag, { backgroundColor: colors.surfaceContainerLow }]}>
-                <Text style={[styles.tagText, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                  {s.replace(/_/g, ' ')}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </View>
+
+      {specs.length > 0 ? (
+        <View style={styles.tags}>
+          {specs.map((s) => (
+            <View key={s} style={[styles.tag, { backgroundColor: colors.surfaceContainerLow }]}>
+              <Text style={[styles.tagText, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                {s}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : business.shortDescription ? (
+        <Text style={[styles.blurb, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
+          {business.shortDescription}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -132,102 +122,76 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
-    overflow: 'hidden',
-    boxShadow: '0 4px 16px rgba(15, 118, 110, 0.08)',
+    padding: 14,
+    gap: 4,
+    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
   },
-  cover: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    position: 'relative',
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  coverImage: {
-    width: '100%',
-    height: '100%',
-  },
-  coverPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coverScrim: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  verifiedPill: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoWrap: {
-    position: 'absolute',
-    bottom: -18,
-    left: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2.5,
+  logo: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: { width: '100%', height: '100%' },
-  logoInitials: { fontSize: 13, fontWeight: '700' },
-  body: {
-    paddingTop: 24,
-    paddingHorizontal: 10,
-    paddingBottom: 12,
-    gap: 3,
+  logoImg: { width: '100%', height: '100%' },
+  logoInitials: { fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  verified: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   role: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   name: {
-    ...Typography.bodyMd,
-    fontWeight: '600',
-    lineHeight: 18,
+    ...Typography.bodyLg,
+    fontWeight: '700',
+    lineHeight: 22,
+    minHeight: 44,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+    marginTop: 2,
   },
   location: {
     ...Typography.caption,
     flex: 1,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
-  },
-  ratingText: {
-    ...Typography.caption,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
+    fontWeight: '500',
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 6,
+    gap: 6,
+    marginTop: 8,
   },
   tag: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: Radius.full,
     maxWidth: '100%',
   },
   tagText: {
-    fontSize: 10,
-    fontWeight: '500',
-    textTransform: 'capitalize',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  blurb: {
+    ...Typography.caption,
+    lineHeight: 16,
+    marginTop: 6,
   },
 });
