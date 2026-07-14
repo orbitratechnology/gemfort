@@ -1,6 +1,6 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -34,10 +34,11 @@ export default function LabCertificatesScreen() {
   const role = resolveProfileRole(profile);
   const { add } = useLocalSearchParams<{ add?: string }>();
   const [showAdd, setShowAdd] = useState(add === '1');
-
-  useEffect(() => {
+  const [addParam, setAddParam] = useState(add);
+  if (add !== addParam) {
+    setAddParam(add);
     if (add === '1') setShowAdd(true);
-  }, [add]);
+  }
   const [certNumber, setCertNumber] = useState('');
   const [reportType, setReportType] = useState('full');
   const [file, setFile] = useState<LocalMedia | null>(null);

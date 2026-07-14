@@ -21,13 +21,25 @@ type BottomSheetProps = {
   children: ReactNode;
   /** Optional sticky footer (e.g. Apply/Reset buttons). */
   footer?: ReactNode;
+  /**
+   * When false, children are not wrapped in ScrollView (use FlatList inside).
+   * Defaults to true.
+   */
+  scrollable?: boolean;
 };
 
 /**
  * Dependency-free themed bottom sheet built on RN Modal + Animated.
  * Slides up from the bottom, dim backdrop tap-to-close, safe-area aware.
  */
-export function BottomSheet({ visible, onClose, title, children, footer }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  children,
+  footer,
+  scrollable = true,
+}: BottomSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [translateY] = useState(() => new Animated.Value(600));
@@ -61,6 +73,7 @@ export function BottomSheet({ visible, onClose, title, children, footer }: Botto
         <Animated.View
           style={[
             styles.sheet,
+            !scrollable && styles.sheetFlex,
             {
               backgroundColor: colors.surfaceContainerLowest,
               paddingBottom: insets.bottom + Spacing.gutterMd,
@@ -71,14 +84,27 @@ export function BottomSheet({ visible, onClose, title, children, footer }: Botto
           {title ? (
             <View style={styles.header}>
               <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
-              <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+              <Pressable
+                onPress={handleClose}
+                style={styles.closeBtn}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close">
                 <Icon name="close" size={22} color={colors.onSurfaceVariant} />
               </Pressable>
             </View>
           ) : null}
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-            {children}
-          </ScrollView>
+          {scrollable ? (
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+          ) : (
+            <View style={styles.bodyFlex}>{children}</View>
+          )}
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </Animated.View>
       </View>
@@ -136,11 +162,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     maxHeight: '85%',
   },
+  sheetFlex: { height: '85%' },
   grabber: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   title: { ...Typography.headlineSm },
   closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   body: { flexGrow: 0 },
+  bodyFlex: { flex: 1, minHeight: 0 },
   bodyContent: { gap: Spacing.lg, paddingBottom: Spacing.sm },
   footer: { paddingTop: Spacing.md, gap: Spacing.sm },
   group: { gap: Spacing.sm },

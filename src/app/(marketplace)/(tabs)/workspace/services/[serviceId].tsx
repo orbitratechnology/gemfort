@@ -171,11 +171,16 @@ export default function ServiceDetailScreen() {
             </View>
             <View>
               <Text style={[styles.providerName, { color: colors.primary }]}>
-                {service.providerContactId.slice(0, 10)}
+                {service.providerName ||
+                  (service.providerContactId
+                    ? `Contact · ${service.providerContactId.slice(0, 10)}`
+                    : 'Provider')}
               </Text>
               <View style={styles.providerMeta}>
                 <Icon name="verified" size={16} color={colors.accent} />
-                <Text style={[styles.providerRole, { color: colors.textMuted }]}>Service Provider</Text>
+                <Text style={[styles.providerRole, { color: colors.textMuted }]}>
+                  {service.providerBusinessId ? 'GemFort provider' : 'Service Provider'}
+                </Text>
               </View>
             </View>
           </View>

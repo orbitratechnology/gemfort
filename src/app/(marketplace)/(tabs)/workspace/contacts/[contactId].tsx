@@ -10,6 +10,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { ContactAvatar } from '@/components/workspace/contact-avatar';
 import { CONTACT_TYPES } from '@/constants/contact-types';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
@@ -23,10 +24,6 @@ import { formatDate, openPhone, openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
-
-function initials(name: string) {
-  return name.split(' ').map((n) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
-}
 
 export default function ContactDetailScreen() {
   const { contactId } = useLocalSearchParams<{ contactId: string }>();
@@ -192,12 +189,13 @@ export default function ContactDetailScreen() {
       <ThemedScrollView contentContainerStyle={styles.content}>
         {/* Identity */}
         <View style={[styles.identityCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.primaryMuted }]}>
-            <Text style={[styles.avatarText, { color: colors.primary }]}>{initials(contact.displayName)}</Text>
-          </View>
+          <ContactAvatar name={contact.displayName} photoUrl={contact.photoUrl} size={72} />
           <Text style={[styles.name, { color: colors.primary }]}>{contact.displayName}</Text>
           {contact.companyName ? (
             <Text style={[styles.company, { color: colors.textMuted }]}>{contact.companyName}</Text>
+          ) : null}
+          {contact.deviceContactId ? (
+            <Text style={[styles.company, { color: colors.textMuted }]}>Synced from phone</Text>
           ) : null}
           {contact.contactTypes.length ? (
             <View style={styles.typeRow}>

@@ -1,15 +1,15 @@
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp } from "firebase/firestore";
 
-export type UserRole = 'trader' | 'lapidary' | 'gem_lab' | 'admin';
+export type UserRole = "trader" | "lapidary" | "gem_lab" | "admin";
 export type VerificationStatus =
-  | 'none'
-  | 'pending'
-  | 'info_requested'
-  | 'under_review'
-  | 'basic'
-  | 'verified'
-  | 'rejected'
-  | 'revoked';
+  | "none"
+  | "pending"
+  | "info_requested"
+  | "under_review"
+  | "basic"
+  | "verified"
+  | "rejected"
+  | "revoked";
 
 export type UserProfile = {
   uid: string;
@@ -40,7 +40,7 @@ export type UserProfile = {
   updatedAt: Timestamp;
 };
 
-export type BusinessType = 'trader' | 'lapidary' | 'gem_lab' | string;
+export type BusinessType = "trader" | "lapidary" | "gem_lab" | string;
 
 export type Business = {
   id: string;
@@ -60,7 +60,7 @@ export type Business = {
   province: string;
   country: string;
   verificationStatus: VerificationStatus;
-  verificationTier: 'none' | 'basic' | 'full';
+  verificationTier: "none" | "basic" | "full";
   badges: {
     isVerified: boolean;
     isBasicVerified: boolean;
@@ -105,10 +105,7 @@ export type Business = {
     isAcceptingOrders: boolean;
     certificatesIssued: number;
   } | null;
-  contacts: Record<
-    string,
-    { value: string; isVisible: boolean }
-  >;
+  contacts: Record<string, { value: string; isVisible: boolean }>;
   logoUrl: string | null;
   coverPhotoUrl: string | null;
   galleryPhotos: {
@@ -134,7 +131,7 @@ export type Business = {
 
 export type Announcement = {
   id: string;
-  type: 'platform' | 'industry_news' | 'featured_spotlight' | 'new_listing';
+  type: "platform" | "industry_news" | "featured_spotlight" | "new_listing";
   title: string;
   content: string | null;
   externalUrl: string | null;
@@ -148,20 +145,20 @@ export type Announcement = {
 };
 
 export type GemStatus =
-  | 'rough'
-  | 'with_cutter'
-  | 'cut'
-  | 'with_heater'
-  | 'heated'
-  | 'with_polisher'
-  | 'polished'
-  | 'certified'
-  | 'ready_for_sale'
-  | 'on_ap'
-  | 'on_trip'
-  | 'listed'
-  | 'sold'
-  | 'returned';
+  | "rough"
+  | "with_cutter"
+  | "cut"
+  | "with_heater"
+  | "heated"
+  | "with_polisher"
+  | "polished"
+  | "certified"
+  | "ready_for_sale"
+  | "on_ap"
+  | "on_trip"
+  | "listed"
+  | "sold"
+  | "returned";
 
 export type WorkspaceGem = {
   id: string;
@@ -243,7 +240,12 @@ export type ServiceRecord = {
   ownerUid: string;
   gemId: string;
   serviceType: string;
+  /** Local saved contact (Workspace → Contacts). Empty when provider is a GemFort business. */
   providerContactId: string;
+  /** Verified GemFort lapidary / gem lab business, when selected from Providers tab. */
+  providerBusinessId?: string | null;
+  /** Denormalized display name for list/detail screens. */
+  providerName?: string | null;
   dateGiven: Timestamp;
   expectedReturnDate: Timestamp;
   weightBefore: number;
@@ -257,10 +259,10 @@ export type ServiceRecord = {
   weightLossPercent: number | null;
   photoAfterUrls: string[];
   resultNotes: string | null;
-  status: 'given' | 'in_progress' | 'completed' | 'received_back' | 'overdue';
+  status: "given" | "in_progress" | "completed" | "received_back" | "overdue";
   finalCost: number | null;
   finalCostCurrency: string | null;
-  paymentStatus: 'unpaid' | 'partial' | 'paid';
+  paymentStatus: "unpaid" | "partial" | "paid";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -276,12 +278,12 @@ export type ApRecord = {
   expectedDurationDays: number;
   expectedReturnDate: Timestamp;
   agreementNotes: string | null;
-  status: 'with_holder' | 'sold' | 'returned' | 'overdue' | 'disputed';
+  status: "with_holder" | "sold" | "returned" | "overdue" | "disputed";
   soldPrice: number | null;
   ownerReceives: number | null;
   apHolderCommission: number | null;
   soldDate: Timestamp | null;
-  paymentStatus: 'pending' | 'partial' | 'paid';
+  paymentStatus: "pending" | "partial" | "paid";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -297,6 +299,10 @@ export type Contact = {
   contactTypes: string[];
   notes: string | null;
   isFavourite: boolean;
+  /** Firebase Storage download URL for contact photo */
+  photoUrl: string | null;
+  /** Device address-book ID when imported from phone contacts */
+  deviceContactId: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -304,7 +310,7 @@ export type Contact = {
 export type Transaction = {
   id: string;
   ownerUid: string;
-  type: 'income' | 'expense';
+  type: "income" | "expense";
   amount: number;
   currency: string;
   amountBase: number;
@@ -325,7 +331,7 @@ export type Receivable = {
   currency: string;
   description: string;
   dueDate: Timestamp;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
+  status: "pending" | "partial" | "paid" | "overdue";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -339,12 +345,12 @@ export type Payable = {
   currency: string;
   description: string;
   dueDate: Timestamp;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
+  status: "pending" | "partial" | "paid" | "overdue";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
 
-export type PaymentDirection = 'in' | 'out';
+export type PaymentDirection = "in" | "out";
 
 export type Payment = {
   id: string;
@@ -366,21 +372,21 @@ export type Payment = {
 };
 
 export type FinancialReportType =
-  | 'profit_loss'
-  | 'cash_flow'
-  | 'inventory_value'
-  | 'outstanding_payments'
-  | 'cheque_maturity';
+  | "profit_loss"
+  | "cash_flow"
+  | "inventory_value"
+  | "outstanding_payments"
+  | "cheque_maturity";
 
-export type ChequeDirection = 'received' | 'given';
+export type ChequeDirection = "received" | "given";
 
 export type ChequeStatus =
-  | 'holding'
-  | 'deposited'
-  | 'cleared'
-  | 'bounced'
-  | 'replaced'
-  | 'cancelled';
+  | "holding"
+  | "deposited"
+  | "cleared"
+  | "bounced"
+  | "replaced"
+  | "cancelled";
 
 export type Cheque = {
   id: string;
@@ -388,6 +394,8 @@ export type Cheque = {
   direction: ChequeDirection;
   chequeNumber: string;
   bankName: string;
+  /** LankaClear / CEFTS bank code when selected from directory */
+  bankCode?: string | null;
   branch: string | null;
   amount: number;
   currency: string;
@@ -410,9 +418,9 @@ export type Cheque = {
   updatedAt: Timestamp;
 };
 
-export type TripType = 'sourcing' | 'selling' | 'both';
+export type TripType = "sourcing" | "selling" | "both";
 
-export type TripStatus = 'planning' | 'ongoing' | 'completed' | 'cancelled';
+export type TripStatus = "planning" | "ongoing" | "completed" | "cancelled";
 
 export type Trip = {
   id: string;
@@ -443,9 +451,9 @@ export type Trip = {
   updatedAt: Timestamp;
 };
 
-export type TripGemRole = 'purchase' | 'parcel';
+export type TripGemRole = "purchase" | "parcel";
 
-export type TripGemStatus = 'on_trip' | 'sold' | 'returned';
+export type TripGemStatus = "on_trip" | "sold" | "returned";
 
 export type TripGem = {
   id: string;
@@ -483,7 +491,7 @@ export type MarketplaceListing = {
   workspaceGemId: string | null;
   title: string;
   description: string | null;
-  visibility: 'private' | 'members_only' | 'public';
+  visibility: "private" | "members_only" | "public";
   gemType: string;
   caratWeight: number;
   color: string;
@@ -499,7 +507,7 @@ export type MarketplaceListing = {
   priceMax: number | null;
   currency: string;
   photoUrls: string[];
-  status: 'active' | 'reserved' | 'sold' | 'paused' | 'draft';
+  status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;
   shareableUrl: string;
   analytics: { totalViews: number; whatsappTaps: number };
@@ -516,19 +524,19 @@ export type AppNotification = {
   message: string;
   referenceType: string | null;
   referenceId: string | null;
-  priority?: 'high' | 'medium' | 'low';
+  priority?: "high" | "medium" | "low";
   isRead: boolean;
   isPushSent?: boolean;
   createdAt: Timestamp;
 };
 
 export type FraudReportType =
-  | 'fake_business'
-  | 'scammer'
-  | 'wrong_information'
-  | 'fake_gems'
-  | 'harassment'
-  | 'other';
+  | "fake_business"
+  | "scammer"
+  | "wrong_information"
+  | "fake_gems"
+  | "harassment"
+  | "other";
 
 export type FraudReport = {
   id: string;
@@ -538,7 +546,7 @@ export type FraudReport = {
   reportType: FraudReportType;
   description: string;
   evidenceUrls: string[];
-  status: 'pending' | 'investigating' | 'resolved' | 'dismissed';
+  status: "pending" | "investigating" | "resolved" | "dismissed";
   adminUid: string | null;
   adminNotes: string | null;
   resolution: string | null;
@@ -560,7 +568,7 @@ export type VerificationApplication = {
   id: string;
   applicantUid: string;
   businessId: string;
-  applicationType: 'trader' | 'lapidary' | 'gem_lab' | string;
+  applicationType: "trader" | "lapidary" | "gem_lab" | string;
   status: string;
   servicesOffered?: string[];
   documents: {
@@ -579,7 +587,12 @@ export type VerificationApplication = {
   submittedAt: Timestamp;
 };
 
-export type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'completed';
+export type RequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "completed";
 
 export type ServiceRequest = {
   id: string;
@@ -609,7 +622,7 @@ export type LapidaryJob = {
   gemId: string;
   gemName: string;
   serviceTypes: string[];
-  status: 'queued' | 'in_progress' | 'ready' | 'returned' | 'cancelled';
+  status: "queued" | "in_progress" | "ready" | "returned" | "cancelled";
   notes: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -655,7 +668,7 @@ export type PublicCertificate = {
     treatment: string | null;
     clarity: string | null;
   };
-  visibility: 'public';
+  visibility: "public";
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

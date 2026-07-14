@@ -1,21 +1,21 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
+import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactPicker } from '@/components/workspace/contact-picker';
-import { formatGemType } from '@/constants/gem-options';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
+import { Radius, Spacing } from '@/constants/design-tokens';
 import { createApRecord, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
 
 export default function AddApScreen() {
   const { user } = useAuth();
@@ -27,6 +27,8 @@ export default function AddApScreen() {
   const [minPrice, setMinPrice] = useState('');
   const [days, setDays] = useState('30');
   const [loading, setLoading] = useState(false);
+  const [gemSheetOpen, setGemSheetOpen] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useQuery({
     queryKey: ['gems', user?.uid],
@@ -40,13 +42,28 @@ export default function AddApScreen() {
     enabled: !!user,
   });
 
-  const availableGems = gems.filter((g) => !['on_ap', 'sold'].includes(g.status));
+  const availableGems = useMemo(
+    () => gems.filter((g) => !['on_ap', 'sold'].includes(g.status)),
+    [gems],
+  );
+
+  const selectedGem = useMemo(
+    () => availableGems.find((g) => g.id === gemId) ?? gems.find((g) => g.id === gemId) ?? null,
+    [availableGems, gems, gemId],
+  );
 
   async function handleSubmit() {
-    if (!user || !gemId || !holderId || !minPrice) {
-      toast.error('Select a gem, holder, and minimum price.');
+    if (!user) return;
+    const next: Record<string, string> = {};
+    if (!gemId) next.gemId = 'Select a gem.';
+    if (!holderId) next.holderId = 'Select an AP holder.';
+    if (!minPrice.trim()) next.minPrice = 'Enter a minimum price.';
+    if (Object.keys(next).length) {
+      setErrors(next);
+      toast.error(Object.values(next)[0]);
       return;
     }
+
     setLoading(true);
     try {
       const id = await createApRecord(user.uid, {
@@ -68,42 +85,38 @@ export default function AddApScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Give on AP" />
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>SELECT GEM</Text>
-          {availableGems.length === 0 ? (
-            <Text style={[styles.empty, { color: colors.textMuted }]}>
-              No available gems. Add a gem or free one from another AP first.
-            </Text>
-          ) : (
-            <View style={styles.chips}>
-              {availableGems.map((g) => {
-                const active = gemId === g.id;
-                return (
-                  <Pressable
-                    key={g.id}
-                    onPress={() => setGemId(g.id)}
-                    style={[
-                      styles.chip,
-                      active
-                        ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                        : { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
-                    ]}>
-                    <Text style={[styles.chipText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
-                      {g.sku} · {g.currentWeight}ct
-                    </Text>
-                    <Text style={[styles.chipSub, { color: active ? colors.onPrimary + 'CC' : colors.textMuted }]}>
-                      {formatGemType(g.gemType)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Input label="Minimum Price (LKR)" value={minPrice} onChangeText={setMinPrice} keyboardType="decimal-pad" placeholder="0.00" leftIcon="payments" />
-          <Input label="Expected Days" value={days} onChangeText={setDays} keyboardType="number-pad" leftIcon="schedule" />
+          <GemSelectField
+            label="Gem"
+            gem={selectedGem}
+            placeholder="Select a gem"
+            onPress={() => setGemSheetOpen(true)}
+            error={errors.gemId}
+          />
+          <Input
+            label="Minimum Price (LKR)"
+            value={minPrice}
+            onChangeText={(v) => {
+              setMinPrice(v);
+              setErrors((e) => {
+                if (!e.minPrice) return e;
+                const next = { ...e };
+                delete next.minPrice;
+                return next;
+              });
+            }}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            leftIcon="payments"
+            error={errors.minPrice}
+          />
+          <Input
+            label="Expected Days"
+            value={days}
+            onChangeText={setDays}
+            keyboardType="number-pad"
+            leftIcon="schedule"
+          />
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
@@ -111,14 +124,41 @@ export default function AddApScreen() {
             label="AP Holder"
             contacts={contacts}
             value={holderId}
-            onChange={setHolderId}
+            onChange={(id) => {
+              setHolderId(id);
+              setErrors((e) => {
+                if (!e.holderId) return e;
+                const next = { ...e };
+                delete next.holderId;
+                return next;
+              });
+            }}
             typeFilter="broker"
             emptyHint="Add a broker or holder contact first."
+            error={errors.holderId}
           />
         </View>
 
         <Button title="Create AP Record" icon="handshake" loading={loading} onPress={handleSubmit} />
       </ThemedScrollView>
+
+      <GemPickerSheet
+        visible={gemSheetOpen}
+        onClose={() => setGemSheetOpen(false)}
+        gems={availableGems}
+        value={gemId}
+        title="Select gem for AP"
+        emptyHint="No available gems. Add a gem or free one from another AP first."
+        onSelect={(gem) => {
+          setGemId(gem.id);
+          setErrors((e) => {
+            if (!e.gemId) return e;
+            const next = { ...e };
+            delete next.gemId;
+            return next;
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -126,21 +166,10 @@ export default function AddApScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { padding: Spacing.containerMargin, gap: Spacing.lg, paddingBottom: Spacing.section },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 0.5 },
-  empty: { ...Typography.bodyMd },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md, borderWidth: 1 },
-  chipText: { ...Typography.labelMd },
-  chipSub: { ...Typography.caption, marginTop: 2, textTransform: 'capitalize' },
   card: {
     borderRadius: Radius.lg,
+    borderCurve: 'continuous',
     padding: Spacing.gutterMd,
     gap: Spacing.md,
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
   },
 });

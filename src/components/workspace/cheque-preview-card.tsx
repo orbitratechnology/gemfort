@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Icon } from '@/components/ui/icon';
+import { BankAvatar } from '@/components/workspace/bank-picker-sheet';
 import { Radius, Spacing, Typography, type ThemeColors } from '@/constants/design-tokens';
+import { getBankByCode, getBankByName } from '@/constants/sri-lanka-banks';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import type { ChequeDirection } from '@/types';
@@ -10,6 +11,7 @@ type ChequePreviewCardProps = {
   direction: ChequeDirection;
   chequeNumber: string;
   bankName: string;
+  bankCode?: string | null;
   branch?: string;
   amount: string;
   issuedBy: string;
@@ -24,27 +26,29 @@ function formatPreviewAmount(raw: string): string {
   return formatCurrency(n, 'LKR');
 }
 
-function Field({
+function LineField({
   label,
   value,
   placeholder,
   colors,
-  emphasis,
 }: {
   label: string;
   value: string;
   placeholder: string;
   colors: ThemeColors;
-  emphasis?: boolean;
 }) {
   const filled = value.trim().length > 0;
   return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
+    <View style={styles.lineField}>
+      <Text style={[styles.microLabel, { color: colors.textMuted }]}>{label}</Text>
       <Text
+        selectable={filled}
         style={[
-          emphasis ? styles.fieldValueLg : styles.fieldValue,
-          { color: filled ? colors.onSurface : colors.outline },
+          styles.lineValue,
+          {
+            color: filled ? colors.onSurface : colors.outline,
+            borderBottomColor: colors.outlineVariant,
+          },
         ]}
         numberOfLines={1}>
         {filled ? value : placeholder}
@@ -55,12 +59,13 @@ function Field({
 
 /**
  * Live paper-cheque preview for the Add Cheque form.
- * Updates as fields change; empty slots show muted placeholders.
+ * Hierarchy from type and space — bank logo is the brand signal.
  */
 export function ChequePreviewCard({
   direction,
   chequeNumber,
   bankName,
+  bankCode,
   branch,
   amount,
   issuedBy,
@@ -68,40 +73,19 @@ export function ChequePreviewCard({
 }: ChequePreviewCardProps) {
   const { colors } = useAppTheme();
   const isReceived = direction === 'received';
-  const bankLine = [bankName.trim(), branch?.trim()].filter(Boolean).join(' · ');
+  const bank = getBankByCode(bankCode) ?? getBankByName(bankName) ?? null;
   const amountLabel = formatPreviewAmount(amount);
+  const amountFilled =
+    amount.replace(/,/g, '').trim().length > 0 &&
+    Number.isFinite(Number(amount.replace(/,/g, '')));
+  const branchLine = branch?.trim() || null;
+  const a11yBank = [bankName.trim() || bank?.name, branchLine].filter(Boolean).join(', ');
 
   return (
     <View
       accessible
-      accessibilityLabel={`Cheque preview. ${isReceived ? 'Received' : 'Given'}. ${bankLine || 'Bank pending'}. ${amountLabel}.`}>
-      <View style={styles.captionRow}>
-        <Text style={[styles.caption, { color: colors.textMuted }]}>Live preview</Text>
-        <View
-          style={[
-            styles.directionPill,
-            {
-              backgroundColor: isReceived
-                ? colors.secondaryContainer
-                : colors.primaryContainer,
-            },
-          ]}>
-          <Icon
-            name={isReceived ? 'call-received' : 'call-made'}
-            size={12}
-            color={isReceived ? colors.onSecondaryContainer : colors.onPrimaryContainer}
-          />
-          <Text
-            style={[
-              styles.directionText,
-              {
-                color: isReceived ? colors.onSecondaryContainer : colors.onPrimaryContainer,
-              },
-            ]}>
-            {isReceived ? 'Received' : 'Given'}
-          </Text>
-        </View>
-      </View>
+      accessibilityLabel={`Cheque preview. ${isReceived ? 'Received' : 'Given'}. ${a11yBank || 'Bank pending'}. ${amountLabel}.`}>
+      <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Preview</Text>
 
       <View
         style={[
@@ -111,36 +95,45 @@ export function ChequePreviewCard({
             borderColor: colors.outlineVariant,
           },
         ]}>
-        <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
-
         <View style={styles.chequeInner}>
           <View style={styles.topRow}>
             <View style={styles.bankBlock}>
-              <View style={[styles.bankIcon, { backgroundColor: colors.primaryContainer }]}>
-                <Icon name="account-balance" size={16} color={colors.onPrimaryContainer} />
-              </View>
+              {bank ? (
+                <BankAvatar bank={bank} size={48} />
+              ) : (
+                <View style={[styles.bankPlaceholder, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <Text style={[styles.bankPlaceholderText, { color: colors.outline }]}>Bank</Text>
+                </View>
+              )}
               <View style={styles.bankText}>
                 <Text
+                  selectable={!!bankName.trim()}
                   style={[
                     styles.bankName,
-                    { color: bankName.trim() ? colors.onSurface : colors.outline },
+                    { color: bankName.trim() || bank ? colors.onSurface : colors.outline },
                   ]}
-                  numberOfLines={1}>
-                  {bankName.trim() || 'Bank name'}
+                  numberOfLines={2}>
+                  {bankName.trim() || bank?.name || 'Bank'}
                 </Text>
                 <Text
+                  selectable={!!branchLine}
                   style={[styles.branch, { color: colors.textMuted }]}
                   numberOfLines={1}>
-                  {branch?.trim() || 'Branch'}
+                  {branchLine ?? (bank?.code ? `Code ${bank.code}` : 'Branch')}
                 </Text>
               </View>
             </View>
-            <View style={styles.numberBlock}>
+
+            <View style={styles.metaBlock}>
+              <Text style={[styles.directionLabel, { color: colors.onSurfaceVariant }]}>
+                {isReceived ? 'Received' : 'Given'}
+              </Text>
               <Text style={[styles.microLabel, { color: colors.textMuted }]}>No.</Text>
               <Text
+                selectable={!!chequeNumber.trim()}
                 style={[
                   styles.chequeNo,
-                  { color: chequeNumber.trim() ? colors.primary : colors.outline },
+                  { color: chequeNumber.trim() ? colors.onSurface : colors.outline },
                 ]}
                 numberOfLines={1}>
                 {chequeNumber.trim() || '————'}
@@ -148,51 +141,45 @@ export function ChequePreviewCard({
             </View>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
-
-          <Field
-            label={isReceived ? 'From' : 'Pay to / issued for'}
+          <LineField
+            label={isReceived ? 'From' : 'Pay to'}
             value={issuedBy}
             placeholder="Name on cheque"
             colors={colors}
           />
 
-          <View style={styles.amountRow}>
-            <View style={styles.amountField}>
-              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Amount</Text>
+          <View style={styles.bottomRow}>
+            <View
+              style={[
+                styles.amountBox,
+                {
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}>
+              <Text style={[styles.microLabel, { color: colors.textMuted }]}>Amount</Text>
               <Text
+                selectable={amountFilled}
                 style={[
                   styles.amountValue,
-                  {
-                    color:
-                      amount.replace(/,/g, '').trim() &&
-                      Number.isFinite(Number(amount.replace(/,/g, '')))
-                        ? colors.onSurface
-                        : colors.outline,
-                  },
+                  { color: amountFilled ? colors.onSurface : colors.outline },
                 ]}
                 numberOfLines={1}>
                 {amountLabel}
               </Text>
             </View>
-            <View style={styles.maturityField}>
-              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Matures</Text>
+            <View style={styles.maturityBlock}>
+              <Text style={[styles.microLabel, { color: colors.textMuted }]}>Matures</Text>
               <Text
+                selectable={!!maturityDateLabel}
                 style={[
-                  styles.fieldValue,
+                  styles.maturityValue,
                   { color: maturityDateLabel ? colors.onSurface : colors.outline },
                 ]}
                 numberOfLines={1}>
                 {maturityDateLabel ?? '—'}
               </Text>
             </View>
-          </View>
-
-          <View style={[styles.micrRow, { borderTopColor: colors.outlineVariant }]}>
-            <Text style={[styles.micr, { color: colors.textMuted }]} numberOfLines={1}>
-              ⑆{chequeNumber.trim() || '000000'}⑆  ⑈LKR⑈
-            </Text>
-            <Icon name="verified" size={14} color={colors.outline} />
           </View>
         </View>
       </View>
@@ -201,98 +188,92 @@ export function ChequePreviewCard({
 }
 
 const styles = StyleSheet.create({
-  captionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  sectionLabel: {
+    ...Typography.labelMd,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     marginBottom: Spacing.stackSm,
   },
-  caption: {
-    ...Typography.labelMd,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    fontSize: 11,
-  },
-  directionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-  directionText: { ...Typography.labelMd, fontSize: 11, fontWeight: '600' },
-
   cheque: {
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     borderWidth: 1,
     overflow: 'hidden',
-    minHeight: 176,
   },
-  accentBar: { height: 4 },
   chequeInner: {
     padding: Spacing.gutterMd,
-    gap: Spacing.stackMd,
+    gap: Spacing.lg,
   },
-
   topRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
-  bankBlock: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
-  bankIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  bankBlock: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+  },
+  bankPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bankText: { flex: 1, minWidth: 0, gap: 1 },
+  bankPlaceholderText: { ...Typography.caption, fontWeight: '600' },
+  bankText: { flex: 1, minWidth: 0, gap: 2 },
   bankName: { ...Typography.bodyLg, fontWeight: '700' },
   branch: { ...Typography.caption },
-  numberBlock: { alignItems: 'flex-end', maxWidth: '38%' },
-  microLabel: { ...Typography.caption, fontSize: 10, textTransform: 'uppercase' },
+  metaBlock: { alignItems: 'flex-end', maxWidth: '36%', gap: 2 },
+  directionLabel: { ...Typography.caption, fontWeight: '600' },
+  microLabel: {
+    ...Typography.caption,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   chequeNo: {
     ...Typography.bodyMd,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-
-  divider: { height: StyleSheet.hairlineWidth },
-
-  field: { gap: 2 },
-  fieldLabel: {
-    ...Typography.caption,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+  lineField: { gap: 4 },
+  lineValue: {
+    ...Typography.bodyLg,
+    fontWeight: '500',
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  fieldValue: { ...Typography.bodyMd, fontWeight: '500' },
-  fieldValueLg: { ...Typography.headlineSmMobile },
-
-  amountRow: { flexDirection: 'row', gap: 16 },
-  amountField: { flex: 1.4, gap: 2 },
-  maturityField: { flex: 1, gap: 2 },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+  },
+  amountBox: {
+    flex: 1.5,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.md,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   amountValue: {
     ...Typography.headlineMdMobile,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.3,
   },
-
-  micrRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.stackSm,
-    marginTop: 2,
+  maturityBlock: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 4,
   },
-  micr: {
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 1.2,
+  maturityValue: {
+    ...Typography.bodyMd,
+    fontWeight: '600',
   },
 });

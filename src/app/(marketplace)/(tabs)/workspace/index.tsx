@@ -431,41 +431,6 @@ export default function WorkspaceHub() {
           </View>
         </Pressable>
 
-        {/* Modules */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Modules</Text>
-          <View style={styles.moduleGrid}>
-            {modules.map((m) => (
-              <Pressable
-                key={m.label}
-                onPress={() => router.push(m.route as never)}
-                style={({ pressed }) => [
-                  styles.moduleTile,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    opacity: pressed ? 0.92 : 1,
-                    transform: [{ scale: pressed ? 0.985 : 1 }],
-                  },
-                ]}>
-                <View style={styles.moduleTop}>
-                  <View style={[styles.moduleIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name={m.icon} size={18} color={colors.onPrimaryContainer} />
-                  </View>
-                  <Text style={[styles.moduleValue, { color: colors.onSurface }]}>{m.value}</Text>
-                </View>
-                <Text style={[styles.moduleLabel, { color: colors.onSurfaceVariant }]}>{m.label}</Text>
-                {m.hint ? (
-                  <Text style={[styles.moduleHint, { color: colors.primary }]} numberOfLines={1}>
-                    {m.hint}
-                  </Text>
-                ) : (
-                  <Text style={[styles.moduleHint, { color: colors.textMuted }]}>View</Text>
-                )}
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         {/* Quick actions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Quick actions</Text>
@@ -502,6 +467,41 @@ export default function WorkspaceHub() {
                 <Text style={[styles.actionLabel, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
                   {a.label}
                 </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Modules */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Modules</Text>
+          <View style={styles.moduleGrid}>
+            {modules.map((m) => (
+              <Pressable
+                key={m.label}
+                onPress={() => router.push(m.route as never)}
+                style={({ pressed }) => [
+                  styles.moduleTile,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    opacity: pressed ? 0.92 : 1,
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
+                  },
+                ]}>
+                <View style={styles.moduleTop}>
+                  <View style={[styles.moduleIcon, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name={m.icon} size={18} color={colors.onPrimaryContainer} />
+                  </View>
+                  <Text style={[styles.moduleValue, { color: colors.onSurface }]}>{m.value}</Text>
+                </View>
+                <Text style={[styles.moduleLabel, { color: colors.onSurfaceVariant }]}>{m.label}</Text>
+                {m.hint ? (
+                  <Text style={[styles.moduleHint, { color: colors.primary }]} numberOfLines={1}>
+                    {m.hint}
+                  </Text>
+                ) : (
+                  <Text style={[styles.moduleHint, { color: colors.textMuted }]}>View</Text>
+                )}
               </Pressable>
             ))}
           </View>

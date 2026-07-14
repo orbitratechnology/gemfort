@@ -12,9 +12,17 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
+import {
+  BankPickerSheet,
+  BankSelectField,
+  BranchPickerSheet,
+  BranchSelectField,
+} from '@/components/workspace/bank-picker-sheet';
 import { ChequePreviewCard } from '@/components/workspace/cheque-preview-card';
 import { ContactPicker } from '@/components/workspace/contact-picker';
 import { Spacing, Typography } from '@/constants/design-tokens';
+import { getBankByCode } from '@/constants/sri-lanka-banks';
+import { bankHasBranches } from '@/constants/sri-lanka-branches';
 import { createCheque, fetchContacts } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Timestamp } from '@/lib/firebase/db';
@@ -58,7 +66,7 @@ export default function AddChequeScreen() {
 
   const [direction, setDirection] = useState<ChequeDirection>('received');
   const [chequeNumber, setChequeNumber] = useState('');
-  const [bankName, setBankName] = useState('');
+  const [bankCode, setBankCode] = useState<string | null>(null);
   const [branch, setBranch] = useState('');
   const [amount, setAmount] = useState(params.amount ?? '');
   const [contactId, setContactId] = useState(params.contactId ?? '');
@@ -68,6 +76,12 @@ export default function AddChequeScreen() {
   const [photo, setPhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
+  const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+
+  const selectedBank = useMemo(() => getBankByCode(bankCode) ?? null, [bankCode]);
+  const bankName = selectedBank?.name ?? '';
+  const canPickBranch = bankHasBranches(bankCode);
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', user?.uid],
@@ -108,6 +122,11 @@ export default function AddChequeScreen() {
       issuedBy: issuedBy || undefined,
       notes: notes || undefined,
     });
+    if (result.success && !bankCode) {
+      setErrors({ bankName: 'Select a bank.' });
+      toast.error('Select a bank.');
+      return;
+    }
     if (!result.success) {
       setErrors(result.errors);
       toast.error(Object.values(result.errors)[0] ?? 'Check the highlighted fields.');
@@ -131,6 +150,7 @@ export default function AddChequeScreen() {
         direction: data.direction,
         chequeNumber: data.chequeNumber,
         bankName: data.bankName,
+        bankCode,
         branch: data.branch || null,
         amount: data.amount,
         counterpartyContactId: data.contactId,
@@ -164,16 +184,6 @@ export default function AddChequeScreen() {
           Track post-dated cheques and maturity dates.
         </Text>
 
-        <ChequePreviewCard
-          direction={direction}
-          chequeNumber={chequeNumber}
-          bankName={bankName}
-          branch={branch}
-          amount={amount}
-          issuedBy={issuedBy || selectedContact?.displayName || ''}
-          maturityDateLabel={maturityPreview}
-        />
-
         <FormSection title="Direction">
           <ChipSelect
             layout="split"
@@ -199,24 +209,20 @@ export default function AddChequeScreen() {
             leftIcon="receipt"
             error={errors.chequeNumber}
           />
-          <Input
+          <BankSelectField
             label="Bank"
-            value={bankName}
-            onChangeText={(v) => {
-              setBankName(v);
-              clearField('bankName');
-            }}
-            placeholder="Commercial Bank"
-            leftIcon="account-balance"
+            bankCode={bankCode}
+            bankName={bankName}
+            onPress={() => setBankSheetOpen(true)}
             error={errors.bankName}
           />
-          <Input
+          <BranchSelectField
             label="Branch"
-            value={branch}
-            onChangeText={setBranch}
-            placeholder="Optional"
-            leftIcon="business"
+            bankCode={bankCode}
+            branchName={branch || null}
+            onPress={() => setBranchSheetOpen(true)}
             error={errors.branch}
+            disabled={!canPickBranch}
           />
           <Input
             label="Amount (LKR)"
@@ -294,9 +300,42 @@ export default function AddChequeScreen() {
             error={errors.notes}
           />
         </FormSection>
+
+        <ChequePreviewCard
+          direction={direction}
+          chequeNumber={chequeNumber}
+          bankName={bankName}
+          bankCode={bankCode}
+          branch={branch}
+          amount={amount}
+          issuedBy={issuedBy || selectedContact?.displayName || ''}
+          maturityDateLabel={maturityPreview}
+        />
       </ThemedScrollView>
 
       <FormFooter title="Save cheque" icon="save" loading={loading} onPress={handleSubmit} />
+
+      <BankPickerSheet
+        visible={bankSheetOpen}
+        onClose={() => setBankSheetOpen(false)}
+        value={bankCode}
+        onSelect={(bank) => {
+          setBankCode(bank.code);
+          setBranch('');
+          clearField('bankName');
+          clearField('branch');
+        }}
+      />
+      <BranchPickerSheet
+        visible={branchSheetOpen}
+        onClose={() => setBranchSheetOpen(false)}
+        bankCode={bankCode}
+        value={branch || null}
+        onSelect={(b) => {
+          setBranch(b.name);
+          clearField('branch');
+        }}
+      />
     </SafeAreaView>
   );
 }

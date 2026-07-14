@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
 
-import { Input } from '@/components/ui/input';
-import { Spacing, Typography } from '@/constants/design-tokens';
-import { filterContacts } from '@/features/workspace/contact-utils';
-import { useThemeStyles } from '@/hooks/use-theme-styles';
+import {
+  ContactPickerSheet,
+  PickerSelectField,
+} from '@/components/workspace/contact-picker-sheet';
 import type { Contact } from '@/types';
 
 type ContactPickerProps = {
@@ -15,8 +14,13 @@ type ContactPickerProps = {
   typeFilter?: string | null;
   emptyHint?: string;
   error?: string;
+  placeholder?: string;
 };
 
+/**
+ * Universal contact selector — opens a searchable bottom sheet.
+ * Drop-in for forms across Workspace (cheques, AP, money, etc.).
+ */
 export function ContactPicker({
   label,
   contacts,
@@ -25,102 +29,37 @@ export function ContactPicker({
   typeFilter = null,
   emptyHint = 'Add a contact in Workspace → Contacts first.',
   error,
+  placeholder = 'Search contacts…',
 }: ContactPickerProps) {
-  const ts = useThemeStyles();
-  const [query, setQuery] = useState('');
-
-  const filtered = useMemo(
-    () => filterContacts(contacts, query, typeFilter),
-    [contacts, query, typeFilter],
-  );
+  const [open, setOpen] = useState(false);
+  const selected = contacts.find((c) => c.id === value) ?? null;
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.label, ts.textSecondary]}>{label}</Text>
-      <Input
-        label="Search contacts"
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Name, phone, or type"
-        leftIcon="search"
+    <>
+      <PickerSelectField
+        label={label}
+        valueLabel={selected?.displayName ?? null}
+        subtitle={
+          selected
+            ? [selected.companyName, selected.phone ?? selected.whatsapp].filter(Boolean).join(' · ') ||
+              null
+            : null
+        }
+        placeholder={placeholder}
+        icon="person"
+        onPress={() => setOpen(true)}
+        error={error}
       />
-      {filtered.length === 0 ? (
-        <Text style={[styles.empty, ts.textMuted]}>{emptyHint}</Text>
-      ) : (
-        <View style={styles.list}>
-          {filtered.map((contact) => {
-            const selected = value === contact.id;
-            return (
-              <Pressable
-                key={contact.id}
-                style={[
-                  styles.row,
-                  ts.border,
-                  { backgroundColor: ts.colors.surface },
-                  selected && { borderColor: ts.colors.primary },
-                  !!error && !value && { borderColor: ts.colors.error },
-                ]}
-                onPress={() => onChange(contact.id)}>
-                <View style={styles.rowBody}>
-                  <Text
-                    style={[
-                      styles.name,
-                      ts.text,
-                      selected && { color: ts.colors.primary, fontWeight: '600' },
-                    ]}>
-                    {contact.displayName}
-                  </Text>
-                  {contact.phone ? (
-                    <Text style={[styles.meta, ts.textMuted]}>{contact.phone}</Text>
-                  ) : null}
-                  <View style={styles.tags}>
-                    {(contact.contactTypes ?? []).map((type) => (
-                      <Text key={type} style={[styles.tag, ts.textPrimary]}>
-                        {type}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                {selected ? (
-                  <Text style={[styles.check, ts.textPrimary]}>Selected</Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-      {error ? (
-        <Text style={[styles.error, { color: ts.colors.error }]} accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <ContactPickerSheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        contacts={contacts}
+        value={value}
+        typeFilter={typeFilter}
+        emptyHint={emptyHint}
+        title={label}
+        onSelect={(contact) => onChange(contact.id)}
+      />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: Spacing.sm },
-  label: { ...Typography.label },
-  empty: { ...Typography.bodySmall },
-  list: { gap: Spacing.xs },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  rowBody: { flex: 1, gap: 2 },
-  name: { ...Typography.body },
-  meta: { ...Typography.caption },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
-  tag: {
-    ...Typography.caption,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    textTransform: 'capitalize',
-  },
-  check: { ...Typography.caption, marginLeft: Spacing.sm, fontWeight: '600' },
-  error: { ...Typography.bodySmall },
-});

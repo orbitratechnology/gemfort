@@ -54,7 +54,11 @@ describe('addGemSchema', () => {
       originCountry: 'Sri Lanka',
       roughWeight: '3.2',
       acquisitionCost: '150,000',
-      treatment: 'none',
+      treatment: 'natural',
+      colorPrimary: 'royal_blue',
+      clarity: 'eye_clean',
+      cutType: 'round',
+      shape: 'oval',
     });
     expect(r.success).toBe(true);
     if (r.success) {
@@ -69,7 +73,11 @@ describe('addGemSchema', () => {
       originCountry: 'Sri Lanka',
       roughWeight: '0',
       acquisitionCost: '100',
-      treatment: 'none',
+      treatment: 'natural',
+      colorPrimary: 'royal_blue',
+      clarity: 'eye_clean',
+      cutType: 'round',
+      shape: 'oval',
     });
     expect(r.success).toBe(false);
   });
