@@ -582,7 +582,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    // backgroundColor: "#ddd",
   },
   flagThumb: {
     width: 36,

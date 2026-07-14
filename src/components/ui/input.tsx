@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, TextInput, View, Text, type TextInputProps } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/icon';
@@ -10,9 +11,19 @@ type InputProps = TextInputProps & {
   helperText?: string;
   /** Leading icon to clarify the field for non-technical users. */
   leftIcon?: IconName;
+  /** Custom leading element (e.g. brand mark) — preferred over leftIcon when set. */
+  leftElement?: ReactNode;
 };
 
-export function Input({ label, error, helperText, leftIcon, style, ...props }: InputProps) {
+export function Input({
+  label,
+  error,
+  helperText,
+  leftIcon,
+  leftElement,
+  style,
+  ...props
+}: InputProps) {
   const { colors } = useAppTheme();
   const borderColor = error ? colors.error : colors.border;
   const iconColor = error ? colors.error : colors.textMuted;
@@ -30,7 +41,7 @@ export function Input({ label, error, helperText, leftIcon, style, ...props }: I
             borderCurve: 'continuous',
           },
         ]}>
-        {leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null}
+        {leftElement ?? (leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null)}
         <TextInput
           placeholderTextColor={colors.textMuted}
           style={[styles.input, { color: colors.text }, style]}

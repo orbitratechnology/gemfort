@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
     Pressable,
@@ -39,6 +39,7 @@ import type { Business, MarketplaceListing } from "@/types";
 type Tab = "gems" | "traders" | "lapidaries" | "labs";
 type BusinessSortBy = "featured" | "rating" | "name";
 const PAGE_SIZE = 20;
+const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries", "labs"];
 
 const QUICK_TYPES: { id: string; label: string }[] = [
   { id: "all", label: "All" },
@@ -64,7 +65,17 @@ const BUSINESS_SORT_OPTIONS: { id: BusinessSortBy; label: string }[] = [
 
 export default function DirectoryScreen() {
   const { colors } = useAppTheme();
-  const [tab, setTab] = useState<Tab>("gems");
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const initialTab =
+    typeof tabParam === "string" && VALID_TABS.includes(tabParam as Tab)
+      ? (tabParam as Tab)
+      : "gems";
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tabSynced, setTabSynced] = useState(initialTab);
+  if (initialTab !== tabSynced) {
+    setTabSynced(initialTab);
+    setTab(initialTab);
+  }
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filterOpen, setFilterOpen] = useState(false);

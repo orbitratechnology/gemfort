@@ -15,6 +15,11 @@ type ContactPickerProps = {
   emptyHint?: string;
   error?: string;
   placeholder?: string;
+  /** Allow typing a name when the person is not in contacts. */
+  allowCustomName?: boolean;
+  customName?: string;
+  onCustomNameChange?: (name: string) => void;
+  customNameLabel?: string;
 };
 
 /**
@@ -30,22 +35,32 @@ export function ContactPicker({
   emptyHint = 'Add a contact in Workspace → Contacts first.',
   error,
   placeholder = 'Search contacts…',
+  allowCustomName = false,
+  customName = '',
+  onCustomNameChange,
+  customNameLabel = 'Use this name',
 }: ContactPickerProps) {
   const [open, setOpen] = useState(false);
   const selected = contacts.find((c) => c.id === value) ?? null;
+  const displayName = selected?.displayName ?? (customName.trim() || null);
+  const isCustom = !selected && !!customName.trim();
 
   return (
     <>
       <PickerSelectField
         label={label}
-        valueLabel={selected?.displayName ?? null}
+        valueLabel={displayName}
         subtitle={
           selected
             ? [selected.companyName, selected.phone ?? selected.whatsapp].filter(Boolean).join(' · ') ||
               null
-            : null
+            : isCustom
+              ? 'Custom buyer'
+              : null
         }
-        placeholder={placeholder}
+        placeholder={
+          allowCustomName ? 'Select contact or enter name…' : placeholder
+        }
         icon="person"
         onPress={() => setOpen(true)}
         error={error}
@@ -58,7 +73,21 @@ export function ContactPicker({
         typeFilter={typeFilter}
         emptyHint={emptyHint}
         title={label}
-        onSelect={(contact) => onChange(contact.id)}
+        allowCustomName={allowCustomName}
+        customName={customName}
+        customNameLabel={customNameLabel}
+        onSelect={(contact) => {
+          onChange(contact.id);
+          onCustomNameChange?.('');
+        }}
+        onSelectCustomName={
+          allowCustomName && onCustomNameChange
+            ? (name) => {
+                onChange('');
+                onCustomNameChange(name);
+              }
+            : undefined
+        }
       />
     </>
   );

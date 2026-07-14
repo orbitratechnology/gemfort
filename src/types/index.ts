@@ -106,6 +106,14 @@ export type Business = {
     certificatesIssued: number;
   } | null;
   contacts: Record<string, { value: string; isVisible: boolean }>;
+  /** Public social / web presence — empty string means not set. */
+  socialLinks?: {
+    website?: string;
+    instagram?: string;
+    tiktok?: string;
+    facebook?: string;
+    wechat?: string;
+  };
   logoUrl: string | null;
   coverPhotoUrl: string | null;
   galleryPhotos: {

@@ -101,6 +101,42 @@ export async function fetchBusinessByOwnerUid(ownerUid: string): Promise<Busines
   return { id: d.id, ...d.data() } as Business;
 }
 
+/** Keep business verification in sync when the user profile is already verified. */
+export async function syncBusinessVerificationFromProfile(
+  business: Business,
+  profileVerified: boolean,
+): Promise<Business> {
+  if (!profileVerified) return business;
+  const already =
+    business.verificationStatus === 'verified' && business.badges?.isVerified === true;
+  if (already) return business;
+
+  const year = new Date().getFullYear();
+  await updateDoc(doc(getFirebaseDb(), 'businesses', business.id), {
+    verificationStatus: 'verified',
+    verificationTier: business.verificationTier === 'none' ? 'full' : business.verificationTier,
+    'badges.isVerified': true,
+    'badges.verifiedSinceYear': business.badges?.verifiedSinceYear ?? year,
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    ...business,
+    verificationStatus: 'verified',
+    verificationTier: business.verificationTier === 'none' ? 'full' : business.verificationTier,
+    badges: {
+      ...business.badges,
+      isVerified: true,
+      verifiedSinceYear: business.badges?.verifiedSinceYear ?? year,
+    },
+  };
+}
+
+export function isBusinessVerified(business: Business | null | undefined): boolean {
+  if (!business) return false;
+  return business.verificationStatus === 'verified' || business.badges?.isVerified === true;
+}
+
 /** Map registration role → business document type. */
 export function businessTypeFromRegistration(profile: {
   role?: string | null;
@@ -128,6 +164,14 @@ export async function createBusinessProfile(
     shortDescription: string;
     whatsapp?: string;
     phone?: string;
+    address?: string;
+    socialLinks?: {
+      website?: string;
+      instagram?: string;
+      tiktok?: string;
+      facebook?: string;
+      wechat?: string;
+    };
   },
 ): Promise<string> {
   const now = Timestamp.now();
@@ -135,6 +179,8 @@ export async function createBusinessProfile(
   const isTrader = type === 'trader';
   const isLapidary = type === 'lapidary';
   const isLab = type === 'gem_lab';
+  const wa = input.whatsapp?.trim() ?? '';
+  const ph = input.phone?.trim() ?? '';
   const ref = await addDoc(collection(getFirebaseDb(), 'businesses'), {
     ownerUid,
     businessType: type,
@@ -146,7 +192,7 @@ export async function createBusinessProfile(
     tinNumber: '',
     yearEstablished: null,
     shortDescription: input.shortDescription.trim(),
-    address: '',
+    address: input.address?.trim() ?? '',
     city: input.city.trim(),
     district: 'Kalutara',
     province: 'Western',
@@ -192,8 +238,15 @@ export async function createBusinessProfile(
         }
       : null,
     contacts: {
-      whatsapp: { value: input.whatsapp?.trim() ?? '', isVisible: !!input.whatsapp?.trim() },
-      phone: { value: input.phone?.trim() ?? '', isVisible: !!input.phone?.trim() },
+      whatsapp: { value: wa, isVisible: !!wa },
+      phone: { value: ph, isVisible: !!ph },
+    },
+    socialLinks: {
+      website: input.socialLinks?.website?.trim() ?? '',
+      instagram: input.socialLinks?.instagram?.trim() ?? '',
+      tiktok: input.socialLinks?.tiktok?.trim() ?? '',
+      facebook: input.socialLinks?.facebook?.trim() ?? '',
+      wechat: input.socialLinks?.wechat?.trim() ?? '',
     },
     logoUrl: null,
     coverPhotoUrl: null,
@@ -220,9 +273,16 @@ export async function updateBusinessProfile(
     city?: string;
     address?: string;
     whatsapp?: string;
-    whatsappVisible?: boolean;
     phone?: string;
-    phoneVisible?: boolean;
+    logoUrl?: string | null;
+    coverPhotoUrl?: string | null;
+    socialLinks?: {
+      website?: string;
+      instagram?: string;
+      tiktok?: string;
+      facebook?: string;
+      wechat?: string;
+    };
   },
 ) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
@@ -230,16 +290,23 @@ export async function updateBusinessProfile(
   if (data.shortDescription !== undefined) updates.shortDescription = data.shortDescription.trim();
   if (data.city !== undefined) updates.city = data.city.trim();
   if (data.address !== undefined) updates.address = data.address.trim();
+  if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
+  if (data.coverPhotoUrl !== undefined) updates.coverPhotoUrl = data.coverPhotoUrl;
   if (data.whatsapp !== undefined) {
-    updates['contacts.whatsapp'] = {
-      value: data.whatsapp.trim(),
-      isVisible: data.whatsappVisible ?? !!data.whatsapp.trim(),
-    };
+    const value = data.whatsapp.trim();
+    updates['contacts.whatsapp'] = { value, isVisible: !!value };
   }
   if (data.phone !== undefined) {
-    updates['contacts.phone'] = {
-      value: data.phone.trim(),
-      isVisible: data.phoneVisible ?? !!data.phone.trim(),
+    const value = data.phone.trim();
+    updates['contacts.phone'] = { value, isVisible: !!value };
+  }
+  if (data.socialLinks !== undefined) {
+    updates.socialLinks = {
+      website: data.socialLinks.website?.trim() ?? '',
+      instagram: data.socialLinks.instagram?.trim() ?? '',
+      tiktok: data.socialLinks.tiktok?.trim() ?? '',
+      facebook: data.socialLinks.facebook?.trim() ?? '',
+      wechat: data.socialLinks.wechat?.trim() ?? '',
     };
   }
   await updateDoc(doc(getFirebaseDb(), 'businesses', businessId), updates);
