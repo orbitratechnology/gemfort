@@ -152,6 +152,7 @@ export default function ServicesListScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              style={styles.hBleed}
               contentContainerStyle={styles.filterRow}
             >
               {FILTERS.map((f) => {
@@ -327,7 +328,15 @@ const styles = StyleSheet.create({
     height: 48,
   },
   searchInput: { flex: 1, ...Typography.bodyLg },
-  filterRow: { flexDirection: "row", gap: Spacing.stackSm, paddingVertical: 2 },
+  hBleed: {
+    marginHorizontal: -Spacing.containerMargin,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.stackSm,
+    paddingVertical: 2,
+    paddingHorizontal: Spacing.containerMargin,
+  },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",

@@ -538,8 +538,8 @@ export default function HomeScreen() {
             },
           ] as const
         ).map((block) => (
-          <View key={block.tab} style={styles.section}>
-            <View style={styles.sectionHeader}>
+          <View key={block.tab} style={styles.sectionBleed}>
+            <View style={[styles.sectionHeader, styles.sectionInset]}>
               <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
                 {block.title}
               </Text>
@@ -555,7 +555,9 @@ export default function HomeScreen() {
               </Pressable>
             </View>
             {businessesLoading ? (
-              <SkeletonList />
+              <View style={styles.sectionInset}>
+                <SkeletonList />
+              </View>
             ) : (
               <HomeBusinessRail
                 businesses={block.data}
@@ -686,6 +688,13 @@ const styles = StyleSheet.create({
   /** Sections own horizontal inset; screen stays full-bleed for carousel */
   section: {
     gap: Spacing.stackMd,
+    paddingHorizontal: Spacing.containerMargin,
+  },
+  /** Full-bleed horizontal rails; header stays inset */
+  sectionBleed: {
+    gap: Spacing.stackMd,
+  },
+  sectionInset: {
     paddingHorizontal: Spacing.containerMargin,
   },
   sectionHeader: {
