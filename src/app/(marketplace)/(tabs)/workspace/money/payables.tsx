@@ -20,7 +20,7 @@ import {
   recordPayablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
@@ -158,7 +158,7 @@ export default function PayablesScreen() {
         </View>
         <Text style={[styles.desc, { color: colors.onSurface }]}>{item.description}</Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
-          Due {formatDate(item.dueDate)}
+          Due {formatRelativeDue(item.dueDate)}
           {item.amountPaid > 0 ? ` · Paid ${formatCurrency(item.amountPaid, item.currency)}` : ''}
         </Text>
         {!paid ? (

@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -66,12 +67,13 @@ export default function AddTripPurchaseScreen() {
       <StackHeader title="Buy Gem on Trip" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           Quick-add a rough purchase at the mine or market. Overhead can be distributed later.
         </Text>
+        </ScreenInset>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>GEM TYPE</Text>
+        <FormSection title="Gem type" padded={false}>
           <View style={styles.typeGrid}>
             {GEM_TYPES.map((t) => {
               const selected = gemType === t.value;
@@ -94,8 +96,9 @@ export default function AddTripPurchaseScreen() {
               );
             })}
           </View>
-        </View>
+        </FormSection>
 
+        <ScreenInset style={styles.fields}>
         <Input label="Origin country" value={originCountry} onChangeText={setOriginCountry} leftIcon="public" />
         <Input
           label="Rough weight (ct)"
@@ -116,6 +119,7 @@ export default function AddTripPurchaseScreen() {
         <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 
         <Button title="Add to trip" icon="add" loading={loading} onPress={handleSubmit} />
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -123,11 +127,15 @@ export default function AddTripPurchaseScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.lg },
+  content: { paddingBottom: Spacing.section, gap: Spacing.lg },
   subtitle: { ...Typography.bodyMd },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 0.8 },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+  },
   typeChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -135,4 +143,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   typeLabel: { ...Typography.labelMd, fontWeight: '600' },
+  fields: { gap: Spacing.lg },
 });

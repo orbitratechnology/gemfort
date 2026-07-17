@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
+import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -44,12 +46,17 @@ export default function TraderRequestsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <WorkspaceScreenBackdrop kind="requests" />
       <StackHeader title="My requests" />
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset>
         <Pressable onPress={() => router.push('/verify-certificate')}>
           <Text style={{ color: colors.primary, fontWeight: '600' }}>Verify a certificate →</Text>
         </Pressable>
-        <Text style={[styles.section, { color: colors.textMuted }]}>SERVICES</Text>
+        </ScreenInset>
+
+        <FormSectionLabel title="Services" />
+        <ScreenInset style={styles.sectionBody}>
         {services.length === 0 ? (
           <Text style={{ color: colors.textMuted }}>No service requests yet. Open a lapidary profile to request.</Text>
         ) : (
@@ -62,7 +69,10 @@ export default function TraderRequestsScreen() {
             </View>
           ))
         )}
-        <Text style={[styles.section, { color: colors.textMuted }]}>CERTIFICATION</Text>
+        </ScreenInset>
+
+        <FormSectionLabel title="Certification" />
+        <ScreenInset style={styles.sectionBody}>
         {certs.length === 0 ? (
           <Text style={{ color: colors.textMuted }}>No certification requests yet. Open a gem lab profile to request.</Text>
         ) : (
@@ -75,6 +85,7 @@ export default function TraderRequestsScreen() {
             </View>
           ))
         )}
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -82,8 +93,8 @@ export default function TraderRequestsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: 48 },
-  section: { ...Typography.labelMd, letterSpacing: 1, marginTop: Spacing.md },
+  content: { gap: Spacing.md, paddingBottom: 48 },
+  sectionBody: { gap: Spacing.md },
   card: { borderRadius: Radius.lg, padding: Spacing.lg, gap: 4 },
   title: { ...Typography.headlineMdMobile, fontWeight: '700' },
 });

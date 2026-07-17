@@ -10,6 +10,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 /** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
 const BOOT_BG = '#001618';
@@ -91,20 +92,23 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <QueryProvider>
-          <AuthProvider>
-            <PushNotificationRegistrar />
-            <RootNavigator />
-          </AuthProvider>
-        </QueryProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <ThemeProvider>
+        <ToastProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <PushNotificationRegistrar />
+              <RootNavigator />
+            </AuthProvider>
+          </QueryProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   boot: {
     flex: 1,
     backgroundColor: BOOT_BG,

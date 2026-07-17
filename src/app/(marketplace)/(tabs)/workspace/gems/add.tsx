@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection } from "@/components/ui/form-section";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MediaField } from "@/components/ui/media-field";
@@ -194,7 +194,8 @@ export default function AddGemScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.stepRow}>
+        <ScreenInset>
+          <View style={styles.stepRow}>
           {STEPS.map((label, i) => {
             const active = i === step;
             const done = i < step;
@@ -242,6 +243,7 @@ export default function AddGemScreen() {
             );
           })}
         </View>
+        </ScreenInset>
 
         {step === 0 ? (
           <>
@@ -462,7 +464,7 @@ export default function AddGemScreen() {
 
       <FormFooter
         title={step === 2 ? "Save gem" : "Continue"}
-        icon={step === 2 ? "save" : "arrow-forward"}
+        icon={step === 2 ? "shield" : "arrow-forward"}
         loading={loading}
         onPress={handleNext}
         secondaryTitle={step > 0 ? "Back" : undefined}
@@ -558,7 +560,6 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,

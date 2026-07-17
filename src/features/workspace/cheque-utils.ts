@@ -5,13 +5,13 @@ import {
   format,
   isSameDay,
   isSameMonth,
-  isToday,
   isTomorrow,
   isWithinInterval,
   startOfDay,
   startOfMonth,
 } from 'date-fns';
 
+import { formatRelativeDue } from '@/lib/utils';
 import type { Cheque, ChequeStatus } from '@/types';
 
 export const CHEQUE_STATUS_LABELS: Record<ChequeStatus, string> = {
@@ -112,14 +112,7 @@ export function getDayTotal(cheques: Cheque[]): number {
 }
 
 export function maturityLabel(c: Cheque): string {
-  const d = toDate(c.maturityDate);
-  if (!d) return '—';
-  if (isToday(d)) return 'Today';
-  if (isTomorrow(d)) return 'Tomorrow';
-  const days = daysUntilMaturity(c);
-  if (days < 0) return `${Math.abs(days)}d overdue`;
-  if (days <= 7) return `${days}d left`;
-  return format(d, 'd MMM yyyy');
+  return formatRelativeDue(c.maturityDate);
 }
 
 export function detectChequesMaturingTomorrow(cheques: Cheque[]): Cheque[] {

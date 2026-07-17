@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/brand/brand-mark';
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
-import { FormSection } from '@/components/ui/form-section';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Brand } from '@/constants/brand-story';
@@ -74,16 +74,18 @@ export default function LoginScreen() {
         <ThemedScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
-          <View style={styles.brandBlock}>
+          <ScreenInset style={styles.brandBlock}>
             <BrandMark size="md" showWordmark />
             <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
-          </View>
+          </ScreenInset>
 
-          <StoryChapter
-            title="Welcome back"
-            body="Sign in to continue your gem business journey."
-            accent="primary"
-          />
+          <ScreenInset>
+            <StoryChapter
+              title="Welcome back"
+              body="Sign in to continue your gem business journey."
+              accent="primary"
+            />
+          </ScreenInset>
 
           <FormSection>
             <Input
@@ -122,16 +124,18 @@ export default function LoginScreen() {
             />
           </FormSection>
 
-          <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
+          <ScreenInset style={styles.cta}>
+            <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
 
-          <View style={styles.links}>
-            <Link href="/(auth)/forgot-password">
-              <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
-            </Link>
-            <Link href="/(auth)/register">
-              <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
-            </Link>
-          </View>
+            <View style={styles.links}>
+              <Link href="/(auth)/forgot-password">
+                <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
+              </Link>
+              <Link href="/(auth)/register">
+                <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
+              </Link>
+            </View>
+          </ScreenInset>
         </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -142,12 +146,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   container: {
-    paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
   brandBlock: { gap: Spacing.sm },
+  cta: { gap: Spacing.lg },
   tagline: { ...Typography.bodySmall },
   links: { alignItems: 'center', gap: Spacing.md, paddingTop: Spacing.sm },
   linkText: { ...Typography.bodyMd, fontWeight: '600' },

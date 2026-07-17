@@ -17,6 +17,7 @@ import {
   fetchTransactions,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -34,6 +35,7 @@ export default function TransactionsScreen() {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const { data: transactions = [], refetch, isRefetching } = useQuery({
     queryKey: ['transactions', user?.uid],
@@ -48,12 +50,13 @@ export default function TransactionsScreen() {
   });
 
   const filteredTransactions = useMemo(() => {
-    if (!search) return transactions;
+    if (!debouncedSearch) return transactions;
+    const q = debouncedSearch.toLowerCase();
     return transactions.filter(t => 
-      t.description?.toLowerCase().includes(search.toLowerCase()) ||
-      t.category?.toLowerCase().includes(search.toLowerCase())
+      t.description?.toLowerCase().includes(q) ||
+      t.category?.toLowerCase().includes(q)
     );
-  }, [transactions, search]);
+  }, [transactions, debouncedSearch]);
 
   const sections = useMemo(() => groupTransactionsByDate(filteredTransactions), [filteredTransactions]);
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);

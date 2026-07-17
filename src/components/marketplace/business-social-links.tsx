@@ -1,19 +1,22 @@
 import { FontAwesome6 } from '@react-native-vector-icons/fontawesome6/static';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Input } from '@/components/ui/input';
+import { Radius, Typography } from '@/constants/design-tokens';
 import {
   hasAnySocialLink,
   socialProfileUrl,
   websiteFaviconUrls,
   websiteHostname,
   type BusinessSocialLinks,
+  type SocialPlatform,
 } from '@/features/marketplace/business-links';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useToast } from '@/providers/toast-provider';
 
 type SocialLinksRowProps = {
@@ -36,22 +39,47 @@ const PLATFORMS: PlatformDef[] = [
   { key: 'wechat', label: 'WeChat', brand: 'weixin', color: '#07C160' },
 ];
 
-function Favicon({ url, size = 20 }: { url: string; size?: number }) {
+const FAVICON_DEBOUNCE_MS = 400;
+
+function Favicon({
+  url,
+  size = 20,
+  fallback,
+}: {
+  url: string;
+  size?: number;
+  fallback?: ReactNode;
+}) {
   const { colors } = useAppTheme();
-  const [failed, setFailed] = useState(false);
-  const candidates = websiteFaviconUrls(url);
+  const host = websiteHostname(url);
+  const candidates = useMemo(() => websiteFaviconUrls(url), [url]);
   const [index, setIndex] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const [trackedUrl, setTrackedUrl] = useState(url);
+
+  // Reset when the URL changes — stale failed/index state was why previews
+  // often stopped showing after editing the field. Adjust during render
+  // (React-recommended) instead of setState-in-effect.
+  if (url !== trackedUrl) {
+    setTrackedUrl(url);
+    setIndex(0);
+    setFailed(false);
+  }
+
   const src = !failed && candidates[index] ? candidates[index] : null;
 
-  if (!src) {
-    return <Icon name="language" size={size} color={colors.primary} />;
+  if (!host || !src) {
+    return fallback ?? <Icon name="language" size={size} color={colors.primary} />;
   }
 
   return (
     <Image
+      key={`${url}-${index}`}
       source={{ uri: src }}
       style={{ width: size, height: size, borderRadius: 4 }}
       contentFit="contain"
+      cachePolicy="memory-disk"
+      recyclingKey={`favicon-${host}-${index}`}
       onError={() => {
         if (index + 1 < candidates.length) setIndex((i) => i + 1);
         else setFailed(true);
@@ -91,7 +119,7 @@ export function BusinessSocialLinksRow({ links, showWebsite = true }: SocialLink
               opacity: pressed ? 0.88 : 1,
             },
           ]}>
-          <Favicon url={website!} size={18} />
+          <Favicon url={websiteUrl} size={18} />
           <Text style={[styles.chipLabel, { color: colors.onSurface }]} numberOfLines={1}>
             {host}
           </Text>
@@ -148,38 +176,108 @@ export function BusinessSocialLinksRow({ links, showWebsite = true }: SocialLink
   );
 }
 
-/** Compact website preview used on the edit form. */
-export function WebsiteFaviconPreview({ url }: { url: string }) {
-  const { colors } = useAppTheme();
-  const host = websiteHostname(url);
-  const href = socialProfileUrl('website', url);
-  if (!host || !href) return null;
+type SocialLinkFieldProps = {
+  platform: SocialPlatform;
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  helperText?: string;
+} & Pick<ComponentProps<typeof Input>, 'autoCapitalize' | 'autoCorrect' | 'keyboardType'>;
+
+const FIELD_BRAND: Record<
+  Exclude<SocialPlatform, 'website'>,
+  { name: 'instagram' | 'tiktok' | 'facebook' | 'weixin'; color: string }
+> = {
+  instagram: { name: 'instagram', color: '#E4405F' },
+  tiktok: { name: 'tiktok', color: '#111111' },
+  facebook: { name: 'facebook', color: '#1877F2' },
+  wechat: { name: 'weixin', color: '#07C160' },
+};
+
+/**
+ * Website / social edit field: favicon replaces the default left icon when a
+ * link is detected; open-in-new appears on the right when a URL can be opened.
+ * Preview detection is debounced so favicon fetches aren't fired every keystroke.
+ */
+export function SocialLinkField({
+  platform,
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  helperText,
+  ...inputProps
+}: SocialLinkFieldProps) {
+  const { colors, isDark } = useAppTheme();
+  const toast = useToast();
+  const debouncedValue = useDebouncedValue(value.trim(), FAVICON_DEBOUNCE_MS);
+
+  const openHref =
+    platform === 'wechat' ? null : socialProfileUrl(platform, debouncedValue);
+
+  /** Prefer normalized URL for favicon so host parsing is stable. */
+  const faviconUrl =
+    platform === 'website'
+      ? openHref ?? debouncedValue
+      : openHref ?? (/^https?:\/\//i.test(debouncedValue) ? debouncedValue : '');
+
+  const showFavicon = !!websiteHostname(faviconUrl);
+
+  const brand = platform === 'website' ? null : FIELD_BRAND[platform];
+  const brandColor =
+    brand?.name === 'tiktok' && !isDark ? colors.onSurface : brand?.color;
+
+  const defaultLeft =
+    platform === 'website' ? (
+      <Icon name="language" size={20} color={colors.textMuted} />
+    ) : (
+      <FontAwesome6 name={brand!.name} iconStyle="brand" size={20} color={brandColor} />
+    );
+
+  const leftElement =
+    showFavicon && faviconUrl ? (
+      <Favicon key={websiteHostname(faviconUrl) ?? faviconUrl} url={faviconUrl} size={20} fallback={defaultLeft} />
+    ) : (
+      defaultLeft
+    );
+
+  const rightElement =
+    platform === 'wechat' && value.trim() ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Copy WeChat ID"
+        hitSlop={8}
+        onPress={() => {
+          void Clipboard.setStringAsync(value.trim()).then(() =>
+            toast.success('WeChat ID copied'),
+          );
+        }}
+        style={({ pressed }) => [styles.fieldAction, pressed && { opacity: 0.7 }]}>
+        <Icon name="content-copy" size={20} color={colors.primary} />
+      </Pressable>
+    ) : openHref ? (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Open ${label}`}
+        hitSlop={8}
+        onPress={() => Linking.openURL(openHref)}
+        style={({ pressed }) => [styles.fieldAction, pressed && { opacity: 0.7 }]}>
+        <Icon name="open-in-new" size={20} color={colors.primary} />
+      </Pressable>
+    ) : null;
 
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={`Open ${host}`}
-      onPress={() => Linking.openURL(href)}
-      style={({ pressed }) => [
-        styles.preview,
-        {
-          backgroundColor: colors.surfaceContainerLow,
-          opacity: pressed ? 0.9 : 1,
-        },
-      ]}>
-      <View style={[styles.previewIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
-        <Favicon url={url} size={22} />
-      </View>
-      <View style={styles.previewText}>
-        <Text style={[styles.previewHost, { color: colors.onSurface }]} numberOfLines={1}>
-          {host}
-        </Text>
-        <Text style={[styles.previewHint, { color: colors.textMuted }]} numberOfLines={1}>
-          Opens on your public profile
-        </Text>
-      </View>
-      <Icon name="open-in-new" size={18} color={colors.outline} />
-    </Pressable>
+    <Input
+      label={label}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      helperText={helperText}
+      leftElement={leftElement}
+      rightElement={rightElement}
+      {...inputProps}
+    />
   );
 }
 
@@ -211,23 +309,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  preview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    minHeight: 56,
-  },
-  previewIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
+  fieldAction: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: -6,
   },
-  previewText: { flex: 1, gap: 2, minWidth: 0 },
-  previewHost: { ...Typography.labelMd, fontWeight: '600' },
-  previewHint: { ...Typography.bodySmall },
 });

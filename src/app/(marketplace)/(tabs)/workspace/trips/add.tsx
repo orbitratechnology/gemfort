@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipSelect } from '@/components/ui/chip-select';
 import { FormFooter } from '@/components/ui/form-footer';
-import { FormSection } from '@/components/ui/form-section';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -96,9 +96,11 @@ export default function AddTripScreen() {
       <ThemedScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
-        <Text style={[styles.lead, { color: colors.textMuted }]}>
-          Set destination and budget before you travel.
-        </Text>
+        <ScreenInset>
+          <Text style={[styles.lead, { color: colors.textMuted }]}>
+            Set destination and budget before you travel.
+          </Text>
+        </ScreenInset>
 
         <FormSection title="Trip type">
           <ChipSelect
@@ -214,7 +216,6 @@ export default function AddTripScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,

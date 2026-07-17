@@ -5,6 +5,7 @@ import {
   isToday,
   isWithinInterval,
   isYesterday,
+  startOfDay,
   startOfMonth,
   startOfYear,
   subMonths,
@@ -40,6 +41,10 @@ export function groupTransactionsByDate(transactions: Transaction[]): Transactio
 function formatSectionTitle(date: Date): string {
   if (isToday(date)) return 'Today';
   if (isYesterday(date)) return 'Yesterday';
+  const days = Math.round(
+    (startOfDay(new Date()).getTime() - startOfDay(date).getTime()) / 86_400_000,
+  );
+  if (days > 0 && days < 7) return `${days}d ago`;
   return format(date, 'dd MMM yyyy');
 }
 

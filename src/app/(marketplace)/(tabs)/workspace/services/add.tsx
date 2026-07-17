@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -112,15 +113,16 @@ export default function AddServiceScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Add Service" />
       <ThemedScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScreenInset>
         <GemSelectField
           label="Gem"
           gem={selectedGem}
           onPress={() => setGemSheetOpen(true)}
           error={errors.gemId}
         />
+        </ScreenInset>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>SERVICE TYPE</Text>
+        <FormSection title="Service type" padded={false}>
           <View style={styles.chips}>
             {SERVICE_TYPES.map((t) => {
               const active = serviceType === t.id;
@@ -148,9 +150,9 @@ export default function AddServiceScreen() {
               );
             })}
           </View>
-        </View>
+        </FormSection>
 
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Details">
           <Input
             label="Weight Before (ct)"
             value={weightBeforeValue}
@@ -165,8 +167,9 @@ export default function AddServiceScreen() {
             keyboardType="number-pad"
             leftIcon="schedule"
           />
-        </View>
+        </FormSection>
 
+        <ScreenInset style={styles.footer}>
         <PickerSelectField
           label="Provider"
           valueLabel={provider?.label ?? null}
@@ -184,6 +187,7 @@ export default function AddServiceScreen() {
         />
 
         <Button title="Create Service Record" icon="handyman" loading={loading} onPress={handleSubmit} />
+        </ScreenInset>
       </ThemedScrollView>
 
       <GemPickerSheet
@@ -223,15 +227,15 @@ export default function AddServiceScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.lg, paddingBottom: Spacing.section },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 0.5 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+  },
   chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md, borderWidth: 1 },
   chipText: { ...Typography.labelMd },
-  card: {
-    borderRadius: Radius.lg,
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
+  footer: { gap: Spacing.lg },
 });

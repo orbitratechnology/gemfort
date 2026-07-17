@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -95,7 +96,7 @@ export default function ServiceDetailScreen() {
       </View>
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Header section */}
+        <ScreenInset>
         <View style={styles.section}>
           <View style={styles.statusRow}>
             <View style={[styles.typeChip, { backgroundColor: colors.surfaceContainerHighest }]}>
@@ -113,10 +114,9 @@ export default function ServiceDetailScreen() {
             <Text style={[styles.desc, { color: colors.onSurfaceVariant }]}>{service.instructions}</Text>
           ) : null}
         </View>
+        </ScreenInset>
 
-        {/* Timeline */}
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Timeline</Text>
+        <FormSection title="Timeline">
           <View style={[styles.timeline, { borderLeftColor: colors.surfaceVariant }]}>
             {timelineSteps(service.status).map((step) => {
               const active = step.state === 'active';
@@ -138,9 +138,9 @@ export default function ServiceDetailScreen() {
               );
             })}
           </View>
-        </View>
+        </FormSection>
 
-        {/* Weight tracking */}
+        <ScreenInset>
         <View style={styles.weightRow}>
           <View style={[styles.weightCard, { backgroundColor: colors.surfaceContainerLowest }]}>
             <Icon name="scale" size={22} color={colors.textMuted} />
@@ -162,9 +162,10 @@ export default function ServiceDetailScreen() {
             ) : null}
           </View>
         </View>
+        </ScreenInset>
 
-        {/* Provider */}
-        <View style={[styles.providerCard, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Provider">
+        <View style={styles.providerCard}>
           <View style={styles.providerLeft}>
             <View style={[styles.providerAvatar, { backgroundColor: colors.primaryMuted }]}>
               <Icon name="person" size={24} color={colors.primary} />
@@ -193,11 +194,10 @@ export default function ServiceDetailScreen() {
             </View>
           </View>
         </View>
+        </FormSection>
 
-        {/* Cost summary */}
         {service.agreedPrice != null || service.finalCost != null ? (
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Cost Summary</Text>
+          <FormSection title="Cost summary">
             <View style={styles.costList}>
               {service.agreedPrice != null ? (
                 <View style={styles.costRow}>
@@ -220,17 +220,15 @@ export default function ServiceDetailScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </FormSection>
         ) : null}
 
-        {/* Complete form */}
         {actionable ? (
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, gap: Spacing.md }]}>
-            <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Mark as Received</Text>
+          <FormSection title="Mark as received">
             <Input label="Weight After (ct)" value={weightAfter} onChangeText={setWeightAfter} keyboardType="decimal-pad" leftIcon="scale" />
             <Input label="Final Cost (LKR)" value={finalCost} onChangeText={setFinalCost} keyboardType="decimal-pad" leftIcon="payments" />
             <Button title="Mark Received & Complete" icon="check-circle" loading={loading} onPress={handleComplete} />
-          </View>
+          </FormSection>
         ) : null}
       </ThemedScrollView>
     </SafeAreaView>
@@ -250,7 +248,7 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { ...Typography.headlineMdMobile },
 
-  content: { padding: Spacing.containerMargin, gap: Spacing.sectionGap, paddingBottom: 60 },
+  content: { gap: Spacing.sectionGap, paddingBottom: 60 },
   section: { gap: Spacing.stackMd },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   typeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.full },
@@ -259,16 +257,6 @@ const styles = StyleSheet.create({
   title: { ...Typography.headlineSm, textTransform: 'capitalize' },
   desc: { ...Typography.bodyMd },
 
-  card: {
-    borderRadius: Radius.lg,
-    padding: 16,
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-    elevation: 2,
-  },
-  cardTitle: { ...Typography.headlineMdMobile, marginBottom: 16 },
   timeline: { borderLeftWidth: 2, marginLeft: 11, paddingLeft: 24, gap: 24 },
   timelineRow: { position: 'relative', flexDirection: 'row', justifyContent: 'space-between' },
   timelineDot: {
@@ -308,13 +296,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: Radius.lg,
-    padding: 16,
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.02,
-    shadowRadius: 15,
-    elevation: 1,
   },
   providerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 },
   providerAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },

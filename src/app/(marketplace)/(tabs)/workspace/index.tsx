@@ -1,39 +1,45 @@
-import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { SignInPrompt } from '@/components/auth/sign-in-prompt';
-import { Icon, type IconName } from '@/components/ui/icon';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { getMonthTotals } from '@/features/workspace/money-utils';
-import { detectChequesMaturingTomorrow, getChequeSummary } from '@/features/workspace/cheque-utils';
-import { getTripsByStatus } from '@/features/workspace/trip-utils';
+import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import { Icon, type IconName } from "@/components/ui/icon";
+import { ThemedScrollView } from "@/components/ui/screen";
+import { CallLogRow } from "@/components/workspace/call-log-row";
+import type { ThemeColors } from "@/constants/design-tokens";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import {
-  detectOverdueAp,
-  detectOverdueServices,
-  fetchApRecords,
-  fetchCheques,
-  fetchContacts,
-  fetchGems,
-  fetchServices,
-  fetchTransactions,
-  fetchTrips,
-} from '@/features/workspace/workspace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
-import type { ThemeColors } from '@/constants/design-tokens';
-import { canAccessModule, resolveProfileRole } from '@/constants/roles';
+    fetchIncomingCertRequests,
+    fetchIncomingServiceRequests,
+    fetchLabCertificates,
+    fetchLapidaryJobs,
+} from "@/features/marketplace/request-service";
+import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
-  fetchIncomingCertRequests,
-  fetchIncomingServiceRequests,
-  fetchLapidaryJobs,
-  fetchLabCertificates,
-} from '@/features/marketplace/request-service';
+    detectChequesMaturingTomorrow,
+    getChequeSummary,
+} from "@/features/workspace/cheque-utils";
+import { getMonthTotals } from "@/features/workspace/money-utils";
+import { getTripsByStatus } from "@/features/workspace/trip-utils";
+import {
+    detectOverdueAp,
+    detectOverdueServices,
+    fetchApRecords,
+    fetchCheques,
+    fetchContacts,
+    fetchGems,
+    fetchServices,
+    fetchTransactions,
+    fetchTrips,
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
 
-const WORKSPACE = '/(marketplace)/(tabs)/workspace';
+const WORKSPACE = "/(marketplace)/(tabs)/workspace";
 
 type ModuleItem = {
   label: string;
@@ -41,6 +47,8 @@ type ModuleItem = {
   icon: IconName;
   route: string;
   hint?: string;
+  /** Red badge count on the module icon (e.g. missed calls). */
+  badgeCount?: number;
 };
 
 type AlertItem = {
@@ -48,20 +56,20 @@ type AlertItem = {
   title: string;
   subtitle: string;
   icon: IconName;
-  tone: 'critical' | 'warning' | 'info' | 'success';
+  tone: "critical" | "warning" | "info" | "success";
   route: string;
 };
 
-function toneColors(tone: AlertItem['tone'], colors: ThemeColors) {
+function toneColors(tone: AlertItem["tone"], colors: ThemeColors) {
   switch (tone) {
-    case 'critical':
-      return { fg: colors.error, bg: colors.error + '14' };
-    case 'warning':
-      return { fg: colors.warningAmber, bg: colors.warningAmber + '18' };
-    case 'success':
-      return { fg: colors.successEmerald, bg: colors.successEmerald + '18' };
+    case "critical":
+      return { fg: colors.error, bg: colors.error + "14" };
+    case "warning":
+      return { fg: colors.warningAmber, bg: colors.warningAmber + "18" };
+    case "success":
+      return { fg: colors.successEmerald, bg: colors.successEmerald + "18" };
     default:
-      return { fg: colors.primary, bg: colors.primary + '14' };
+      return { fg: colors.primary, bg: colors.primary + "14" };
   }
 }
 
@@ -72,70 +80,77 @@ export default function WorkspaceHub() {
   const role = resolveProfileRole(profile);
 
   const { data: gems = [] } = useQuery({
-    queryKey: ['gems', userId],
+    queryKey: ["gems", userId],
     queryFn: () => fetchGems(userId!),
-    enabled: !!userId && canAccessModule(role, 'gems'),
+    enabled: !!userId && canAccessModule(role, "gems"),
   });
 
   const { data: services = [] } = useQuery({
-    queryKey: ['services', userId],
+    queryKey: ["services", userId],
     queryFn: () => fetchServices(userId!),
-    enabled: !!userId && canAccessModule(role, 'services'),
+    enabled: !!userId && canAccessModule(role, "services"),
   });
 
   const { data: apRecords = [] } = useQuery({
-    queryKey: ['ap', userId],
+    queryKey: ["ap", userId],
     queryFn: () => fetchApRecords(userId!),
-    enabled: !!userId && canAccessModule(role, 'ap'),
+    enabled: !!userId && canAccessModule(role, "ap"),
   });
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', userId],
+    queryKey: ["contacts", userId],
     queryFn: () => fetchContacts(userId!),
     enabled: !!userId,
   });
 
   const { data: transactions = [] } = useQuery({
-    queryKey: ['transactions', userId],
+    queryKey: ["transactions", userId],
     queryFn: () => fetchTransactions(userId!),
-    enabled: !!userId && canAccessModule(role, 'money'),
+    enabled: !!userId && canAccessModule(role, "money"),
   });
 
   const { data: cheques = [] } = useQuery({
-    queryKey: ['cheques', userId],
+    queryKey: ["cheques", userId],
     queryFn: () => fetchCheques(userId!),
-    enabled: !!userId && canAccessModule(role, 'cheques'),
+    enabled: !!userId && canAccessModule(role, "cheques"),
   });
 
   const { data: trips = [] } = useQuery({
-    queryKey: ['trips', userId],
+    queryKey: ["trips", userId],
     queryFn: () => fetchTrips(userId!),
-    enabled: !!userId && canAccessModule(role, 'trips'),
+    enabled: !!userId && canAccessModule(role, "trips"),
   });
 
   const { data: jobs = [] } = useQuery({
-    queryKey: ['lapidary-jobs', userId],
+    queryKey: ["lapidary-jobs", userId],
     queryFn: () => fetchLapidaryJobs(userId!),
-    enabled: !!userId && canAccessModule(role, 'jobs'),
+    enabled: !!userId && canAccessModule(role, "jobs"),
   });
 
   const { data: certificates = [] } = useQuery({
-    queryKey: ['lab-certificates', userId],
+    queryKey: ["lab-certificates", userId],
     queryFn: () => fetchLabCertificates(userId!),
-    enabled: !!userId && canAccessModule(role, 'certificates'),
+    enabled: !!userId && canAccessModule(role, "certificates"),
   });
 
   const { data: incomingServiceRequests = [] } = useQuery({
-    queryKey: ['incoming-service-requests', userId],
+    queryKey: ["incoming-service-requests", userId],
     queryFn: () => fetchIncomingServiceRequests(userId!),
-    enabled: !!userId && role === 'lapidary',
+    enabled: !!userId && role === "lapidary",
   });
 
   const { data: incomingCertRequests = [] } = useQuery({
-    queryKey: ['incoming-cert-requests', userId],
+    queryKey: ["incoming-cert-requests", userId],
     queryFn: () => fetchIncomingCertRequests(userId!),
-    enabled: !!userId && role === 'gem_lab',
+    enabled: !!userId && role === "gem_lab",
   });
+
+  const showContacts = role === "trader" || role === "admin";
+  const { logs: recentCalls } = useMatchedCallLogs({
+    enabled: !!userId && showContacts,
+  });
+  const recentCallPreview = recentCalls.slice(0, 5);
+  const missedCallCount = countMissedCalls(recentCalls);
 
   if (!user) {
     return (
@@ -149,8 +164,13 @@ export default function WorkspaceHub() {
   // Avoid flashing trader inventory while the Firestore profile is still loading.
   if (!profile) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <SafeAreaView
+        style={[styles.safe, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
           <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
         </View>
       </SafeAreaView>
@@ -162,176 +182,224 @@ export default function WorkspaceHub() {
   const maturingCheques = detectChequesMaturingTomorrow(cheques);
   const chequeSummary = getChequeSummary(cheques);
   const { active: activeTrips } = getTripsByStatus(trips);
-  const ongoingTrips = trips.filter((t) => t.status === 'ongoing');
+  const ongoingTrips = trips.filter((t) => t.status === "ongoing");
 
-  const { income: monthIncome, expense: monthExpense } = getMonthTotals(transactions);
+  const { income: monthIncome, expense: monthExpense } =
+    getMonthTotals(transactions);
   const monthNet = monthIncome - monthExpense;
-  const totalInventoryValue = gems.reduce((sum, g) => sum + (g.acquisitionCost || 0), 0);
+  const totalInventoryValue = gems.reduce(
+    (sum, g) => sum + (g.acquisitionCost || 0),
+    0,
+  );
   const flowTotal = monthIncome + monthExpense;
-  const incomePct = flowTotal > 0 ? Math.max(6, (monthIncome / flowTotal) * 100) : 0;
-  const expensePct = flowTotal > 0 ? Math.max(6, (monthExpense / flowTotal) * 100) : 0;
+  const incomePct =
+    flowTotal > 0 ? Math.max(6, (monthIncome / flowTotal) * 100) : 0;
+  const expensePct =
+    flowTotal > 0 ? Math.max(6, (monthExpense / flowTotal) * 100) : 0;
 
   const readyGems = gems.filter((g) =>
-    ['ready_for_sale', 'certified', 'polished', 'listed'].includes(g.status),
+    ["ready_for_sale", "certified", "polished", "listed"].includes(g.status),
   ).length;
   const inService = gems.filter((g) =>
-    ['with_cutter', 'with_heater', 'with_polisher'].includes(g.status),
+    ["with_cutter", "with_heater", "with_polisher"].includes(g.status),
   ).length;
 
   const allModules: ModuleItem[] = [
     {
-      label: 'Gems',
+      label: "Gems",
       value: gems.length,
-      icon: 'diamond',
+      icon: "diamond",
       route: `${WORKSPACE}/gems`,
       hint: readyGems > 0 ? `${readyGems} ready` : undefined,
     },
     {
-      label: 'Jobs',
+      label: "Jobs",
       value: jobs.length,
-      icon: 'construction',
+      icon: "construction",
       route: `${WORKSPACE}/jobs`,
       hint:
-        incomingServiceRequests.filter((r) => r.status === 'pending').length > 0
-          ? `${incomingServiceRequests.filter((r) => r.status === 'pending').length} new`
+        incomingServiceRequests.filter((r) => r.status === "pending").length > 0
+          ? `${incomingServiceRequests.filter((r) => r.status === "pending").length} new`
           : undefined,
     },
     {
-      label: 'Services',
+      label: "Services",
       value: services.length,
-      icon: 'handyman',
+      icon: "handyman",
       route: `${WORKSPACE}/services`,
       hint: inService > 0 ? `${inService} out` : undefined,
     },
     {
-      label: 'Certificates',
+      label: "Certificates",
       value: certificates.length,
-      icon: 'workspace-premium',
+      icon: "workspace-premium",
       route: `${WORKSPACE}/certificates`,
       hint:
-        incomingCertRequests.filter((r) => r.status === 'pending').length > 0
-          ? `${incomingCertRequests.filter((r) => r.status === 'pending').length} requests`
+        incomingCertRequests.filter((r) => r.status === "pending").length > 0
+          ? `${incomingCertRequests.filter((r) => r.status === "pending").length} requests`
           : undefined,
     },
     {
-      label: 'Trips',
+      label: "Trips",
       value: activeTrips.length,
-      icon: 'flight',
+      icon: "flight",
       route: `${WORKSPACE}/trips`,
       hint: ongoingTrips.length > 0 ? `${ongoingTrips.length} live` : undefined,
     },
     {
-      label: 'AP',
+      label: "AP",
       value: apRecords.length,
-      icon: 'hourglass-empty',
+      icon: "hourglass-empty",
       route: `${WORKSPACE}/ap`,
       hint: overdueAp.length > 0 ? `${overdueAp.length} overdue` : undefined,
     },
     {
-      label: 'Cheques',
+      label: "Cheques",
       value: chequeSummary.holdingCount,
-      icon: 'receipt-long',
+      icon: "money-check-dollar",
       route: `${WORKSPACE}/cheques`,
-      hint: maturingCheques.length > 0 ? `${maturingCheques.length} due` : undefined,
+      hint:
+        maturingCheques.length > 0
+          ? `${maturingCheques.length} due`
+          : undefined,
     },
     {
-      label: 'Contacts',
+      label: "Contacts",
       value: contacts.length,
-      icon: 'group',
+      icon: "group",
       route: `${WORKSPACE}/contacts`,
+      hint: missedCallCount > 0 ? `${missedCallCount} missed` : undefined,
+      badgeCount: missedCallCount > 0 ? missedCallCount : undefined,
     },
     {
-      label: 'Requests',
+      label: "Requests",
       value: 0,
-      icon: 'outgoing-mail',
+      icon: "outgoing-mail",
       route: `${WORKSPACE}/requests`,
     },
   ];
 
   const modules = allModules.filter((m) => {
-    if (m.label === 'Jobs') return canAccessModule(role, 'jobs');
-    if (m.label === 'Certificates') return canAccessModule(role, 'certificates');
-    if (m.label === 'Gems') return canAccessModule(role, 'gems');
-    if (m.label === 'Services') return canAccessModule(role, 'services') || role === 'lapidary';
-    if (m.label === 'Trips') return canAccessModule(role, 'trips');
-    if (m.label === 'AP') return canAccessModule(role, 'ap');
-    if (m.label === 'Cheques') return canAccessModule(role, 'cheques');
-    if (m.label === 'Requests') return canAccessModule(role, 'requests');
-    if (m.label === 'Contacts') return role === 'trader' || role === 'admin';
+    if (m.label === "Jobs") return canAccessModule(role, "jobs");
+    if (m.label === "Certificates")
+      return canAccessModule(role, "certificates");
+    if (m.label === "Gems") return canAccessModule(role, "gems");
+    if (m.label === "Services")
+      return canAccessModule(role, "services") || role === "lapidary";
+    if (m.label === "Trips") return canAccessModule(role, "trips");
+    if (m.label === "AP") return canAccessModule(role, "ap");
+    if (m.label === "Cheques") return canAccessModule(role, "cheques");
+    if (m.label === "Requests") return canAccessModule(role, "requests");
+    if (m.label === "Contacts") return role === "trader" || role === "admin";
     return true;
   });
 
-  const actions: { label: string; icon: IconName; route: string; primary?: boolean }[] =
-    role === 'gem_lab'
+  const actions: {
+    label: string;
+    icon: IconName;
+    route: string;
+    primary?: boolean;
+  }[] =
+    role === "gem_lab"
       ? [
           {
-            label: 'Add certificate',
-            icon: 'workspace-premium',
+            label: "Add certificate",
+            icon: "workspace-premium",
             route: `${WORKSPACE}/certificates?add=1`,
             primary: true,
           },
-          { label: 'Requests', icon: 'inbox', route: `${WORKSPACE}/certificates` },
+          {
+            label: "Requests",
+            icon: "inbox",
+            route: `${WORKSPACE}/certificates`,
+          },
         ]
-      : role === 'lapidary'
+      : role === "lapidary"
         ? [
-            { label: 'Jobs', icon: 'construction', route: `${WORKSPACE}/jobs`, primary: true },
-            { label: 'Services', icon: 'handyman', route: `${WORKSPACE}/services` },
+            {
+              label: "Jobs",
+              icon: "construction",
+              route: `${WORKSPACE}/jobs`,
+              primary: true,
+            },
+            {
+              label: "Services",
+              icon: "handyman",
+              route: `${WORKSPACE}/services`,
+            },
           ]
         : [
-            { label: 'Add gem', icon: 'add', route: `${WORKSPACE}/gems/add`, primary: true },
-            { label: 'Plan trip', icon: 'flight-takeoff', route: `${WORKSPACE}/trips/add` },
-            { label: 'Cheque', icon: 'receipt-long', route: `${WORKSPACE}/cheques/add` },
-            { label: 'Sale', icon: 'sell', route: `${WORKSPACE}/money/record-sale` },
+            {
+              label: "Add gem",
+              icon: "add",
+              route: `${WORKSPACE}/gems/add`,
+              primary: true,
+            },
+            {
+              label: "Plan trip",
+              icon: "flight-takeoff",
+              route: `${WORKSPACE}/trips/add`,
+            },
+            {
+              label: "Cheque",
+              icon: "money-check-dollar",
+              route: `${WORKSPACE}/cheques/add`,
+            },
+            {
+              label: "Sale",
+              icon: "sell",
+              route: `${WORKSPACE}/money/record-sale`,
+            },
           ];
 
   const alerts: AlertItem[] = [
     ...overdueAp.map((a) => ({
       id: `ap-${a.id}`,
-      title: 'AP stone overdue',
+      title: "AP stone overdue",
       subtitle: `Past expected return · #${a.id.slice(0, 6)}`,
-      icon: 'hourglass-empty' as const,
-      tone: 'critical' as const,
+      icon: "hourglass-empty" as const,
+      tone: "critical" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
     ...overdueServices.map((s) => ({
       id: `svc-${s.id}`,
-      title: 'Service overdue',
+      title: "Service overdue",
       subtitle: `With provider · #${s.id.slice(0, 6)}`,
-      icon: 'handyman' as const,
-      tone: 'warning' as const,
+      icon: "handyman" as const,
+      tone: "warning" as const,
       route: `${WORKSPACE}/services/${s.id}`,
     })),
     ...maturingCheques.map((c) => ({
       id: `chq-${c.id}`,
-      title: 'Cheque matures tomorrow',
+      title: "Cheque matures tomorrow",
       subtitle: `${c.chequeNumber} · ${formatCurrency(c.amount)}`,
-      icon: 'receipt-long' as const,
-      tone: 'info' as const,
+      icon: "money-check-dollar" as const,
+      tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
     })),
     ...ongoingTrips.map((t) => ({
       id: `trip-${t.id}`,
-      title: 'Trip in progress',
+      title: "Trip in progress",
       subtitle: `${t.tripName} · ${t.destinationCity}`,
-      icon: 'flight' as const,
-      tone: 'success' as const,
+      icon: "flight" as const,
+      tone: "success" as const,
       route: `${WORKSPACE}/trips/${t.id}`,
     })),
   ];
 
-  const showGemsHero = canAccessModule(role, 'gems');
-  const showJobsHero = canAccessModule(role, 'jobs');
-  const showCertsHero = canAccessModule(role, 'certificates');
-  const showTripsOverview = canAccessModule(role, 'trips');
-  const showChequesOverview = canAccessModule(role, 'cheques');
+  const showGemsHero = canAccessModule(role, "gems");
+  const showJobsHero = canAccessModule(role, "jobs");
+  const showCertsHero = canAccessModule(role, "certificates");
+  const showTripsOverview = canAccessModule(role, "trips");
+  const showChequesOverview = canAccessModule(role, "cheques");
 
   const heroTitle = showGemsHero
-    ? 'Inventory value'
+    ? "Inventory value"
     : showJobsHero
-      ? 'Workshop jobs'
+      ? "Workshop jobs"
       : showCertsHero
-        ? 'Certificates published'
-        : 'Workspace';
+        ? "Certificates published"
+        : "Workspace";
   const heroValue = showGemsHero
     ? formatCurrency(totalInventoryValue)
     : showJobsHero
@@ -347,26 +415,300 @@ export default function WorkspaceHub() {
         ? `${WORKSPACE}/certificates`
         : `${WORKSPACE}/money`;
   const heroLink = showGemsHero
-    ? 'Open inventory'
+    ? "Open inventory"
     : showJobsHero
-      ? 'Open jobs'
+      ? "Open jobs"
       : showCertsHero
-        ? 'Open certificates'
-        : 'Open money';
+        ? "Open certificates"
+        : "Open money";
   const heroIcon: IconName = showGemsHero
-    ? 'diamond'
+    ? "diamond"
     : showJobsHero
-      ? 'construction'
+      ? "construction"
       : showCertsHero
-        ? 'workspace-premium'
-        : 'account-balance-wallet';
+        ? "workspace-premium"
+        : "account-balance-wallet";
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <ThemedScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
+      <ThemedScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero */}
+        <Pressable
+          onPress={() => router.push(heroRoute as never)}
+          style={({ pressed }) => [
+            styles.hero,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.96 : 1 },
+          ]}
+        >
+          <View style={styles.heroTop}>
+            <View style={styles.heroCopy}>
+              <Text
+                style={[styles.heroLabel, { color: colors.onPrimary + "B3" }]}
+              >
+                {heroTitle}
+              </Text>
+              <Text
+                style={[styles.heroValue, { color: colors.onPrimary }]}
+                selectable
+              >
+                {heroValue}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.heroBadge,
+                { backgroundColor: colors.onPrimary + "1F" },
+              ]}
+            >
+              <Icon name={heroIcon} size={22} color={colors.onPrimary} />
+            </View>
+          </View>
+
+          <View style={styles.heroMetaRow}>
+            {showGemsHero ? (
+              <>
+                <View
+                  style={[
+                    styles.heroPill,
+                    { backgroundColor: colors.onPrimary + "1A" },
+                  ]}
+                >
+                  <Text
+                    style={[styles.heroPillText, { color: colors.onPrimary }]}
+                  >
+                    {gems.length} {gems.length === 1 ? "gem" : "gems"}
+                  </Text>
+                </View>
+                {readyGems > 0 ? (
+                  <View
+                    style={[
+                      styles.heroPill,
+                      { backgroundColor: colors.onPrimary + "1A" },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.heroPillText, { color: colors.onPrimary }]}
+                    >
+                      {readyGems} ready to sell
+                    </Text>
+                  </View>
+                ) : null}
+                {inService > 0 ? (
+                  <View
+                    style={[
+                      styles.heroPill,
+                      { backgroundColor: colors.onPrimary + "1A" },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.heroPillText, { color: colors.onPrimary }]}
+                    >
+                      {inService} in service
+                    </Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+            {showJobsHero ? (
+              <View
+                style={[
+                  styles.heroPill,
+                  { backgroundColor: colors.onPrimary + "1A" },
+                ]}
+              >
+                <Text
+                  style={[styles.heroPillText, { color: colors.onPrimary }]}
+                >
+                  {
+                    incomingServiceRequests.filter(
+                      (r) => r.status === "pending",
+                    ).length
+                  }{" "}
+                  pending requests
+                </Text>
+              </View>
+            ) : null}
+            {showCertsHero ? (
+              <View
+                style={[
+                  styles.heroPill,
+                  { backgroundColor: colors.onPrimary + "1A" },
+                ]}
+              >
+                <Text
+                  style={[styles.heroPillText, { color: colors.onPrimary }]}
+                >
+                  {
+                    incomingCertRequests.filter((r) => r.status === "pending")
+                      .length
+                  }{" "}
+                  open requests
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.heroFooter}>
+            <Text style={[styles.heroLink, { color: colors.onPrimary + "CC" }]}>
+              {heroLink}
+            </Text>
+            <Icon
+              name="chevron-right"
+              size={18}
+              color={colors.onPrimary + "CC"}
+            />
+          </View>
+        </Pressable>
+
+        {/* Quick actions */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            Quick actions
+          </Text>
+          <View
+            style={[
+              styles.actionsCard,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            {actions.map((a, index) => (
+              <Pressable
+                key={a.label}
+                onPress={() => router.push(a.route as never)}
+                style={({ pressed }) => [
+                  styles.actionItem,
+                  index < actions.length - 1 && {
+                    borderRightWidth: StyleSheet.hairlineWidth,
+                    borderRightColor: colors.outlineVariant,
+                  },
+                  pressed && { opacity: 0.75 },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.actionIcon,
+                    a.primary
+                      ? { backgroundColor: colors.primary }
+                      : { backgroundColor: colors.primaryContainer },
+                  ]}
+                >
+                  <Icon
+                    name={a.icon}
+                    size={20}
+                    color={
+                      a.primary ? colors.onPrimary : colors.onPrimaryContainer
+                    }
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.actionLabel,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {a.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Modules */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            Modules
+          </Text>
+          <View style={styles.moduleGrid}>
+            {modules.map((m) => (
+              <Pressable
+                key={m.label}
+                onPress={() => router.push(m.route as never)}
+                style={({ pressed }) => [
+                  styles.moduleTile,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    opacity: pressed ? 0.92 : 1,
+                    transform: [{ scale: pressed ? 0.985 : 1 }],
+                  },
+                ]}
+              >
+                <View style={styles.moduleTop}>
+                  <View style={styles.moduleIconWrap}>
+                    <View
+                      style={[
+                        styles.moduleIcon,
+                        { backgroundColor: colors.primaryContainer },
+                      ]}
+                    >
+                      <Icon
+                        name={m.icon}
+                        size={18}
+                        color={colors.onPrimaryContainer}
+                      />
+                    </View>
+                    {m.badgeCount && m.badgeCount > 0 ? (
+                      <View
+                        style={[
+                          styles.moduleBadge,
+                          { backgroundColor: colors.error },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.moduleBadgeText,
+                            { color: colors.onError },
+                          ]}
+                        >
+                          {m.badgeCount > 99 ? "99+" : m.badgeCount}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text
+                    style={[styles.moduleValue, { color: colors.onSurface }]}
+                  >
+                    {m.value}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.moduleLabel,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  {m.label}
+                </Text>
+                {m.hint ? (
+                  <Text
+                    style={[styles.moduleHint, { color: colors.primary }]}
+                    numberOfLines={1}
+                  >
+                    {m.hint}
+                  </Text>
+                ) : (
+                  <Text
+                    style={[styles.moduleHint, { color: colors.textMuted }]}
+                  >
+                    View
+                  </Text>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {/* Operations overview */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Overview</Text>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            Overview
+          </Text>
           <View style={styles.overviewGrid}>
             <Pressable
               onPress={() => router.push(`${WORKSPACE}/money` as never)}
@@ -376,34 +718,70 @@ export default function WorkspaceHub() {
                   backgroundColor: colors.surfaceContainerLowest,
                   opacity: pressed ? 0.94 : 1,
                 },
-              ]}>
+              ]}
+            >
               <View style={styles.overviewHeader}>
-                <Text style={[styles.overviewCaption, { color: colors.textMuted }]}>This month</Text>
-                <Icon name="account-balance-wallet" size={18} color={colors.primary} />
+                <Text
+                  style={[styles.overviewCaption, { color: colors.textMuted }]}
+                >
+                  This month
+                </Text>
+                <Icon
+                  name="account-balance-wallet"
+                  size={18}
+                  color={colors.primary}
+                />
               </View>
               <Text
                 style={[
                   styles.overviewNet,
-                  { color: monthNet >= 0 ? colors.successEmerald : colors.error },
+                  {
+                    color: monthNet >= 0 ? colors.successEmerald : colors.error,
+                  },
                 ]}
-                selectable>
-                {monthNet >= 0 ? '+' : '-'}
+                selectable
+              >
+                {monthNet >= 0 ? "+" : "-"}
                 {formatCurrency(Math.abs(monthNet))}
               </Text>
-              <Text style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}>Net cashflow</Text>
+              <Text
+                style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}
+              >
+                Net cashflow
+              </Text>
 
               <View style={styles.flowBlock}>
                 <View style={styles.flowRow}>
-                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Income</Text>
-                  <Text style={[styles.flowAmount, { color: colors.successEmerald }]}>
+                  <Text
+                    style={[
+                      styles.flowLabel,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                  >
+                    Income
+                  </Text>
+                  <Text
+                    style={[
+                      styles.flowAmount,
+                      { color: colors.successEmerald },
+                    ]}
+                  >
                     {formatCurrency(monthIncome)}
                   </Text>
                 </View>
-                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <View
+                  style={[
+                    styles.track,
+                    { backgroundColor: colors.surfaceContainerHigh },
+                  ]}
+                >
                   <View
                     style={[
                       styles.fill,
-                      { backgroundColor: colors.successEmerald, width: `${incomePct}%` },
+                      {
+                        backgroundColor: colors.successEmerald,
+                        width: `${incomePct}%`,
+                      },
                     ]}
                   />
                 </View>
@@ -411,14 +789,32 @@ export default function WorkspaceHub() {
 
               <View style={styles.flowBlock}>
                 <View style={styles.flowRow}>
-                  <Text style={[styles.flowLabel, { color: colors.onSurfaceVariant }]}>Expenses</Text>
+                  <Text
+                    style={[
+                      styles.flowLabel,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                  >
+                    Expenses
+                  </Text>
                   <Text style={[styles.flowAmount, { color: colors.error }]}>
                     {formatCurrency(monthExpense)}
                   </Text>
                 </View>
-                <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <View
+                  style={[
+                    styles.track,
+                    { backgroundColor: colors.surfaceContainerHigh },
+                  ]}
+                >
                   <View
-                    style={[styles.fill, { backgroundColor: colors.error, width: `${expensePct}%` }]}
+                    style={[
+                      styles.fill,
+                      {
+                        backgroundColor: colors.error,
+                        width: `${expensePct}%`,
+                      },
+                    ]}
                   />
                 </View>
               </View>
@@ -434,16 +830,34 @@ export default function WorkspaceHub() {
                       backgroundColor: colors.surfaceContainerLowest,
                       opacity: pressed ? 0.94 : 1,
                     },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="flight" size={16} color={colors.onPrimaryContainer} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.miniIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="flight"
+                      size={16}
+                      color={colors.onPrimaryContainer}
+                    />
                   </View>
                   <Text style={[styles.miniValue, { color: colors.onSurface }]}>
                     {activeTrips.length}
                   </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active trips</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                    {ongoingTrips[0]?.tripName ?? 'No live trips'}
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
+                    Active trips
+                  </Text>
+                  <Text
+                    style={[
+                      styles.miniHint,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {ongoingTrips[0]?.tripName ?? "No live trips"}
                   </Text>
                 </Pressable>
               ) : showJobsHero ? (
@@ -455,34 +869,74 @@ export default function WorkspaceHub() {
                       backgroundColor: colors.surfaceContainerLowest,
                       opacity: pressed ? 0.94 : 1,
                     },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="construction" size={16} color={colors.onPrimaryContainer} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.miniIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="construction"
+                      size={16}
+                      color={colors.onPrimaryContainer}
+                    />
                   </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>{jobs.length}</Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Active jobs</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
+                    {jobs.length}
+                  </Text>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
+                    Active jobs
+                  </Text>
+                  <Text
+                    style={[
+                      styles.miniHint,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
                     Workshop queue
                   </Text>
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/certificates` as never)}
+                  onPress={() =>
+                    router.push(`${WORKSPACE}/certificates` as never)
+                  }
                   style={({ pressed }) => [
                     styles.overviewHalf,
                     {
                       backgroundColor: colors.surfaceContainerLowest,
                       opacity: pressed ? 0.94 : 1,
                     },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name="workspace-premium" size={16} color={colors.onPrimaryContainer} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.miniIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="workspace-premium"
+                      size={16}
+                      color={colors.onPrimaryContainer}
+                    />
                   </View>
                   <Text style={[styles.miniValue, { color: colors.onSurface }]}>
                     {certificates.length}
                   </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Certificates</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
+                    Certificates
+                  </Text>
+                  <Text
+                    style={[
+                      styles.miniHint,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
                     Published reports
                   </Text>
                 </Pressable>
@@ -497,15 +951,33 @@ export default function WorkspaceHub() {
                       backgroundColor: colors.surfaceContainerLowest,
                       opacity: pressed ? 0.94 : 1,
                     },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
-                    <Icon name="receipt-long" size={16} color={colors.onSecondaryContainer} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.miniIcon,
+                      { backgroundColor: colors.secondaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="money-check-dollar"
+                      size={16}
+                      color={colors.onSecondaryContainer}
+                    />
                   </View>
                   <Text style={[styles.miniValue, { color: colors.onSurface }]}>
                     {chequeSummary.holdingCount}
                   </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>Cheques held</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
+                    Cheques held
+                  </Text>
+                  <Text
+                    style={[
+                      styles.miniHint,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
                     {formatCurrency(chequeSummary.clearingThisMonth)} clearing
                   </Text>
                 </Pressable>
@@ -518,15 +990,33 @@ export default function WorkspaceHub() {
                       backgroundColor: colors.surfaceContainerLowest,
                       opacity: pressed ? 0.94 : 1,
                     },
-                  ]}>
-                  <View style={[styles.miniIcon, { backgroundColor: colors.secondaryContainer }]}>
-                    <Icon name="account-balance-wallet" size={16} color={colors.onSecondaryContainer} />
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.miniIcon,
+                      { backgroundColor: colors.secondaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="account-balance-wallet"
+                      size={16}
+                      color={colors.onSecondaryContainer}
+                    />
                   </View>
                   <Text style={[styles.miniValue, { color: colors.onSurface }]}>
                     {formatCurrency(monthNet)}
                   </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>This month</Text>
-                  <Text style={[styles.miniHint, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
+                    This month
+                  </Text>
+                  <Text
+                    style={[
+                      styles.miniHint,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
                     Money overview
                   </Text>
                 </Pressable>
@@ -535,158 +1025,73 @@ export default function WorkspaceHub() {
           </View>
         </View>
 
-        {/* Hero */}
-        <Pressable
-          onPress={() => router.push(heroRoute as never)}
-          style={({ pressed }) => [
-            styles.hero,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.96 : 1 },
-          ]}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroCopy}>
-              <Text style={[styles.heroLabel, { color: colors.onPrimary + 'B3' }]}>
-                {heroTitle}
+        {/* Recent calls (matched to contacts / businesses) */}
+        {showContacts && recentCallPreview.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: colors.onSurface, marginBottom: 0 },
+                ]}
+              >
+                Recent calls
               </Text>
-              <Text style={[styles.heroValue, { color: colors.onPrimary }]} selectable>
-                {heroValue}
-              </Text>
-            </View>
-            <View style={[styles.heroBadge, { backgroundColor: colors.onPrimary + '1F' }]}>
-              <Icon name={heroIcon} size={22} color={colors.onPrimary} />
-            </View>
-          </View>
-
-          <View style={styles.heroMetaRow}>
-            {showGemsHero ? (
-              <>
-                <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-                  <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                    {gems.length} {gems.length === 1 ? 'gem' : 'gems'}
-                  </Text>
-                </View>
-                {readyGems > 0 ? (
-                  <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-                    <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                      {readyGems} ready to sell
-                    </Text>
-                  </View>
-                ) : null}
-                {inService > 0 ? (
-                  <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-                    <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                      {inService} in service
-                    </Text>
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-            {showJobsHero ? (
-              <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-                <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                  {incomingServiceRequests.filter((r) => r.status === 'pending').length} pending requests
-                </Text>
-              </View>
-            ) : null}
-            {showCertsHero ? (
-              <View style={[styles.heroPill, { backgroundColor: colors.onPrimary + '1A' }]}>
-                <Text style={[styles.heroPillText, { color: colors.onPrimary }]}>
-                  {incomingCertRequests.filter((r) => r.status === 'pending').length} open requests
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.heroFooter}>
-            <Text style={[styles.heroLink, { color: colors.onPrimary + 'CC' }]}>{heroLink}</Text>
-            <Icon name="chevron-right" size={18} color={colors.onPrimary + 'CC'} />
-          </View>
-        </Pressable>
-
-        {/* Quick actions */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Quick actions</Text>
-          <View
-            style={[
-              styles.actionsCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}>
-            {actions.map((a, index) => (
               <Pressable
-                key={a.label}
-                onPress={() => router.push(a.route as never)}
-                style={({ pressed }) => [
-                  styles.actionItem,
-                  index < actions.length - 1 && {
-                    borderRightWidth: StyleSheet.hairlineWidth,
-                    borderRightColor: colors.outlineVariant,
-                  },
-                  pressed && { opacity: 0.75 },
-                ]}>
-                <View
-                  style={[
-                    styles.actionIcon,
-                    a.primary
-                      ? { backgroundColor: colors.primary }
-                      : { backgroundColor: colors.primaryContainer },
-                  ]}>
-                  <Icon
-                    name={a.icon}
-                    size={20}
-                    color={a.primary ? colors.onPrimary : colors.onPrimaryContainer}
-                  />
-                </View>
-                <Text style={[styles.actionLabel, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
-                  {a.label}
+                onPress={() =>
+                  router.push(`${WORKSPACE}/contacts/calls` as never)
+                }
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="See all calls"
+              >
+                <Text style={[styles.seeAll, { color: colors.primary }]}>
+                  See all
                 </Text>
               </Pressable>
-            ))}
+            </View>
+            <View
+              style={[
+                styles.recentCallsList,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}
+            >
+              {recentCallPreview.map((log, index) => (
+                <CallLogRow
+                  key={log.id}
+                  log={log}
+                  isLast={index === recentCallPreview.length - 1}
+                  onPress={() => router.push(log.href as never)}
+                />
+              ))}
+            </View>
           </View>
-        </View>
-
-        {/* Modules */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Modules</Text>
-          <View style={styles.moduleGrid}>
-            {modules.map((m) => (
-              <Pressable
-                key={m.label}
-                onPress={() => router.push(m.route as never)}
-                style={({ pressed }) => [
-                  styles.moduleTile,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    opacity: pressed ? 0.92 : 1,
-                    transform: [{ scale: pressed ? 0.985 : 1 }],
-                  },
-                ]}>
-                <View style={styles.moduleTop}>
-                  <View style={[styles.moduleIcon, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name={m.icon} size={18} color={colors.onPrimaryContainer} />
-                  </View>
-                  <Text style={[styles.moduleValue, { color: colors.onSurface }]}>{m.value}</Text>
-                </View>
-                <Text style={[styles.moduleLabel, { color: colors.onSurfaceVariant }]}>{m.label}</Text>
-                {m.hint ? (
-                  <Text style={[styles.moduleHint, { color: colors.primary }]} numberOfLines={1}>
-                    {m.hint}
-                  </Text>
-                ) : (
-                  <Text style={[styles.moduleHint, { color: colors.textMuted }]}>View</Text>
-                )}
-              </Pressable>
-            ))}
-          </View>
-        </View>
+        ) : null}
 
         {/* Alerts */}
         {alerts.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: colors.onSurface, marginBottom: 0 },
+                ]}
+              >
                 Needs attention
               </Text>
-              <View style={[styles.countPill, { backgroundColor: colors.errorContainer }]}>
-                <Text style={[styles.countPillText, { color: colors.onErrorContainer }]}>
+              <View
+                style={[
+                  styles.countPill,
+                  { backgroundColor: colors.errorContainer },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countPillText,
+                    { color: colors.onErrorContainer },
+                  ]}
+                >
                   {alerts.length}
                 </Text>
               </View>
@@ -704,19 +1109,31 @@ export default function WorkspaceHub() {
                         backgroundColor: colors.surfaceContainerLowest,
                         opacity: pressed ? 0.92 : 1,
                       },
-                    ]}>
-                    <View style={[styles.alertIcon, { backgroundColor: tone.bg }]}>
+                    ]}
+                  >
+                    <View
+                      style={[styles.alertIcon, { backgroundColor: tone.bg }]}
+                    >
                       <Icon name={alert.icon} size={18} color={tone.fg} />
                     </View>
                     <View style={styles.alertText}>
-                      <Text style={[styles.alertTitle, { color: colors.onSurface }]}>
+                      <Text
+                        style={[styles.alertTitle, { color: colors.onSurface }]}
+                      >
                         {alert.title}
                       </Text>
-                      <Text style={[styles.alertSub, { color: colors.textMuted }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.alertSub, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
                         {alert.subtitle}
                       </Text>
                     </View>
-                    <Icon name="chevron-right" size={20} color={colors.outline} />
+                    <Icon
+                      name="chevron-right"
+                      size={20}
+                      color={colors.outline}
+                    />
                   </Pressable>
                 );
               })}
@@ -739,39 +1156,39 @@ const styles = StyleSheet.create({
 
   hero: {
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: Spacing.containerMargin,
     gap: 14,
-    boxShadow: '0 10px 28px rgba(12, 67, 60, 0.22)',
+    boxShadow: "0 10px 28px rgba(12, 67, 60, 0.22)",
   },
   heroTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   heroCopy: { flex: 1, gap: 4, paddingRight: 12 },
   heroLabel: { ...Typography.labelMd, letterSpacing: 0.4 },
   heroValue: {
     ...Typography.displayLg,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   heroBadge: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  heroMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  heroMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   heroPill: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radius.full,
   },
-  heroPillText: { ...Typography.caption, fontWeight: '600' },
+  heroPillText: { ...Typography.caption, fontWeight: "600" },
   heroFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
     marginTop: 2,
   },
@@ -779,67 +1196,92 @@ const styles = StyleSheet.create({
 
   section: { gap: Spacing.stackMd },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sectionTitle: { ...Typography.headlineSmMobile },
+  seeAll: { ...Typography.labelMd, fontWeight: "600" },
+  recentCallsList: {
+    marginHorizontal: -Spacing.containerMargin,
+    overflow: "hidden",
+  },
   countPill: {
     minWidth: 24,
     height: 24,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 8,
   },
-  countPillText: { ...Typography.caption, fontWeight: '700' },
+  countPillText: { ...Typography.caption, fontWeight: "700" },
 
   moduleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.stackMd,
   },
   moduleTile: {
-    width: '31%',
+    width: "31%",
     flexGrow: 1,
-    minWidth: '30%',
-    maxWidth: '32.5%',
+    minWidth: "30%",
+    maxWidth: "32.5%",
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: 12,
     gap: 6,
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   moduleTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
+  },
+  moduleIconWrap: {
+    position: "relative",
   },
   moduleIcon: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moduleBadge: {
+    position: "absolute",
+    top: -5,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moduleBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    lineHeight: 12,
   },
   moduleValue: {
     ...Typography.headlineSm,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   moduleLabel: { ...Typography.labelMd },
   moduleHint: { ...Typography.caption },
 
   actionsCard: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     paddingVertical: 14,
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   actionItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
     paddingHorizontal: 4,
   },
@@ -847,88 +1289,92 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  actionLabel: { ...Typography.caption, fontWeight: '600', textAlign: 'center' },
+  actionLabel: {
+    ...Typography.caption,
+    fontWeight: "600",
+    textAlign: "center",
+  },
 
   alertList: { gap: Spacing.stackSm },
   alertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.stackMd,
     padding: 14,
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+    borderCurve: "continuous",
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   alertIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   alertText: { flex: 1, gap: 2, minWidth: 0 },
-  alertTitle: { ...Typography.bodyLg, fontWeight: '600' },
+  alertTitle: { ...Typography.bodyLg, fontWeight: "600" },
   alertSub: { ...Typography.bodyMd },
 
   overviewGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.stackMd,
-    alignItems: 'stretch',
+    alignItems: "stretch",
   },
   overviewWide: {
     flex: 1.35,
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: 16,
     gap: 10,
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   overviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   overviewCaption: { ...Typography.labelMd },
   overviewNet: {
     ...Typography.headlineMd,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   overviewSub: { ...Typography.caption, marginTop: -4 },
   flowBlock: { gap: 6, marginTop: 4 },
-  flowRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  flowLabel: { ...Typography.caption, fontWeight: '600' },
+  flowRow: { flexDirection: "row", justifyContent: "space-between" },
+  flowLabel: { ...Typography.caption, fontWeight: "600" },
   flowAmount: {
     ...Typography.caption,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
-  track: { height: 6, borderRadius: 3, overflow: 'hidden', width: '100%' },
-  fill: { height: '100%', borderRadius: 3 },
+  track: { height: 6, borderRadius: 3, overflow: "hidden", width: "100%" },
+  fill: { height: "100%", borderRadius: 3 },
 
   overviewSide: { flex: 1, gap: Spacing.stackMd },
   overviewHalf: {
     flex: 1,
     borderRadius: Radius.xl,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: 14,
     gap: 4,
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   miniIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 4,
   },
   miniValue: {
     ...Typography.headlineSm,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
-  miniLabel: { ...Typography.caption, fontWeight: '600' },
+  miniLabel: { ...Typography.caption, fontWeight: "600" },
   miniHint: { ...Typography.caption },
 });

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -137,18 +138,17 @@ export default function LabCertificatesScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Certificates" />
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset style={styles.actions}>
         <Button title="Add certificate" icon="add" onPress={() => setShowAdd(true)} />
         <Button
           title="Public verify"
           variant="secondary"
           onPress={() => router.push('/verify-certificate' as never)}
         />
+        </ScreenInset>
 
         {showAdd || fulfillingId ? (
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.title, { color: colors.primary }]}>
-              {fulfillingId ? 'Fulfill request' : 'New certificate'}
-            </Text>
+          <FormSection title={fulfillingId ? 'Fulfill request' : 'New certificate'}>
             <Input label="Certificate / report number" value={certNumber} onChangeText={setCertNumber} />
             <Input label="Report type" value={reportType} onChangeText={setReportType} />
             <MediaField label="Certificate file / photo" value={file} onChange={setFile} allows="all" />
@@ -165,10 +165,11 @@ export default function LabCertificatesScreen() {
                 });
               }}
             />
-          </View>
+          </FormSection>
         ) : null}
 
-        <Text style={[styles.section, { color: colors.textMuted }]}>REQUESTS</Text>
+        <FormSectionLabel title="Requests" />
+        <ScreenInset style={styles.sectionBody}>
         {pending.length === 0 ? (
           <Text style={{ color: colors.textMuted }}>No certification requests.</Text>
         ) : (
@@ -220,8 +221,10 @@ export default function LabCertificatesScreen() {
             </View>
           ))
         )}
+        </ScreenInset>
 
-        <Text style={[styles.section, { color: colors.textMuted }]}>PUBLISHED</Text>
+        <FormSectionLabel title="Published" />
+        <ScreenInset style={styles.sectionBody}>
         {certificates.length === 0 ? (
           <EmptyState icon="workspace-premium" title="No certificates yet" subtitle="Published reports are public for verification." />
         ) : (
@@ -235,6 +238,7 @@ export default function LabCertificatesScreen() {
             </View>
           ))
         )}
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -242,8 +246,9 @@ export default function LabCertificatesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: 48 },
-  section: { ...Typography.labelMd, letterSpacing: 1, marginTop: Spacing.md },
+  content: { gap: Spacing.md, paddingBottom: 48 },
+  actions: { gap: Spacing.md },
+  sectionBody: { gap: Spacing.md },
   card: { borderRadius: Radius.lg, padding: Spacing.lg, gap: 8 },
   title: { ...Typography.headlineMdMobile, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },

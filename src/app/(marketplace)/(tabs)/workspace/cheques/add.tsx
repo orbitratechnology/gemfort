@@ -1,54 +1,57 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, format } from 'date-fns';
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { addDays, format } from "date-fns";
+import { router, useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import { StyleSheet, Text } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ChipSelect } from '@/components/ui/chip-select';
-import { FormFooter } from '@/components/ui/form-footer';
-import { FormSection } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
-import { MediaField } from '@/components/ui/media-field';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { StackHeader } from '@/components/ui/stack-header';
+import { ChipSelect } from "@/components/ui/chip-select";
+import { FormFooter } from "@/components/ui/form-footer";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { Input } from "@/components/ui/input";
+import { MediaField } from "@/components/ui/media-field";
+import { ThemedScrollView } from "@/components/ui/screen";
+import { StackHeader } from "@/components/ui/stack-header";
 import {
-  BankPickerSheet,
-  BankSelectField,
-  BranchPickerSheet,
-  BranchSelectField,
-} from '@/components/workspace/bank-picker-sheet';
-import { ChequePreviewCard } from '@/components/workspace/cheque-preview-card';
-import { ContactPicker } from '@/components/workspace/contact-picker';
-import { Spacing, Typography } from '@/constants/design-tokens';
-import { getBankByCode } from '@/constants/sri-lanka-banks';
-import { bankHasBranches } from '@/constants/sri-lanka-branches';
-import { createCheque, fetchContacts } from '@/features/workspace/workspace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { Timestamp } from '@/lib/firebase/db';
+    BankPickerSheet,
+    BankSelectField,
+    BranchPickerSheet,
+    BranchSelectField,
+} from "@/components/workspace/bank-picker-sheet";
+import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
+import { ContactPicker } from "@/components/workspace/contact-picker";
+import { Spacing, Typography } from "@/constants/design-tokens";
+import { getBankByCode } from "@/constants/sri-lanka-banks";
+import { bankHasBranches } from "@/constants/sri-lanka-branches";
 import {
-  extensionForMedia,
-  uploadLocalMedia,
-  type LocalMedia,
-} from '@/lib/firebase/storage-service';
-import { friendlyError } from '@/lib/errors';
-import { addChequeSchema, parseForm } from '@/lib/validation/form-schemas';
-import { useAuth } from '@/providers/auth-provider';
-import { useToast } from '@/providers/toast-provider';
-import type { ChequeDirection } from '@/types';
+    createCheque,
+    fetchContacts,
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
+import { Timestamp } from "@/lib/firebase/db";
+import {
+    extensionForMedia,
+    uploadLocalMedia,
+    type LocalMedia,
+} from "@/lib/firebase/storage-service";
+import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
+import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
+import type { ChequeDirection } from "@/types";
 
 const DIRECTIONS = [
   {
-    value: 'received' as const,
-    label: 'Received',
-    subtitle: 'Payment coming to you',
-    icon: 'call-received' as const,
+    value: "received" as const,
+    label: "Received",
+    subtitle: "Payment coming to you",
+    icon: "call-received" as const,
   },
   {
-    value: 'given' as const,
-    label: 'Given',
-    subtitle: 'Cheque you issued',
-    icon: 'call-made' as const,
+    value: "given" as const,
+    label: "Given",
+    subtitle: "Cheque you issued",
+    icon: "call-made" as const,
   },
 ];
 
@@ -64,27 +67,30 @@ export default function AddChequeScreen() {
     contactId?: string;
   }>();
 
-  const [direction, setDirection] = useState<ChequeDirection>('received');
-  const [chequeNumber, setChequeNumber] = useState('');
+  const [direction, setDirection] = useState<ChequeDirection>("received");
+  const [chequeNumber, setChequeNumber] = useState("");
   const [bankCode, setBankCode] = useState<string | null>(null);
-  const [branch, setBranch] = useState('');
-  const [amount, setAmount] = useState(params.amount ?? '');
-  const [contactId, setContactId] = useState(params.contactId ?? '');
-  const [issuedBy, setIssuedBy] = useState('');
-  const [maturityDays, setMaturityDays] = useState('30');
-  const [notes, setNotes] = useState('');
+  const [branch, setBranch] = useState("");
+  const [amount, setAmount] = useState(params.amount ?? "");
+  const [contactId, setContactId] = useState(params.contactId ?? "");
+  const [issuedBy, setIssuedBy] = useState("");
+  const [maturityDays, setMaturityDays] = useState("30");
+  const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
 
-  const selectedBank = useMemo(() => getBankByCode(bankCode) ?? null, [bankCode]);
-  const bankName = selectedBank?.name ?? '';
+  const selectedBank = useMemo(
+    () => getBankByCode(bankCode) ?? null,
+    [bankCode],
+  );
+  const bankName = selectedBank?.name ?? "";
   const canPickBranch = bankHasBranches(bankCode);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', user?.uid],
+    queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
     enabled: !!user,
   });
@@ -97,7 +103,7 @@ export default function AddChequeScreen() {
   const maturityPreview = useMemo(() => {
     const days = parseInt(maturityDays, 10);
     if (!days || days < 1) return null;
-    return format(addDays(new Date(), days), 'd MMM yyyy');
+    return format(addDays(new Date(), days), "d MMM yyyy");
   }, [maturityDays]);
 
   function clearField(key: string) {
@@ -123,13 +129,15 @@ export default function AddChequeScreen() {
       notes: notes || undefined,
     });
     if (result.success && !bankCode) {
-      setErrors({ bankName: 'Select a bank.' });
-      toast.error('Select a bank.');
+      setErrors({ bankName: "Select a bank." });
+      toast.error("Select a bank.");
       return;
     }
     if (!result.success) {
       setErrors(result.errors);
-      toast.error(Object.values(result.errors)[0] ?? 'Check the highlighted fields.');
+      toast.error(
+        Object.values(result.errors)[0] ?? "Check the highlighted fields.",
+      );
       return;
     }
 
@@ -137,13 +145,19 @@ export default function AddChequeScreen() {
     try {
       const data = result.data;
       const now = Timestamp.now();
-      const maturity = Timestamp.fromDate(addDays(new Date(), data.maturityDays));
-      const issuer = data.issuedBy?.trim() || selectedContact?.displayName || 'Unknown';
+      const maturity = Timestamp.fromDate(
+        addDays(new Date(), data.maturityDays),
+      );
+      const issuer =
+        data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
 
       let photoUrl: string | null = null;
       if (photo) {
         const ext = extensionForMedia(photo);
-        photoUrl = await uploadLocalMedia(photo, `cheques/${user.uid}/${Date.now()}.${ext}`);
+        photoUrl = await uploadLocalMedia(
+          photo,
+          `cheques/${user.uid}/${Date.now()}.${ext}`,
+        );
       }
 
       const id = await createCheque(user.uid, {
@@ -163,26 +177,32 @@ export default function AddChequeScreen() {
         notes: data.notes || null,
       });
 
-      await queryClient.invalidateQueries({ queryKey: ['cheques'] });
-      toast.success('Cheque added to your tracker.');
+      await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+      toast.success("Cheque added to your tracker.");
       router.replace(`/(marketplace)/(tabs)/workspace/cheques/${id}` as never);
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not save cheque.'));
+      toast.error(friendlyError(e, "Could not save cheque."));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title="Add cheque" />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled">
-        <Text style={[styles.lead, { color: colors.textMuted }]}>
-          Track post-dated cheques and maturity dates.
-        </Text>
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenInset>
+          <Text style={[styles.lead, { color: colors.textMuted }]}>
+            Track post-dated cheques and maturity dates.
+          </Text>
+        </ScreenInset>
 
         <FormSection title="Direction">
           <ChipSelect
@@ -191,7 +211,7 @@ export default function AddChequeScreen() {
             value={direction}
             onChange={(v) => {
               setDirection(v);
-              clearField('direction');
+              clearField("direction");
             }}
             error={errors.direction}
           />
@@ -203,10 +223,10 @@ export default function AddChequeScreen() {
             value={chequeNumber}
             onChangeText={(v) => {
               setChequeNumber(v);
-              clearField('chequeNumber');
+              clearField("chequeNumber");
             }}
             placeholder="e.g. 001234"
-            leftIcon="receipt"
+            leftIcon="money-check-dollar"
             error={errors.chequeNumber}
           />
           <BankSelectField
@@ -229,7 +249,7 @@ export default function AddChequeScreen() {
             value={amount}
             onChangeText={(v) => {
               setAmount(v);
-              clearField('amount');
+              clearField("amount");
             }}
             keyboardType="decimal-pad"
             placeholder="0.00"
@@ -241,7 +261,7 @@ export default function AddChequeScreen() {
             value={maturityDays}
             onChangeText={(v) => {
               setMaturityDays(v);
-              clearField('maturityDays');
+              clearField("maturityDays");
             }}
             keyboardType="number-pad"
             placeholder="30"
@@ -263,7 +283,7 @@ export default function AddChequeScreen() {
             error={errors.contactId}
             onChange={(id) => {
               setContactId(id);
-              clearField('contactId');
+              clearField("contactId");
               const c = contacts.find((x) => x.id === id);
               if (c && !issuedBy) setIssuedBy(c.displayName);
             }}
@@ -272,13 +292,16 @@ export default function AddChequeScreen() {
             label="Issued by"
             value={issuedBy}
             onChangeText={setIssuedBy}
-            placeholder={selectedContact?.displayName ?? 'Name on cheque'}
+            placeholder={selectedContact?.displayName ?? "Name on cheque"}
             leftIcon="person"
             error={errors.issuedBy}
           />
         </FormSection>
 
-        <FormSection title="Cheque photo" hint="Optional. Upload happens when you save.">
+        <FormSection
+          title="Cheque photo"
+          hint="Optional. Upload happens when you save."
+        >
           <MediaField
             variant="row"
             value={photo}
@@ -308,12 +331,17 @@ export default function AddChequeScreen() {
           bankCode={bankCode}
           branch={branch}
           amount={amount}
-          issuedBy={issuedBy || selectedContact?.displayName || ''}
+          issuedBy={issuedBy || selectedContact?.displayName || ""}
           maturityDateLabel={maturityPreview}
         />
       </ThemedScrollView>
 
-      <FormFooter title="Save cheque" icon="save" loading={loading} onPress={handleSubmit} />
+      <FormFooter
+        title="Save cheque"
+        icon="shield"
+        loading={loading}
+        onPress={handleSubmit}
+      />
 
       <BankPickerSheet
         visible={bankSheetOpen}
@@ -321,9 +349,9 @@ export default function AddChequeScreen() {
         value={bankCode}
         onSelect={(bank) => {
           setBankCode(bank.code);
-          setBranch('');
-          clearField('bankName');
-          clearField('branch');
+          setBranch("");
+          clearField("bankName");
+          clearField("branch");
         }}
       />
       <BranchPickerSheet
@@ -333,7 +361,7 @@ export default function AddChequeScreen() {
         value={branch || null}
         onSelect={(b) => {
           setBranch(b.name);
-          clearField('branch');
+          clearField("branch");
         }}
       />
     </SafeAreaView>
@@ -343,12 +371,11 @@ export default function AddChequeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
   lead: { ...Typography.bodyMd, lineHeight: 22 },
   hint: { ...Typography.bodySmall, marginTop: -4 },
-  notes: { minHeight: 72, textAlignVertical: 'top', paddingTop: 12 },
+  notes: { minHeight: 72, textAlignVertical: "top", paddingTop: 12 },
 });

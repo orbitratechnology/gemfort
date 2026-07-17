@@ -16,10 +16,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchServices } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatDate } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import type { ServiceRecord } from "@/types";
 
@@ -67,6 +69,7 @@ export default function ServicesListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [filter, setFilter] = useState<StatusFilter>("all");
 
   const {
@@ -88,8 +91,8 @@ export default function ServicesListScreen() {
           : s.status === filter,
       );
     }
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter(
         (s) =>
           s.serviceType.toLowerCase().includes(q) ||
@@ -102,7 +105,7 @@ export default function ServicesListScreen() {
     return [...list].sort(
       (a, b) => b.dateGiven.toMillis() - a.dateGiven.toMillis(),
     );
-  }, [services, filter, search]);
+  }, [services, filter, debouncedSearch]);
 
   const toneColor = (tone: "warning" | "success" | "error" | "neutral") =>
     tone === "warning"
@@ -118,6 +121,7 @@ export default function ServicesListScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
+      <WorkspaceScreenBackdrop kind="services" />
       <StackHeader title="Service Records" />
 
       <FlatList
@@ -257,7 +261,7 @@ export default function ServicesListScreen() {
                     </Text>
                   </View>
                   <Text style={[styles.metaText, { color: colors.textMuted }]}>
-                    {formatDate(item.expectedReturnDate)}
+                    {formatRelativeDue(item.expectedReturnDate)}
                   </Text>
                 </View>
               </View>

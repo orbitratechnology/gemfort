@@ -19,6 +19,7 @@ import { ROLE_LABELS, directoryTabFromBusinessType } from '@/constants/roles';
 import { filterContacts } from '@/features/workspace/contact-utils';
 import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import type { Business, Contact } from '@/types';
 
@@ -224,9 +225,10 @@ export function ContactPickerSheet({
 }: ContactPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 300);
   const filtered = useMemo(
-    () => filterContacts(contacts, query, typeFilter),
-    [contacts, query, typeFilter],
+    () => filterContacts(contacts, debouncedQuery, typeFilter),
+    [contacts, debouncedQuery, typeFilter],
   );
   const trimmed = query.trim();
   const canUseCustom = allowCustomName && !!onSelectCustomName && trimmed.length > 0;
@@ -333,6 +335,7 @@ export function ProviderPickerSheet({
   const { colors } = useAppTheme();
   const [tab, setTab] = useState<TabId>('providers');
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 300);
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ['service-providers'],
@@ -348,13 +351,13 @@ export function ProviderPickerSheet({
   });
 
   const filteredProviders = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return providers.filter((b) => businessMatches(b, q));
-  }, [providers, query]);
+  }, [providers, debouncedQuery]);
 
   const filteredContacts = useMemo(
-    () => filterContacts(contacts, query, contactTypeFilter),
-    [contacts, query, contactTypeFilter],
+    () => filterContacts(contacts, debouncedQuery, contactTypeFilter),
+    [contacts, debouncedQuery, contactTypeFilter],
   );
 
   const tabs: { id: TabId; label: string; icon: IconName }[] = [

@@ -19,12 +19,14 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
+import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { GEM_CARD_MAX_WIDTH, GemCard } from '@/components/workspace/gem-card';
 import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { filterGems } from '@/features/workspace/gem-utils';
 import { fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useAuth } from '@/providers/auth-provider';
 import type { GemStatus } from '@/types';
 
@@ -40,6 +42,7 @@ export default function GemsListScreen() {
   const initialStatus = (params.status as GemStatus | undefined) ?? 'all';
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [statusFilter, setStatusFilter] = useState<GemStatus | 'all'>(initialStatus);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -55,8 +58,8 @@ export default function GemsListScreen() {
   });
 
   const filtered = useMemo(
-    () => filterGems(gems, { search, status: statusFilter, gemType: typeFilter }),
-    [gems, search, statusFilter, typeFilter],
+    () => filterGems(gems, { search: debouncedSearch, status: statusFilter, gemType: typeFilter }),
+    [gems, debouncedSearch, statusFilter, typeFilter],
   );
 
   const cellMaxWidth = useMemo(() => {
@@ -80,6 +83,7 @@ export default function GemsListScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <WorkspaceScreenBackdrop kind="gems" />
       <StackHeader title="My Gems" />
 
       <View style={styles.searchRow}>

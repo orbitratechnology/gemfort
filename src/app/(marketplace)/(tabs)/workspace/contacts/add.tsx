@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -139,6 +140,7 @@ export default function AddContactScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Add Contact" />
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset style={styles.lead}>
         <Pressable
           accessibilityRole="button"
           onPress={() => void handlePickFromPhone()}
@@ -181,17 +183,17 @@ export default function AddContactScreen() {
             ) : null}
           </View>
         )}
+        </ScreenInset>
 
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Contact">
           <Input label="Name" value={displayName} onChangeText={setDisplayName} placeholder="Full name" leftIcon="person" />
           <Input label="Company" value={companyName} onChangeText={setCompanyName} placeholder="Optional" leftIcon="business" />
           <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="phone" />
           <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" leftIcon="chat" />
           <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" leftIcon="email" />
-        </View>
+        </FormSection>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>CONTACT TYPES</Text>
+        <FormSection title="Contact types" padded={false}>
           <View style={styles.types}>
             {CONTACT_TYPES.map((t) => {
               const active = contactTypes.includes(t);
@@ -215,13 +217,15 @@ export default function AddContactScreen() {
               );
             })}
           </View>
-        </View>
+        </FormSection>
 
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Notes">
           <Input label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" leftIcon="notes" />
-        </View>
+        </FormSection>
 
-        <Button title="Save Contact" icon="person-add" loading={loading} onPress={handleSubmit} />
+        <ScreenInset>
+          <Button title="Save Contact" icon="person-add" loading={loading} onPress={handleSubmit} />
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -229,7 +233,8 @@ export default function AddContactScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.lg, paddingBottom: Spacing.section },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
+  lead: { gap: Spacing.lg },
   phoneCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -253,15 +258,13 @@ const styles = StyleSheet.create({
   prefillLink: { ...Typography.labelMd, fontWeight: '600', textAlign: 'center' },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   linked: { ...Typography.caption },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 0.5 },
-  types: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  types: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+  },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1 },
   chipText: { ...Typography.labelMd, textTransform: 'capitalize' },
-  card: {
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
 });

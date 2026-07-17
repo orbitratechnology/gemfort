@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
     CHEQUE_STATUS_LABELS,
@@ -25,7 +26,7 @@ import {
     fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import type { Cheque } from "@/types";
 
@@ -69,7 +70,7 @@ function ChequeRow({
         ]}
       >
         <Icon
-          name="receipt-long"
+          name="money-check-dollar"
           size={20}
           color={
             isBounced
@@ -103,7 +104,7 @@ function ChequeRow({
         </Text>
         <View style={styles.rowMeta}>
           <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
-            {formatDate(cheque.maturityDate)} · {maturityLabel(cheque)}
+            {maturityLabel(cheque)}
           </Text>
           <View
             style={[
@@ -161,7 +162,26 @@ export default function ChequesScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Cheques" />
+      <WorkspaceScreenBackdrop kind="cheques" />
+
+      <StackHeader
+        title="Cheques"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cheque calendar"
+            hitSlop={8}
+            onPress={() =>
+              router.push(
+                "/(marketplace)/(tabs)/workspace/cheques/calendar" as never,
+              )
+            }
+            style={styles.headerBtn}
+          >
+            <Icon name="calendar-month" size={24} color={colors.onSurface} />
+          </Pressable>
+        }
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -232,56 +252,6 @@ export default function ChequesScreen() {
           ) : null}
         </View>
 
-        {/* Quick links */}
-        <View style={styles.linkRow}>
-          <Pressable
-            onPress={() =>
-              router.push(
-                "/(marketplace)/(tabs)/workspace/cheques/calendar" as never,
-              )
-            }
-            style={({ pressed }) => [
-              styles.linkCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.outlineVariant,
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Icon name="calendar-month" size={22} color={colors.primary} />
-            <Text style={[styles.linkLabel, { color: colors.onSurface }]}>
-              Calendar
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() =>
-              router.push(
-                "/(marketplace)/(tabs)/workspace/cheques/add" as never,
-              )
-            }
-            style={({ pressed }) => [
-              styles.linkCard,
-              {
-                backgroundColor: colors.secondaryContainer,
-                borderColor: "transparent",
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Icon
-              name="add-circle-outline"
-              size={22}
-              color={colors.onSecondaryContainer}
-            />
-            <Text
-              style={[styles.linkLabel, { color: colors.onSecondaryContainer }]}
-            >
-              Add cheque
-            </Text>
-          </Pressable>
-        </View>
-
         {/* Bounced section */}
         {bounced.length > 0 ? (
           <View style={styles.section}>
@@ -313,7 +283,7 @@ export default function ChequesScreen() {
           </Text>
           {upcoming.length === 0 ? (
             <EmptyState
-              icon="receipt-long"
+              icon="money-check-dollar"
               title="No pending cheques"
               subtitle="Add a post-dated cheque to track maturity and clearance."
             />
@@ -390,20 +360,6 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
   },
   bouncedText: { ...Typography.bodySmall, fontWeight: "600" },
-  linkRow: { flexDirection: "row", gap: Spacing.md },
-  linkCard: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    minHeight: 52,
-  },
-  linkLabel: { ...Typography.labelMd, fontWeight: "600" },
   section: { gap: Spacing.sm },
   sectionTitle: {
     ...Typography.headlineMdMobile,

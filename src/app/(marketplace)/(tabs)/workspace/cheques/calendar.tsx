@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
@@ -57,6 +58,7 @@ export default function ChequeCalendarScreen() {
       <StackHeader title="Cheque Calendar" />
 
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
+        <ScreenInset>
         <View style={styles.monthNav}>
           <Pressable onPress={() => setMonth((m) => subMonths(m, 1))} hitSlop={12}>
             <Icon name="chevron-left" size={28} color={colors.primary} />
@@ -71,8 +73,10 @@ export default function ChequeCalendarScreen() {
             <Icon name="chevron-right" size={28} color={colors.primary} />
           </Pressable>
         </View>
+        </ScreenInset>
 
-        <View style={[styles.calendar, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection padded={false}>
+        <View style={[styles.calendar]}>
           <View style={styles.weekdayRow}>
             {WEEKDAYS.map((d) => (
               <Text key={d} style={[styles.weekday, { color: colors.textMuted }]}>
@@ -127,11 +131,9 @@ export default function ChequeCalendarScreen() {
             </View>
           ))}
         </View>
+        </FormSection>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            {format(selected, 'EEEE, d MMM')}
-          </Text>
+        <FormSection title={format(selected, 'EEEE, d MMM')}>
           {selectedCheques.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textMuted }]}>No cheques maturing this day.</Text>
           ) : (
@@ -156,7 +158,7 @@ export default function ChequeCalendarScreen() {
               </Pressable>
             ))
           )}
-        </View>
+        </FormSection>
       </ScrollView>
     </SafeAreaView>
   );
@@ -164,14 +166,12 @@ export default function ChequeCalendarScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.lg },
+  content: { paddingBottom: Spacing.section, gap: Spacing.lg },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   monthCenter: { alignItems: 'center', gap: 2 },
   monthTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
   monthSub: { ...Typography.bodySmall },
   calendar: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
     padding: Spacing.md,
     gap: Spacing.xs,
   },
@@ -196,9 +196,7 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', gap: 3 },
   dot: { width: 5, height: 5, borderRadius: 3 },
   dayAmt: { ...Typography.labelMd, fontSize: 9, fontWeight: '700' },
-  section: { gap: Spacing.sm },
-  sectionTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
-  empty: { ...Typography.bodySmall, paddingVertical: Spacing.md },
+  empty: { ...Typography.bodySmall },
   chequeItem: {
     padding: Spacing.md,
     borderRadius: Radius.lg,

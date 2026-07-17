@@ -1,8 +1,8 @@
 import { Image } from "expo-image";
+import type { ReactNode } from "react";
 import {
     StyleSheet,
     View,
-    type ReactNode,
     type StyleProp,
     type ViewStyle,
 } from "react-native";

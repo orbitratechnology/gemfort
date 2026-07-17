@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchPayments } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatRelativeTime } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import type { Payment } from '@/types';
 
@@ -36,7 +36,7 @@ export default function PaymentsScreen() {
             {isIn ? 'Payment received' : 'Payment made'}
           </Text>
           <Text style={[styles.sub, { color: colors.textMuted }]}>
-            {formatDate(item.paymentDate)}
+            {formatRelativeTime(item.paymentDate)}
             {item.paymentMethod ? ` · ${item.paymentMethod}` : ''}
             {item.commission ? ` · Commission ${formatCurrency(item.commission, item.currency)}` : ''}
           </Text>

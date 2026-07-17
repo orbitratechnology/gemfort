@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import {
@@ -32,7 +33,7 @@ import {
     fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatCurrency, formatDate, openPhone } from "@/lib/utils";
+import { formatCurrency, formatRelativeDue, openPhone } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -232,9 +233,7 @@ function HolderGroupCard({
                       { color: overdue ? colors.error : colors.textMuted },
                     ]}
                   >
-                    {overdue
-                      ? "Overdue"
-                      : `Due ${formatDate(record.expectedReturnDate)}`}
+                    {formatRelativeDue(record.expectedReturnDate)}
                   </Text>
                   <Text
                     style={[styles.stoneStatus, { color: colors.textMuted }]}
@@ -292,6 +291,7 @@ export default function ApListScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
+      <WorkspaceScreenBackdrop kind="ap" />
       <StackHeader title="AP Stones" />
 
       <FlatList

@@ -61,6 +61,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ??
       "./google-services/google-services.json",
+    permissions: [
+      "android.permission.READ_CALL_LOG",
+      "android.permission.READ_PHONE_STATE",
+    ],
+    // Library manifests WRITE_CALL_LOG; we only read history.
+    blockedPermissions: ["android.permission.WRITE_CALL_LOG"],
     intentFilters:
       env === "production" || env === "preview"
         ? [

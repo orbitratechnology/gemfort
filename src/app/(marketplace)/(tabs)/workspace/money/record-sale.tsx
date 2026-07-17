@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChipSelect } from "@/components/ui/chip-select";
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection } from "@/components/ui/form-section";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -33,7 +33,7 @@ type PaymentMethod = "transfer" | "cash" | "cheque";
 const METHODS: { value: PaymentMethod; label: string; icon: IconName }[] = [
   { value: "transfer", label: "Transfer", icon: "account-balance" },
   { value: "cash", label: "Cash", icon: "payments" },
-  { value: "cheque", label: "Cheque", icon: "receipt-long" },
+  { value: "cheque", label: "Cheque", icon: "money-check-dollar" },
 ];
 
 export default function RecordSaleScreen() {
@@ -165,22 +165,24 @@ export default function RecordSaleScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.lead, { color: colors.textMuted }]}>
-          Log the sale price and update inventory.
-        </Text>
-
-        <GemSelectField
-          label="Stone"
-          gem={gem}
-          placeholder="Select a gem"
-          onPress={() => setGemSheetOpen(true)}
-          error={errors.gemId}
-        />
-        {gem ? (
-          <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
-            Cost basis {formatCurrency(costBasis)}
+        <ScreenInset style={styles.stack}>
+          <Text style={[styles.lead, { color: colors.textMuted }]}>
+            Log the sale price and update inventory.
           </Text>
-        ) : null}
+
+          <GemSelectField
+            label="Stone"
+            gem={gem}
+            placeholder="Select a gem"
+            onPress={() => setGemSheetOpen(true)}
+            error={errors.gemId}
+          />
+          {gem ? (
+            <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
+              Cost basis {formatCurrency(costBasis)}
+            </Text>
+          ) : null}
+        </ScreenInset>
 
         <FormSection title="Sale details">
           <Input
@@ -227,65 +229,67 @@ export default function RecordSaleScreen() {
         </FormSection>
 
         {gem && salePrice > 0 ? (
-          <View
-            style={[styles.projection, { backgroundColor: colors.primary }]}
-          >
-            <Text
-              style={[styles.projHeading, { color: colors.onPrimary + "B3" }]}
+          <ScreenInset>
+            <View
+              style={[styles.projection, { backgroundColor: colors.primary }]}
             >
-              Projection
-            </Text>
-            <View style={styles.projRow}>
-              <View style={styles.projCell}>
-                <Text
-                  style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                >
-                  Cost
-                </Text>
-                <Text
-                  style={[styles.projValue, { color: colors.onPrimary }]}
-                  selectable
-                >
-                  {formatCurrency(costBasis)}
-                </Text>
-              </View>
-              <View style={styles.projCell}>
-                <Text
-                  style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                >
-                  Profit
-                </Text>
-                <Text
-                  style={[
-                    styles.projValue,
-                    {
-                      color:
-                        netProfit >= 0
-                          ? colors.onPrimary
-                          : colors.errorContainer,
-                    },
-                  ]}
-                  selectable
-                >
-                  {netProfit >= 0 ? "+" : ""}
-                  {formatCurrency(netProfit)}
-                </Text>
-              </View>
-              <View style={styles.projCell}>
-                <Text
-                  style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                >
-                  ROI
-                </Text>
-                <Text
-                  style={[styles.projValue, { color: colors.onPrimary }]}
-                  selectable
-                >
-                  {roi}%
-                </Text>
+              <Text
+                style={[styles.projHeading, { color: colors.onPrimary + "B3" }]}
+              >
+                Projection
+              </Text>
+              <View style={styles.projRow}>
+                <View style={styles.projCell}>
+                  <Text
+                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
+                  >
+                    Cost
+                  </Text>
+                  <Text
+                    style={[styles.projValue, { color: colors.onPrimary }]}
+                    selectable
+                  >
+                    {formatCurrency(costBasis)}
+                  </Text>
+                </View>
+                <View style={styles.projCell}>
+                  <Text
+                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
+                  >
+                    Profit
+                  </Text>
+                  <Text
+                    style={[
+                      styles.projValue,
+                      {
+                        color:
+                          netProfit >= 0
+                            ? colors.onPrimary
+                            : colors.errorContainer,
+                      },
+                    ]}
+                    selectable
+                  >
+                    {netProfit >= 0 ? "+" : ""}
+                    {formatCurrency(netProfit)}
+                  </Text>
+                </View>
+                <View style={styles.projCell}>
+                  <Text
+                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
+                  >
+                    ROI
+                  </Text>
+                  <Text
+                    style={[styles.projValue, { color: colors.onPrimary }]}
+                    selectable
+                  >
+                    {roi}%
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
+          </ScreenInset>
         ) : null}
       </ThemedScrollView>
 
@@ -316,13 +320,13 @@ export default function RecordSaleScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
+  stack: { gap: Spacing.md },
   lead: { ...Typography.bodyMd, lineHeight: 22 },
-  gemMeta: { ...Typography.bodySmall, marginTop: -4 },
+  gemMeta: { ...Typography.bodySmall },
   projection: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",

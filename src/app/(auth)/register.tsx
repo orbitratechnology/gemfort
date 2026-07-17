@@ -7,7 +7,7 @@ import { BrandMark } from '@/components/brand/brand-mark';
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
 import { ChipSelect } from '@/components/ui/chip-select';
-import { FormSection } from '@/components/ui/form-section';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Brand } from '@/constants/brand-story';
@@ -87,11 +87,13 @@ export default function RegisterScreen() {
         <ThemedScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
-          <BrandMark size="md" />
-          <StoryChapter
-            title="Create your account"
-            body={`${Brand.subtagline} Track stones and connect with traders.`}
-          />
+          <ScreenInset style={styles.lead}>
+            <BrandMark size="md" />
+            <StoryChapter
+              title="Create your account"
+              body={`${Brand.subtagline} Track stones and connect with traders.`}
+            />
+          </ScreenInset>
 
           <FormSection title="Your details">
             <Input
@@ -166,18 +168,20 @@ export default function RegisterScreen() {
             />
           </FormSection>
 
-          <Button
-            title="Create account"
-            icon="person-add"
-            loading={loading}
-            onPress={handleRegister}
-          />
+          <ScreenInset style={styles.cta}>
+            <Button
+              title="Create account"
+              icon="person-add"
+              loading={loading}
+              onPress={handleRegister}
+            />
 
-          <Link href="/(auth)/login">
-            <Text style={[styles.linkText, { color: colors.primary }]}>
-              Already have an account? Sign in
-            </Text>
-          </Link>
+            <Link href="/(auth)/login">
+              <Text style={[styles.linkText, { color: colors.primary }]}>
+                Already have an account? Sign in
+              </Text>
+            </Link>
+          </ScreenInset>
         </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -188,11 +192,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   container: {
-    paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
+  lead: { gap: Spacing.lg },
+  cta: { gap: Spacing.lg },
   linkText: {
     ...Typography.bodyMd,
     fontWeight: '600',

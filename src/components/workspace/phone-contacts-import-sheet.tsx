@@ -23,6 +23,7 @@ import {
 } from '@/features/workspace/device-contacts-service';
 import { importDeviceContactsBatch } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { friendlyError } from '@/lib/errors';
 import { useToast } from '@/providers/toast-provider';
 import type { Contact } from '@/types';
@@ -55,6 +56,7 @@ export function PhoneContactsImportSheet({
   const { colors } = useAppTheme();
   const toast = useToast();
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -107,13 +109,13 @@ export function PhoneContactsImportSheet({
   }, [visible, load]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return deviceContacts;
     return deviceContacts.filter((c) => {
       const hay = [c.displayName, c.companyName, c.phone, c.email].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [deviceContacts, query]);
+  }, [deviceContacts, debouncedQuery]);
 
   function isAlreadyInWorkspace(c: DeviceContact): boolean {
     if (existingDeviceIds.has(c.id)) return true;

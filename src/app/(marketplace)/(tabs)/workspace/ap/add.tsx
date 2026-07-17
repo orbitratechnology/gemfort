@@ -1,16 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactPicker } from '@/components/workspace/contact-picker';
 import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
-import { Radius, Spacing } from '@/constants/design-tokens';
+import { Spacing } from '@/constants/design-tokens';
 import { createApRecord, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
@@ -85,7 +86,7 @@ export default function AddApScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Give on AP" />
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Gem details">
           <GemSelectField
             label="Gem"
             gem={selectedGem}
@@ -117,9 +118,9 @@ export default function AddApScreen() {
             keyboardType="number-pad"
             leftIcon="schedule"
           />
-        </View>
+        </FormSection>
 
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="AP holder">
           <ContactPicker
             label="AP Holder"
             contacts={contacts}
@@ -137,9 +138,11 @@ export default function AddApScreen() {
             emptyHint="Add a broker or holder contact first."
             error={errors.holderId}
           />
-        </View>
+        </FormSection>
 
-        <Button title="Create AP Record" icon="handshake" loading={loading} onPress={handleSubmit} />
+        <ScreenInset>
+          <Button title="Create AP Record" icon="handshake" loading={loading} onPress={handleSubmit} />
+        </ScreenInset>
       </ThemedScrollView>
 
       <GemPickerSheet
@@ -165,11 +168,5 @@ export default function AddApScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.lg, paddingBottom: Spacing.section },
-  card: {
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
 });
