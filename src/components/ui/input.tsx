@@ -13,6 +13,8 @@ type InputProps = TextInputProps & {
   leftIcon?: IconName;
   /** Custom leading element (e.g. brand mark) — preferred over leftIcon when set. */
   leftElement?: ReactNode;
+  /** Trailing element inside the field (e.g. open-link button). */
+  rightElement?: ReactNode;
 };
 
 export function Input({
@@ -21,6 +23,7 @@ export function Input({
   helperText,
   leftIcon,
   leftElement,
+  rightElement,
   style,
   ...props
 }: InputProps) {
@@ -41,13 +44,16 @@ export function Input({
             borderCurve: 'continuous',
           },
         ]}>
-        {leftElement ?? (leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null)}
+        {props.multiline
+          ? null
+          : leftElement ?? (leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null)}
         <TextInput
           placeholderTextColor={colors.textMuted}
           style={[styles.input, { color: colors.text }, style]}
           accessibilityLabel={label}
           {...props}
         />
+        {rightElement}
       </View>
       {error ? (
         <Text style={[styles.error, { color: colors.error }]} accessibilityLiveRegion="polite">

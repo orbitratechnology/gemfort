@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { FormSection } from "@/components/ui/form-section";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -28,7 +28,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { GemStatus } from "@/types";
@@ -192,6 +192,7 @@ export default function GemDetailScreen() {
       <StackHeader title={gem.sku} />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset style={styles.lead}>
         <View
           style={[
             styles.hero,
@@ -363,6 +364,7 @@ export default function GemDetailScreen() {
             );
           })}
         </View>
+        </ScreenInset>
 
         <FormSection title="History" icon="history">
           {events.length ? (
@@ -404,7 +406,7 @@ export default function GemDetailScreen() {
                     <Text
                       style={[styles.timelineDate, { color: colors.textMuted }]}
                     >
-                      {formatDate(e.createdAt)}
+                      {formatRelativeTime(e.createdAt)}
                     </Text>
                     <Text
                       style={[
@@ -536,7 +538,7 @@ export default function GemDetailScreen() {
           </FormSection>
         ) : null}
 
-        <View style={styles.actions}>
+        <ScreenInset style={styles.actions}>
           {primaryAction ? (
             <Button
               title={primaryAction.title}
@@ -563,7 +565,7 @@ export default function GemDetailScreen() {
               onPress={() => router.push(action.href as never)}
             />
           ))}
-        </View>
+        </ScreenInset>
       </ThemedScrollView>
 
       <BottomSheet
@@ -656,10 +658,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: 48,
     gap: Spacing.sectionGap,
   },
+  lead: { gap: Spacing.sectionGap },
 
   hero: {
     width: "100%",

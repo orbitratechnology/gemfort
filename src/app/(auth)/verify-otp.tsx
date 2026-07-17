@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
-import { FormSection } from '@/components/ui/form-section';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Spacing, Typography } from '@/constants/design-tokens';
@@ -106,23 +106,25 @@ export default function VerifyOtpScreen() {
         <ThemedScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
-          <StoryChapter
-            title="Verify your phone"
-            body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
-          />
+          <ScreenInset style={styles.lead}>
+            <StoryChapter
+              title="Verify your phone"
+              body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
+            />
 
-          <Button
-            title={verificationId ? 'Resend code' : 'Send code'}
-            icon="sms"
-            loading={sending}
-            disabled={cooldown > 0}
-            onPress={handleSendCode}
-          />
-          {cooldown > 0 ? (
-            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
-              Resend available in {cooldown}s
-            </Text>
-          ) : null}
+            <Button
+              title={verificationId ? 'Resend code' : 'Send code'}
+              icon="sms"
+              loading={sending}
+              disabled={cooldown > 0}
+              onPress={handleSendCode}
+            />
+            {cooldown > 0 ? (
+              <Text style={[styles.cooldown, { color: colors.textMuted }]}>
+                Resend available in {cooldown}s
+              </Text>
+            ) : null}
+          </ScreenInset>
 
           <FormSection title="Enter code">
             <Input
@@ -145,16 +147,18 @@ export default function VerifyOtpScreen() {
             />
           </FormSection>
 
-          <Button
-            title="Verify & continue"
-            icon="verified"
-            loading={confirming}
-            onPress={handleConfirm}
-          />
+          <ScreenInset style={styles.cta}>
+            <Button
+              title="Verify & continue"
+              icon="verified"
+              loading={confirming}
+              onPress={handleConfirm}
+            />
 
-          {__DEV__ ? (
-            <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
-          ) : null}
+            {__DEV__ ? (
+              <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
+            ) : null}
+          </ScreenInset>
         </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -165,10 +169,11 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   container: {
-    paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
+  lead: { gap: Spacing.lg },
+  cta: { gap: Spacing.lg },
   cooldown: { ...Typography.caption, textAlign: 'center' },
 });

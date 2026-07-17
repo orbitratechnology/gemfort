@@ -5,6 +5,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -18,7 +19,7 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
 import { useToast } from '@/providers/toast-provider';
 import type { ChequeStatus } from '@/types';
 
@@ -121,7 +122,7 @@ export default function ChequeDetailScreen() {
       <StackHeader title="Cheque Detail" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Hero */}
+        <ScreenInset>
         <View
           style={[
             styles.hero,
@@ -135,7 +136,7 @@ export default function ChequeDetailScreen() {
                 styles.heroIcon,
                 { backgroundColor: isBounced ? colors.error + '22' : colors.onPrimary + '22' },
               ]}>
-              <Icon name="receipt-long" size={28} color={isBounced ? colors.error : colors.onPrimary} />
+              <Icon name="money-check-dollar" size={28} color={isBounced ? colors.error : colors.onPrimary} />
             </View>
             <View style={[styles.statusBadge, { backgroundColor: colors.surfaceContainerLowest }]}>
               <Text style={[styles.statusText, { color: isBounced ? colors.error : colors.onSurfaceVariant }]}>
@@ -153,38 +154,36 @@ export default function ChequeDetailScreen() {
             {isReceived ? 'From' : 'To'} {contactName} · {maturityLabel(cheque)}
           </Text>
         </View>
+        </ScreenInset>
 
-        {/* Details card */}
-        <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <FormSection title="Details">
           <DetailRow label="Direction" value={isReceived ? 'Received' : 'Given'} colors={colors} />
           <DetailRow label="Issued by" value={cheque.issuedBy} colors={colors} />
           <DetailRow label="Issue date" value={formatDate(cheque.issueDate)} colors={colors} />
-          <DetailRow label="Maturity" value={formatDate(cheque.maturityDate)} colors={colors} />
+          <DetailRow label="Maturity" value={formatRelativeDue(cheque.maturityDate)} colors={colors} />
           {cheque.branch ? <DetailRow label="Branch" value={cheque.branch} colors={colors} /> : null}
           {cheque.depositedDate ? (
-            <DetailRow label="Deposited" value={formatDate(cheque.depositedDate)} colors={colors} />
+            <DetailRow label="Deposited" value={formatRelativeTime(cheque.depositedDate)} colors={colors} />
           ) : null}
           {cheque.clearedDate ? (
-            <DetailRow label="Cleared" value={formatDate(cheque.clearedDate)} colors={colors} />
+            <DetailRow label="Cleared" value={formatRelativeTime(cheque.clearedDate)} colors={colors} />
           ) : null}
           {cheque.bouncedReason ? (
             <DetailRow label="Bounce reason" value={cheque.bouncedReason} colors={colors} danger />
           ) : null}
           {cheque.notes ? <DetailRow label="Notes" value={cheque.notes} colors={colors} /> : null}
-        </View>
+        </FormSection>
 
-        {/* Photo */}
         {cheque.photoUrl ? (
-          <View style={[styles.photoWrap, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.photoLabel, { color: colors.onSurfaceVariant }]}>CHEQUE PHOTO</Text>
+          <FormSection title="Cheque photo" padded={false}>
+          <View style={styles.photoWrap}>
             <Image source={{ uri: cheque.photoUrl }} style={styles.photo} resizeMode="contain" />
           </View>
+          </FormSection>
         ) : null}
 
-        {/* Status actions */}
         {showBounceForm ? (
-          <View style={[styles.card, { backgroundColor: colors.errorContainer }]}>
-            <Text style={[styles.sectionTitle, { color: colors.error }]}>Bounce reason</Text>
+          <FormSection title="Bounce reason">
             <Input
               label="Why did it bounce?"
               value={bounceReason}
@@ -207,12 +206,13 @@ export default function ChequeDetailScreen() {
                 }}
               />
             </View>
-          </View>
+          </FormSection>
         ) : null}
 
         {isPending && !showBounceForm ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Update status</Text>
+          <>
+            <FormSectionLabel title="Update status" />
+            <ScreenInset>
             <View style={styles.actionGrid}>
               {STATUS_ACTIONS.filter((a) =>
                 cheque.status === 'holding'
@@ -254,14 +254,18 @@ export default function ChequeDetailScreen() {
                 </Pressable>
               ))}
             </View>
-          </View>
+            </ScreenInset>
+          </>
         ) : null}
 
         {isBounced ? (
+          <ScreenInset>
           <Button title="Add replacement cheque" icon="swap-horiz" variant="secondary" onPress={handleReplace} />
+          </ScreenInset>
         ) : null}
 
         {cheque.gemId ? (
+          <ScreenInset>
           <Pressable
             onPress={() => router.push(`/(marketplace)/(tabs)/workspace/gems/${cheque.gemId}`)}
             style={({ pressed }) => [
@@ -273,6 +277,7 @@ export default function ChequeDetailScreen() {
             <Text style={[styles.linkText, { color: colors.primary }]}>View linked gem</Text>
             <Icon name="chevron-right" size={20} color={colors.outline} />
           </Pressable>
+          </ScreenInset>
         ) : null}
       </ThemedScrollView>
     </SafeAreaView>
@@ -303,7 +308,7 @@ function DetailRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.lg },
+  content: { paddingBottom: Spacing.section, gap: Spacing.lg },
   hero: {
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
@@ -324,25 +329,14 @@ const styles = StyleSheet.create({
   heroAmount: { ...Typography.displayLg, fontWeight: '700', fontVariant: ['tabular-nums'] },
   heroBank: { ...Typography.labelMd, fontWeight: '600' },
   heroMeta: { ...Typography.bodySmall },
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
   detailRow: { gap: 2 },
   detailLabel: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 0.8 },
   detailValue: { ...Typography.bodyMd },
   photoWrap: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
   },
-  photoLabel: { ...Typography.labelMd, letterSpacing: 1 },
   photo: { width: '100%', height: 200, borderRadius: Radius.lg, borderCurve: 'continuous' },
-  section: { gap: Spacing.sm },
-  sectionTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   actionBtn: {
     flexDirection: 'row',

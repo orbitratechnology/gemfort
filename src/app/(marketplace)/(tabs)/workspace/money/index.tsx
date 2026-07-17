@@ -5,7 +5,9 @@ import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
+import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
+import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { getCategoryMeta } from '@/constants/transaction-categories';
@@ -96,6 +98,7 @@ export default function MoneyDashboard() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <WorkspaceScreenBackdrop kind="money" />
       <StackHeader title="Money" />
 
       <ThemedScrollView
@@ -108,6 +111,7 @@ export default function MoneyDashboard() {
             tintColor={colors.primary}
           />
         }>
+        <ScreenInset style={styles.inset}>
         {/* Period segmented control */}
         <View style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}>
           {MONEY_PERIODS.map((p) => {
@@ -204,7 +208,7 @@ export default function MoneyDashboard() {
             pressed && { opacity: 0.92 },
           ]}>
           <View style={styles.chequeCardLeft}>
-            <Icon name="receipt-long" size={22} color={colors.onPrimary} />
+            <Icon name="money-check-dollar" size={22} color={colors.onPrimary} />
             <View>
               <Text style={[styles.chequeCardTitle, { color: colors.onPrimary }]}>Cheque tracker</Text>
               <Text style={[styles.chequeCardSub, { color: colors.onPrimary + 'AA' }]}>
@@ -240,11 +244,10 @@ export default function MoneyDashboard() {
             <Text style={[styles.toolLabel, { color: colors.onSurface }]}>Payments</Text>
           </Pressable>
         </View>
+        </ScreenInset>
 
         {/* Cash flow */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Cash flow</Text>
-          <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
+        <FormSection title="Cash flow">
             {hasCashFlow ? (
               <View style={styles.chartArea}>
                 {buckets.map((b, i) => (
@@ -286,14 +289,11 @@ export default function MoneyDashboard() {
                 <Text style={[styles.legendText, { color: colors.onSurfaceVariant }]}>Expenses</Text>
               </View>
             </View>
-          </View>
-        </View>
+        </FormSection>
 
         {/* Spend categories */}
         {categories.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Top spend</Text>
-            <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
+          <FormSection title="Top spend">
               {categories.map((cat, i) => {
                 const meta = getCategoryMeta(cat.category);
                 return (
@@ -322,23 +322,21 @@ export default function MoneyDashboard() {
                   </View>
                 );
               })}
-            </View>
-          </View>
+          </FormSection>
         ) : null}
 
         {/* Recent transactions */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface, marginBottom: 0 }]}>Recent activity</Text>
+        <FormSectionLabel title="Recent activity" />
+        <ScreenInset style={styles.sectionHeader}>
             {transactions.length > 0 ? (
-              <Pressable onPress={() => router.push(`${WORKSPACE}/money/transactions` as never)} hitSlop={8}>
+              <Pressable onPress={() => router.push(`${WORKSPACE}/money/transactions` as never)} hitSlop={8} style={styles.viewAllBtn}>
                 <Text style={[styles.viewAll, { color: colors.primary }]}>View all</Text>
               </Pressable>
             ) : null}
-          </View>
+        </ScreenInset>
 
           {recent.length > 0 ? (
-            <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
+            <FormSection>
               {recent.map((t, i) => {
                 const meta = getCategoryMeta(t.category);
                 const isIncome = t.type === 'income';
@@ -363,9 +361,9 @@ export default function MoneyDashboard() {
                   </View>
                 );
               })}
-            </View>
+            </FormSection>
           ) : (
-            <View style={[styles.card, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
+            <FormSection>
               <View style={styles.emptyBox}>
                 <Icon name="receipt-long" size={26} color={colors.outline} />
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>No transactions yet</Text>
@@ -375,9 +373,8 @@ export default function MoneyDashboard() {
                   <Text style={[styles.emptyBtnText, { color: colors.onPrimary }]}>Record a sale</Text>
                 </Pressable>
               </View>
-            </View>
+            </FormSection>
           )}
-        </View>
       </ThemedScrollView>
 
       <Pressable
@@ -398,11 +395,11 @@ export default function MoneyDashboard() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: 120,
     gap: Spacing.gutterMd,
   },
+  inset: { gap: Spacing.gutterMd },
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -470,12 +467,9 @@ const styles = StyleSheet.create({
   },
   toolLabel: { ...Typography.labelMd, fontWeight: '600' },
 
-  section: { gap: Spacing.stackMd },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { ...Typography.headlineSmMobile, marginBottom: 2 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: -Spacing.sm },
+  viewAllBtn: { marginTop: -Spacing.md },
   viewAll: { ...Typography.labelMd },
-
-  card: { padding: Spacing.gutterMd, borderRadius: Radius.xl, borderWidth: 1 },
 
   chartArea: { flexDirection: 'row', alignItems: 'flex-end', height: 168, paddingTop: 8 },
   barGroup: { flex: 1, alignItems: 'center' },

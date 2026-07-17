@@ -1,49 +1,48 @@
-import {
-  addDays,
-  differenceInCalendarDays,
-  format,
-  isSameDay,
-  startOfDay,
-} from 'date-fns';
+import { addDays, startOfDay } from 'date-fns';
 
 import { directoryTabFromBusinessType } from '@/constants/roles';
-import type { ApRecord, Business, ServiceRecord, Trip } from '@/types';
+import { isPendingCheque, toDate as chequeToDate } from '@/features/workspace/cheque-utils';
+import { formatCurrency, formatRelativeDue } from '@/lib/utils';
+import type { ApRecord, Business, Cheque, ServiceRecord, Trip } from '@/types';
 
-export type HomeUpcomingKind = 'ap' | 'service' | 'trip';
+export type HomeUpcomingKind = 'ap' | 'service' | 'trip' | 'cheque';
 
 export type HomeUpcomingItem = {
   id: string;
   kind: HomeUpcomingKind;
   title: string;
   subtitle: string;
+  /** Relative due label, e.g. "Today", "in 3d", "2d overdue" */
+  when: string;
   date: Date;
   href: string;
+  overdue: boolean;
 };
 
-export type HomeDayCell = {
-  date: Date;
-  label: string;
-  dayNum: string;
-  count: number;
-  isToday: boolean;
-};
-
-const LOOKAHEAD_DAYS = 14;
+const LOOKAHEAD_DAYS = 21;
+/** How far back to surface overdue items on Home. */
+const OVERDUE_LOOKBACK_DAYS = 30;
 
 function toDate(ts: { toDate?: () => Date } | null | undefined): Date | null {
   if (!ts) return null;
   return ts.toDate?.() ?? null;
 }
 
-/** Build calendar items for AP returns, service returns, and active trips. */
+function inWindow(day: Date, horizon: Date, lookback: Date): boolean {
+  return day <= horizon && day >= lookback;
+}
+
+/** Upcoming workspace deadlines: AP returns, services, trips, cheques. */
 export function buildHomeUpcoming(input: {
   apRecords: ApRecord[];
   services: ServiceRecord[];
   trips: Trip[];
+  cheques?: Cheque[];
   contactName: (id: string | null | undefined) => string;
 }): HomeUpcomingItem[] {
   const today = startOfDay(new Date());
   const horizon = addDays(today, LOOKAHEAD_DAYS);
+  const lookback = addDays(today, -OVERDUE_LOOKBACK_DAYS);
   const items: HomeUpcomingItem[] = [];
 
   for (const r of input.apRecords) {
@@ -51,16 +50,18 @@ export function buildHomeUpcoming(input: {
     const due = toDate(r.expectedReturnDate);
     if (!due) continue;
     const day = startOfDay(due);
-    if (day < today || day > horizon) continue;
+    if (!inWindow(day, horizon, lookback)) continue;
     const holder = input.contactName(r.apHolderContactId);
-    const days = differenceInCalendarDays(day, today);
+    const overdue = day < today;
     items.push({
       id: `ap-${r.id}`,
       kind: 'ap',
-      title: days === 0 ? 'AP due today' : `AP due in ${days}d`,
+      title: overdue ? 'AP overdue' : 'AP return',
       subtitle: `With ${holder}`,
+      when: formatRelativeDue(day),
       date: day,
       href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
+      overdue,
     });
   }
 
@@ -69,16 +70,18 @@ export function buildHomeUpcoming(input: {
     const due = toDate(s.expectedReturnDate);
     if (!due) continue;
     const day = startOfDay(due);
-    if (day < today || day > horizon) continue;
-    const days = differenceInCalendarDays(day, today);
+    if (!inWindow(day, horizon, lookback)) continue;
     const who = s.providerName?.trim() || 'Provider';
+    const overdue = day < today;
     items.push({
       id: `svc-${s.id}`,
       kind: 'service',
-      title: days === 0 ? 'Service due today' : `Service due in ${days}d`,
+      title: overdue ? 'Service overdue' : 'Service return',
       subtitle: `${s.serviceType.replace(/_/g, ' ')} · ${who}`,
+      when: formatRelativeDue(day),
       date: day,
       href: `/(marketplace)/(tabs)/workspace/services/${s.id}`,
+      overdue,
     });
   }
 
@@ -87,32 +90,44 @@ export function buildHomeUpcoming(input: {
     const end = toDate(t.expectedEndDate);
     if (!end) continue;
     const day = startOfDay(end);
-    if (day < today || day > horizon) continue;
-    const days = differenceInCalendarDays(day, today);
+    if (!inWindow(day, horizon, lookback)) continue;
+    const overdue = day < today;
     items.push({
       id: `trip-${t.id}`,
       kind: 'trip',
-      title: days === 0 ? 'Trip ends today' : `Trip ends in ${days}d`,
+      title: overdue ? 'Trip ended' : 'Trip ends',
       subtitle: `${t.tripName} · ${t.destinationCity}`,
+      when: formatRelativeDue(day),
       date: day,
       href: `/(marketplace)/(tabs)/workspace/trips/${t.id}`,
+      overdue,
     });
   }
 
-  return items.sort((a, b) => a.date.getTime() - b.date.getTime());
-}
+  for (const c of input.cheques ?? []) {
+    if (!isPendingCheque(c)) continue;
+    const due = chequeToDate(c.maturityDate);
+    if (!due) continue;
+    const day = startOfDay(due);
+    if (!inWindow(day, horizon, lookback)) continue;
+    const overdue = day < today;
+    const who = input.contactName(c.counterpartyContactId) || c.issuedBy || 'Counterparty';
+    const dir = c.direction === 'received' ? 'From' : 'To';
+    items.push({
+      id: `cheque-${c.id}`,
+      kind: 'cheque',
+      title: overdue ? 'Cheque overdue' : 'Cheque matures',
+      subtitle: `${c.chequeNumber} · ${dir} ${who} · ${formatCurrency(c.amount, c.currency)}`,
+      when: formatRelativeDue(day),
+      date: day,
+      href: `/(marketplace)/(tabs)/workspace/cheques/${c.id}`,
+      overdue,
+    });
+  }
 
-export function buildWeekCells(upcoming: HomeUpcomingItem[]): HomeDayCell[] {
-  const today = startOfDay(new Date());
-  return Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(today, i);
-    return {
-      date,
-      label: format(date, 'EEE'),
-      dayNum: format(date, 'd'),
-      count: upcoming.filter((u) => isSameDay(u.date, date)).length,
-      isToday: i === 0,
-    };
+  return items.sort((a, b) => {
+    if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+    return a.date.getTime() - b.date.getTime();
   });
 }
 

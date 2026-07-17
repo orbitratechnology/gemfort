@@ -15,6 +15,7 @@ import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { WorkspaceGem } from "@/types";
 
 type GemPickerTab = "on_sale" | "private";
@@ -68,6 +69,7 @@ export function GemPickerSheet({
 }: GemPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [tab, setTab] = useState<GemPickerTab>(initialTab);
   const [wasVisible, setWasVisible] = useState(visible);
   if (visible !== wasVisible) {
@@ -89,13 +91,13 @@ export function GemPickerSheet({
   }, [gems]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return gems.filter((g) => {
       const onSale = isOnSaleGem(g);
       if (tab === "on_sale" ? !onSale : onSale) return false;
       return matchesQuery(g, q);
     });
-  }, [gems, query, tab]);
+  }, [gems, debouncedQuery, tab]);
 
   function handleClose() {
     setQuery("");

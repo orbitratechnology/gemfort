@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -101,6 +102,7 @@ export default function ReportsScreen() {
       <StackHeader title="Reports" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset style={styles.lead}>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           Export financial summaries as PDF to share with your accountant or partners.
         </Text>
@@ -130,8 +132,12 @@ export default function ReportsScreen() {
             <ActivityIndicator color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading data…</Text>
           </View>
-        ) : (
-          REPORT_TYPES.map((report) => {
+        ) : null}
+        </ScreenInset>
+
+        {!loading ? (
+          <FormSection>
+          {REPORT_TYPES.map((report) => {
             const busy = exporting === report.id;
             return (
               <Pressable
@@ -140,7 +146,7 @@ export default function ReportsScreen() {
                 disabled={!!exporting}
                 style={({ pressed }) => [
                   styles.reportRow,
-                  { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
+                  { backgroundColor: colors.surfaceContainerLowest },
                   pressed && { opacity: 0.85 },
                 ]}>
                 <View style={[styles.reportIcon, { backgroundColor: colors.primary + '14' }]}>
@@ -157,8 +163,9 @@ export default function ReportsScreen() {
                 )}
               </Pressable>
             );
-          })
-        )}
+          })}
+          </FormSection>
+        ) : null}
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -166,7 +173,8 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.lg },
+  content: { paddingBottom: Spacing.section, gap: Spacing.lg },
+  lead: { gap: Spacing.lg },
   subtitle: { ...Typography.bodyMd },
   segment: { flexDirection: 'row', padding: 4, borderRadius: Radius.full, gap: 4 },
   segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.full, alignItems: 'center' },
@@ -177,10 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    borderWidth: 1,
+    paddingVertical: Spacing.sm,
   },
   reportIcon: {
     width: 44,

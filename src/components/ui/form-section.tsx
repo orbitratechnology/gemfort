@@ -1,66 +1,123 @@
-import { StyleSheet, Text, View, type ViewProps } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { type IconName } from '@/components/ui/icon';
+import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-type FormSectionProps = ViewProps & {
-  title?: string;
-  hint?: string;
-  icon?: IconName;
-  children: React.ReactNode;
+type FormSectionLabelProps = {
+  /** Section eyebrow — rendered uppercase above the group. */
+  title: string;
 };
 
-/** Grouped form card with optional title. One job per section. */
-export function FormSection({ title, hint, icon, children, style, ...props }: FormSectionProps) {
+/**
+ * Muted uppercase label above a full-bleed form group.
+ * Stays outside the section surface (Edit Business pattern).
+ */
+export function FormSectionLabel({ title }: FormSectionLabelProps) {
+  const { colors } = useAppTheme();
+  return (
+    <Text
+      style={[styles.label, { color: colors.textMuted }]}
+      accessibilityRole="header">
+      {title.trim().toUpperCase()}
+    </Text>
+  );
+}
+
+type FormSectionProps = {
+  children: ReactNode;
+  /**
+   * When set, renders {@link FormSectionLabel} above the group
+   * (outside the surface). Prefer this over nesting titles inside.
+   */
+  title?: string;
+  /** Optional helper under the label, still above the surface. */
+  hint?: string;
+  /** @deprecated Kept for call-site compatibility; not rendered. */
+  icon?: IconName;
+  /** Horizontal + vertical padding inside the group. Default true. */
+  padded?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+/**
+ * Edge-to-edge surface group — no radius, no side margin, no card shadow.
+ * Screen scroll content must not add horizontal padding, or sections won't bleed.
+ * Use {@link ScreenInset} for lead copy, CTAs, and other non-section content.
+ */
+export function FormSection({
+  children,
+  title,
+  hint,
+  padded = true,
+  style,
+}: FormSectionProps) {
   const { colors } = useAppTheme();
 
-  return (
+  const group = (
     <View
       style={[
-        styles.card,
+        styles.group,
+        padded && styles.groupPadded,
         { backgroundColor: colors.surfaceContainerLowest },
         style,
-      ]}
-      {...props}>
-      {title ? (
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
-            {icon ? (
-              <View style={[styles.iconWrap, { backgroundColor: colors.primaryContainer }]}>
-                <Icon name={icon} size={18} color={colors.onPrimaryContainer} />
-              </View>
-            ) : null}
-            <Text style={[styles.title, { color: colors.onSurface }]}>{title}</Text>
-          </View>
-          {hint ? (
-            <Text style={[styles.hint, { color: colors.textMuted }]}>{hint}</Text>
-          ) : null}
-        </View>
+      ]}>
+      {children}
+    </View>
+  );
+
+  if (!title && !hint) return group;
+
+  return (
+    <View style={styles.block}>
+      {title ? <FormSectionLabel title={title} /> : null}
+      {hint ? (
+        <Text style={[styles.hint, { color: colors.textMuted }]}>{hint}</Text>
       ) : null}
-      <View style={styles.body}>{children}</View>
+      {group}
     </View>
   );
 }
 
+type ScreenInsetProps = {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+};
+
+/** Aligns non-section content with the inner padding of padded FormSections. */
+export function ScreenInset({ children, style }: ScreenInsetProps) {
+  return <View style={[styles.inset, style]}>{children}</View>;
+}
+
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.lg,
+  block: {
+    width: '100%',
+    gap: 2,
+  },
+  label: {
+    ...Typography.labelMd,
+    letterSpacing: 1.1,
+    paddingHorizontal: Spacing.containerMargin,
+    marginTop: Spacing.sm,
+    marginBottom: 2,
+  },
+  hint: {
+    ...Typography.bodySmall,
+    paddingHorizontal: Spacing.containerMargin,
+    marginBottom: Spacing.sm,
+    lineHeight: 18,
+  },
+  group: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  groupPadded: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
     gap: Spacing.md,
-    boxShadow: '0 2px 12px rgba(15, 118, 110, 0.06)',
   },
-  header: { gap: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  inset: {
+    paddingHorizontal: Spacing.containerMargin,
   },
-  title: { ...Typography.headlineSmMobile, flexShrink: 1 },
-  hint: { ...Typography.bodySmall, lineHeight: 18 },
-  body: { gap: Spacing.md },
 });

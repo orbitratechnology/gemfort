@@ -23,8 +23,15 @@ export function websiteHostname(raw: string | null | undefined): string | null {
   if (!v) return null;
   try {
     const withProto = /^https?:\/\//i.test(v) ? v : `https://${v}`;
-    const host = new URL(withProto).hostname.replace(/^www\./i, '');
-    return host || null;
+    const host = new URL(withProto).hostname.replace(/^www\./i, '').toLowerCase();
+    // Require a real domain (e.g. example.com) — bare words are not link previews.
+    if (!host || !host.includes('.') || host.startsWith('.') || host.endsWith('.')) {
+      return null;
+    }
+    // Reject incomplete TLDs like "site.c"
+    const tld = host.split('.').pop() ?? '';
+    if (tld.length < 2) return null;
+    return host;
   } catch {
     return null;
   }
@@ -36,8 +43,10 @@ export function websiteFaviconUrls(raw: string | null | undefined, size = 64): s
   if (!host) return [];
   const encoded = encodeURIComponent(host);
   return [
-    `https://icons.duckduckgo.com/ip3/${host}.ico`,
     `https://www.google.com/s2/favicons?domain=${encoded}&sz=${size}`,
+    `https://www.google.com/s2/favicons?domain_url=https://${encoded}&sz=${size}`,
+    `https://icons.duckduckgo.com/ip3/${host}.ico`,
+    `https://${host}/favicon.ico`,
   ];
 }
 
@@ -47,7 +56,12 @@ export function normalizeWebsiteUrl(raw: string): string | null {
   try {
     const withProto = /^https?:\/\//i.test(v) ? v : `https://${v}`;
     const url = new URL(withProto);
-    if (!url.hostname.includes('.')) return null;
+    // Validate via the same hostname rules used for preview (pass full URL).
+    if (!websiteHostname(withProto)) return null;
+    // Drop trailing slash on bare origins for stable comparison / favicon keys.
+    if (url.pathname === '/' && !url.search && !url.hash) {
+      return `${url.protocol}//${url.host}`;
+    }
     return url.toString();
   } catch {
     return null;

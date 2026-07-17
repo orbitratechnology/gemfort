@@ -30,7 +30,7 @@ export function StackHeader({
       {showBack ? (
         <Pressable
           onPress={onBack ?? (() => router.back())}
-          style={styles.iconBtn}
+          style={styles.side}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={closeIcon ? "Close" : "Go back"}
@@ -42,12 +42,12 @@ export function StackHeader({
           />
         </Pressable>
       ) : (
-        <View style={styles.iconBtn} />
+        <View style={styles.side} />
       )}
       <Text style={[styles.title, { color: colors.primary }]} numberOfLines={1}>
         {title}
       </Text>
-      <View style={styles.iconBtn}>{right}</View>
+      <View style={[styles.side, styles.right]}>{right}</View>
     </View>
   );
 }
@@ -60,12 +60,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     paddingVertical: Spacing.stackMd,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  side: {
+    minWidth: 40,
+    minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  right: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
   },
   title: { ...Typography.headlineMdMobile, flex: 1, textAlign: "center" },
 });

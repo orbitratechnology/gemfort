@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -16,7 +17,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
@@ -93,12 +94,7 @@ export default function ApDetailScreen() {
       </View>
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Summary Card */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Stone Details
-          </Text>
-          <View style={[styles.glassCard]}>
+        <FormSection title="Stone details">
             <View style={styles.cardRow}>
               <View
                 style={[
@@ -141,20 +137,15 @@ export default function ApDetailScreen() {
                   style={[styles.gemDesc, { color: colors.onSurfaceVariant }]}
                 >
                   Min: {formatCurrency(ap.ownerMinimumPrice, ap.currency)} •{" "}
-                  {formatDate(ap.dateGiven)}
+                  {formatRelativeTime(ap.dateGiven)}
                 </Text>
               </View>
             </View>
-          </View>
-        </View>
+        </FormSection>
 
         {ap.status === "with_holder" || ap.status === "overdue" ? (
           <>
-            {/* Outcome Selection */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                Outcome
-              </Text>
+            <FormSection title="Outcome" padded={false}>
               <View style={styles.outcomeGrid}>
                 <Pressable
                   style={[
@@ -258,17 +249,10 @@ export default function ApDetailScreen() {
                   )}
                 </Pressable>
               </View>
-            </View>
+            </FormSection>
 
-            {/* Conditional Inputs */}
             {outcome === "sold" ? (
-              <View style={styles.section}>
-                <Text
-                  style={[styles.sectionTitle, { color: colors.onSurface }]}
-                >
-                  Sale Details
-                </Text>
-                <View style={styles.inputGroup}>
+              <FormSection title="Sale details">
                   <Input
                     label="Final Sale Price (USD)"
                     value={soldPrice}
@@ -284,16 +268,9 @@ export default function ApDetailScreen() {
                     placeholder="Search or enter name"
                     leftIcon="person"
                   />
-                </View>
-              </View>
+              </FormSection>
             ) : (
-              <View style={styles.section}>
-                <Text
-                  style={[styles.sectionTitle, { color: colors.onSurface }]}
-                >
-                  Return Details
-                </Text>
-                <View style={styles.inputGroup}>
+              <FormSection title="Return details">
                   <Input
                     label="Reason / Notes (Optional)"
                     value={returnNotes}
@@ -302,12 +279,10 @@ export default function ApDetailScreen() {
                     placeholder="e.g., Client preferred a different cut"
                     leftIcon="notes"
                   />
-                </View>
-              </View>
+              </FormSection>
             )}
 
-            {/* Action Button */}
-            <View style={styles.actionArea}>
+            <ScreenInset style={styles.actionArea}>
               <Button
                 title="Confirm AP Record"
                 icon="check-circle"
@@ -315,17 +290,14 @@ export default function ApDetailScreen() {
                 loading={loading}
                 style={[styles.confirmBtn]}
               />
-            </View>
+            </ScreenInset>
           </>
         ) : (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Status
-            </Text>
+          <FormSection title="Status">
             <Text style={{ color: colors.textMuted }}>
               This AP stone has already been {ap.status}.
             </Text>
-          </View>
+          </FormSection>
         )}
       </ThemedScrollView>
     </SafeAreaView>
@@ -348,16 +320,8 @@ const styles = StyleSheet.create({
   title: { ...Typography.headlineMdMobile },
 
   content: {
-    padding: Spacing.containerMargin,
     gap: Spacing.sectionGap,
     paddingBottom: 100,
-  },
-
-  section: { gap: Spacing.stackMd },
-  sectionTitle: { ...Typography.headlineSm },
-
-  glassCard: {
-    padding: 16,
   },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 16 },
   gemImageWrap: {
@@ -384,7 +348,12 @@ const styles = StyleSheet.create({
   gemTitle: { ...Typography.headlineSm, lineHeight: 24 },
   gemDesc: { ...Typography.bodyMd, marginTop: 4 },
 
-  outcomeGrid: { flexDirection: "row", gap: Spacing.gutterMd },
+  outcomeGrid: {
+    flexDirection: "row",
+    gap: Spacing.gutterMd,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+  },
   outcomeCard: {
     flex: 1,
     padding: 16,
@@ -414,8 +383,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-
-  inputGroup: { gap: Spacing.stackMd },
 
   actionArea: { paddingTop: Spacing.stackMd },
   confirmBtn: {

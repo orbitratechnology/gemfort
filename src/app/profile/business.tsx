@@ -2,7 +2,7 @@ import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -13,9 +13,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { WebsiteFaviconPreview } from "@/components/marketplace/business-social-links";
+import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -26,7 +27,6 @@ import {
     Typography,
     type ThemeColors,
 } from "@/constants/design-tokens";
-import { websiteHostname } from "@/features/marketplace/business-links";
 import {
     accountTypeLabelFromRegistration,
     businessTypeFromRegistration,
@@ -62,43 +62,6 @@ function initials(name: string) {
       .slice(0, 2)
       .join("")
       .toUpperCase() || "?"
-  );
-}
-
-function SectionLabel({
-  title,
-  colors,
-}: {
-  title: string;
-  colors: ThemeColors;
-}) {
-  return (
-    <Text
-      style={[styles.sectionLabel, { color: colors.textMuted }]}
-      accessibilityRole="header"
-    >
-      {title}
-    </Text>
-  );
-}
-
-/** Full-bleed group — Instagram-like form block. */
-function SectionGroup({
-  children,
-  colors,
-}: {
-  children: ReactNode;
-  colors: ThemeColors;
-}) {
-  return (
-    <View
-      style={[
-        styles.sectionGroup,
-        { backgroundColor: colors.surfaceContainerLowest },
-      ]}
-    >
-      {children}
-    </View>
   );
 }
 
@@ -148,7 +111,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const derivedBusinessType = businessTypeFromRegistration(profile);
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
-  const websiteHost = websiteHostname(website);
   const displayName = businessName.trim() || "Your Business";
 
   const canSave =
@@ -357,8 +319,8 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         </View>
       </View>
 
-      <SectionLabel title="IDENTITY" colors={colors} />
-      <SectionGroup colors={colors}>
+      <FormSectionLabel title="IDENTITY" />
+      <FormSection>
         <Input
           label="Business name"
           value={businessName}
@@ -375,10 +337,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           style={styles.textArea}
           leftIcon="notes"
         />
-      </SectionGroup>
+      </FormSection>
 
-      <SectionLabel title="LOCATION" colors={colors} />
-      <SectionGroup colors={colors}>
+      <FormSectionLabel title="LOCATION" />
+      <FormSection>
         <Input
           label="City"
           value={city}
@@ -393,10 +355,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           placeholder="Street, building, area"
           leftIcon="home"
         />
-      </SectionGroup>
+      </FormSection>
 
-      <SectionLabel title="CONTACT" colors={colors} />
-      <SectionGroup colors={colors}>
+      <FormSectionLabel title="CONTACT" />
+      <FormSection>
         <Input
           label="WhatsApp"
           value={whatsapp}
@@ -420,11 +382,12 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           placeholder="+94 XX XXX XXXX"
           leftIcon="phone"
         />
-      </SectionGroup>
+      </FormSection>
 
-      <SectionLabel title="WEBSITE" colors={colors} />
-      <SectionGroup colors={colors}>
-        <Input
+      <FormSectionLabel title="WEBSITE" />
+      <FormSection>
+        <SocialLinkField
+          platform="website"
           label="Website"
           value={website}
           onChangeText={setWebsite}
@@ -432,62 +395,40 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           autoCorrect={false}
           keyboardType="url"
           placeholder="yourbusiness.com"
-          leftIcon="language"
         />
-        {websiteHost ? <WebsiteFaviconPreview url={website} /> : null}
-      </SectionGroup>
+      </FormSection>
 
-      <SectionLabel title="SOCIAL" colors={colors} />
-      <SectionGroup colors={colors}>
-        <Input
+      <FormSectionLabel title="SOCIAL" />
+      <FormSection>
+        <SocialLinkField
+          platform="instagram"
           label="Instagram"
           value={instagram}
           onChangeText={setInstagram}
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="@username or profile URL"
-          leftElement={
-            <FontAwesome6
-              name="instagram"
-              iconStyle="brand"
-              size={20}
-              color="#E4405F"
-            />
-          }
         />
-        <Input
+        <SocialLinkField
+          platform="tiktok"
           label="TikTok"
           value={tiktok}
           onChangeText={setTiktok}
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="@username or profile URL"
-          leftElement={
-            <FontAwesome6
-              name="tiktok"
-              iconStyle="brand"
-              size={20}
-              color={colors.onSurface}
-            />
-          }
         />
-        <Input
+        <SocialLinkField
+          platform="facebook"
           label="Facebook"
           value={facebook}
           onChangeText={setFacebook}
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="Page name or profile URL"
-          leftElement={
-            <FontAwesome6
-              name="facebook"
-              iconStyle="brand"
-              size={20}
-              color="#1877F2"
-            />
-          }
         />
-        <Input
+        <SocialLinkField
+          platform="wechat"
           label="WeChat"
           value={wechat}
           onChangeText={setWechat}
@@ -495,43 +436,17 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           autoCorrect={false}
           placeholder="WeChat ID"
           helperText="Visitors can copy your ID from the public profile"
-          leftElement={
-            <FontAwesome6
-              name="weixin"
-              iconStyle="brand"
-              size={20}
-              color="#07C160"
-            />
-          }
         />
-      </SectionGroup>
+      </FormSection>
 
       <View style={styles.actions}>
         <Button
           title={business ? "Save changes" : "Create business profile"}
-          icon="save"
+          icon="shield"
           loading={loading}
           disabled={!canSave}
           onPress={handleSave}
         />
-
-        {business && isVerified ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View public profile"
-            onPress={() => router.push(`/business/${business.id}`)}
-            style={({ pressed }) => [
-              styles.linkRow,
-              pressed && { opacity: 0.75 },
-            ]}
-          >
-            <Icon name="visibility" size={20} color={colors.primary} />
-            <Text style={[styles.linkText, { color: colors.primary }]}>
-              View public profile
-            </Text>
-            <Icon name="chevron-right" size={20} color={colors.outline} />
-          </Pressable>
-        ) : null}
 
         {business && !isVerified ? (
           <Pressable
@@ -582,6 +497,11 @@ export default function MyBusinessProfileScreen() {
     [business],
   );
 
+  const canPreviewPublic =
+    !!business &&
+    (isBusinessVerified(business) ||
+      profile?.verificationStatus === "verified");
+
   if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
@@ -589,7 +509,21 @@ export default function MyBusinessProfileScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title={screenTitle} />
+      <StackHeader
+        title={screenTitle}
+        right={
+          canPreviewPublic ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View public profile"
+              onPress={() => router.push(`/business/${business.id}`)}
+              hitSlop={8}
+            >
+              <Icon name="person" size={24} color={colors.onSurface} />
+            </Pressable>
+          ) : null
+        }
+      />
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
@@ -711,18 +645,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  sectionLabel: {
-    ...Typography.labelMd,
-    letterSpacing: 1.1,
-    paddingHorizontal: Spacing.containerMargin,
-    marginTop: Spacing.sm,
-  },
-  sectionGroup: {
-    width: "100%",
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.lg,
-    gap: Spacing.md,
-  },
   textArea: { minHeight: 96, textAlignVertical: "top", paddingTop: 12 },
 
   actions: {

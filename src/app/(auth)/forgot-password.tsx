@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
-import { FormSection } from '@/components/ui/form-section';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -54,11 +54,13 @@ export default function ForgotPasswordScreen() {
         <ThemedScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
-          <StoryChapter
-            title="Forgot password?"
-            body="Enter your email and we will send a link to choose a new password."
-            accent="primary"
-          />
+          <ScreenInset>
+            <StoryChapter
+              title="Forgot password?"
+              body="Enter your email and we will send a link to choose a new password."
+              accent="primary"
+            />
+          </ScreenInset>
 
           <FormSection>
             <Input
@@ -82,19 +84,21 @@ export default function ForgotPasswordScreen() {
             />
           </FormSection>
 
-          {sent ? (
-            <Text style={[styles.success, { color: colors.successEmerald }]} selectable>
-              Reset link sent. Check your inbox (and spam folder).
-            </Text>
-          ) : null}
+          <ScreenInset style={styles.cta}>
+            {sent ? (
+              <Text style={[styles.success, { color: colors.successEmerald }]} selectable>
+                Reset link sent. Check your inbox (and spam folder).
+              </Text>
+            ) : null}
 
-          <Button
-            title={sent ? 'Resend link' : 'Send reset link'}
-            icon="send"
-            loading={loading}
-            onPress={handleReset}
-          />
-          <Button title="Back to sign in" variant="ghost" onPress={() => router.back()} />
+            <Button
+              title={sent ? 'Resend link' : 'Send reset link'}
+              icon="send"
+              loading={loading}
+              onPress={handleReset}
+            />
+            <Button title="Back to sign in" variant="ghost" onPress={() => router.back()} />
+          </ScreenInset>
         </ThemedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -105,10 +109,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   container: {
-    paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
+  cta: { gap: Spacing.lg },
   success: { ...Typography.bodyMd, textAlign: 'center', lineHeight: 22 },
 });

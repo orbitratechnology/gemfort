@@ -23,7 +23,7 @@ import {
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
@@ -164,7 +164,7 @@ export default function ReceivablesScreen() {
         </View>
         <Text style={[styles.desc, { color: colors.onSurface }]}>{item.description}</Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
-          Due {formatDate(item.dueDate)}
+          Due {formatRelativeDue(item.dueDate)}
           {item.amountReceived > 0 ? ` · Received ${formatCurrency(item.amountReceived, item.currency)}` : ''}
         </Text>
         {!paid ? (

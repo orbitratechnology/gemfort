@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -100,24 +101,28 @@ export default function AddGemsToTripScreen() {
       <StackHeader title="Add Gems to Parcel" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           Select inventory gems to take on your selling trip. They will be marked as on trip.
         </Text>
+        </ScreenInset>
 
         {available.length === 0 ? (
-          <View style={[styles.empty, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <FormSection>
+          <View style={styles.empty}>
             <Icon name="inventory-2" size={32} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>No gems available</Text>
             <Text style={[styles.emptySub, { color: colors.textMuted }]}>
               Gems already on AP, on another trip, or sold cannot be added.
             </Text>
           </View>
+          </FormSection>
         ) : (
           available.map((g) => {
             const isSelected = selected.has(g.id);
             return (
+              <ScreenInset key={g.id}>
               <Pressable
-                key={g.id}
                 onPress={() => toggleGem(g.id)}
                 style={({ pressed }) => [
                   styles.row,
@@ -139,17 +144,20 @@ export default function AddGemsToTripScreen() {
                   </Text>
                 </View>
               </Pressable>
+              </ScreenInset>
             );
           })
         )}
 
         {available.length > 0 ? (
+          <ScreenInset>
           <Button
             title={selected.size > 0 ? `Add ${selected.size} gem${selected.size === 1 ? '' : 's'}` : 'Select gems'}
             loading={loading}
             disabled={selected.size === 0}
             onPress={handleSubmit}
           />
+          </ScreenInset>
         ) : null}
       </ThemedScrollView>
     </SafeAreaView>
@@ -158,13 +166,10 @@ export default function AddGemsToTripScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: Spacing.containerMargin, paddingBottom: Spacing.section, gap: Spacing.md },
+  content: { paddingBottom: Spacing.section, gap: Spacing.md },
   subtitle: { ...Typography.bodyMd, marginBottom: Spacing.sm },
   empty: {
     alignItems: 'center',
-    padding: Spacing.section,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
     gap: Spacing.sm,
   },
   emptyTitle: { ...Typography.headlineMdMobile, fontWeight: '700' },

@@ -14,11 +14,11 @@ import {
   markNotificationRead,
 } from '@/features/workspace/workspace-service';
 import { useThemeStyles } from '@/hooks/use-theme-styles';
-import { formatDate } from '@/lib/utils';
+import { formatRelativeTime } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 
 function iconForType(type: string): IconName {
-  if (type.startsWith('cheque_')) return 'receipt-long';
+  if (type.startsWith('cheque_')) return 'money-check-dollar';
   if (type.startsWith('ap_')) return 'hourglass-empty';
   if (type.startsWith('service_')) return 'handyman';
   if (type.startsWith('payment_')) return 'payments';
@@ -110,7 +110,7 @@ export default function NotificationsScreen() {
                   <Text style={[styles.message, ts.textSecondary]}>{n.message}</Text>
                   <View style={styles.metaRow}>
                     <Icon name="schedule" size={14} color={ts.colors.textMuted} />
-                    <Text style={[styles.date, ts.textMuted]}>{formatDate(n.createdAt)}</Text>
+                    <Text style={[styles.date, ts.textMuted]}>{formatRelativeTime(n.createdAt)}</Text>
                   </View>
                 </View>
                 <Icon name="chevron-right" size={20} color={ts.colors.outline} />

@@ -1,40 +1,61 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-    FlatList,
-    Linking,
     Pressable,
     RefreshControl,
     ScrollView,
+    SectionList,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
-import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { ContactListRow } from "@/components/workspace/contact-list-row";
+import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
 import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-import-sheet";
 import { CONTACT_TYPES } from "@/constants/contact-types";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { filterContacts } from "@/features/workspace/contact-utils";
-import { fetchContacts } from "@/features/workspace/workspace-service";
+import { countMissedCalls } from "@/features/workspace/call-logs-service";
+import {
+    filterContacts,
+    groupContactsByLetter,
+} from "@/features/workspace/contact-utils";
+import {
+    deleteContact,
+    fetchContacts,
+    updateContact,
+} from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { openPhone, openWhatsApp } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
+import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 
 export default function ContactsListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const { logs: callLogs } = useMatchedCallLogs({ enabled: !!user });
+  const missedCount = countMissedCalls(callLogs);
+  const openSwipeRef = useRef<{
+    id: string;
+    methods: SwipeableMethods;
+  } | null>(null);
 
   const {
     data: contacts = [],
@@ -47,136 +68,166 @@ export default function ContactsListScreen() {
   });
 
   const filtered = useMemo(
-    () => filterContacts(contacts, query, typeFilter),
-    [contacts, query, typeFilter],
+    () => filterContacts(contacts, debouncedQuery, typeFilter),
+    [contacts, debouncedQuery, typeFilter],
   );
 
-  const newThisMonth = useMemo(() => {
-    const now = new Date();
-    return contacts.filter((c) => {
-      const d = c.createdAt?.toDate?.();
-      return (
-        d &&
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear()
-      );
-    }).length;
-  }, [contacts]);
+  const sections = useMemo(() => groupContactsByLetter(filtered), [filtered]);
 
-  const typeMeta = (type: string) => {
-    if (/buyer|client/i.test(type))
-      return { bg: colors.secondaryContainer, fg: colors.onSecondaryContainer };
-    if (/broker|supplier|seller/i.test(type))
-      return {
-        bg: colors.surfaceContainerHighest,
-        fg: colors.onSurfaceVariant,
-      };
-    return { bg: colors.primaryMuted, fg: colors.primary };
-  };
+  const handleSwipeableOpen = useCallback(
+    (id: string, methods: SwipeableMethods) => {
+      const prev = openSwipeRef.current;
+      if (prev && prev.id !== id) {
+        prev.methods.close();
+      }
+      openSwipeRef.current = { id, methods };
+    },
+    [],
+  );
+
+  const handleSwipeableClose = useCallback((id: string) => {
+    if (openSwipeRef.current?.id === id) {
+      openSwipeRef.current = null;
+    }
+  }, []);
+
+  const invalidateContacts = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+  }, [queryClient]);
+
+  const handleDelete = useCallback(
+    async (contact: Contact) => {
+      try {
+        await deleteContact(contact.id);
+        await invalidateContacts();
+        toast.success("Contact deleted");
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not delete contact."));
+        throw e;
+      }
+    },
+    [invalidateContacts, toast],
+  );
+
+  const handleToggleFavourite = useCallback(
+    async (contact: Contact) => {
+      try {
+        await updateContact(contact.id, {
+          isFavourite: !contact.isFavourite,
+        });
+        await invalidateContacts();
+        toast.success(
+          contact.isFavourite
+            ? "Removed from favourites"
+            : "Added to favourites",
+        );
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not update contact."));
+        throw e;
+      }
+    },
+    [invalidateContacts, toast],
+  );
+
+  const renderItem = useCallback(
+    ({
+      item,
+      index,
+      section,
+    }: {
+      item: Contact;
+      index: number;
+      section: { data: Contact[] };
+    }) => (
+      <ContactListRow
+        contact={item}
+        isLastInSection={index === section.data.length - 1}
+        onPress={() =>
+          router.push(`/(marketplace)/(tabs)/workspace/contacts/${item.id}`)
+        }
+        onDelete={() => handleDelete(item)}
+        onToggleFavourite={() => handleToggleFavourite(item)}
+        onSwipeableOpen={handleSwipeableOpen}
+        onSwipeableClose={handleSwipeableClose}
+      />
+    ),
+    [
+      handleDelete,
+      handleSwipeableClose,
+      handleSwipeableOpen,
+      handleToggleFavourite,
+    ],
+  );
 
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Contacts" />
+      <StackHeader
+        title="Contacts"
+        right={
+          <Pressable
+            onPress={() => setImportOpen(true)}
+            style={styles.headerBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Import contacts from phone"
+          >
+            <Icon name="people" size={24} color={colors.primary} />
+          </Pressable>
+        }
+      />
+      <ContactsHubTabs active="contacts" missedCount={missedCount} />
 
-      <FlatList
-        data={filtered}
+      <SectionList
+        sections={sections}
         keyExtractor={(c) => c.id}
-        onRefresh={refetch}
-        refreshing={isRefetching}
+        stickySectionHeadersEnabled
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <View style={styles.statRow}>
+            <ScreenInset>
               <View
                 style={[
-                  styles.statCard,
-                  { backgroundColor: colors.surfaceContainerLowest },
+                  styles.searchBox,
+                  { backgroundColor: colors.surfaceContainerHigh },
                 ]}
               >
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  ACTIVE NETWORK
-                </Text>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {contacts.length}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.statCard,
-                  { backgroundColor: colors.surfaceContainerLowest },
-                ]}
-              >
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  NEW THIS MONTH
-                </Text>
-                <Text style={[styles.statValue, { color: colors.accent }]}>
-                  +{newThisMonth}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Import contacts from phone"
-              onPress={() => setImportOpen(true)}
-              style={({ pressed }) => [
-                styles.importBtn,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                  opacity: pressed ? 0.9 : 1,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.importIcon,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                <Icon
-                  name="contacts"
-                  size={20}
-                  color={colors.onPrimaryContainer}
+                <Icon name="search" size={20} color={colors.outline} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.onSurface }]}
+                  placeholder="Search"
+                  placeholderTextColor={colors.textMuted}
+                  value={query}
+                  onChangeText={setQuery}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                  autoCorrect={false}
+                  autoCapitalize="none"
                 />
+                {query.length > 0 ? (
+                  <Pressable
+                    onPress={() => setQuery("")}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
+                  >
+                    <Icon
+                      name="cancel"
+                      size={18}
+                      color={colors.onSurfaceVariant}
+                    />
+                  </Pressable>
+                ) : null}
               </View>
-              <View style={styles.importBody}>
-                <Text style={[styles.importTitle, { color: colors.onSurface }]}>
-                  Import from phone
-                </Text>
-                <Text style={[styles.importSub, { color: colors.textMuted }]}>
-                  Sync names, numbers, and contact photos
-                </Text>
-              </View>
-              <Icon
-                name="chevron-right"
-                size={22}
-                color={colors.onSurfaceVariant}
-              />
-            </Pressable>
-
-            <View
-              style={[
-                styles.searchBox,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Icon name="search" size={22} color={colors.outline} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.onSurface }]}
-                placeholder="Search contacts..."
-                placeholderTextColor={colors.textMuted}
-                value={query}
-                onChangeText={setQuery}
-              />
-            </View>
+            </ScreenInset>
 
             <ScrollView
               horizontal
@@ -216,7 +267,9 @@ export default function ContactsListScreen() {
                       styles.chip,
                       active
                         ? { backgroundColor: colors.primary }
-                        : { backgroundColor: colors.surfaceContainerHighest },
+                        : {
+                            backgroundColor: colors.surfaceContainerHighest,
+                          },
                     ]}
                   >
                     <Text
@@ -238,88 +291,33 @@ export default function ContactsListScreen() {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState
-            icon="person"
-            title={contacts.length === 0 ? "No contacts yet" : "No matches"}
-            subtitle={
-              contacts.length === 0
-                ? "Import from your phone or add brokers and buyers manually."
-                : "Try a different search or filter."
-            }
-          />
-        }
-        renderItem={({ item }: { item: Contact }) => {
-          const primaryType = item.contactTypes[0] ?? "other";
-          const meta = typeMeta(primaryType);
-          return (
-            <Pressable
-              style={[
-                styles.card,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-              onPress={() =>
-                router.push(
-                  `/(marketplace)/(tabs)/workspace/contacts/${item.id}`,
-                )
+          <ScreenInset style={styles.empty}>
+            <EmptyState
+              icon="person"
+              title={contacts.length === 0 ? "No Contacts" : "No Results"}
+              subtitle={
+                contacts.length === 0
+                  ? "Import from your phone or tap + to add a contact."
+                  : "Try a different search or filter."
               }
+            />
+          </ScreenInset>
+        }
+        renderSectionHeader={({ section: { title } }) => (
+          <View
+            style={[
+              styles.sectionHeader,
+              { backgroundColor: colors.surfaceContainerLow },
+            ]}
+          >
+            <Text
+              style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}
             >
-              <ContactAvatar
-                name={item.displayName}
-                photoUrl={item.photoUrl}
-                size={48}
-              />
-              <View style={styles.cardBody}>
-                <View style={styles.cardNameRow}>
-                  <Text
-                    style={[styles.cardName, { color: colors.primary }]}
-                    numberOfLines={1}
-                  >
-                    {item.displayName}
-                  </Text>
-                  <View
-                    style={[styles.typeBadge, { backgroundColor: meta.bg }]}
-                  >
-                    <Text style={[styles.typeBadgeText, { color: meta.fg }]}>
-                      {primaryType}
-                    </Text>
-                  </View>
-                </View>
-                {item.companyName ? (
-                  <Text
-                    style={[styles.cardCompany, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {item.companyName}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={styles.cardActions}>
-                {item.phone ? (
-                  <Pressable
-                    onPress={() => Linking.openURL(openPhone(item.phone!))}
-                    style={styles.actionBtn}
-                  >
-                    <Icon name="call" size={20} color={colors.primary} />
-                  </Pressable>
-                ) : null}
-                {item.whatsapp ? (
-                  <Pressable
-                    onPress={() =>
-                      Linking.openURL(openWhatsApp(item.whatsapp!))
-                    }
-                    style={styles.actionBtn}
-                  >
-                    <Icon
-                      name="chat-bubble-outline"
-                      size={20}
-                      color={colors.primary}
-                    />
-                  </Pressable>
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        }}
+              {title}
+            </Text>
+          </View>
+        )}
+        renderItem={renderItem}
       />
 
       <Pressable
@@ -327,6 +325,8 @@ export default function ContactsListScreen() {
         onPress={() =>
           router.push("/(marketplace)/(tabs)/workspace/contacts/add")
         }
+        accessibilityRole="button"
+        accessibilityLabel="Add contact"
       >
         <Icon name="person-add" size={26} color={colors.onSecondary} />
       </Pressable>
@@ -349,90 +349,12 @@ export default function ContactsListScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    padding: Spacing.containerMargin,
     paddingBottom: 100,
-    gap: Spacing.stackMd,
+    flexGrow: 1,
   },
-  listHeader: { gap: Spacing.gutterMd, marginBottom: Spacing.stackSm },
-  subtitle: { ...Typography.bodyMd },
-  statRow: { flexDirection: "row", gap: Spacing.gutterMd },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  statLabel: {
-    ...Typography.labelMd,
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-  statValue: { ...Typography.displayLg, fontSize: 26 },
-  importBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    minHeight: 64,
-  },
-  importIcon: {
+  headerBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  importBody: { flex: 1, minWidth: 0, gap: 2 },
-  importTitle: { ...Typography.labelMd, fontWeight: "700" },
-  importSub: { ...Typography.caption },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    height: 48,
-  },
-  searchInput: { flex: 1, ...Typography.bodyMd },
-  filterRow: { flexDirection: "row", gap: Spacing.stackSm, paddingVertical: 2 },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-  },
-  chipText: { ...Typography.labelMd, textTransform: "capitalize" },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: 16,
-    borderCurve: "continuous",
-    marginBottom: Spacing.stackMd,
-  },
-  cardBody: { flex: 1, minWidth: 0 },
-  cardNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cardName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.sm,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  cardCompany: { ...Typography.bodyMd, marginTop: 2 },
-  cardActions: { flexDirection: "row", gap: 4 },
-  actionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -443,7 +365,56 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 18,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
+  },
+  listHeader: {
+    gap: Spacing.stackMd,
+    marginBottom: Spacing.stackMd,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    minHeight: 48,
+  },
+  searchInput: {
+    flex: 1,
+    ...Typography.bodyMd,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.stackSm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: 2,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    minHeight: 40,
+    justifyContent: "center",
+  },
+  chipText: {
+    ...Typography.labelMd,
+    fontSize: 14,
+    textTransform: "capitalize",
+  },
+  sectionHeader: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: 6,
+  },
+  sectionTitle: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  empty: {
+    paddingTop: 48,
   },
 });

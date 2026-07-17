@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import {
     Radius,
@@ -205,16 +206,8 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.body}>
-          {/* Business profile */}
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            BUSINESS PROFILE
-          </Text>
-          <View
-            style={[
-              styles.group,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
+          <FormSectionLabel title="BUSINESS PROFILE" />
+          <FormSection padded={false}>
             {!isVerified ? (
               <>
                 <Row
@@ -256,22 +249,10 @@ export default function ProfileScreen() {
                 />
               </>
             ) : null}
-          </View>
+          </FormSection>
 
-          {/* Appearance */}
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            APPEARANCE
-          </Text>
-          <View
-            style={[
-              styles.group,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                padding: Spacing.gutterMd,
-                gap: Spacing.md,
-              },
-            ]}
-          >
+          <FormSectionLabel title="APPEARANCE" />
+          <FormSection>
             <View
               style={[
                 styles.segment,
@@ -312,18 +293,10 @@ export default function ProfileScreen() {
                 );
               })}
             </View>
-          </View>
+          </FormSection>
 
-          {/* Account & app */}
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
-            ACCOUNT &amp; APP
-          </Text>
-          <View
-            style={[
-              styles.group,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
+          <FormSectionLabel title="ACCOUNT & APP" />
+          <FormSection padded={false}>
             <Row
               colors={colors}
               icon="help-outline"
@@ -343,9 +316,8 @@ export default function ProfileScreen() {
                 </Text>
               }
             />
-          </View>
+          </FormSection>
 
-          {/* Log out */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log Out"
@@ -432,24 +404,7 @@ const styles = StyleSheet.create({
   memberSince: { ...Typography.labelMd, letterSpacing: 0.5, marginTop: 2 },
 
   body: {
-    paddingHorizontal: Spacing.containerMargin,
     gap: Spacing.stackMd,
-  },
-  sectionTitle: {
-    ...Typography.labelMd,
-    letterSpacing: 1,
-    marginTop: Spacing.md,
-    marginBottom: 2,
-    marginLeft: 4,
-  },
-  group: {
-    borderRadius: Radius.lg,
-    overflow: "hidden",
-    shadowColor: "#00162C",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
   },
   row: {
     flexDirection: "row",
@@ -495,6 +450,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: Spacing.lg,
     paddingVertical: 14,
+    paddingHorizontal: Spacing.containerMargin,
   },
   logoutText: { ...Typography.button },
 });

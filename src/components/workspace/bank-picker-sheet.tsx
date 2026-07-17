@@ -27,6 +27,7 @@ import {
     type SriLankaBranch,
 } from "@/constants/sri-lanka-branches";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 type BankPickerSheetProps = {
   visible: boolean;
@@ -123,7 +124,8 @@ export function BankPickerSheet({
 }: BankPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => filterBanks(query), [query]);
+  const debouncedQuery = useDebouncedValue(query, 300);
+  const filtered = useMemo(() => filterBanks(debouncedQuery), [debouncedQuery]);
 
   return (
     <BottomSheet
@@ -329,10 +331,11 @@ export function BranchPickerSheet({
 }: BranchPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const bank = getBankByCode(bankCode) ?? null;
   const filtered = useMemo(
-    () => filterBranches(bankCode, query),
-    [bankCode, query],
+    () => filterBranches(bankCode, debouncedQuery),
+    [bankCode, debouncedQuery],
   );
 
   return (

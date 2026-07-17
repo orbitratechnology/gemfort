@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useAppTheme } from '@/hooks/use-app-theme';
 import { Typography } from '@/constants/design-tokens';
+import { useAppTheme } from '@/hooks/use-app-theme';
 
 type ContactAvatarProps = {
   name: string;
@@ -11,26 +12,32 @@ type ContactAvatarProps = {
 };
 
 function initials(name: string) {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  return (
+    name
+      .split(' ')
+      .map((n) => n[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || '?'
+  );
 }
 
 export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps) {
   const { colors } = useAppTheme();
   const radius = size / 2;
+  // Track which URL failed so a new photoUrl retries without an effect reset.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const showImage = !!photoUrl && failedUrl !== photoUrl;
 
-  if (photoUrl) {
+  if (showImage) {
     return (
       <Image
         source={{ uri: photoUrl }}
         style={{ width: size, height: size, borderRadius: radius }}
         contentFit="cover"
         accessibilityLabel={`${name} photo`}
+        onError={() => setFailedUrl(photoUrl)}
       />
     );
   }

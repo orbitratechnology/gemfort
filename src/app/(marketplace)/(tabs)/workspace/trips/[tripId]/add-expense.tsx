@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
@@ -81,12 +82,13 @@ export default function AddTripExpenseScreen() {
       <StackHeader title="Add Expense" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
+        <ScreenInset>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           Log travel costs so overhead can be allocated to gems later.
         </Text>
+        </ScreenInset>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.onSurfaceVariant }]}>CATEGORY</Text>
+        <FormSection title="Category" padded={false}>
           <View style={styles.categoryGrid}>
             {TRIP_EXPENSE_CATEGORIES.map((c) => {
               const selected = category === c.id;
@@ -121,8 +123,9 @@ export default function AddTripExpenseScreen() {
               );
             })}
           </View>
-        </View>
+        </FormSection>
 
+        <ScreenInset style={styles.fields}>
         <Input
           label="Amount (LKR)"
           value={amount}
@@ -155,7 +158,8 @@ export default function AddTripExpenseScreen() {
           emptySubtitle="Kept on device until you save"
         />
 
-        <Button title="Save expense" icon="save" loading={loading} onPress={handleSubmit} />
+        <Button title="Save expense" icon="shield" loading={loading} onPress={handleSubmit} />
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -164,14 +168,17 @@ export default function AddTripExpenseScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
   subtitle: { ...Typography.bodyMd },
-  section: { gap: Spacing.sm },
-  sectionLabel: { ...Typography.labelMd, letterSpacing: 0.8 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+  },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -183,4 +190,5 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   categoryLabel: { ...Typography.labelMd, fontWeight: '600', maxWidth: 88 },
+  fields: { gap: Spacing.lg },
 });

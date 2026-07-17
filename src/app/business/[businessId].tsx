@@ -10,6 +10,7 @@ import { BusinessSocialLinksRow } from "@/components/marketplace/business-social
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { Button } from "@/components/ui/button";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -424,36 +425,37 @@ export default function BusinessProfileScreen() {
 
         {/* Stats */}
         {stats.length > 0 ? (
-          <View
-            style={[
-              styles.statsCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            {stats.map((stat, index) => (
-              <View
-                key={stat.label}
-                style={[
-                  styles.statCell,
-                  index < stats.length - 1 && {
-                    borderRightWidth: StyleSheet.hairlineWidth,
-                    borderRightColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <Icon name={stat.icon} size={18} color={colors.primary} />
-                <Text
-                  style={[styles.statValue, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {stat.value}
-                </Text>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  {stat.label}
-                </Text>
+          <>
+            <FormSectionLabel title="AT A GLANCE" />
+            <FormSection padded={false}>
+              <View style={styles.statsRow}>
+                {stats.map((stat, index) => (
+                  <View
+                    key={stat.label}
+                    style={[
+                      styles.statCell,
+                      index < stats.length - 1 && {
+                        borderRightWidth: StyleSheet.hairlineWidth,
+                        borderRightColor: colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <Icon name={stat.icon} size={18} color={colors.primary} />
+                    <Text
+                      style={[styles.statValue, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                      selectable
+                    >
+                      {stat.value}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: colors.textMuted }]}>
+                      {stat.label}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
+            </FormSection>
+          </>
         ) : null}
 
         {/* Contact — WhatsApp + Call */}
@@ -580,89 +582,76 @@ export default function BusinessProfileScreen() {
 
         {/* Seller details */}
         {isSeller && business.sellerProfile ? (
-          <View
-            style={[
-              styles.sectionCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Trading focus
-            </Text>
-            <View style={styles.detailList}>
-              {business.sellerProfile.sourceOrigins.length > 0 ? (
-                <DetailRow
-                  icon="public"
-                  label="Origins"
-                  value={business.sellerProfile.sourceOrigins
-                    .map(labelize)
-                    .join(", ")}
-                  colors={colors}
-                />
-              ) : null}
-              {business.sellerProfile.stoneTypes.length > 0 ? (
-                <DetailRow
-                  icon="diamond"
-                  label="Stone types"
-                  value={business.sellerProfile.stoneTypes
-                    .map(labelize)
-                    .join(", ")}
-                  colors={colors}
-                />
-              ) : null}
-              {business.sellerProfile.priceRangeMin != null ||
-              business.sellerProfile.priceRangeMax != null ? (
-                <DetailRow
-                  icon="payments"
-                  label="Price range"
-                  value={[
-                    business.sellerProfile.priceRangeMin != null
-                      ? formatCurrency(
-                          business.sellerProfile.priceRangeMin,
-                          business.sellerProfile.preferredCurrencies?.[0] ??
-                            "LKR",
-                        )
-                      : null,
-                    business.sellerProfile.priceRangeMax != null
-                      ? formatCurrency(
-                          business.sellerProfile.priceRangeMax,
-                          business.sellerProfile.preferredCurrencies?.[0] ??
-                            "LKR",
-                        )
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" - ")}
-                  colors={colors}
-                />
-              ) : null}
-              {business.sellerProfile.preferredCurrencies.length > 0 ? (
-                <DetailRow
-                  icon="currency-exchange"
-                  label="Currencies"
-                  value={business.sellerProfile.preferredCurrencies.join(", ")}
-                  colors={colors}
-                />
-              ) : null}
-            </View>
-          </View>
+          <>
+            <FormSectionLabel title="TRADING FOCUS" />
+            <FormSection>
+              <View style={styles.detailList}>
+                {business.sellerProfile.sourceOrigins.length > 0 ? (
+                  <DetailRow
+                    icon="public"
+                    label="Origins"
+                    value={business.sellerProfile.sourceOrigins
+                      .map(labelize)
+                      .join(", ")}
+                    colors={colors}
+                  />
+                ) : null}
+                {business.sellerProfile.stoneTypes.length > 0 ? (
+                  <DetailRow
+                    icon="diamond"
+                    label="Stone types"
+                    value={business.sellerProfile.stoneTypes
+                      .map(labelize)
+                      .join(", ")}
+                    colors={colors}
+                  />
+                ) : null}
+                {business.sellerProfile.priceRangeMin != null ||
+                business.sellerProfile.priceRangeMax != null ? (
+                  <DetailRow
+                    icon="payments"
+                    label="Price range"
+                    value={[
+                      business.sellerProfile.priceRangeMin != null
+                        ? formatCurrency(
+                            business.sellerProfile.priceRangeMin,
+                            business.sellerProfile.preferredCurrencies?.[0] ??
+                              "LKR",
+                          )
+                        : null,
+                      business.sellerProfile.priceRangeMax != null
+                        ? formatCurrency(
+                            business.sellerProfile.priceRangeMax,
+                            business.sellerProfile.preferredCurrencies?.[0] ??
+                              "LKR",
+                          )
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" - ")}
+                    colors={colors}
+                  />
+                ) : null}
+                {business.sellerProfile.preferredCurrencies.length > 0 ? (
+                  <DetailRow
+                    icon="currency-exchange"
+                    label="Currencies"
+                    value={business.sellerProfile.preferredCurrencies.join(", ")}
+                    colors={colors}
+                  />
+                ) : null}
+              </View>
+            </FormSection>
+          </>
         ) : null}
 
         {/* Provider services */}
         {isProvider && services.length > 0 ? (
-          <View style={styles.sectionBlock}>
-            <Text style={[styles.sectionTitlePad, { color: colors.onSurface }]}>
-              Services
-            </Text>
-            <View style={styles.serviceList}>
+          <>
+            <FormSectionLabel title="SERVICES" />
+            <FormSection>
               {services.map((s) => (
-                <View
-                  key={s.serviceId}
-                  style={[
-                    styles.serviceCard,
-                    { backgroundColor: colors.surfaceContainerLowest },
-                  ]}
-                >
+                <View key={s.serviceId} style={styles.serviceRow}>
                   <View
                     style={[
                       styles.serviceIcon,
@@ -679,6 +668,7 @@ export default function BusinessProfileScreen() {
                     <Text
                       style={[styles.serviceName, { color: colors.onSurface }]}
                       numberOfLines={1}
+                      selectable
                     >
                       {s.name}
                     </Text>
@@ -696,6 +686,7 @@ export default function BusinessProfileScreen() {
                     <View style={styles.serviceMetaRow}>
                       <Text
                         style={[styles.serviceMeta, { color: colors.primary }]}
+                        selectable
                       >
                         {formatCurrency(s.priceMin, s.currency)}
                         {s.priceMax > s.priceMin
@@ -714,20 +705,13 @@ export default function BusinessProfileScreen() {
                   </View>
                 </View>
               ))}
-            </View>
-          </View>
+            </FormSection>
+          </>
         ) : null}
 
         {/* Location */}
-        <View
-          style={[
-            styles.sectionCard,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Location
-          </Text>
+        <FormSectionLabel title="LOCATION" />
+        <FormSection>
           <View style={styles.locationRow}>
             <View
               style={[
@@ -742,17 +726,21 @@ export default function BusinessProfileScreen() {
               />
             </View>
             <View style={styles.serviceBody}>
-              <Text style={[styles.serviceName, { color: colors.onSurface }]}>
+              <Text
+                style={[styles.serviceName, { color: colors.onSurface }]}
+                selectable
+              >
                 {business.address || "Showroom / workshop"}
               </Text>
               <Text
                 style={[styles.serviceDesc, { color: colors.onSurfaceVariant }]}
+                selectable
               >
                 {locationLine}
               </Text>
             </View>
           </View>
-        </View>
+        </FormSection>
 
         {/* Endorse */}
         {canEndorse ? (
@@ -917,14 +905,16 @@ const styles = StyleSheet.create({
   },
   chipText: { ...Typography.labelMd, fontSize: 11 },
   dot: { width: 6, height: 6, borderRadius: 3 },
+  tag: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+  },
+  tagText: { ...Typography.caption, textTransform: "capitalize" },
 
-  statsCard: {
-    marginHorizontal: Spacing.containerMargin,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
+  statsRow: {
     flexDirection: "row",
     paddingVertical: 14,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
   statCell: {
     flex: 1,
@@ -964,29 +954,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
   },
 
-  sectionCard: {
-    marginHorizontal: Spacing.containerMargin,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.gutterMd,
-    gap: 12,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
-  },
-  sectionBlock: { gap: 10 },
-  sectionTitle: { ...Typography.headlineSmMobile },
-  sectionTitlePad: {
-    ...Typography.headlineSmMobile,
-    paddingHorizontal: Spacing.containerMargin,
-  },
-  aboutBody: { ...Typography.bodyMd, lineHeight: 22 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-  tagText: { ...Typography.caption, textTransform: "capitalize" },
-
   detailList: { gap: 12 },
   detailRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   detailIcon: {
@@ -1000,17 +967,10 @@ const styles = StyleSheet.create({
   detailLabel: { ...Typography.caption },
   detailValue: { ...Typography.bodyMd, fontWeight: "500" },
 
-  serviceList: {
-    paddingHorizontal: Spacing.containerMargin,
-    gap: 10,
-  },
-  serviceCard: {
+  serviceRow: {
     flexDirection: "row",
     gap: 12,
-    padding: 12,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    alignItems: "flex-start",
   },
   serviceIcon: {
     width: 40,

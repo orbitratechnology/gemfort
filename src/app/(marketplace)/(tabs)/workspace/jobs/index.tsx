@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
+import { FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
@@ -95,7 +96,8 @@ export default function LapidaryJobsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Workshop jobs" />
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.section, { color: colors.textMuted }]}>INCOMING REQUESTS</Text>
+        <FormSectionLabel title="Incoming requests" />
+        <ScreenInset style={styles.sectionBody}>
         {pending.length === 0 ? (
           <Text style={{ color: colors.textMuted }}>No pending service requests.</Text>
         ) : (
@@ -111,8 +113,10 @@ export default function LapidaryJobsScreen() {
             </View>
           ))
         )}
+        </ScreenInset>
 
-        <Text style={[styles.section, { color: colors.textMuted }]}>ACTIVE JOBS</Text>
+        <FormSectionLabel title="Active jobs" />
+        <ScreenInset style={styles.sectionBody}>
         {isLoading ? <Text style={{ color: colors.textMuted }}>Loading…</Text> : null}
         {jobs.length === 0 && !isLoading ? (
           <EmptyState icon="construction" title="No jobs yet" subtitle="Accepted trader stones appear here." />
@@ -139,6 +143,7 @@ export default function LapidaryJobsScreen() {
             </Pressable>
           ))
         )}
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -146,8 +151,8 @@ export default function LapidaryJobsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: 48 },
-  section: { ...Typography.labelMd, letterSpacing: 1, marginTop: Spacing.md },
+  content: { gap: Spacing.md, paddingBottom: 48 },
+  sectionBody: { gap: Spacing.md },
   card: { borderRadius: Radius.lg, padding: Spacing.lg, gap: 8 },
   title: { ...Typography.headlineMdMobile, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },

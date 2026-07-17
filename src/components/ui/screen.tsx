@@ -15,10 +15,11 @@ type ScreenProps = ScrollViewProps & {
   safeTop?: boolean;
 };
 
-/** Themed screen wrapper with consistent background and inset handling */
+/** Themed screen wrapper with consistent background and inset handling.
+ * Default is unpadded so FormSections can be full-bleed; wrap copy/CTAs in ScreenInset. */
 export function Screen({
   children,
-  padded = true,
+  padded = false,
   safeTop = false,
   contentContainerStyle,
   style,
@@ -64,7 +65,7 @@ export function ThemedView({ style, ...props }: ViewProps) {
 /** Non-scroll themed container for auth and modals */
 export function ScreenView({
   children,
-  padded = true,
+  padded = false,
   style,
 }: {
   children: React.ReactNode;

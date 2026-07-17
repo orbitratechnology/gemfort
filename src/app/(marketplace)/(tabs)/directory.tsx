@@ -33,6 +33,7 @@ import {
     type ListingFilters,
 } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import type { Business, MarketplaceListing } from "@/types";
 
@@ -77,6 +78,7 @@ export default function DirectoryScreen() {
     setTab(initialTab);
   }
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -140,12 +142,12 @@ export default function DirectoryScreen() {
   }, [businesses]);
 
   const filteredGems = useMemo(() => {
-    const searched = searchListings(search, listings);
+    const searched = searchListings(debouncedSearch, listings);
     return filterListings(searched, { gemType, sort: gemSort });
-  }, [listings, search, gemType, gemSort]);
+  }, [listings, debouncedSearch, gemType, gemSort]);
 
   const filteredBusinesses = useMemo(() => {
-    let result = searchBusinesses(search, businesses ?? []);
+    let result = searchBusinesses(debouncedSearch, businesses ?? []);
     if (verifiedOnly) result = result.filter((b) => b.badges.isVerified);
     if (city !== "all") result = result.filter((b) => b.city === city);
     const sorted = [...result];
@@ -162,7 +164,7 @@ export default function DirectoryScreen() {
       });
     }
     return sorted;
-  }, [search, businesses, verifiedOnly, city, businessSort]);
+  }, [debouncedSearch, businesses, verifiedOnly, city, businessSort]);
 
   const visibleGems = useMemo(
     () => filteredGems.slice(0, visibleCount),

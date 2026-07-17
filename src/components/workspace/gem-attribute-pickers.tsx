@@ -30,6 +30,7 @@ import {
     type GemOrigin,
 } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 /** Reset local UI state when a sheet opens (render-phase, avoids set-state-in-effect). */
 function useOpenSession(visible: boolean): number {
@@ -165,6 +166,7 @@ export function OptionPickerSheet({
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
@@ -172,7 +174,7 @@ export function OptionPickerSheet({
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return options;
     return options.filter(
       (o) =>
@@ -180,7 +182,7 @@ export function OptionPickerSheet({
         o.value.toLowerCase().includes(q) ||
         (o.searchText?.toLowerCase().includes(q) ?? false),
     );
-  }, [options, query]);
+  }, [options, debouncedQuery]);
 
   return (
     <BottomSheet
@@ -295,6 +297,7 @@ export function GemTypePickerSheet({
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
@@ -302,12 +305,12 @@ export function GemTypePickerSheet({
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return GEM_TYPES;
     return GEM_TYPES.filter(
       (t) => t.label.toLowerCase().includes(q) || t.value.includes(q),
     );
-  }, [query]);
+  }, [debouncedQuery]);
 
   return (
     <BottomSheet
@@ -400,6 +403,7 @@ export function ColorPickerSheet({
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [family, setFamily] = useState<GemColorFamily | null>(null);
   const [session, setSession] = useState(openSession);
   if (session !== openSession) {
@@ -409,7 +413,7 @@ export function ColorPickerSheet({
   }
 
   const filteredFamilies = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return GEM_COLOR_FAMILIES;
     return GEM_COLOR_FAMILIES.filter(
       (f) =>
@@ -418,16 +422,16 @@ export function ColorPickerSheet({
           (s) => s.label.toLowerCase().includes(q) || s.value.includes(q),
         ),
     );
-  }, [query]);
+  }, [debouncedQuery]);
 
   const filteredShades = useMemo(() => {
     if (!family) return [] as GemColorShade[];
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return family.shades;
     return family.shades.filter(
       (s) => s.label.toLowerCase().includes(q) || s.value.includes(q),
     );
-  }, [family, query]);
+  }, [family, debouncedQuery]);
 
   return (
     <>
@@ -601,6 +605,7 @@ export function OriginPickerSheet({
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
@@ -608,7 +613,7 @@ export function OriginPickerSheet({
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return GEM_ORIGINS;
     return GEM_ORIGINS.filter(
       (o) =>
@@ -616,7 +621,7 @@ export function OriginPickerSheet({
         o.value.includes(q) ||
         (o.note?.toLowerCase().includes(q) ?? false),
     );
-  }, [query]);
+  }, [debouncedQuery]);
 
   return (
     <BottomSheet

@@ -36,7 +36,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { TripGem } from "@/types";
@@ -478,7 +478,7 @@ export default function TripDetailScreen() {
                     style={[styles.listSub, { color: colors.textMuted }]}
                     numberOfLines={1}
                   >
-                    {e.description || formatDate(e.date)}
+                    {e.description || formatRelativeTime(e.date)}
                   </Text>
                 </View>
                 <Text
