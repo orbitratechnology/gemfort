@@ -1,6 +1,6 @@
 # 004 — EmptyState entrance (scale + opacity)
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: dd68f33
 - **Severity**: LOW
 - **Category**: Missed opportunity (Delight)

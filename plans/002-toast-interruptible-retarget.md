@@ -1,6 +1,6 @@
 # 002 — Make toast show interruptible (no hard reset)
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: dd68f33
 - **Severity**: MEDIUM
 - **Category**: Interruptibility; Easing & duration

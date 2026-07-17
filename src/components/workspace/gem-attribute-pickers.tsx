@@ -1,18 +1,21 @@
 import { Image } from "expo-image";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+    Animated,
     FlatList,
     Pressable,
     StyleSheet,
     Text,
     TextInput,
     View,
+    type LayoutChangeEvent,
 } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import {
     GEM_CLARITIES,
     GEM_COLOR_FAMILIES,
@@ -401,10 +404,13 @@ export function ColorPickerSheet({
   onSelect,
 }: ColorPickerSheetProps) {
   const { colors } = useAppTheme();
+  const reduceMotion = useReduceMotion();
   const openSession = useOpenSession(visible);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
   const [family, setFamily] = useState<GemColorFamily | null>(null);
+  const [panelWidth, setPanelWidth] = useState(0);
+  const [translateX] = useState(() => new Animated.Value(0));
   const [session, setSession] = useState(openSession);
   if (session !== openSession) {
     setSession(openSession);
@@ -433,159 +439,203 @@ export function ColorPickerSheet({
     );
   }, [family, debouncedQuery]);
 
+  useEffect(() => {
+    if (panelWidth <= 0) return;
+    const toValue = family ? -panelWidth : 0;
+    if (reduceMotion) {
+      translateX.setValue(toValue);
+      return;
+    }
+    Animated.spring(translateX, {
+      toValue,
+      useNativeDriver: true,
+      damping: Motion.spring.damping,
+      stiffness: Motion.spring.stiffness,
+    }).start();
+  }, [family, panelWidth, reduceMotion, translateX]);
+
+  useEffect(() => {
+    if (!visible) {
+      translateX.setValue(0);
+    }
+  }, [visible, translateX]);
+
+  function onTrackLayout(e: LayoutChangeEvent) {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== panelWidth) setPanelWidth(w);
+  }
+
+  function handleSheetClose() {
+    if (family) {
+      setFamily(null);
+      return;
+    }
+    onClose();
+  }
+
+  const width = panelWidth > 0 ? panelWidth : 1;
+
   return (
-    <>
-      <BottomSheet
-        visible={visible && !family}
-        onClose={onClose}
-        title="Color"
-        scrollable={false}
-      >
-        <Text style={[styles.hint, { color: colors.textMuted }]}>
-          Choose a color family, then a shade.
-        </Text>
-        <View
+    <BottomSheet
+      visible={visible}
+      onClose={handleSheetClose}
+      title={family ? `${family.label} shades` : "Color"}
+      scrollable={false}
+    >
+      <View style={styles.colorTrack} onLayout={onTrackLayout}>
+        <Animated.View
           style={[
-            styles.searchBox,
-            { backgroundColor: colors.surfaceContainerLow },
+            styles.colorPanels,
+            {
+              width: width * 2,
+              transform: [{ translateX }],
+            },
           ]}
         >
-          <Icon name="search" size={20} color={colors.outline} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search colors…"
-            placeholderTextColor={colors.outline}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-          />
-        </View>
-        <FlatList
-          data={filteredFamilies}
-          keyExtractor={(item) => item.value}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => {
-                setQuery("");
-                setFamily(item);
-              }}
-              style={({ pressed }) => [
-                styles.colorRow,
-                {
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderColor: colors.outlineVariant,
-                  opacity: pressed ? 0.9 : 1,
-                },
+          <View style={[styles.colorPanel, { width }]}>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>
+              Choose a color family, then a shade.
+            </Text>
+            <View
+              style={[
+                styles.searchBox,
+                { backgroundColor: colors.surfaceContainerLow },
               ]}
             >
-              <ColorSwatch
-                hex={item.hex}
-                size={32}
-                border={colors.outlineVariant}
+              <Icon name="search" size={20} color={colors.outline} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.onSurface }]}
+                placeholder="Search colors…"
+                placeholderTextColor={colors.outline}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
               />
-              <View style={styles.colorText}>
-                <Text style={[styles.rowLabel, { color: colors.onSurface }]}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.meta, { color: colors.textMuted }]}>
-                  {item.shades.length} shades
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
-            </Pressable>
-          )}
-        />
-      </BottomSheet>
-
-      <BottomSheet
-        visible={visible && !!family}
-        onClose={() => setFamily(null)}
-        title={family ? `${family.label} shades` : "Shade"}
-        scrollable={false}
-      >
-        <View
-          style={[
-            styles.searchBox,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-        >
-          <Icon name="search" size={20} color={colors.outline} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search shades…"
-            placeholderTextColor={colors.outline}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-          />
-        </View>
-        <FlatList
-          data={filteredShades}
-          keyExtractor={(item) => item.value}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <EmptyState
-              icon="search"
-              title="No shades"
-              subtitle="Try another search."
+            </View>
+            <FlatList
+              data={filteredFamilies}
+              keyExtractor={(item) => item.value}
+              style={styles.colorList}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => {
+                    setQuery("");
+                    setFamily(item);
+                  }}
+                  style={({ pressed }) => [
+                    styles.colorRow,
+                    {
+                      backgroundColor: colors.surfaceContainerLow,
+                      borderColor: colors.outlineVariant,
+                      opacity: pressed ? 0.9 : 1,
+                    },
+                  ]}
+                >
+                  <ColorSwatch
+                    hex={item.hex}
+                    size={32}
+                    border={colors.outlineVariant}
+                  />
+                  <View style={styles.colorText}>
+                    <Text style={[styles.rowLabel, { color: colors.onSurface }]}>
+                      {item.label}
+                    </Text>
+                    <Text style={[styles.meta, { color: colors.textMuted }]}>
+                      {item.shades.length} shades
+                    </Text>
+                  </View>
+                  <Icon name="chevron-right" size={20} color={colors.outline} />
+                </Pressable>
+              )}
             />
-          }
-          renderItem={({ item }) => {
-            const active = item.value === value;
-            return (
-              <Pressable
-                onPress={() => {
-                  onSelect(item.value);
-                  setFamily(null);
-                  onClose();
-                }}
-                style={({ pressed }) => [
-                  styles.colorRow,
-                  {
-                    backgroundColor: active
-                      ? colors.primaryContainer
-                      : colors.surfaceContainerLow,
-                    borderColor: active
-                      ? colors.primary
-                      : colors.outlineVariant,
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-              >
-                <ColorSwatch
-                  hex={item.hex}
-                  size={32}
-                  border={colors.outlineVariant}
+          </View>
+          <View style={[styles.colorPanel, { width }]}>
+            <View
+              style={[
+                styles.searchBox,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              <Icon name="search" size={20} color={colors.outline} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.onSurface }]}
+                placeholder="Search shades…"
+                placeholderTextColor={colors.outline}
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+              />
+            </View>
+            <FlatList
+              data={filteredShades}
+              keyExtractor={(item) => item.value}
+              style={styles.colorList}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <EmptyState
+                  icon="search"
+                  title="No shades"
+                  subtitle="Try another search."
                 />
-                <View style={styles.colorText}>
-                  <Text
-                    style={[
-                      styles.rowLabel,
+              }
+              renderItem={({ item }) => {
+                const active = item.value === value;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      onSelect(item.value);
+                      setFamily(null);
+                      onClose();
+                    }}
+                    style={({ pressed }) => [
+                      styles.colorRow,
                       {
-                        color: active
-                          ? colors.onPrimaryContainer
-                          : colors.onSurface,
+                        backgroundColor: active
+                          ? colors.primaryContainer
+                          : colors.surfaceContainerLow,
+                        borderColor: active
+                          ? colors.primary
+                          : colors.outlineVariant,
+                        opacity: pressed ? 0.9 : 1,
                       },
                     ]}
                   >
-                    {item.label}
-                  </Text>
-                  <Text style={[styles.meta, { color: colors.textMuted }]}>
-                    {item.hex}
-                  </Text>
-                </View>
-                {active ? (
-                  <Icon name="check" size={20} color={colors.primary} />
-                ) : null}
-              </Pressable>
-            );
-          }}
-        />
-      </BottomSheet>
-    </>
+                    <ColorSwatch
+                      hex={item.hex}
+                      size={32}
+                      border={colors.outlineVariant}
+                    />
+                    <View style={styles.colorText}>
+                      <Text
+                        style={[
+                          styles.rowLabel,
+                          {
+                            color: active
+                              ? colors.onPrimaryContainer
+                              : colors.onSurface,
+                          },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text style={[styles.meta, { color: colors.textMuted }]}>
+                        {item.hex}
+                      </Text>
+                    </View>
+                    {active ? (
+                      <Icon name="check" size={20} color={colors.primary} />
+                    ) : null}
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        </Animated.View>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -788,6 +838,10 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
   listContent: { gap: Spacing.stackSm, paddingBottom: Spacing.lg },
+  colorTrack: { flex: 1, minHeight: 0, overflow: "hidden" },
+  colorPanels: { flexDirection: "row", height: "100%" },
+  colorPanel: { height: "100%" },
+  colorList: { flex: 1 },
   hint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
   row: {
     flexDirection: "row",

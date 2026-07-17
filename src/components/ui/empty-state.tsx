@@ -1,8 +1,10 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
 
 export function EmptyState({
   title,
@@ -16,17 +18,86 @@ export function EmptyState({
   icon?: IconName;
 }) {
   const { colors } = useAppTheme();
+  const reduceMotion = useReduceMotion();
+  const [iconOpacity] = useState(() => new Animated.Value(0));
+  const [iconScale] = useState(() => new Animated.Value(reduceMotion ? 1 : 0.96));
+  const [copyOpacity] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (reduceMotion) {
+      iconScale.setValue(1);
+      const anim = Animated.parallel([
+        Animated.timing(iconOpacity, {
+          toValue: 1,
+          duration: Motion.fast,
+          easing: easeOut,
+          useNativeDriver: true,
+        }),
+        Animated.timing(copyOpacity, {
+          toValue: 1,
+          duration: Motion.fast,
+          easing: easeOut,
+          useNativeDriver: true,
+        }),
+      ]);
+      anim.start();
+      return () => anim.stop();
+    }
+
+    iconScale.setValue(0.96);
+    iconOpacity.setValue(0);
+    copyOpacity.setValue(0);
+
+    const iconAnim = Animated.parallel([
+      Animated.timing(iconOpacity, {
+        toValue: 1,
+        duration: Motion.normal,
+        easing: easeOut,
+        useNativeDriver: true,
+      }),
+      Animated.spring(iconScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: Motion.spring.damping,
+        stiffness: Motion.spring.stiffness,
+      }),
+    ]);
+    const copyAnim = Animated.timing(copyOpacity, {
+      toValue: 1,
+      duration: Motion.normal,
+      easing: easeOut,
+      delay: 80,
+      useNativeDriver: true,
+    });
+
+    iconAnim.start();
+    copyAnim.start();
+    return () => {
+      iconAnim.stop();
+      copyAnim.stop();
+    };
+  }, [reduceMotion, iconOpacity, iconScale, copyOpacity]);
 
   return (
     <View style={styles.container}>
-      <View style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}>
+      <Animated.View
+        style={[
+          styles.iconWrap,
+          {
+            backgroundColor: colors.primaryMuted,
+            opacity: iconOpacity,
+            transform: [{ scale: iconScale }],
+          },
+        ]}>
         <Icon name={icon} size={28} color={colors.primary} />
-      </View>
-      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-      {subtitle ? (
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-      ) : null}
-      {action}
+      </Animated.View>
+      <Animated.View style={{ opacity: copyOpacity, alignItems: 'center', gap: Spacing.sm }}>
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+        ) : null}
+        {action}
+      </Animated.View>
     </View>
   );
 }

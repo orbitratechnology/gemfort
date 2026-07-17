@@ -1,6 +1,6 @@
 # 005 — Color picker: single sheet with horizontal push
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: dd68f33
 - **Severity**: MEDIUM
 - **Category**: Missed opportunity (Spatial consistency); Preventing a jarring change

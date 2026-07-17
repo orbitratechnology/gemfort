@@ -367,6 +367,7 @@ export const TouchTarget = {
   minWidth: 44,
 } as const;
 
+/** Durations in ms. `slow` is marketing/rare only — do not use for sheets, toasts, or presses (UI budget ≤300ms). */
 export const Motion = {
   fast: 120,
   normal: 220,

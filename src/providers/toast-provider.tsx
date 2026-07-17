@@ -3,8 +3,9 @@ import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
 
 export type ToastVariant = 'success' | 'error' | 'info';
 
@@ -34,33 +35,81 @@ const VARIANT_ICON: Record<ToastVariant, IconName> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
+
   const [toast, setToast] = useState<ToastState | null>(null);
+  const toastVisibleRef = useRef(false);
   const [opacity] = useState(() => new Animated.Value(0));
   const [translateY] = useState(() => new Animated.Value(-20));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(0);
 
   const hide = useCallback(() => {
+    const duration = reduceMotion ? Motion.fast : Motion.normal;
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: -20, duration: 180, useNativeDriver: true }),
-    ]).start(() => setToast(null));
-  }, [opacity, translateY]);
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration,
+        easing: easeOut,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: reduceMotion ? 0 : -20,
+        duration,
+        easing: easeOut,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      toastVisibleRef.current = false;
+      setToast(null);
+    });
+  }, [opacity, translateY, reduceMotion]);
 
   const show = useCallback(
     (message: string, options?: ToastOptions) => {
       if (timer.current) clearTimeout(timer.current);
       idRef.current += 1;
-      setToast({ id: idRef.current, message, variant: options?.variant ?? 'info' });
-      opacity.setValue(0);
-      translateY.setValue(-20);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 16, stiffness: 180 }),
-      ]).start();
+      const next: ToastState = {
+        id: idRef.current,
+        message,
+        variant: options?.variant ?? 'info',
+      };
+      const isReplacement = toastVisibleRef.current;
+
+      toastVisibleRef.current = true;
+      setToast(next);
+
+      if (!isReplacement) {
+        opacity.setValue(0);
+        translateY.setValue(reduceMotion ? 0 : -20);
+      }
+
+      if (reduceMotion) {
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: Motion.fast,
+          easing: easeOut,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        Animated.parallel([
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: Motion.normal,
+            easing: easeOut,
+            useNativeDriver: true,
+          }),
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            damping: Motion.spring.damping,
+            stiffness: Motion.spring.stiffness,
+          }),
+        ]).start();
+      }
       timer.current = setTimeout(hide, options?.duration ?? 3000);
     },
-    [hide, opacity, translateY],
+    [hide, opacity, translateY, reduceMotion],
   );
 
   const value: ToastContextValue = {

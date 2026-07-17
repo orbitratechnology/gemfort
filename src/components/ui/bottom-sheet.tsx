@@ -1,18 +1,21 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
+  Dimensions,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
 
 type BottomSheetProps = {
   visible: boolean;
@@ -42,35 +45,130 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [translateY] = useState(() => new Animated.Value(600));
+  const reduceMotion = useReduceMotion();
+
+  const initialOffset = Dimensions.get('window').height;
+  const sheetOffsetRef = useRef(initialOffset);
+  const exitingRef = useRef(false);
+  const [presented, setPresented] = useState(visible);
+  const [wasVisible, setWasVisible] = useState(visible);
+  const [translateY] = useState(() => new Animated.Value(initialOffset));
   const [backdrop] = useState(() => new Animated.Value(0));
+
+  // Present Modal when `visible` rises; stay presented through exit animation.
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setPresented(true);
+  }
+
+  const onSheetLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0) sheetOffsetRef.current = h;
+  }, []);
+
+  const finishExit = useCallback((after?: () => void) => {
+    exitingRef.current = false;
+    // Parent `visible` must clear before `presented` so we don't re-present.
+    after?.();
+    setPresented(false);
+  }, []);
+
+  const runEnter = useCallback(() => {
+    exitingRef.current = false;
+    if (reduceMotion) {
+      translateY.setValue(0);
+      Animated.timing(backdrop, {
+        toValue: 1,
+        duration: Motion.fast,
+        easing: easeOut,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+    translateY.setValue(sheetOffsetRef.current);
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: Motion.spring.damping,
+        stiffness: Motion.spring.stiffness,
+      }),
+      Animated.timing(backdrop, {
+        toValue: 1,
+        duration: Motion.normal,
+        easing: easeOut,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [reduceMotion, translateY, backdrop]);
+
+  const runExit = useCallback(
+    (after?: () => void) => {
+      if (exitingRef.current) return;
+      exitingRef.current = true;
+      const duration = reduceMotion ? Motion.fast : Motion.normal;
+
+      if (reduceMotion) {
+        translateY.setValue(0);
+        Animated.timing(backdrop, {
+          toValue: 0,
+          duration,
+          easing: easeOut,
+          useNativeDriver: true,
+        }).start(() => finishExit(after));
+        return;
+      }
+
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: sheetOffsetRef.current,
+          duration,
+          easing: easeOut,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdrop, {
+          toValue: 0,
+          duration,
+          easing: easeOut,
+          useNativeDriver: true,
+        }),
+      ]).start(() => finishExit(after));
+    },
+    [reduceMotion, translateY, backdrop, finishExit],
+  );
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 220 }),
-        Animated.timing(backdrop, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-    } else {
-      translateY.setValue(600);
-      backdrop.setValue(0);
+      exitingRef.current = false;
+      const id = requestAnimationFrame(() => runEnter());
+      return () => cancelAnimationFrame(id);
     }
-  }, [visible, translateY, backdrop]);
+  }, [visible, runEnter]);
+
+  useEffect(() => {
+    if (!visible && presented && !exitingRef.current) {
+      runExit();
+    }
+  }, [visible, presented, runExit]);
 
   function handleClose() {
-    Animated.parallel([
-      Animated.timing(translateY, { toValue: 600, duration: 200, useNativeDriver: true }),
-      Animated.timing(backdrop, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start(onClose);
+    if (!presented || exitingRef.current) return;
+    runExit(onClose);
   }
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose} statusBarTranslucent>
+    <Modal
+      visible={presented}
+      transparent
+      animationType="none"
+      onRequestClose={handleClose}
+      statusBarTranslucent>
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         </Animated.View>
         <Animated.View
+          onLayout={onSheetLayout}
           style={[
             styles.sheet,
             !scrollable && styles.sheetFlex,
