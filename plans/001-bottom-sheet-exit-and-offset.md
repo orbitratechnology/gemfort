@@ -1,6 +1,6 @@
 # 001 — Fix bottom sheet exit and height offset
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: dd68f33
 - **Severity**: MEDIUM
 - **Category**: Interruptibility / physicality; Easing & duration

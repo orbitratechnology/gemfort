@@ -1,6 +1,6 @@
 # 003 — Wire Motion tokens and reduce-motion helper
 
-- **Status**: TODO
+- **Status**: DONE
 - **Commit**: dd68f33
 - **Severity**: MEDIUM
 - **Category**: Cohesion & tokens; Accessibility

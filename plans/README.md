@@ -6,11 +6,11 @@ Self-contained executor plans from the whole-app motion audit. **Do not invent v
 
 | # | Title | Severity | Status | Depends on |
 | --- | --- | --- | --- | --- |
-| 003 | Wire Motion tokens + reduce-motion helper | MEDIUM | TODO | — |
-| 001 | Bottom sheet exit and height offset | MEDIUM | TODO | 003 |
-| 002 | Toast interruptible retarget | MEDIUM | TODO | 003 |
-| 004 | EmptyState entrance | LOW | TODO | 003 |
-| 005 | Color picker single-sheet push | MEDIUM | TODO | 001 (recommended) |
+| 003 | Wire Motion tokens + reduce-motion helper | MEDIUM | DONE | — |
+| 001 | Bottom sheet exit and height offset | MEDIUM | DONE | 003 |
+| 002 | Toast interruptible retarget | MEDIUM | DONE | 003 |
+| 004 | EmptyState entrance | LOW | DONE | 003 |
+| 005 | Color picker single-sheet push | MEDIUM | DONE | 001 (recommended) |
 
 ## Recommended execution order
 
