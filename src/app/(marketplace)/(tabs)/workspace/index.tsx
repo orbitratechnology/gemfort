@@ -620,87 +620,106 @@ export default function WorkspaceHub() {
           </View>
         </View>
 
-        {/* Modules */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+        {/* Modules — full-bleed grid */}
+        <View style={styles.moduleSection}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              styles.moduleSectionTitle,
+              { color: colors.onSurface },
+            ]}
+          >
             Modules
           </Text>
-          <View style={styles.moduleGrid}>
-            {modules.map((m) => (
-              <Pressable
-                key={m.label}
-                onPress={() => router.push(m.route as never)}
-                style={({ pressed }) => [
-                  styles.moduleTile,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    opacity: pressed ? 0.92 : 1,
-                    transform: [{ scale: pressed ? 0.985 : 1 }],
-                  },
-                ]}
-              >
-                <View style={styles.moduleTop}>
-                  <View style={styles.moduleIconWrap}>
-                    <View
-                      style={[
-                        styles.moduleIcon,
-                        { backgroundColor: colors.primaryContainer },
-                      ]}
-                    >
-                      <Icon
-                        name={m.icon}
-                        size={18}
-                        color={colors.onPrimaryContainer}
-                      />
-                    </View>
-                    {m.badgeCount && m.badgeCount > 0 ? (
-                      <View
-                        style={[
-                          styles.moduleBadge,
-                          { backgroundColor: colors.error },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.moduleBadgeText,
-                            { color: colors.onError },
-                          ]}
-                        >
-                          {m.badgeCount > 99 ? "99+" : m.badgeCount}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text
-                    style={[styles.moduleValue, { color: colors.onSurface }]}
-                  >
-                    {m.value}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.moduleLabel,
-                    { color: colors.onSurfaceVariant },
+          <View
+            style={[
+              styles.moduleGrid,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            {modules.map((m, index) => {
+              const col = index % 3;
+              const rowCount = Math.ceil(modules.length / 3);
+              const row = Math.floor(index / 3);
+              const showRightRule = col < 2;
+              const showBottomRule = row < rowCount - 1;
+              return (
+                <Pressable
+                  key={m.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${m.label}, ${m.value}${m.hint ? `, ${m.hint}` : ""}`}
+                  onPress={() => router.push(m.route as never)}
+                  style={({ pressed }) => [
+                    styles.moduleTile,
+                    showRightRule && {
+                      borderRightWidth: StyleSheet.hairlineWidth,
+                      borderRightColor: colors.outlineVariant,
+                    },
+                    showBottomRule && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.outlineVariant,
+                    },
+                    pressed && { backgroundColor: colors.surfaceContainerLow },
                   ]}
                 >
-                  {m.label}
-                </Text>
-                {m.hint ? (
-                  <Text
-                    style={[styles.moduleHint, { color: colors.primary }]}
-                    numberOfLines={1}
-                  >
-                    {m.hint}
-                  </Text>
-                ) : (
-                  <Text
-                    style={[styles.moduleHint, { color: colors.textMuted }]}
-                  >
-                    View
-                  </Text>
-                )}
-              </Pressable>
-            ))}
+                  <View style={styles.moduleTopRow}>
+                    <View style={styles.moduleIconWrap}>
+                      <View
+                        style={[
+                          styles.moduleIcon,
+                          { backgroundColor: colors.primaryContainer },
+                        ]}
+                      >
+                        <Icon
+                          name={m.icon}
+                          size={22}
+                          color={colors.onPrimaryContainer}
+                        />
+                      </View>
+                      {m.badgeCount && m.badgeCount > 0 ? (
+                        <View
+                          style={[
+                            styles.moduleBadge,
+                            { backgroundColor: colors.error },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.moduleBadgeText,
+                              { color: colors.onError },
+                            ]}
+                          >
+                            {m.badgeCount > 99 ? "99+" : m.badgeCount}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[styles.moduleValue, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {m.value}
+                    </Text>
+                  </View>
+                  <View style={styles.moduleNameBlock}>
+                    <Text
+                      style={[styles.moduleLabel, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {m.label}
+                    </Text>
+                    {m.hint ? (
+                      <Text
+                        style={[styles.moduleHint, { color: colors.primary }]}
+                        numberOfLines={1}
+                      >
+                        {m.hint}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -1216,41 +1235,43 @@ const styles = StyleSheet.create({
   },
   countPillText: { ...Typography.caption, fontWeight: "700" },
 
+  moduleSection: {
+    gap: Spacing.stackMd,
+    marginHorizontal: -Spacing.containerMargin,
+  },
+  moduleSectionTitle: {
+    paddingHorizontal: Spacing.containerMargin,
+  },
   moduleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.stackMd,
   },
   moduleTile: {
-    width: "31%",
-    flexGrow: 1,
-    minWidth: "30%",
-    maxWidth: "32.5%",
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: 12,
-    gap: 6,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    width: "33.333%",
+    aspectRatio: 1,
+    padding: 16,
+    justifyContent: "space-between",
   },
-  moduleTop: {
+  moduleTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 4,
+    gap: 8,
   },
   moduleIconWrap: {
     position: "relative",
   },
   moduleIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
   },
   moduleBadge: {
     position: "absolute",
-    top: -5,
+    top: -4,
     right: -6,
     minWidth: 18,
     height: 18,
@@ -1266,11 +1287,23 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   moduleValue: {
-    ...Typography.headlineSm,
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
     fontVariant: ["tabular-nums"],
+    flexShrink: 1,
+    textAlign: "right",
   },
-  moduleLabel: { ...Typography.labelMd },
-  moduleHint: { ...Typography.caption },
+  moduleNameBlock: {
+    gap: 2,
+  },
+  moduleLabel: {
+    ...Typography.labelMd,
+    fontWeight: "600",
+  },
+  moduleHint: {
+    ...Typography.caption,
+    fontWeight: "600",
+  },
 
   actionsCard: {
     flexDirection: "row",

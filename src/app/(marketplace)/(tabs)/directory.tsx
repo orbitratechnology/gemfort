@@ -298,6 +298,7 @@ export default function DirectoryScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.hBleed}
             contentContainerStyle={styles.filterRow}
           >
             <Pressable
@@ -369,6 +370,7 @@ export default function DirectoryScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.hBleed}
             contentContainerStyle={styles.filterRow}
           >
             <Pressable
@@ -645,6 +647,9 @@ const styles = StyleSheet.create({
     height: 48,
   },
   searchInput: { flex: 1, ...Typography.bodyMd },
+  hBleed: {
+    marginHorizontal: -Spacing.containerMargin,
+  },
   segmentTrack: {
     alignSelf: "stretch",
     borderRadius: Radius.full,
@@ -665,7 +670,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   segmentText: { ...Typography.labelMd },
-  filterRow: { flexDirection: "row", gap: Spacing.stackSm, paddingVertical: 4 },
+  filterRow: {
+    flexDirection: "row",
+    gap: Spacing.stackSm,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.containerMargin,
+  },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",

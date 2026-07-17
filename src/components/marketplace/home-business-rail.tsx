@@ -167,7 +167,7 @@ export function HomeBusinessRail({
 const styles = StyleSheet.create({
   rail: {
     gap: Spacing.stackMd,
-    paddingRight: 4,
+    paddingHorizontal: Spacing.containerMargin,
   },
   card: {
     width: 188,
@@ -245,6 +245,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginHorizontal: Spacing.containerMargin,
     padding: 14,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
