@@ -35,6 +35,8 @@ export type UserProfile = {
     pushPaymentAlerts?: boolean;
   };
   phoneVerified?: boolean;
+  /** ISO date `YYYY-MM-DD` — collected during verification. */
+  dateOfBirth?: string | null;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
@@ -275,25 +277,72 @@ export type ServiceRecord = {
   updatedAt: Timestamp;
 };
 
+export type ApLifecycleStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "payment_sent"
+  | "done"
+  /** @deprecated Legacy single-gem statuses — normalized on read */
+  | "with_holder"
+  | "sold"
+  | "returned"
+  | "overdue"
+  | "disputed";
+
+export type ApGemLineStatus = "held" | "sold" | "returned";
+
+export type ApPaymentMethod = "cash" | "transfer" | "cheque";
+
+export type ApGemLine = {
+  gemId: string;
+  gemLabel: string;
+  agreedPrice: number;
+  currency: string;
+  lineStatus: ApGemLineStatus;
+  soldPrice: number | null;
+  soldToName: string | null;
+  soldDate: Timestamp | null;
+  ownerReceives: number | null;
+  commission: number | null;
+  paymentDueDate: Timestamp | null;
+};
+
 export type ApRecord = {
   id: string;
+  /** Alias of senderUid — kept for wipe scripts & legacy queries */
   ownerUid: string;
-  gemId: string;
-  apHolderContactId: string;
-  ownerMinimumPrice: number;
-  currency: string;
-  dateGiven: Timestamp;
-  expectedDurationDays: number;
+  senderUid: string;
+  receiverUid: string;
+  receiverContactId: string;
+  receiverBusinessId: string | null;
+  receiverName: string;
+  senderName: string;
+  items: ApGemLine[];
+  status: ApLifecycleStatus;
   expectedReturnDate: Timestamp;
+  expectedDurationDays: number;
+  dateGiven: Timestamp | null;
   agreementNotes: string | null;
-  status: "with_holder" | "sold" | "returned" | "overdue" | "disputed";
-  soldPrice: number | null;
-  ownerReceives: number | null;
-  apHolderCommission: number | null;
-  soldDate: Timestamp | null;
-  paymentStatus: "pending" | "partial" | "paid";
+  paymentMethod: ApPaymentMethod | null;
+  paymentAmount: number | null;
+  paymentSentAt: Timestamp | null;
+  paymentReceivedAt: Timestamp | null;
+  paymentChequeId: string | null;
+  rejectionReason: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // ── Legacy single-gem fields (optional; used for migration on read) ──
+  gemId?: string;
+  apHolderContactId?: string;
+  ownerMinimumPrice?: number;
+  currency?: string;
+  soldPrice?: number | null;
+  ownerReceives?: number | null;
+  apHolderCommission?: number | null;
+  soldDate?: Timestamp | null;
+  paymentStatus?: "pending" | "partial" | "paid";
 };
 
 export type Contact = {
@@ -311,6 +360,10 @@ export type Contact = {
   photoUrl: string | null;
   /** Device address-book ID when imported from phone contacts */
   deviceContactId: string | null;
+  /** GemFort business profile matched 1:1 by phone (trader / lapidary / lab). */
+  linkedBusinessId: string | null;
+  linkedBusinessName: string | null;
+  linkedBusinessType: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -578,6 +631,10 @@ export type VerificationApplication = {
   businessId: string;
   applicationType: "trader" | "lapidary" | "gem_lab" | string;
   status: string;
+  /** ISO date `YYYY-MM-DD` — required for KYC. */
+  dateOfBirth: string;
+  /** Legal business / company name — required for KYC. */
+  businessName: string;
   servicesOffered?: string[];
   documents: {
     brNumber: string | null;
@@ -679,4 +736,49 @@ export type PublicCertificate = {
   visibility: "public";
   createdAt: Timestamp;
   updatedAt: Timestamp;
+};
+
+// ─── Gem News & Exhibitions ───────────────────────
+
+export type NewsRegion = "local" | "global";
+
+export type NewsTopic =
+  | "market"
+  | "trade_policy"
+  | "regulation"
+  | "exhibitions"
+  | "industry"
+  | "sri_lanka";
+
+export type GemNewsArticle = {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+  canonicalUrl: string;
+  source: string;
+  sourceId: string;
+  region: NewsRegion;
+  topics: NewsTopic[];
+  publishedAt: Timestamp;
+  scrapedAt: Timestamp;
+  updatedAt: Timestamp;
+  imageUrl: string | null;
+  language: string;
+  isVisible: boolean;
+};
+
+export type GemExhibition = {
+  id: string;
+  title: string;
+  venue: string;
+  city: string | null;
+  country: string | null;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  updatedAt: Timestamp;
+  region: NewsRegion;
+  sourceUrl: string;
+  sourceId: string;
+  isVisible: boolean;
 };

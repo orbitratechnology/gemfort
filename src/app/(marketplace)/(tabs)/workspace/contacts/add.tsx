@@ -126,6 +126,9 @@ export default function AddContactScreen() {
         isFavourite: false,
         photoUrl: null,
         deviceContactId: null,
+        linkedBusinessId: null,
+        linkedBusinessName: null,
+        linkedBusinessType: null,
       });
       toast.success('Contact added');
       router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);

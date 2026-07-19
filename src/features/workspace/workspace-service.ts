@@ -1,4 +1,10 @@
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
+import {
+    findContactForBusiness,
+    linkFieldsFromBusiness,
+    matchBusinessForContact,
+} from "@/features/workspace/contact-business-link";
+import { isApOngoing } from "@/features/workspace/ap-normalize";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
@@ -20,6 +26,7 @@ import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { calcWeightLossPercent, generateSku } from "@/lib/utils";
 import type {
     ApRecord,
+    Business,
     Cheque,
     ChequeDirection,
     ChequeStatus,
@@ -329,15 +336,13 @@ export async function completeService(
 // ─── AP ─────────────────────────────────────────────
 
 export async function fetchApRecords(ownerUid: string): Promise<ApRecord[]> {
-  const q = query(
-    collection(getFirebaseDb(), "gemtrack_ap_records"),
-    where("ownerUid", "==", ownerUid),
-    orderBy("updatedAt", "desc"),
+  const { fetchApRecordsForUser } = await import(
+    "@/features/workspace/ap-lifecycle-service"
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ApRecord);
+  return fetchApRecordsForUser(ownerUid);
 }
 
+/** @deprecated Use createApRequest from ap-lifecycle-service */
 export async function createApRecord(
   ownerUid: string,
   input: {
@@ -346,82 +351,54 @@ export async function createApRecord(
     ownerMinimumPrice: number;
     expectedDurationDays: number;
     agreementNotes?: string;
+    receiverBusinessId?: string | null;
   },
 ) {
-  const now = Timestamp.now();
-  const expectedReturn = Timestamp.fromDate(
-    new Date(Date.now() + input.expectedDurationDays * 86400000),
+  const { createApRequest } = await import(
+    "@/features/workspace/ap-lifecycle-service"
   );
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_ap_records"), {
-    ownerUid,
-    gemId: input.gemId,
-    apHolderContactId: input.apHolderContactId,
-    ownerMinimumPrice: input.ownerMinimumPrice,
-    currency: "LKR",
-    dateGiven: now,
+  return createApRequest({
+    receiverContactId: input.apHolderContactId,
+    receiverBusinessId: input.receiverBusinessId ?? null,
     expectedDurationDays: input.expectedDurationDays,
-    expectedReturnDate: expectedReturn,
     agreementNotes: input.agreementNotes ?? null,
-    status: "with_holder",
-    soldPrice: null,
-    ownerReceives: null,
-    apHolderCommission: null,
-    soldDate: null,
-    paymentStatus: "pending",
-    createdAt: now,
-    updatedAt: now,
+    items: [
+      {
+        gemId: input.gemId,
+        agreedPrice: input.ownerMinimumPrice,
+        currency: "LKR",
+      },
+    ],
   });
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", input.gemId), {
-    status: "on_ap",
-    currentHolderContactId: input.apHolderContactId,
-    updatedAt: now,
-  });
-  return ref.id;
 }
 
+/** @deprecated Use recordApGemSale */
 export async function recordApSale(
   apId: string,
-  ownerUid: string,
+  _ownerUid: string,
   soldPrice: number,
 ) {
-  const snap = await getDoc(doc(getFirebaseDb(), "gemtrack_ap_records", apId));
-  if (!snap.exists()) throw new Error("AP record not found");
-  const ap = { id: snap.id, ...snap.data() } as ApRecord;
-  const now = Timestamp.now();
-  const commission = soldPrice - ap.ownerMinimumPrice;
-
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_ap_records", apId), {
-    status: "sold",
-    soldPrice,
-    ownerReceives: ap.ownerMinimumPrice,
-    apHolderCommission: commission,
-    soldDate: now,
-    paymentStatus: "pending",
-    updatedAt: now,
-  });
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", ap.gemId), {
-    status: "sold",
-    soldPrice,
-    soldPriceCurrency: "LKR",
-    soldDate: now,
-    updatedAt: now,
-  });
+  const { fetchGivenApRecords, recordApGemSale } = await import(
+    "@/features/workspace/ap-lifecycle-service"
+  );
+  const records = await fetchGivenApRecords(_ownerUid);
+  const ap = records.find((r) => r.id === apId);
+  const gemId = ap?.items?.[0]?.gemId ?? ap?.gemId;
+  if (!gemId) throw new Error("AP record not found");
+  await recordApGemSale({ apId, gemId, soldPrice });
 }
 
+/** @deprecated Use returnApGem */
 export async function recordApReturn(apId: string, ownerUid: string) {
-  const snap = await getDoc(doc(getFirebaseDb(), "gemtrack_ap_records", apId));
-  if (!snap.exists()) throw new Error("AP record not found");
-  const ap = { id: snap.id, ...snap.data() } as ApRecord;
-  const now = Timestamp.now();
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_ap_records", apId), {
-    status: "returned",
-    updatedAt: now,
-  });
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", ap.gemId), {
-    status: "ready_for_sale",
-    currentHolderContactId: null,
-    updatedAt: now,
-  });
+  const { fetchGivenApRecords, returnApGem } = await import(
+    "@/features/workspace/ap-lifecycle-service"
+  );
+  const records = await fetchGivenApRecords(ownerUid);
+  const ap = records.find((r) => r.id === apId);
+  const held = ap?.items?.find((i) => i.lineStatus === "held");
+  const gemId = held?.gemId ?? ap?.gemId;
+  if (!gemId) throw new Error("AP record not found");
+  await returnApGem(apId, gemId);
 }
 
 // ─── Contacts ───────────────────────────────────────
@@ -441,6 +418,9 @@ export async function fetchContacts(ownerUid: string): Promise<Contact[]> {
         contactTypes: Array.isArray(data.contactTypes) ? data.contactTypes : [],
         photoUrl: data.photoUrl ?? null,
         deviceContactId: data.deviceContactId ?? null,
+        linkedBusinessId: data.linkedBusinessId ?? null,
+        linkedBusinessName: data.linkedBusinessName ?? null,
+        linkedBusinessType: data.linkedBusinessType ?? null,
       } as Contact;
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -462,6 +442,9 @@ export async function createContact(
     isFavourite: input.isFavourite ?? false,
     photoUrl: input.photoUrl ?? null,
     deviceContactId: input.deviceContactId ?? null,
+    linkedBusinessId: input.linkedBusinessId ?? null,
+    linkedBusinessName: input.linkedBusinessName ?? null,
+    linkedBusinessType: input.linkedBusinessType ?? null,
     ownerUid,
     createdAt: now,
     updatedAt: now,
@@ -530,6 +513,9 @@ export async function importDeviceContactToWorkspace(
     isFavourite: false,
     photoUrl,
     deviceContactId: device.id,
+    linkedBusinessId: null,
+    linkedBusinessName: null,
+    linkedBusinessType: null,
   });
   return { id, created: true };
 }
@@ -572,6 +558,9 @@ export async function importDeviceContactsBatch(
           isFavourite: false,
           photoUrl: null,
           deviceContactId: device.id,
+          linkedBusinessId: null,
+          linkedBusinessName: null,
+          linkedBusinessType: null,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         },
@@ -603,6 +592,90 @@ export async function updateContact(contactId: string, data: Partial<Contact>) {
   });
 }
 
+/**
+ * Persist one-to-one contact ↔ business links by matching phone/whatsapp.
+ * Safe to call often — only writes when a unique match is found and not yet linked.
+ */
+export async function syncContactBusinessLinks(
+  contacts: Contact[],
+  businesses: Business[],
+): Promise<Contact[]> {
+  const next = [...contacts];
+  await Promise.all(
+    contacts.map(async (contact, index) => {
+      if (contact.linkedBusinessId) return;
+      const match = matchBusinessForContact(contact, businesses);
+      if (!match) return;
+      const fields = linkFieldsFromBusiness(match);
+      await updateContact(contact.id, fields);
+      next[index] = { ...contact, ...fields };
+    }),
+  );
+  return next;
+}
+
+/**
+ * Ensure a workspace contact exists for a GemFort business (matched by phone).
+ * Creates a contact from the business profile when none exists.
+ */
+export async function ensureContactForBusiness(
+  ownerUid: string,
+  business: Business,
+  existing: Contact[],
+): Promise<{ contactId: string; contact: Contact; created: boolean }> {
+  const found = findContactForBusiness(existing, business);
+  const fields = linkFieldsFromBusiness(business);
+  const phone =
+    business.contacts?.phone?.value ??
+    business.contacts?.whatsapp?.value ??
+    null;
+
+  if (found) {
+    if (found.linkedBusinessId !== business.id) {
+      await updateContact(found.id, fields);
+    }
+    return {
+      contactId: found.id,
+      contact: { ...found, ...fields },
+      created: false,
+    };
+  }
+
+  const contactId = await createContact(ownerUid, {
+    displayName: business.businessName,
+    companyName: business.businessName,
+    phone,
+    whatsapp: business.contacts?.whatsapp?.value ?? phone,
+    email: business.contacts?.email?.value ?? null,
+    contactTypes: ["broker"],
+    notes: null,
+    isFavourite: false,
+    photoUrl: business.logoUrl ?? null,
+    deviceContactId: null,
+    ...fields,
+  });
+
+  const contact: Contact = {
+    id: contactId,
+    ownerUid,
+    displayName: business.businessName,
+    companyName: business.businessName,
+    phone,
+    whatsapp: business.contacts?.whatsapp?.value ?? phone,
+    email: business.contacts?.email?.value ?? null,
+    contactTypes: ["broker"],
+    notes: null,
+    isFavourite: false,
+    photoUrl: business.logoUrl ?? null,
+    deviceContactId: null,
+    ...fields,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  };
+
+  return { contactId, contact, created: true };
+}
+
 export async function deleteContact(contactId: string) {
   await deleteDoc(doc(getFirebaseDb(), "gemtrack_contacts", contactId));
 }
@@ -614,7 +687,11 @@ export async function fetchContactHistory(ownerUid: string, contactId: string) {
   ]);
   return {
     services: services.filter((s) => s.providerContactId === contactId),
-    apRecords: apRecords.filter((a) => a.apHolderContactId === contactId),
+    apRecords: apRecords.filter(
+      (a) =>
+        a.receiverContactId === contactId ||
+        a.apHolderContactId === contactId,
+    ),
   };
 }
 
@@ -1414,15 +1491,50 @@ export async function markAllNotificationsRead(recipientUid: string) {
 
 // ─── Verification ─────────────────────────────────
 
+export type SubmitVerificationInput = {
+  businessId: string;
+  applicationType: string;
+  dateOfBirth: string;
+  businessName: string;
+  servicesOffered: string[];
+  documents: {
+    brNumber: string | null;
+    brPhotoUrl: string | null;
+    ngjaNumber: string | null;
+    ngjaPhotoUrl: string | null;
+    nicPhotoUrl: string | null;
+    gemLicenseNumber: string | null;
+    gemLicensePhotoUrl: string | null;
+    tinNumber: string | null;
+    businessPhotosUrls: string[];
+    addressProofUrl: string | null;
+    otherDocUrls: string[];
+  };
+};
+
 export async function submitVerificationApplication(
   applicantUid: string,
-  input: Record<string, unknown>,
+  input: SubmitVerificationInput,
 ) {
+  const dateOfBirth = input.dateOfBirth.trim();
+  const businessName = input.businessName.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+    throw new Error("Date of birth is required.");
+  }
+  if (businessName.length < 2) {
+    throw new Error("Business or company name is required.");
+  }
+
   const now = Timestamp.now();
   const applicationId = (
     await addDoc(collection(getFirebaseDb(), "verification_applications"), {
       applicantUid,
-      ...input,
+      businessId: input.businessId,
+      applicationType: input.applicationType,
+      dateOfBirth,
+      businessName,
+      servicesOffered: input.servicesOffered,
+      documents: input.documents,
       status: "pending",
       adminUid: null,
       adminNotes: "",
@@ -1432,6 +1544,7 @@ export async function submitVerificationApplication(
 
   await updateDoc(doc(getFirebaseDb(), "users", applicantUid), {
     verificationStatus: "pending",
+    dateOfBirth,
     updatedAt: serverTimestamp(),
   });
 
@@ -1454,7 +1567,7 @@ export function detectOverdueAp(apRecords: ApRecord[]): ApRecord[] {
   const now = Date.now();
   return apRecords.filter(
     (a) =>
-      a.status === "with_holder" &&
+      isApOngoing(a.status) &&
       a.expectedReturnDate.toDate().getTime() < now,
   );
 }

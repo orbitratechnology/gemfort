@@ -8,6 +8,7 @@ import {
 
 import type { GemTrackNotificationType } from "@/constants/gemtrack-notification-types";
 import { isGemTrackNotificationType } from "@/constants/gemtrack-notification-types";
+import { isApOngoing } from "@/features/workspace/ap-normalize";
 import { detectChequesMaturingTomorrow } from "@/features/workspace/cheque-utils";
 import { effectiveReceivableStatus } from "@/features/workspace/payment-utils";
 import {
@@ -72,14 +73,14 @@ export function detectApReturnDueSoon(
   const target = startOfDay(addDays(new Date(), DUE_SOON_DAYS));
   return apRecords
     .filter((r) => {
-      if (r.status !== "with_holder") return false;
+      if (!isApOngoing(r.status)) return false;
       const due = toDate(r.expectedReturnDate);
       return due && isSameDay(startOfDay(due), target);
     })
     .map((r) => ({
       type: "ap_return_due_soon" as const,
       title: "AP return due soon",
-      message: `AP stone with ${contactName(contacts, r.apHolderContactId)} is due back in ${DUE_SOON_DAYS} days.`,
+      message: `AP with ${r.receiverName || contactName(contacts, r.receiverContactId || r.apHolderContactId)} is due back in ${DUE_SOON_DAYS} days.`,
       referenceType: "ap",
       referenceId: r.id,
     }));
@@ -92,15 +93,20 @@ export function detectApPaymentOverdue(
   const cutoff = subDays(startOfDay(new Date()), AP_PAYMENT_OVERDUE_DAYS);
   return apRecords
     .filter((r) => {
-      if (r.status !== "sold") return false;
-      if (r.paymentStatus === "paid") return false;
-      const sold = toDate(r.soldDate);
+      const awaiting =
+        r.status === "payment_sent" ||
+        r.status === "sold" ||
+        (isApOngoing(r.status) &&
+          (r.items ?? []).some((i) => i.lineStatus === "sold"));
+      if (!awaiting) return false;
+      if (r.status === "done" || r.paymentStatus === "paid") return false;
+      const sold = toDate(r.paymentSentAt ?? r.soldDate ?? null);
       return sold && startOfDay(sold) < cutoff;
     })
     .map((r) => ({
       type: "ap_payment_overdue" as const,
       title: "AP payment overdue",
-      message: `Payment from AP sale (${contactName(contacts, r.apHolderContactId)}) is overdue.`,
+      message: `Payment from AP (${r.receiverName || contactName(contacts, r.receiverContactId || r.apHolderContactId)}) is overdue.`,
       referenceType: "ap",
       referenceId: r.id,
     }));
@@ -164,7 +170,7 @@ export function buildApOverdueCandidates(
     return {
       type: "ap_overdue" as const,
       title: "AP stone overdue",
-      message: `AP stone with ${contactName(contacts, r.apHolderContactId)} is ${days} day${days === 1 ? "" : "s"} overdue.`,
+      message: `AP with ${r.receiverName || contactName(contacts, r.receiverContactId || r.apHolderContactId)} is ${days} day${days === 1 ? "" : "s"} overdue.`,
       referenceType: "ap",
       referenceId: r.id,
     };

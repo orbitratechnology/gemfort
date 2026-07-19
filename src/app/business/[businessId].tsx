@@ -130,7 +130,6 @@ export default function BusinessProfileScreen() {
     !!business?.labProfile;
   const canRequestService =
     isVerifiedTrader && isProvider && !isOwnBusiness && !isLab;
-  const canRequestCert = isVerifiedTrader && isLab && !isOwnBusiness;
 
   const stats: StatItem[] = useMemo(() => {
     if (!business) return [];
@@ -551,32 +550,18 @@ export default function BusinessProfileScreen() {
           </View>
         ) : null}
 
-        {canRequestService || canRequestCert ? (
+        {canRequestService ? (
           <View style={styles.requestWrap}>
-            {canRequestService ? (
-              <Button
-                title="Request service"
-                icon="handyman"
-                onPress={() =>
-                  router.push({
-                    pathname: "/request/[businessId]",
-                    params: { businessId: business.id, mode: "service" },
-                  })
-                }
-              />
-            ) : null}
-            {canRequestCert ? (
-              <Button
-                title="Request certification"
-                icon="workspace-premium"
-                onPress={() =>
-                  router.push({
-                    pathname: "/request/[businessId]",
-                    params: { businessId: business.id, mode: "cert" },
-                  })
-                }
-              />
-            ) : null}
+            <Button
+              title="Request service"
+              icon="handyman"
+              onPress={() =>
+                router.push({
+                  pathname: "/request/[businessId]",
+                  params: { businessId: business.id, mode: "service" },
+                })
+              }
+            />
           </View>
         ) : null}
 

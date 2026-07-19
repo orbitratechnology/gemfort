@@ -1,6 +1,7 @@
 import { addDays, startOfDay } from 'date-fns';
 
 import { directoryTabFromBusinessType } from '@/constants/roles';
+import { isApOngoing } from '@/features/workspace/ap-normalize';
 import { isPendingCheque, toDate as chequeToDate } from '@/features/workspace/cheque-utils';
 import { formatCurrency, formatRelativeDue } from '@/lib/utils';
 import type { ApRecord, Business, Cheque, ServiceRecord, Trip } from '@/types';
@@ -39,19 +40,53 @@ export function buildHomeUpcoming(input: {
   trips: Trip[];
   cheques?: Cheque[];
   contactName: (id: string | null | undefined) => string;
+  /** When set, surfaces Taken pending + Given payment_sent for this user. */
+  currentUid?: string | null;
 }): HomeUpcomingItem[] {
   const today = startOfDay(new Date());
   const horizon = addDays(today, LOOKAHEAD_DAYS);
   const lookback = addDays(today, -OVERDUE_LOOKBACK_DAYS);
   const items: HomeUpcomingItem[] = [];
+  const uid = input.currentUid ?? null;
+
+  if (uid) {
+    for (const r of input.apRecords) {
+      if (r.status === 'pending' && r.receiverUid === uid) {
+        items.push({
+          id: `ap-pending-${r.id}`,
+          kind: 'ap',
+          title: 'AP to accept',
+          subtitle: `From ${r.senderName}`,
+          when: 'Now',
+          date: today,
+          href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
+          overdue: false,
+        });
+      }
+      if (r.status === 'payment_sent' && r.senderUid === uid) {
+        items.push({
+          id: `ap-pay-${r.id}`,
+          kind: 'ap',
+          title: 'Confirm AP payment',
+          subtitle: `From ${r.receiverName}`,
+          when: 'Now',
+          date: today,
+          href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
+          overdue: false,
+        });
+      }
+    }
+  }
 
   for (const r of input.apRecords) {
-    if (r.status !== 'with_holder' && r.status !== 'overdue') continue;
+    if (!isApOngoing(r.status)) continue;
     const due = toDate(r.expectedReturnDate);
     if (!due) continue;
     const day = startOfDay(due);
     if (!inWindow(day, horizon, lookback)) continue;
-    const holder = input.contactName(r.apHolderContactId);
+    const holder =
+      r.receiverName ||
+      input.contactName(r.receiverContactId || r.apHolderContactId);
     const overdue = day < today;
     items.push({
       id: `ap-${r.id}`,

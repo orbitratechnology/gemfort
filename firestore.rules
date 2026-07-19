@@ -128,14 +128,17 @@ service cloud.firestore {
 
       // Applicant may mark themselves pending after submitting verification.
       // Cannot set verified/revoked — those remain admin-only.
+      // dateOfBirth is part of KYC and may be set with the pending transition.
       allow update: if isOwner(userId)
         && resourceNotSuspended()
         && request.resource.data.diff(resource.data)
-           .affectedKeys().hasOnly(['verificationStatus', 'updatedAt'])
+           .affectedKeys().hasOnly(['verificationStatus', 'updatedAt', 'dateOfBirth'])
         && resource.data.verificationStatus in [
              'none', 'rejected', 'pending', 'info_requested', 'under_review'
            ]
-        && request.resource.data.verificationStatus == 'pending';
+        && request.resource.data.verificationStatus == 'pending'
+        && request.resource.data.dateOfBirth is string
+        && request.resource.data.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
 
       allow update: if isAdmin();
 
@@ -249,6 +252,22 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════
+    // GEM NEWS & EXHIBITIONS (scraped; Admin SDK write)
+    // ═══════════════════════════════════════════════
+
+    match /gem_news/{articleId} {
+      allow read: if resource.data.isVisible == true;
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /exhibitions/{showId} {
+      allow read: if resource.data.isVisible == true;
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
     // ENDORSEMENTS
     // ═══════════════════════════════════════════════
 
@@ -296,10 +315,16 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.applicantUid);
       allow read: if isAdmin();
 
+      // KYC: dateOfBirth (YYYY-MM-DD) + businessName are mandatory.
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.applicantUid)
         && request.resource.data.status == 'pending'
-        && request.resource.data.adminUid == null;
+        && request.resource.data.adminUid == null
+        && request.resource.data.dateOfBirth is string
+        && request.resource.data.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.businessName is string
+        && request.resource.data.businessName.size() >= 2
+        && request.resource.data.businessName.size() <= 80;
 
       // Applicant can resubmit when info requested
       allow update: if isOwner(resource.data.applicantUid)
@@ -308,7 +333,12 @@ service cloud.firestore {
            .affectedKeys().hasAny([
              'status', 'adminUid', 'adminNotes',
              'rejectionReason', 'resolvedAt', 'reviewedAt'
-           ]);
+           ])
+        && request.resource.data.dateOfBirth is string
+        && request.resource.data.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.businessName is string
+        && request.resource.data.businessName.size() >= 2
+        && request.resource.data.businessName.size() <= 80;
 
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -357,13 +387,12 @@ service cloud.firestore {
     }
 
     match /certification_requests/{id} {
+      // Legacy inbox — labs no longer receive certification requests.
+      // Verification is via public certificates uploaded by gem labs.
       allow read: if isSignedIn()
         && (resource.data.traderUid == uid() || resource.data.labUid == uid() || isAdmin());
-      allow create: if isVerifiedTrader()
-        && request.resource.data.traderUid == uid()
-        && request.resource.data.status == 'pending';
-      allow update: if isSignedIn()
-        && (resource.data.labUid == uid() || resource.data.traderUid == uid() || isAdmin());
+      allow create: if false;
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -439,18 +468,25 @@ service cloud.firestore {
     }
 
     match /gemtrack_ap_records/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
-      allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+      allow read: if isSignedIn() && isNotSuspended()
+        && (resource.data.ownerUid == uid()
+            || resource.data.senderUid == uid()
+            || resource.data.receiverUid == uid());
+      // Creates go through callables; block client creates of lifecycle APs.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if isAdmin();
       allow read, write: if isAdmin();
     }
 
     match /gemtrack_ap_payments/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
-      allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+      allow read: if isSignedIn() && isNotSuspended()
+        && (resource.data.senderUid == uid()
+            || resource.data.receiverUid == uid()
+            || resource.data.ownerUid == uid());
+      allow create: if false;
+      allow update: if false;
+      allow delete: if isAdmin();
       allow read, write: if isAdmin();
     }
 

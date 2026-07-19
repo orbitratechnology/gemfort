@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -15,9 +15,15 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { ROLE_LABELS, directoryTabFromBusinessType } from '@/constants/roles';
+import { ROLE_LABELS } from '@/constants/roles';
+import {
+  type BusinessKind,
+  businessKindOf,
+  filterBusinessesByKinds,
+} from '@/features/workspace/contact-business-link';
 import { filterContacts } from '@/features/workspace/contact-utils';
 import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
+import { syncContactBusinessLinks } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
@@ -27,16 +33,21 @@ export type ContactSelection = {
   source: 'contact';
   contactId: string;
   label: string;
+  linkedBusinessId?: string | null;
 };
 
-export type ProviderSelection =
-  | ContactSelection
-  | {
-      source: 'business';
-      businessId: string;
-      label: string;
-      businessType: string;
-    };
+export type BusinessSelection = {
+  source: 'business';
+  businessId: string;
+  label: string;
+  businessType: string;
+  linkedContactId?: string | null;
+};
+
+export type PartySelection = ContactSelection | BusinessSelection;
+
+/** @deprecated Prefer PartySelection — kept for service form compatibility. */
+export type ProviderSelection = PartySelection;
 
 type ContactPickerSheetProps = {
   visible: boolean;
@@ -47,23 +58,27 @@ type ContactPickerSheetProps = {
   title?: string;
   typeFilter?: string | null;
   emptyHint?: string;
-  /** Allow picking a typed name when the buyer is not in contacts. */
   allowCustomName?: boolean;
   customName?: string;
   onSelectCustomName?: (name: string) => void;
   customNameLabel?: string;
 };
 
-type ProviderPickerSheetProps = {
+export type PartyPickerSheetProps = {
   visible: boolean;
   onClose: () => void;
   contacts: Contact[];
-  value: ProviderSelection | null;
-  onSelect: (selection: ProviderSelection) => void;
+  value: PartySelection | null;
+  onSelect: (selection: PartySelection) => void;
   title?: string;
+  /** Which GemFort directory roles to show. Empty = contacts only. */
+  allowedBusinessKinds?: BusinessKind[];
   contactTypeFilter?: string | null;
   emptyContactsHint?: string;
+  preferBusinesses?: boolean;
 };
+
+type TabId = 'directory' | 'contacts';
 
 function businessMatches(b: Business, q: string) {
   if (!q) return true;
@@ -73,6 +88,8 @@ function businessMatches(b: Business, q: string) {
     b.city,
     b.district,
     b.businessType,
+    b.contacts?.phone?.value,
+    b.contacts?.whatsapp?.value,
     ...(b.providerProfile?.services?.map((s) => s.name) ?? []),
   ]
     .filter(Boolean)
@@ -81,11 +98,35 @@ function businessMatches(b: Business, q: string) {
   return hay.includes(q);
 }
 
-function providerRoleLabel(b: Business): string {
-  const tab = directoryTabFromBusinessType(b.businessType);
-  if (tab === 'labs') return ROLE_LABELS.gem_lab;
-  if (tab === 'lapidaries') return ROLE_LABELS.lapidary;
+function roleLabelForBusiness(b: Business): string {
+  const kind = businessKindOf(b);
+  if (kind === 'labs') return ROLE_LABELS.gem_lab;
+  if (kind === 'lapidaries') return ROLE_LABELS.lapidary;
+  if (kind === 'traders') return ROLE_LABELS.trader;
   return b.businessType.replace(/_/g, ' ');
+}
+
+function directoryIcon(b: Business): IconName {
+  const kind = businessKindOf(b);
+  if (kind === 'labs') return 'workspace-premium';
+  if (kind === 'lapidaries') return 'handyman';
+  return 'storefront';
+}
+
+function directoryTabLabel(kinds: BusinessKind[]): string {
+  if (kinds.length === 1) {
+    if (kinds[0] === 'traders') return 'Traders';
+    if (kinds[0] === 'lapidaries') return 'Lapidaries';
+    if (kinds[0] === 'labs') return 'Labs';
+  }
+  return 'GemFort';
+}
+
+function directorySearchPlaceholder(kinds: BusinessKind[]): string {
+  if (kinds.length === 1 && kinds[0] === 'traders') return 'Search traders…';
+  if (kinds.length === 1 && kinds[0] === 'lapidaries') return 'Search lapidaries…';
+  if (kinds.length === 1 && kinds[0] === 'labs') return 'Search labs…';
+  return 'Search traders, labs, lapidaries…';
 }
 
 function SearchBox({
@@ -125,6 +166,9 @@ function ContactRow({
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
+  const gemfortBadge = contact.linkedBusinessName
+    ? `On GemFort · ${contact.linkedBusinessType?.replace(/_/g, ' ') ?? 'profile'}`
+    : null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -140,13 +184,21 @@ function ContactRow({
       ]}>
       <ContactAvatar name={contact.displayName} photoUrl={contact.photoUrl} size={40} />
       <View style={styles.rowBody}>
-        <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={1}>
-          {contact.displayName}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
+            {contact.displayName}
+          </Text>
+          {contact.linkedBusinessId ? (
+            <Icon name="verified" size={16} color={colors.accent} />
+          ) : null}
+        </View>
         <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-          {[contact.companyName, contact.phone ?? contact.whatsapp]
-            .filter(Boolean)
-            .join(' · ') || (contact.contactTypes ?? []).join(', ') || 'Contact'}
+          {gemfortBadge ??
+            ([contact.companyName, contact.phone ?? contact.whatsapp]
+              .filter(Boolean)
+              .join(' · ') ||
+              (contact.contactTypes ?? []).join(', ') ||
+              'Contact')}
         </Text>
       </View>
       {selected ? <Icon name="check-circle" size={22} color={colors.primary} /> : null}
@@ -154,17 +206,21 @@ function ContactRow({
   );
 }
 
-function ProviderRow({
+function BusinessRow({
   business,
   selected,
   onPress,
+  linkedContact,
 }: {
   business: Business;
   selected: boolean;
   onPress: () => void;
+  linkedContact?: Contact | null;
 }) {
   const { colors } = useAppTheme();
-  const role = providerRoleLabel(business);
+  const role = roleLabelForBusiness(business);
+  const phone =
+    business.contacts?.phone?.value ?? business.contacts?.whatsapp?.value ?? null;
   return (
     <Pressable
       accessibilityRole="button"
@@ -178,15 +234,15 @@ function ProviderRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <View style={[styles.avatar, { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' }]}>
+      <View
+        style={[
+          styles.avatar,
+          { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' },
+        ]}>
         {business.logoUrl ? (
           <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
         ) : (
-          <Icon
-            name={role === ROLE_LABELS.gem_lab ? 'workspace-premium' : 'handyman'}
-            size={20}
-            color={colors.primary}
-          />
+          <Icon name={directoryIcon(business)} size={20} color={colors.primary} />
         )}
       </View>
       <View style={styles.rowBody}>
@@ -201,6 +257,7 @@ function ProviderRow({
         <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
           {role}
           {business.city ? ` · ${business.city}` : ''}
+          {linkedContact ? ' · in Contacts' : phone ? ` · ${phone}` : ''}
         </Text>
       </View>
       {selected ? <Icon name="check-circle" size={22} color={colors.primary} /> : null}
@@ -239,11 +296,7 @@ export function ContactPickerSheet({
   }
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={closeSheet}
-      title={title}
-      scrollable={false}>
+    <BottomSheet visible={visible} onClose={closeSheet} title={title} scrollable={false}>
       <SearchBox
         value={query}
         onChange={setQuery}
@@ -319,97 +372,141 @@ export function ContactPickerSheet({
   );
 }
 
-type TabId = 'providers' | 'contacts';
-
-/** Provider picker: GemFort Labs/Lapidaries + saved Contacts. */
-export function ProviderPickerSheet({
+/**
+ * Unified party picker: GemFort directory (traders / labs / lapidaries)
+ * + local Contacts. Directory kinds are filtered per flow.
+ */
+export function PartyPickerSheet({
   visible,
   onClose,
-  contacts,
+  contacts: contactsProp,
   value,
   onSelect,
-  title = 'Select provider',
+  title = 'Select',
+  allowedBusinessKinds = [],
   contactTypeFilter = null,
-  emptyContactsHint = 'Add a provider contact in Workspace → Contacts.',
-}: ProviderPickerSheetProps) {
+  emptyContactsHint = 'Add a contact in Workspace → Contacts.',
+  preferBusinesses = true,
+}: PartyPickerSheetProps) {
   const { colors } = useAppTheme();
-  const [tab, setTab] = useState<TabId>('providers');
+  const showDirectory = allowedBusinessKinds.length > 0;
+  const [tab, setTab] = useState<TabId>(
+    showDirectory && preferBusinesses ? 'directory' : 'contacts',
+  );
   const [query, setQuery] = useState('');
+  const [contacts, setContacts] = useState(contactsProp);
   const debouncedQuery = useDebouncedValue(query, 300);
 
-  const { data: providers = [], isLoading } = useQuery({
-    queryKey: ['service-providers'],
+  useEffect(() => {
+    setContacts(contactsProp);
+  }, [contactsProp]);
+
+  useEffect(() => {
+    if (visible && showDirectory) {
+      setTab(preferBusinesses ? 'directory' : 'contacts');
+    } else if (visible) {
+      setTab('contacts');
+    }
+  }, [visible, showDirectory, preferBusinesses]);
+
+  const { data: businesses = [], isLoading } = useQuery({
+    queryKey: ['party-picker-businesses', allowedBusinessKinds.join(',')],
     queryFn: async () => {
       if (!isFirebaseConfigured) return [];
       const all = await fetchBusinesses();
-      return all.filter((b) => {
-        const tabKind = directoryTabFromBusinessType(b.businessType);
-        return tabKind === 'lapidaries' || tabKind === 'labs' || !!b.providerProfile || !!b.labProfile;
-      });
+      return filterBusinessesByKinds(all, allowedBusinessKinds);
     },
-    enabled: visible,
+    enabled: visible && showDirectory,
   });
 
-  const filteredProviders = useMemo(() => {
+  useEffect(() => {
+    if (!visible || !showDirectory || businesses.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const synced = await syncContactBusinessLinks(contactsProp, businesses);
+      if (!cancelled) setContacts(synced);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, showDirectory, businesses, contactsProp]);
+
+  const filteredBusinesses = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    return providers.filter((b) => businessMatches(b, q));
-  }, [providers, debouncedQuery]);
+    return businesses.filter((b) => businessMatches(b, q));
+  }, [businesses, debouncedQuery]);
 
   const filteredContacts = useMemo(
     () => filterContacts(contacts, debouncedQuery, contactTypeFilter),
     [contacts, debouncedQuery, contactTypeFilter],
   );
 
-  const tabs: { id: TabId; label: string; icon: IconName }[] = [
-    { id: 'providers', label: 'Providers', icon: 'storefront' },
-    { id: 'contacts', label: 'Contacts', icon: 'contacts' },
-  ];
+  const contactByBusinessId = useMemo(() => {
+    const map = new Map<string, Contact>();
+    for (const c of contacts) {
+      if (c.linkedBusinessId) map.set(c.linkedBusinessId, c);
+    }
+    return map;
+  }, [contacts]);
+
+  const tabs: { id: TabId; label: string; icon: IconName }[] = showDirectory
+    ? [
+        {
+          id: 'directory',
+          label: directoryTabLabel(allowedBusinessKinds),
+          icon: 'storefront',
+        },
+        { id: 'contacts', label: 'Contacts', icon: 'contacts' },
+      ]
+    : [{ id: 'contacts', label: 'Contacts', icon: 'contacts' }];
+
+  function closeSheet() {
+    setQuery('');
+    onClose();
+  }
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={() => {
-        setQuery('');
-        onClose();
-      }}
-      title={title}
-      scrollable={false}>
-      <View style={[styles.tabs, { backgroundColor: colors.surfaceContainerLow }]}>
-        {tabs.map((t) => {
-          const active = tab === t.id;
-          return (
-            <Pressable
-              key={t.id}
-              onPress={() => setTab(t.id)}
-              style={[styles.tabBtn, active && { backgroundColor: colors.primary }]}>
-              <Icon
-                name={t.icon}
-                size={16}
-                color={active ? colors.onPrimary : colors.onSurfaceVariant}
-              />
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                ]}>
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+    <BottomSheet visible={visible} onClose={closeSheet} title={title} scrollable={false}>
+      {showDirectory ? (
+        <View style={[styles.tabs, { backgroundColor: colors.surfaceContainerLow }]}>
+          {tabs.map((t) => {
+            const active = tab === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => setTab(t.id)}
+                style={[styles.tabBtn, active && { backgroundColor: colors.primary }]}>
+                <Icon
+                  name={t.icon}
+                  size={16}
+                  color={active ? colors.onPrimary : colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.tabText,
+                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
+                  ]}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
 
       <SearchBox
         value={query}
         onChange={setQuery}
         placeholder={
-          tab === 'providers' ? 'Search labs & lapidaries…' : 'Search your contacts…'
+          tab === 'directory'
+            ? directorySearchPlaceholder(allowedBusinessKinds)
+            : 'Search your contacts…'
         }
       />
 
-      {tab === 'providers' ? (
+      {tab === 'directory' && showDirectory ? (
         <FlatList
-          data={filteredProviders}
+          data={filteredBusinesses}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
           style={styles.list}
@@ -418,30 +515,40 @@ export function ProviderPickerSheet({
           ListEmptyComponent={
             <EmptyState
               icon="storefront"
-              title={isLoading ? 'Loading…' : providers.length === 0 ? 'No providers yet' : 'No matches'}
+              title={
+                isLoading
+                  ? 'Loading…'
+                  : businesses.length === 0
+                    ? 'No profiles yet'
+                    : 'No matches'
+              }
               subtitle={
                 isLoading
-                  ? 'Fetching verified labs and lapidaries.'
-                  : 'Verified GemFort labs and lapidaries appear here.'
+                  ? 'Fetching verified GemFort profiles.'
+                  : 'Verified profiles appear here. Matched 1:1 with contacts by phone.'
               }
             />
           }
-          renderItem={({ item }) => (
-            <ProviderRow
-              business={item}
-              selected={value?.source === 'business' && value.businessId === item.id}
-              onPress={() => {
-                onSelect({
-                  source: 'business',
-                  businessId: item.id,
-                  label: item.businessName,
-                  businessType: item.businessType,
-                });
-                setQuery('');
-                onClose();
-              }}
-            />
-          )}
+          renderItem={({ item }) => {
+            const linked = contactByBusinessId.get(item.id) ?? null;
+            return (
+              <BusinessRow
+                business={item}
+                linkedContact={linked}
+                selected={value?.source === 'business' && value.businessId === item.id}
+                onPress={() => {
+                  onSelect({
+                    source: 'business',
+                    businessId: item.id,
+                    label: item.businessName,
+                    businessType: item.businessType,
+                    linkedContactId: linked?.id ?? null,
+                  });
+                  closeSheet();
+                }}
+              />
+            );
+          }}
         />
       ) : (
         <FlatList
@@ -467,15 +574,30 @@ export function ProviderPickerSheet({
                   source: 'contact',
                   contactId: item.id,
                   label: item.displayName,
+                  linkedBusinessId: item.linkedBusinessId,
                 });
-                setQuery('');
-                onClose();
+                closeSheet();
               }}
             />
           )}
         />
       )}
     </BottomSheet>
+  );
+}
+
+/** Alias — services use lapidaries + contacts by default. */
+export function ProviderPickerSheet(
+  props: Omit<PartyPickerSheetProps, 'allowedBusinessKinds'> & {
+    allowedBusinessKinds?: BusinessKind[];
+  },
+) {
+  return (
+    <PartyPickerSheet
+      {...props}
+      allowedBusinessKinds={props.allowedBusinessKinds ?? ['lapidaries']}
+      title={props.title ?? 'Select provider'}
+    />
   );
 }
 
@@ -604,7 +726,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarImg: { width: '100%', height: '100%' },
-  avatarText: { ...Typography.labelMd, fontWeight: '700' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { ...Typography.labelMd, fontWeight: '700' },

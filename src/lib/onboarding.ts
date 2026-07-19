@@ -10,3 +10,7 @@ export async function hasCompletedOnboarding(): Promise<boolean> {
 export async function markOnboardingComplete(): Promise<void> {
   await SecureStore.setItemAsync(ONBOARDING_KEY, '1');
 }
+
+export async function clearOnboardingState(): Promise<void> {
+  await SecureStore.deleteItemAsync(ONBOARDING_KEY);
+}

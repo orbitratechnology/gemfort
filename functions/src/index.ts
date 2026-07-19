@@ -1,5 +1,14 @@
 export { dailyGemTrackNotifications } from './gemtrack/daily';
 export { onChequeBounced } from './gemtrack/cheque-bounced';
+export {
+  createApRequest,
+  respondApRequest,
+  cancelApRequest,
+  recordApGemSale,
+  returnApGem,
+  apPaymentSent,
+  apPaymentReceived,
+} from './gemtrack/ap-lifecycle';
 
 export { onAnnouncementPublished } from './gemnet/announcement';
 export { onVerificationStatusChanged } from './gemnet/verification';
@@ -13,3 +22,8 @@ export {
 } from './gemnet/requests';
 
 export { onNotificationCreated } from './notifications/on-created';
+
+export { deleteMyAccount, onAuthUserDeleted } from './account/delete-account';
+
+export { syncGemNews, runNewsSyncNow } from './news/sync-gem-news';
+export { syncExhibitions } from './news/sync-exhibitions';

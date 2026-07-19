@@ -1,6 +1,8 @@
+import DateTimePicker from '@expo/ui/community/datetime-picker';
+import { format, subYears } from 'date-fns';
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -8,23 +10,34 @@ import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
-import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
-import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
+import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
+import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
+import {
+  fetchBusinessByOwnerUid,
+  updateBusinessProfile,
+} from '@/features/marketplace/marketplace-service';
 import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { friendlyError } from '@/lib/errors';
 import {
   extensionForMedia,
   uploadLocalMedia,
   type LocalMedia,
 } from '@/lib/firebase/storage-service';
+import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
 
 const STEPS = ['Documents', 'Review'];
+
+function parseIsoDate(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export default function VerifyApplicationScreen() {
   const { user, profile, refreshProfile } = useAuth();
@@ -33,6 +46,18 @@ export default function VerifyApplicationScreen() {
   const role = resolveProfileRole(profile);
   const needsTradeDocs = role === 'trader' || role === 'gem_lab';
   const isLapidary = role === 'lapidary';
+
+  const maxDob = useMemo(() => new Date(), []);
+  const minDob = useMemo(() => subYears(new Date(), 120), []);
+
+  const [businessName, setBusinessName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState(
+    () => profile?.dateOfBirth ?? '',
+  );
+  const [showDobPicker, setShowDobPicker] = useState(false);
+  const [applicantErrors, setApplicantErrors] = useState<Record<string, string>>(
+    {},
+  );
 
   const [brNumber, setBrNumber] = useState('');
   const [gemLicenseNumber, setGemLicenseNumber] = useState('');
@@ -43,14 +68,42 @@ export default function VerifyApplicationScreen() {
   const [licensePhoto, setLicensePhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const dobDate = parseIsoDate(dateOfBirth) ?? maxDob;
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void fetchBusinessByOwnerUid(user.uid).then((business) => {
+      if (cancelled || !business?.businessName) return;
+      setBusinessName((prev) => prev || business.businessName);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   function toggleService(id: string) {
-    setServicesOffered((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+    setServicesOffered((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
   }
 
   if (!user) return <Redirect href="/(auth)/login" />;
 
   async function handleSubmit() {
     if (!user) return;
+
+    const applicant = parseForm(verificationApplicantSchema, {
+      dateOfBirth,
+      businessName,
+    });
+    if (!applicant.success) {
+      setApplicantErrors(applicant.errors);
+      toast.error('Date of birth and business/company name are required.');
+      return;
+    }
+    setApplicantErrors({});
+
     if (needsTradeDocs) {
       if (!brNumber.trim() || !gemLicenseNumber.trim() || !tinNumber.trim()) {
         toast.error('BR number, Gem License, and TIN are required.');
@@ -96,9 +149,17 @@ export default function VerifyApplicationScreen() {
       }
 
       const business = await fetchBusinessByOwnerUid(user.uid);
+      if (business && business.businessName.trim() !== applicant.data.businessName) {
+        await updateBusinessProfile(business.id, {
+          businessName: applicant.data.businessName,
+        });
+      }
+
       await submitVerificationApplication(user.uid, {
         businessId: business?.id ?? 'pending',
         applicationType: role === 'admin' ? 'trader' : role,
+        dateOfBirth: applicant.data.dateOfBirth,
+        businessName: applicant.data.businessName,
         servicesOffered: isLapidary ? servicesOffered : [],
         documents: {
           brNumber: brNumber.trim() || null,
@@ -163,6 +224,88 @@ export default function VerifyApplicationScreen() {
           </View>
         </FormSection>
 
+        <FormSectionLabel title="APPLICANT DETAILS" />
+        <FormSection>
+          <View style={styles.fields}>
+            <Input
+              label="Business / company name"
+              value={businessName}
+              onChangeText={(v) => {
+                setBusinessName(v);
+                setApplicantErrors((prev) => ({ ...prev, businessName: '' }));
+              }}
+              leftIcon="business"
+              placeholder="Legal business or company name"
+              autoCapitalize="words"
+              error={applicantErrors.businessName}
+            />
+
+            <View style={styles.dobBlock}>
+              <Text style={[styles.dobLabel, { color: colors.textSecondary }]}>
+                Date of birth
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose date of birth"
+                onPress={() => setShowDobPicker(true)}
+                style={[
+                  styles.dobField,
+                  {
+                    backgroundColor: colors.surfaceMuted,
+                    borderColor: applicantErrors.dateOfBirth
+                      ? colors.error
+                      : colors.border,
+                  },
+                ]}>
+                <Icon
+                  name="cake"
+                  size={20}
+                  color={applicantErrors.dateOfBirth ? colors.error : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.dobValue,
+                    {
+                      color: dateOfBirth ? colors.text : colors.textMuted,
+                    },
+                  ]}>
+                  {dateOfBirth
+                    ? format(dobDate, 'd MMM yyyy')
+                    : 'Select date of birth'}
+                </Text>
+              </Pressable>
+              {applicantErrors.dateOfBirth ? (
+                <Text style={[styles.dobError, { color: colors.error }]}>
+                  {applicantErrors.dateOfBirth}
+                </Text>
+              ) : (
+                <Text style={[styles.dobHelper, { color: colors.textMuted }]}>
+                  Required for verification.
+                </Text>
+              )}
+            </View>
+
+            {showDobPicker ? (
+              <DateTimePicker
+                value={dobDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                presentation="dialog"
+                maximumDate={maxDob}
+                minimumDate={minDob}
+                onValueChange={(_event, selected) => {
+                  if (selected) {
+                    setDateOfBirth(format(selected, 'yyyy-MM-dd'));
+                    setApplicantErrors((prev) => ({ ...prev, dateOfBirth: '' }));
+                  }
+                  setShowDobPicker(false);
+                }}
+                onDismiss={() => setShowDobPicker(false)}
+              />
+            ) : null}
+          </View>
+        </FormSection>
+
         {isLapidary ? (
           <>
             <FormSectionLabel title="SERVICES" />
@@ -179,7 +322,9 @@ export default function VerifyApplicationScreen() {
                       style={[
                         styles.serviceChip,
                         {
-                          backgroundColor: active ? colors.primary : colors.surfaceContainerLow,
+                          backgroundColor: active
+                            ? colors.primary
+                            : colors.surfaceContainerLow,
                           borderColor: active ? colors.primary : colors.outlineVariant,
                         },
                       ]}>
@@ -286,6 +431,22 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   roleBannerText: { ...Typography.labelMd, fontWeight: '600' },
+  fields: { gap: Spacing.lg },
+  dobBlock: { gap: 6 },
+  dobLabel: { ...Typography.labelMd },
+  dobField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1.5,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    paddingHorizontal: Spacing.gutterMd,
+    minHeight: 52,
+  },
+  dobValue: { ...Typography.bodyLg, flex: 1 },
+  dobError: { ...Typography.labelMd },
+  dobHelper: { ...Typography.bodyMd },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,

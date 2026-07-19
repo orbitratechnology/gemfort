@@ -180,7 +180,7 @@ export default function AddServiceScreen() {
                 ? 'Saved contact'
                 : null
           }
-          placeholder="Search labs, lapidaries, or contacts…"
+          placeholder="Search lapidaries or contacts…"
           icon="handyman"
           onPress={() => setProviderSheetOpen(true)}
           error={errors.provider}
@@ -211,6 +211,7 @@ export default function AddServiceScreen() {
         onClose={() => setProviderSheetOpen(false)}
         contacts={contacts}
         value={provider}
+        allowedBusinessKinds={['lapidaries']}
         contactTypeFilter={null}
         onSelect={(selection) => {
           setProvider(selection);

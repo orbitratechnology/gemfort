@@ -299,6 +299,14 @@ export default function ProfileScreen() {
           <FormSection padded={false}>
             <Row
               colors={colors}
+              icon="manage-accounts"
+              label="Account settings"
+              subtitle="Password & delete account"
+              onPress={() => router.push("/profile/account" as Href)}
+            />
+            <Divider colors={colors} />
+            <Row
+              colors={colors}
               icon="help-outline"
               label="Help Center"
               onPress={() => Linking.openURL("mailto:support@gemfort.app")}
