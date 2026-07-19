@@ -5,13 +5,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { CallLogRow } from "@/components/workspace/call-log-row";
+import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import type { ThemeColors } from "@/constants/design-tokens";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import {
+    Radius,
+    Spacing,
+    TouchTarget,
+    Typography,
+} from "@/constants/design-tokens";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import {
-    fetchIncomingCertRequests,
     fetchIncomingServiceRequests,
     fetchLabCertificates,
     fetchLapidaryJobs,
@@ -41,15 +47,24 @@ import { useAuth } from "@/providers/auth-provider";
 
 const WORKSPACE = "/(marketplace)/(tabs)/workspace";
 
+type ModuleGroupId = "inventory" | "money" | "people";
+
 type ModuleItem = {
   label: string;
   value: number;
   icon: IconName;
   route: string;
+  group: ModuleGroupId;
   hint?: string;
   /** Red badge count on the module icon (e.g. missed calls). */
   badgeCount?: number;
 };
+
+const MODULE_GROUPS: { id: ModuleGroupId; title: string }[] = [
+  { id: "inventory", title: "Inventory & work" },
+  { id: "money", title: "Money" },
+  { id: "people", title: "People" },
+];
 
 type AlertItem = {
   id: string;
@@ -139,12 +154,6 @@ export default function WorkspaceHub() {
     enabled: !!userId && role === "lapidary",
   });
 
-  const { data: incomingCertRequests = [] } = useQuery({
-    queryKey: ["incoming-cert-requests", userId],
-    queryFn: () => fetchIncomingCertRequests(userId!),
-    enabled: !!userId && role === "gem_lab",
-  });
-
   const showContacts = role === "trader" || role === "admin";
   const { logs: recentCalls } = useMatchedCallLogs({
     enabled: !!userId && showContacts,
@@ -183,6 +192,12 @@ export default function WorkspaceHub() {
   const chequeSummary = getChequeSummary(cheques);
   const { active: activeTrips } = getTripsByStatus(trips);
   const ongoingTrips = trips.filter((t) => t.status === "ongoing");
+  const takenPendingAp = apRecords.filter(
+    (a) => a.status === "pending" && a.receiverUid === userId,
+  );
+  const givenPaymentSentAp = apRecords.filter(
+    (a) => a.status === "payment_sent" && a.senderUid === userId,
+  );
 
   const { income: monthIncome, expense: monthExpense } =
     getMonthTotals(transactions);
@@ -210,6 +225,7 @@ export default function WorkspaceHub() {
       value: gems.length,
       icon: "diamond",
       route: `${WORKSPACE}/gems`,
+      group: "inventory",
       hint: readyGems > 0 ? `${readyGems} ready` : undefined,
     },
     {
@@ -217,6 +233,7 @@ export default function WorkspaceHub() {
       value: jobs.length,
       icon: "construction",
       route: `${WORKSPACE}/jobs`,
+      group: "inventory",
       hint:
         incomingServiceRequests.filter((r) => r.status === "pending").length > 0
           ? `${incomingServiceRequests.filter((r) => r.status === "pending").length} new`
@@ -227,6 +244,7 @@ export default function WorkspaceHub() {
       value: services.length,
       icon: "handyman",
       route: `${WORKSPACE}/services`,
+      group: "inventory",
       hint: inService > 0 ? `${inService} out` : undefined,
     },
     {
@@ -234,16 +252,14 @@ export default function WorkspaceHub() {
       value: certificates.length,
       icon: "workspace-premium",
       route: `${WORKSPACE}/certificates`,
-      hint:
-        incomingCertRequests.filter((r) => r.status === "pending").length > 0
-          ? `${incomingCertRequests.filter((r) => r.status === "pending").length} requests`
-          : undefined,
+      group: "inventory",
     },
     {
       label: "Trips",
       value: activeTrips.length,
       icon: "flight",
       route: `${WORKSPACE}/trips`,
+      group: "inventory",
       hint: ongoingTrips.length > 0 ? `${ongoingTrips.length} live` : undefined,
     },
     {
@@ -251,13 +267,22 @@ export default function WorkspaceHub() {
       value: apRecords.length,
       icon: "hourglass-empty",
       route: `${WORKSPACE}/ap`,
-      hint: overdueAp.length > 0 ? `${overdueAp.length} overdue` : undefined,
+      group: "money",
+      hint:
+        takenPendingAp.length > 0
+          ? `${takenPendingAp.length} to accept`
+          : givenPaymentSentAp.length > 0
+            ? `${givenPaymentSentAp.length} to confirm`
+            : overdueAp.length > 0
+              ? `${overdueAp.length} overdue`
+              : undefined,
     },
     {
       label: "Cheques",
       value: chequeSummary.holdingCount,
       icon: "money-check-dollar",
       route: `${WORKSPACE}/cheques`,
+      group: "money",
       hint:
         maturingCheques.length > 0
           ? `${maturingCheques.length} due`
@@ -268,14 +293,9 @@ export default function WorkspaceHub() {
       value: contacts.length,
       icon: "group",
       route: `${WORKSPACE}/contacts`,
+      group: "people",
       hint: missedCallCount > 0 ? `${missedCallCount} missed` : undefined,
       badgeCount: missedCallCount > 0 ? missedCallCount : undefined,
-    },
-    {
-      label: "Requests",
-      value: 0,
-      icon: "outgoing-mail",
-      route: `${WORKSPACE}/requests`,
     },
   ];
 
@@ -289,10 +309,14 @@ export default function WorkspaceHub() {
     if (m.label === "Trips") return canAccessModule(role, "trips");
     if (m.label === "AP") return canAccessModule(role, "ap");
     if (m.label === "Cheques") return canAccessModule(role, "cheques");
-    if (m.label === "Requests") return canAccessModule(role, "requests");
     if (m.label === "Contacts") return role === "trader" || role === "admin";
     return true;
   });
+
+  const moduleGroups = MODULE_GROUPS.map((g) => ({
+    ...g,
+    items: modules.filter((m) => m.group === g.id),
+  })).filter((g) => g.items.length > 0);
 
   const actions: {
     label: string;
@@ -309,9 +333,9 @@ export default function WorkspaceHub() {
             primary: true,
           },
           {
-            label: "Requests",
-            icon: "inbox",
-            route: `${WORKSPACE}/certificates`,
+            label: "Verify",
+            icon: "verified",
+            route: "/verify-certificate",
           },
         ]
       : role === "lapidary"
@@ -353,6 +377,22 @@ export default function WorkspaceHub() {
           ];
 
   const alerts: AlertItem[] = [
+    ...takenPendingAp.map((a) => ({
+      id: `ap-pending-${a.id}`,
+      title: "AP request to accept",
+      subtitle: `From ${a.senderName} · ${a.items?.length || 1} gem(s)`,
+      icon: "hourglass-empty" as const,
+      tone: "warning" as const,
+      route: `${WORKSPACE}/ap/${a.id}`,
+    })),
+    ...givenPaymentSentAp.map((a) => ({
+      id: `ap-pay-${a.id}`,
+      title: "Confirm AP payment",
+      subtitle: `From ${a.receiverName} · #${a.id.slice(0, 6)}`,
+      icon: "payments" as const,
+      tone: "info" as const,
+      route: `${WORKSPACE}/ap/${a.id}`,
+    })),
     ...overdueAp.map((a) => ({
       id: `ap-${a.id}`,
       title: "AP stone overdue",
@@ -377,16 +417,10 @@ export default function WorkspaceHub() {
       tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
     })),
-    ...ongoingTrips.map((t) => ({
-      id: `trip-${t.id}`,
-      title: "Trip in progress",
-      subtitle: `${t.tripName} · ${t.destinationCity}`,
-      icon: "flight" as const,
-      tone: "success" as const,
-      route: `${WORKSPACE}/trips/${t.id}`,
-    })),
   ];
 
+  const showRequests = canAccessModule(role, "requests");
+  const showNeedsAttention = alerts.length > 0;
   const showGemsHero = canAccessModule(role, "gems");
   const showJobsHero = canAccessModule(role, "jobs");
   const showCertsHero = canAccessModule(role, "certificates");
@@ -434,6 +468,43 @@ export default function WorkspaceHub() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
+      <StackHeader
+        title="Workspace"
+        showBack={false}
+        right={
+          showRequests ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Requests"
+              onPress={() => router.push(`${WORKSPACE}/requests` as never)}
+              style={({ pressed }) => [
+                styles.headerIconBtn,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Icon
+                name="outgoing-mail"
+                size={20}
+                color={colors.onSurfaceVariant}
+              />
+            </Pressable>
+          ) : null
+        }
+      />
+      <ActiveProgressStrip
+        trips={trips}
+        apRecords={apRecords}
+        cheques={cheques}
+        contactName={(id) =>
+          contacts.find((c) => c.id === id)?.displayName ?? "Contact"
+        }
+        limit={4}
+        compact
+        style={styles.headerTripWrap}
+      />
       <ThemedScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -544,11 +615,7 @@ export default function WorkspaceHub() {
                 <Text
                   style={[styles.heroPillText, { color: colors.onPrimary }]}
                 >
-                  {
-                    incomingCertRequests.filter((r) => r.status === "pending")
-                      .length
-                  }{" "}
-                  open requests
+                  Public verification
                 </Text>
               </View>
             ) : null}
@@ -620,107 +687,183 @@ export default function WorkspaceHub() {
           </View>
         </View>
 
-        {/* Modules — full-bleed grid */}
-        <View style={styles.moduleSection}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              styles.moduleSectionTitle,
-              { color: colors.onSurface },
-            ]}
-          >
-            Modules
-          </Text>
-          <View
-            style={[
-              styles.moduleGrid,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            {modules.map((m, index) => {
-              const col = index % 3;
-              const rowCount = Math.ceil(modules.length / 3);
-              const row = Math.floor(index / 3);
-              const showRightRule = col < 2;
-              const showBottomRule = row < rowCount - 1;
-              return (
-                <Pressable
-                  key={m.label}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${m.label}, ${m.value}${m.hint ? `, ${m.hint}` : ""}`}
-                  onPress={() => router.push(m.route as never)}
-                  style={({ pressed }) => [
-                    styles.moduleTile,
-                    showRightRule && {
-                      borderRightWidth: StyleSheet.hairlineWidth,
-                      borderRightColor: colors.outlineVariant,
-                    },
-                    showBottomRule && {
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: colors.outlineVariant,
-                    },
-                    pressed && { backgroundColor: colors.surfaceContainerLow },
+        {/* Needs attention — above Inventory */}
+        {showNeedsAttention ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: colors.onSurface, marginBottom: 0 },
+                ]}
+              >
+                Needs attention
+              </Text>
+              <View
+                style={[
+                  styles.countPill,
+                  { backgroundColor: colors.errorContainer },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countPillText,
+                    { color: colors.onErrorContainer },
                   ]}
                 >
-                  <View style={styles.moduleTopRow}>
-                    <View style={styles.moduleIconWrap}>
-                      <View
-                        style={[
-                          styles.moduleIcon,
-                          { backgroundColor: colors.primaryContainer },
-                        ]}
-                      >
-                        <Icon
-                          name={m.icon}
-                          size={22}
-                          color={colors.onPrimaryContainer}
-                        />
-                      </View>
-                      {m.badgeCount && m.badgeCount > 0 ? (
-                        <View
-                          style={[
-                            styles.moduleBadge,
-                            { backgroundColor: colors.error },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.moduleBadgeText,
-                              { color: colors.onError },
-                            ]}
-                          >
-                            {m.badgeCount > 99 ? "99+" : m.badgeCount}
-                          </Text>
-                        </View>
-                      ) : null}
+                  {alerts.length}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.alertList}>
+              {alerts.map((alert) => {
+                const tone = toneColors(alert.tone, colors);
+                return (
+                  <Pressable
+                    key={alert.id}
+                    onPress={() => router.push(alert.route as never)}
+                    style={({ pressed }) => [
+                      styles.alertRow,
+                      {
+                        backgroundColor: pressed
+                          ? colors.surfaceContainerLow
+                          : colors.surfaceContainerLowest,
+                        transform: [{ scale: pressed ? 0.985 : 1 }],
+                        boxShadow: pressed
+                          ? "0 1px 4px rgba(15, 118, 110, 0.04)"
+                          : "0 2px 12px rgba(15, 118, 110, 0.06)",
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[styles.alertIcon, { backgroundColor: tone.bg }]}
+                    >
+                      <Icon name={alert.icon} size={18} color={tone.fg} />
                     </View>
-                    <Text
-                      style={[styles.moduleValue, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {m.value}
-                    </Text>
-                  </View>
-                  <View style={styles.moduleNameBlock}>
-                    <Text
-                      style={[styles.moduleLabel, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {m.label}
-                    </Text>
-                    {m.hint ? (
+                    <View style={styles.alertText}>
                       <Text
-                        style={[styles.moduleHint, { color: colors.primary }]}
+                        style={[styles.alertTitle, { color: colors.onSurface }]}
+                      >
+                        {alert.title}
+                      </Text>
+                      <Text
+                        style={[styles.alertSub, { color: colors.textMuted }]}
                         numberOfLines={1}
                       >
-                        {m.hint}
+                        {alert.subtitle}
                       </Text>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })}
+                    </View>
+                    <Icon
+                      name="chevron-right"
+                      size={20}
+                      color={colors.outline}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
+        ) : null}
+
+        {/* Modules — grouped 2-col cards */}
+        <View style={styles.moduleSection}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            Modules
+          </Text>
+
+          {moduleGroups.map((group) => (
+            <View key={group.id} style={styles.moduleGroup}>
+              <Text
+                style={[styles.moduleGroupTitle, { color: colors.textMuted }]}
+              >
+                {group.title}
+              </Text>
+              <View style={styles.moduleGrid}>
+                {group.items.map((m) => (
+                  <Pressable
+                    key={m.label}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${m.label}, ${m.value}${m.hint ? `, ${m.hint}` : ""}`}
+                    onPress={() => router.push(m.route as never)}
+                    style={({ pressed }) => [
+                      styles.moduleTile,
+                      {
+                        backgroundColor: pressed
+                          ? colors.surfaceContainerLow
+                          : colors.surfaceContainerLowest,
+                        transform: [{ scale: pressed ? 0.97 : 1 }],
+                        boxShadow: pressed
+                          ? "0 1px 4px rgba(15, 118, 110, 0.04)"
+                          : "0 2px 12px rgba(15, 118, 110, 0.06)",
+                      },
+                    ]}
+                  >
+                    <View style={styles.moduleTopRow}>
+                      <View style={styles.moduleIconWrap}>
+                        <View
+                          style={[
+                            styles.moduleIcon,
+                            { backgroundColor: colors.primaryContainer },
+                          ]}
+                        >
+                          <Icon
+                            name={m.icon}
+                            size={24}
+                            color={colors.onPrimaryContainer}
+                          />
+                        </View>
+                        {m.badgeCount && m.badgeCount > 0 ? (
+                          <View
+                            style={[
+                              styles.moduleBadge,
+                              { backgroundColor: colors.error },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.moduleBadgeText,
+                                { color: colors.onError },
+                              ]}
+                            >
+                              {m.badgeCount > 99 ? "99+" : m.badgeCount}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[
+                          styles.moduleValue,
+                          { color: colors.onSurface },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {m.value}
+                      </Text>
+                    </View>
+                    <View style={styles.moduleNameBlock}>
+                      <Text
+                        style={[
+                          styles.moduleLabel,
+                          { color: colors.onSurface },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {m.label}
+                      </Text>
+                      {m.hint ? (
+                        <Text
+                          style={[styles.moduleHint, { color: colors.primary }]}
+                          numberOfLines={1}
+                        >
+                          {m.hint}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
 
         {/* Operations overview */}
@@ -1086,79 +1229,6 @@ export default function WorkspaceHub() {
             </View>
           </View>
         ) : null}
-
-        {/* Alerts */}
-        {alerts.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: colors.onSurface, marginBottom: 0 },
-                ]}
-              >
-                Needs attention
-              </Text>
-              <View
-                style={[
-                  styles.countPill,
-                  { backgroundColor: colors.errorContainer },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.countPillText,
-                    { color: colors.onErrorContainer },
-                  ]}
-                >
-                  {alerts.length}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.alertList}>
-              {alerts.map((alert) => {
-                const tone = toneColors(alert.tone, colors);
-                return (
-                  <Pressable
-                    key={alert.id}
-                    onPress={() => router.push(alert.route as never)}
-                    style={({ pressed }) => [
-                      styles.alertRow,
-                      {
-                        backgroundColor: colors.surfaceContainerLowest,
-                        opacity: pressed ? 0.92 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[styles.alertIcon, { backgroundColor: tone.bg }]}
-                    >
-                      <Icon name={alert.icon} size={18} color={tone.fg} />
-                    </View>
-                    <View style={styles.alertText}>
-                      <Text
-                        style={[styles.alertTitle, { color: colors.onSurface }]}
-                      >
-                        {alert.title}
-                      </Text>
-                      <Text
-                        style={[styles.alertSub, { color: colors.textMuted }]}
-                        numberOfLines={1}
-                      >
-                        {alert.subtitle}
-                      </Text>
-                    </View>
-                    <Icon
-                      name="chevron-right"
-                      size={20}
-                      color={colors.outline}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -1166,9 +1236,21 @@ export default function WorkspaceHub() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+  },
+  headerTripWrap: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.stackMd,
+  },
   content: {
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
     paddingBottom: 120,
     gap: Spacing.sectionGap,
   },
@@ -1236,35 +1318,46 @@ const styles = StyleSheet.create({
   countPillText: { ...Typography.caption, fontWeight: "700" },
 
   moduleSection: {
-    gap: Spacing.stackMd,
-    marginHorizontal: -Spacing.containerMargin,
+    gap: Spacing.lg,
   },
-  moduleSectionTitle: {
-    paddingHorizontal: Spacing.containerMargin,
+  moduleGroup: {
+    gap: Spacing.sm,
+  },
+  moduleGroupTitle: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   moduleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: Spacing.md,
   },
   moduleTile: {
-    width: "33.333%",
-    aspectRatio: 1,
-    padding: 16,
+    width: "48%",
+    flexGrow: 1,
+    minHeight: Math.max(112, TouchTarget.minHeight + 64),
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
     justifyContent: "space-between",
+    gap: Spacing.sm,
   },
   moduleTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 10,
   },
   moduleIconWrap: {
     position: "relative",
   },
   moduleIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
@@ -1273,18 +1366,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -6,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    borderRadius: 9,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   moduleBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
-    lineHeight: 12,
+    lineHeight: 13,
   },
   moduleValue: {
     ...Typography.headlineMdMobile,
@@ -1292,16 +1385,18 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     flexShrink: 1,
     textAlign: "right",
+    fontSize: 28,
+    lineHeight: 32,
   },
   moduleNameBlock: {
     gap: 2,
   },
   moduleLabel: {
-    ...Typography.labelMd,
-    fontWeight: "600",
+    ...Typography.bodyLg,
+    fontWeight: "700",
   },
   moduleHint: {
-    ...Typography.caption,
+    ...Typography.labelMd,
     fontWeight: "600",
   },
 

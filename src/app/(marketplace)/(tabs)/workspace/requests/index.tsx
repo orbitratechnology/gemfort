@@ -10,10 +10,7 @@ import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen
 import { ThemedScrollView } from '@/components/ui/screen';
 import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import {
-  fetchOutgoingCertRequests,
-  fetchOutgoingServiceRequests,
-} from '@/features/marketplace/request-service';
+import { fetchOutgoingServiceRequests } from '@/features/marketplace/request-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -25,12 +22,6 @@ export default function TraderRequestsScreen() {
   const { data: services = [] } = useQuery({
     queryKey: ['outgoing-service-requests', user?.uid],
     queryFn: () => fetchOutgoingServiceRequests(user!.uid),
-    enabled: !!user && canAccessModule(role, 'requests'),
-  });
-
-  const { data: certs = [] } = useQuery({
-    queryKey: ['outgoing-cert-requests', user?.uid],
-    queryFn: () => fetchOutgoingCertRequests(user!.uid),
     enabled: !!user && canAccessModule(role, 'requests'),
   });
 
@@ -50,41 +41,35 @@ export default function TraderRequestsScreen() {
       <StackHeader title="My requests" />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset>
-        <Pressable onPress={() => router.push('/verify-certificate')}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Verify a certificate →</Text>
-        </Pressable>
+          <Pressable onPress={() => router.push('/verify-certificate')}>
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>
+              Verify a certificate →
+            </Text>
+          </Pressable>
+          <Text style={{ color: colors.textMuted, marginTop: 6 }}>
+            Certificates are verified on GemFort against lab uploads — not via lab requests.
+          </Text>
         </ScreenInset>
 
         <FormSectionLabel title="Services" />
         <ScreenInset style={styles.sectionBody}>
-        {services.length === 0 ? (
-          <Text style={{ color: colors.textMuted }}>No service requests yet. Open a lapidary profile to request.</Text>
-        ) : (
-          services.map((r) => (
-            <View key={r.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Text style={[styles.title, { color: colors.primary }]}>{r.gemName}</Text>
-              <Text style={{ color: colors.textMuted }}>
-                {r.serviceTypes.join(', ')} · {r.status}
-              </Text>
-            </View>
-          ))
-        )}
-        </ScreenInset>
-
-        <FormSectionLabel title="Certification" />
-        <ScreenInset style={styles.sectionBody}>
-        {certs.length === 0 ? (
-          <Text style={{ color: colors.textMuted }}>No certification requests yet. Open a gem lab profile to request.</Text>
-        ) : (
-          certs.map((r) => (
-            <View key={r.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Text style={[styles.title, { color: colors.primary }]}>{r.gemName}</Text>
-              <Text style={{ color: colors.textMuted }}>
-                {r.reportType} · {r.status}
-              </Text>
-            </View>
-          ))
-        )}
+          {services.length === 0 ? (
+            <Text style={{ color: colors.textMuted }}>
+              No service requests yet. Open a lapidary profile to request.
+            </Text>
+          ) : (
+            services.map((r) => (
+              <View
+                key={r.id}
+                style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}
+              >
+                <Text style={[styles.title, { color: colors.primary }]}>{r.gemName}</Text>
+                <Text style={{ color: colors.textMuted }}>
+                  {r.serviceTypes.join(', ')} · {r.status}
+                </Text>
+              </View>
+            ))
+          )}
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>

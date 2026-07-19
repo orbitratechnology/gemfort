@@ -647,7 +647,7 @@ export default function ContactDetailScreen() {
                   <Text
                     style={[styles.historyMeta, { color: colors.textMuted }]}
                   >
-                    {formatRelativeTime(a.dateGiven)}
+                    {formatRelativeTime(a.dateGiven ?? a.createdAt)}
                   </Text>
                 </View>
               </View>

@@ -1,15 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
-    FlatList,
-    Image,
-    Linking,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,272 +17,200 @@ import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
 import {
-    type ApHolderGroup,
-    findGemForAp,
-    getApSummary,
-    groupApByHolder,
-    isApOverdue,
-} from "@/features/workspace/ap-utils";
+  apAgreedTotal,
+  apStatusLabel,
+  isApOngoing,
+} from "@/features/workspace/ap-normalize";
 import {
-    fetchApRecords,
-    fetchContacts,
-    fetchGems,
-} from "@/features/workspace/workspace-service";
+  fetchGivenApRecords,
+  fetchTakenApRecords,
+  respondApRequest,
+} from "@/features/workspace/ap-lifecycle-service";
+import { getApSummary, isApOverdue } from "@/features/workspace/ap-utils";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatCurrency, formatRelativeDue, openPhone } from "@/lib/utils";
+import { friendlyError } from "@/lib/errors";
+import { formatCurrency, formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
-import type { WorkspaceGem } from "@/types";
+import { useToast } from "@/providers/toast-provider";
+import type { ApLifecycleStatus, ApRecord } from "@/types";
 
-function holderInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
+type ApSide = "given" | "taken";
+
+type SectionKey =
+  | "pending"
+  | "accepted"
+  | "payment_sent"
+  | "done"
+  | "closed";
+
+const SECTION_ORDER: SectionKey[] = [
+  "pending",
+  "accepted",
+  "payment_sent",
+  "done",
+  "closed",
+];
+
+const SECTION_TITLE: Record<SectionKey, string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  payment_sent: "Payment sent",
+  done: "Done",
+  closed: "Rejected / Cancelled",
+};
+
+function sectionFor(status: ApLifecycleStatus): SectionKey {
+  if (status === "pending") return "pending";
+  if (isApOngoing(status)) return "accepted";
+  if (status === "payment_sent" || status === "sold") return "payment_sent";
+  if (status === "done") return "done";
+  return "closed";
 }
 
-function gemLabel(gem: WorkspaceGem | undefined) {
-  if (!gem) return "Gem";
-  const named =
-    "name" in gem && typeof (gem as { name?: string }).name === "string"
-      ? (gem as { name?: string }).name?.trim()
-      : "";
-  return named || formatGemType(gem.gemType) || gem.sku;
-}
-
-function HolderGroupCard({
-  group,
-  gems,
+function ApRow({
+  record,
+  side,
   colors,
+  onRespond,
+  responding,
 }: {
-  group: ApHolderGroup;
-  gems: WorkspaceGem[];
+  record: ApRecord;
+  side: ApSide;
   colors: ReturnType<typeof useAppTheme>["colors"];
+  onRespond?: (action: "accepted" | "rejected") => void;
+  responding?: boolean;
 }) {
-  const stoneCount = group.records.length;
-  const stoneWord = stoneCount === 1 ? "stone" : "stones";
+  const overdue = isApOverdue(record);
+  const gemCount = record.items?.length || 1;
+  const party =
+    side === "given"
+      ? record.receiverName || "Holder"
+      : record.senderName || "Sender";
+  const total = apAgreedTotal(record);
+  const currency = record.items?.[0]?.currency || record.currency || "LKR";
 
   return (
-    <View
-      style={[
-        styles.holderCard,
+    <Pressable
+      onPress={() =>
+        router.push(`/(marketplace)/(tabs)/workspace/ap/${record.id}`)
+      }
+      style={({ pressed }) => [
+        styles.row,
         {
           backgroundColor: colors.surfaceContainerLowest,
-          borderColor: colors.outlineVariant,
+          borderColor: overdue ? colors.error + "55" : colors.outlineVariant,
+          opacity: pressed ? 0.92 : 1,
         },
       ]}
     >
-      {/* Holder — parent of the stones below */}
-      <View style={styles.holderHeader}>
-        <View
-          style={[styles.avatar, { backgroundColor: colors.primaryContainer }]}
-        >
-          <Text
-            style={[styles.avatarText, { color: colors.onPrimaryContainer }]}
-          >
-            {holderInitials(group.holderName)}
-          </Text>
-        </View>
-
-        <View style={styles.holderText}>
-          <View style={styles.holderTitleRow}>
-            <Text
-              style={[styles.holderName, { color: colors.onSurface }]}
-              numberOfLines={1}
-            >
-              {group.holderName}
-            </Text>
-            {group.overdueCount > 0 ? (
-              <View
-                style={[
-                  styles.overduePill,
-                  { backgroundColor: colors.errorContainer },
-                ]}
-              >
-                <Icon name="warning" size={12} color={colors.error} />
-                <Text style={[styles.overduePillText, { color: colors.error }]}>
-                  {group.overdueCount} overdue
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[styles.holderRelation, { color: colors.primary }]}>
-            Holding {stoneCount} {stoneWord} on AP
-          </Text>
-          <Text style={[styles.holderValue, { color: colors.textMuted }]}>
-            Min total {formatCurrency(group.totalMinimumValue)}
-          </Text>
-        </View>
-
-        {group.holderPhone ? (
-          <Pressable
-            onPress={() => Linking.openURL(openPhone(group.holderPhone!))}
-            style={[
-              styles.callBtn,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${group.holderName}`}
-          >
-            <Icon name="call" size={18} color={colors.primary} />
-          </Pressable>
-        ) : null}
+      <View style={styles.rowTop}>
+        <Text style={[styles.party, { color: colors.onSurface }]} numberOfLines={1}>
+          {party}
+        </Text>
+        <Text style={[styles.price, { color: colors.primary }]}>
+          {formatCurrency(total, currency)}
+        </Text>
       </View>
-
-      {/* Nested stones — visually attached to this holder */}
-      <View
-        style={[
-          styles.stonesBlock,
-          {
-            borderTopColor: colors.outlineVariant,
-            backgroundColor: colors.surfaceContainerLow,
-          },
-        ]}
-      >
-        {group.records.map((record, index) => {
-          const gem = findGemForAp(gems, record.gemId);
-          const overdue = isApOverdue(record);
-          const photo = gem?.photoUrls?.[0];
-          const isLast = index === group.records.length - 1;
-
-          return (
-            <Pressable
-              key={record.id}
-              onPress={() =>
-                router.push(`/(marketplace)/(tabs)/workspace/ap/${record.id}`)
-              }
-              style={({ pressed }) => [
-                styles.stoneRow,
-                overdue && { backgroundColor: colors.errorContainer + "55" },
-                pressed && { opacity: 0.88 },
-              ]}
-            >
-              <View style={styles.treeCol}>
-                <View
-                  style={[
-                    styles.treeLineTop,
-                    { backgroundColor: colors.primary + "40" },
-                  ]}
-                />
-                <View
-                  style={[styles.treeDot, { borderColor: colors.primary }]}
-                />
-                {!isLast ? (
-                  <View
-                    style={[
-                      styles.treeLineBottom,
-                      { backgroundColor: colors.primary + "40" },
-                    ]}
-                  />
-                ) : (
-                  <View style={styles.treeLineBottomSpacer} />
-                )}
-              </View>
-
-              <View
-                style={[
-                  styles.thumb,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                {photo ? (
-                  <Image source={{ uri: photo }} style={styles.thumbImg} />
-                ) : (
-                  <Icon
-                    name="diamond"
-                    size={20}
-                    color={colors.onPrimaryContainer}
-                  />
-                )}
-              </View>
-
-              <View style={styles.stoneBody}>
-                <View style={styles.stoneTop}>
-                  <Text
-                    style={[styles.stoneTitle, { color: colors.onSurface }]}
-                    numberOfLines={1}
-                  >
-                    {gemLabel(gem)}
-                  </Text>
-                  <Text style={[styles.stonePrice, { color: colors.primary }]}>
-                    {formatCurrency(record.ownerMinimumPrice, record.currency)}
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.stoneSub, { color: colors.onSurfaceVariant }]}
-                  numberOfLines={1}
-                >
-                  {gem
-                    ? `${formatGemType(gem.gemType)} · ${gem.currentWeight} ct`
-                    : record.gemId.slice(0, 8)}
-                </Text>
-                <View style={styles.stoneMeta}>
-                  <Icon
-                    name="schedule"
-                    size={13}
-                    color={overdue ? colors.error : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.stoneMetaText,
-                      { color: overdue ? colors.error : colors.textMuted },
-                    ]}
-                  >
-                    {formatRelativeDue(record.expectedReturnDate)}
-                  </Text>
-                  <Text
-                    style={[styles.stoneStatus, { color: colors.textMuted }]}
-                  >
-                    {record.status.replace(/_/g, " ")}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.chevronWrap}>
-                <Icon name="chevron-right" size={18} color={colors.outline} />
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
+      <Text style={[styles.meta, { color: colors.onSurfaceVariant }]}>
+        {gemCount} gem{gemCount === 1 ? "" : "s"} · {apStatusLabel(record.status)}
+        {isApOngoing(record.status)
+          ? ` · ${formatRelativeDue(record.expectedReturnDate)}`
+          : ""}
+      </Text>
+      {side === "taken" && record.status === "pending" && onRespond ? (
+        <View style={styles.actions}>
+          <Button
+            title="Accept"
+            loading={responding}
+            onPress={() => onRespond("accepted")}
+            style={styles.actionBtn}
+          />
+          <Button
+            title="Reject"
+            variant="secondary"
+            loading={responding}
+            onPress={() => onRespond("rejected")}
+            style={styles.actionBtn}
+          />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
 export default function ApListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [side, setSide] = useState<ApSide>("given");
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const {
-    data: records = [],
-    refetch,
-    isRefetching,
-  } = useQuery({
-    queryKey: ["ap", user?.uid],
-    queryFn: () => fetchApRecords(user!.uid),
+  const givenQ = useQuery({
+    queryKey: ["ap", "given", user?.uid],
+    queryFn: () => fetchGivenApRecords(user!.uid),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
-    queryKey: ["contacts", user?.uid],
-    queryFn: () => fetchContacts(user!.uid),
+  const takenQ = useQuery({
+    queryKey: ["ap", "taken", user?.uid],
+    queryFn: () => fetchTakenApRecords(user!.uid),
     enabled: !!user,
   });
 
-  const { data: gems = [] } = useQuery({
-    queryKey: ["gems", user?.uid],
-    queryFn: () => fetchGems(user!.uid),
-    enabled: !!user,
-  });
-
+  const records = side === "given" ? givenQ.data ?? [] : takenQ.data ?? [];
+  const isRefetching = givenQ.isRefetching || takenQ.isRefetching;
   const summary = useMemo(() => getApSummary(records), [records]);
-  const groups = useMemo(
-    () => groupApByHolder(records, contacts),
-    [records, contacts],
-  );
+
+  const sections = useMemo(() => {
+    const map = new Map<SectionKey, ApRecord[]>();
+    for (const key of SECTION_ORDER) map.set(key, []);
+    for (const r of records) {
+      const key = sectionFor(r.status);
+      map.get(key)!.push(r);
+    }
+    return SECTION_ORDER.map((key) => ({
+      key,
+      title: SECTION_TITLE[key],
+      data: map.get(key)!,
+    })).filter((s) => s.data.length > 0);
+  }, [records]);
+
+  async function refetch() {
+    await Promise.all([givenQ.refetch(), takenQ.refetch()]);
+  }
+
+  async function onRespond(apId: string, action: "accepted" | "rejected") {
+    setRespondingId(apId);
+    try {
+      await respondApRequest(apId, action);
+      toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not respond to AP."));
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
+  const listData =
+    records.length === 0
+      ? []
+      : sections.flatMap((s) => [
+          {
+            type: "header" as const,
+            key: `h-${s.key}`,
+            title: s.title,
+            count: s.data.length,
+          },
+          ...s.data.map((r) => ({
+            type: "row" as const,
+            key: r.id,
+            record: r,
+          })),
+        ]);
 
   return (
     <SafeAreaView
@@ -294,9 +220,39 @@ export default function ApListScreen() {
       <WorkspaceScreenBackdrop kind="ap" />
       <StackHeader title="AP Stones" />
 
+      <View style={styles.tabs}>
+        {(["given", "taken"] as const).map((t) => {
+          const active = side === t;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => setSide(t)}
+              style={[
+                styles.tab,
+                {
+                  backgroundColor: active
+                    ? colors.primary
+                    : colors.surfaceContainerLowest,
+                  borderColor: active ? colors.primary : colors.outlineVariant,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: active ? colors.onPrimary : colors.onSurface },
+                ]}
+              >
+                {t === "given" ? "Given" : "Taken"}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <FlatList
-        data={groups}
-        keyExtractor={(g) => g.holderId}
+        data={listData}
+        keyExtractor={(item) => item.key}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
@@ -305,7 +261,9 @@ export default function ApListScreen() {
         ListHeaderComponent={
           <View style={styles.listHeader}>
             <Text style={[styles.lead, { color: colors.textMuted }]}>
-              Stones grouped by the person holding them on approval.
+              {side === "given"
+                ? "Stones you sent on approval."
+                : "Stones traders sent you on approval."}
             </Text>
             <View style={styles.statsRow}>
               <View
@@ -318,13 +276,13 @@ export default function ApListScreen() {
                 ]}
               >
                 <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  Stones out
+                  {side === "given" ? "Out" : "Holding"}
                 </Text>
                 <Text style={[styles.statValue, { color: colors.primary }]}>
                   {summary.totalOut}
                 </Text>
                 <Text style={[styles.statHint, { color: colors.textMuted }]}>
-                  {groups.length} holder{groups.length === 1 ? "" : "s"}
+                  {summary.pendingRequests} pending
                 </Text>
               </View>
               <View
@@ -339,7 +297,7 @@ export default function ApListScreen() {
                 <Text
                   style={[styles.statLabel, { color: colors.onPrimary + "CC" }]}
                 >
-                  Min value
+                  Agreed value
                 </Text>
                 <Text
                   style={[styles.statValue, { color: colors.onPrimary }]}
@@ -352,7 +310,7 @@ export default function ApListScreen() {
                 >
                   {summary.overdueCount > 0
                     ? `${summary.overdueCount} overdue`
-                    : "Across all holders"}
+                    : "Active APs"}
                 </Text>
               </View>
             </View>
@@ -361,46 +319,88 @@ export default function ApListScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="handshake"
-            title="No AP stones"
-            subtitle="Give a gem on AP to track who is holding it"
+            title={side === "given" ? "No AP given" : "No AP taken"}
+            subtitle={
+              side === "given"
+                ? "Send gems on AP to a GemFort trader"
+                : "When a trader sends you stones, they appear here"
+            }
             action={
-              <Button
-                title="Give on AP"
-                icon="add"
-                onPress={() =>
-                  router.push("/(marketplace)/(tabs)/workspace/ap/add")
-                }
-              />
+              side === "given" ? (
+                <Button
+                  title="Give on AP"
+                  icon="add"
+                  onPress={() =>
+                    router.push("/(marketplace)/(tabs)/workspace/ap/add")
+                  }
+                />
+              ) : undefined
             }
           />
         }
-        renderItem={({ item: group }) => (
-          <HolderGroupCard group={group} gems={gems} colors={colors} />
-        )}
+        renderItem={({ item }) => {
+          if (item.type === "header") {
+            return (
+              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+                {item.title}
+                {item.count > 0 ? ` (${item.count})` : ""}
+              </Text>
+            );
+          }
+          return (
+            <ApRow
+              record={item.record}
+              side={side}
+              colors={colors}
+              responding={respondingId === item.record.id}
+              onRespond={
+                side === "taken"
+                  ? (action) => onRespond(item.record.id, action)
+                  : undefined
+              }
+            />
+          );
+        }}
       />
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Give on AP"
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.primary },
-          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-        ]}
-        onPress={() => router.push("/(marketplace)/(tabs)/workspace/ap/add")}
-      >
-        <Icon name="add" size={28} color={colors.onPrimary} />
-      </Pressable>
+      {side === "given" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Give on AP"
+          style={({ pressed }) => [
+            styles.fab,
+            { backgroundColor: colors.primary },
+            pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+          ]}
+          onPress={() => router.push("/(marketplace)/(tabs)/workspace/ap/add")}
+        >
+          <Icon name="add" size={28} color={colors.onPrimary} />
+        </Pressable>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  tabs: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    marginBottom: Spacing.sm,
+  },
+  tab: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  tabText: { ...Typography.labelMd, fontWeight: "700" },
   content: {
     paddingHorizontal: Spacing.containerMargin,
     paddingBottom: 100,
-    gap: Spacing.gutterMd,
+    gap: Spacing.sm,
   },
   listHeader: { gap: Spacing.stackMd, marginBottom: Spacing.stackSm },
   lead: { ...Typography.bodyMd },
@@ -418,123 +418,29 @@ const styles = StyleSheet.create({
   statLabel: { ...Typography.labelMd },
   statValue: { ...Typography.headlineSm, letterSpacing: -0.3 },
   statHint: { ...Typography.caption },
-
-  holderCard: {
+  sectionTitle: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  row: {
     borderRadius: Radius.lg,
     borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: Spacing.stackSm,
+    padding: Spacing.lg,
+    gap: 6,
+    marginBottom: Spacing.xs,
   },
-  holderHeader: {
+  rowTop: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { ...Typography.labelMd, fontWeight: "700" },
-  holderText: { flex: 1, gap: 2 },
-  holderTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    flexWrap: "wrap",
-  },
-  holderName: { ...Typography.headlineSmMobile, flexShrink: 1 },
-  holderRelation: { ...Typography.bodySmall, fontWeight: "600" },
-  holderValue: { ...Typography.caption },
-  overduePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-  },
-  overduePillText: { ...Typography.caption, fontWeight: "600" },
-  callBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  stonesBlock: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.xs,
-  },
-  stoneRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    paddingRight: Spacing.md,
-    paddingLeft: Spacing.sm,
-    minHeight: 72,
-  },
-  treeCol: {
-    width: 16,
-    alignItems: "center",
-  },
-  treeLineTop: {
-    width: 2,
-    flex: 1,
-    minHeight: 8,
-  },
-  treeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    backgroundColor: "transparent",
-  },
-  treeLineBottom: {
-    width: 2,
-    flex: 1,
-    minHeight: 8,
-  },
-  treeLineBottomSpacer: {
-    width: 2,
-    flex: 1,
-    minHeight: 8,
-  },
-  thumb: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    alignSelf: "center",
-  },
-  thumbImg: { width: "100%", height: "100%" },
-  stoneBody: { flex: 1, gap: 2, justifyContent: "center", paddingVertical: 2 },
-  stoneTop: {
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.sm,
   },
-  stoneTitle: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
-  stonePrice: { ...Typography.bodyMd, fontWeight: "600" },
-  stoneSub: { ...Typography.bodySmall },
-  stoneMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  stoneMetaText: { ...Typography.caption, flex: 1 },
-  stoneStatus: { ...Typography.caption, textTransform: "capitalize" },
-  chevronWrap: { justifyContent: "center" },
+  party: { ...Typography.headlineSmMobile, flex: 1 },
+  price: { ...Typography.bodyMd, fontWeight: "700" },
+  meta: { ...Typography.bodySmall },
+  actions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
+  actionBtn: { flex: 1 },
   fab: {
     position: "absolute",
     bottom: 24,

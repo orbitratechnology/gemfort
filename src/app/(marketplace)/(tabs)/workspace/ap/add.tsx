@@ -1,64 +1,128 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button } from '@/components/ui/button';
-import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { StackHeader } from '@/components/ui/stack-header';
-import { ContactPicker } from '@/components/workspace/contact-picker';
-import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
-import { Spacing } from '@/constants/design-tokens';
-import { createApRecord, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { friendlyError } from '@/lib/errors';
-import { useAuth } from '@/providers/auth-provider';
-import { useToast } from '@/providers/toast-provider';
+import { Button } from "@/components/ui/button";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { ThemedScrollView } from "@/components/ui/screen";
+import { StackHeader } from "@/components/ui/stack-header";
+import { ContactPicker } from "@/components/workspace/contact-picker";
+import {
+  GemPickerSheet,
+  GemSelectField,
+} from "@/components/workspace/gem-picker-sheet";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
+import { createApRequest } from "@/features/workspace/ap-lifecycle-service";
+import {
+  fetchContacts,
+  fetchGems,
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
+import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
+import type { WorkspaceGem } from "@/types";
+
+type LineDraft = {
+  gemId: string;
+  agreedPrice: string;
+};
+
+function defaultPrice(gem: WorkspaceGem): string {
+  const n = gem.askingPrice ?? gem.acquisitionCost ?? 0;
+  return n > 0 ? String(n) : "";
+}
 
 export default function AddApScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
   const { gemId: preselected } = useLocalSearchParams<{ gemId?: string }>();
-  const [gemId, setGemId] = useState(preselected ?? '');
-  const [holderId, setHolderId] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [days, setDays] = useState('30');
+  const [lines, setLines] = useState<LineDraft[]>([]);
+  const [holderId, setHolderId] = useState("");
+  const [days, setDays] = useState("30");
   const [loading, setLoading] = useState(false);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useQuery({
-    queryKey: ['gems', user?.uid],
+    queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
     enabled: !!user,
   });
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', user?.uid],
+    queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
     enabled: !!user,
   });
 
   const availableGems = useMemo(
-    () => gems.filter((g) => !['on_ap', 'sold'].includes(g.status)),
-    [gems],
+    () =>
+      gems.filter(
+        (g) =>
+          !["on_ap", "sold"].includes(g.status) &&
+          !lines.some((l) => l.gemId === g.id),
+      ),
+    [gems, lines],
   );
 
-  const selectedGem = useMemo(
-    () => availableGems.find((g) => g.id === gemId) ?? gems.find((g) => g.id === gemId) ?? null,
-    [availableGems, gems, gemId],
-  );
+  useEffect(() => {
+    if (!preselected || gems.length === 0) return;
+    setLines((prev) => {
+      if (prev.some((l) => l.gemId === preselected)) return prev;
+      const gem = gems.find((g) => g.id === preselected);
+      if (!gem) return prev;
+      return [{ gemId: gem.id, agreedPrice: defaultPrice(gem) }];
+    });
+  }, [preselected, gems]);
+
+  const holder = contacts.find((c) => c.id === holderId);
+
+  function addGem(gem: WorkspaceGem) {
+    setLines((prev) => [
+      ...prev,
+      { gemId: gem.id, agreedPrice: defaultPrice(gem) },
+    ]);
+    setErrors((e) => {
+      if (!e.gems) return e;
+      const next = { ...e };
+      delete next.gems;
+      return next;
+    });
+  }
+
+  function removeGem(gemId: string) {
+    setLines((prev) => prev.filter((l) => l.gemId !== gemId));
+  }
+
+  function setPrice(gemId: string, agreedPrice: string) {
+    setLines((prev) =>
+      prev.map((l) => (l.gemId === gemId ? { ...l, agreedPrice } : l)),
+    );
+  }
 
   async function handleSubmit() {
     if (!user) return;
     const next: Record<string, string> = {};
-    if (!gemId) next.gemId = 'Select a gem.';
-    if (!holderId) next.holderId = 'Select an AP holder.';
-    if (!minPrice.trim()) next.minPrice = 'Enter a minimum price.';
+    if (lines.length === 0) next.gems = "Add at least one gem.";
+    if (!holderId) next.holderId = "Select an AP holder.";
+    if (holder && !holder.linkedBusinessId) {
+      next.holderId =
+        "Holder must be a GemFort trader linked by phone. Pick a trader from the directory.";
+    }
+    for (const line of lines) {
+      const price = parseFloat(line.agreedPrice);
+      if (!line.agreedPrice.trim() || Number.isNaN(price) || price <= 0) {
+        next[`price-${line.gemId}`] = "Enter a valid AP price.";
+      }
+    }
     if (Object.keys(next).length) {
       setErrors(next);
       toast.error(Object.values(next)[0]);
@@ -67,50 +131,99 @@ export default function AddApScreen() {
 
     setLoading(true);
     try {
-      const id = await createApRecord(user.uid, {
-        gemId,
-        apHolderContactId: holderId,
-        ownerMinimumPrice: parseFloat(minPrice),
-        expectedDurationDays: parseInt(days, 10),
+      const id = await createApRequest({
+        receiverContactId: holderId,
+        receiverBusinessId: holder?.linkedBusinessId ?? null,
+        expectedDurationDays: parseInt(days, 10) || 30,
+        items: lines.map((l) => ({
+          gemId: l.gemId,
+          agreedPrice: parseFloat(l.agreedPrice),
+          currency: "LKR",
+        })),
       });
-      toast.success('Gem given on AP');
+      toast.success("AP request sent");
       router.replace(`/(marketplace)/(tabs)/workspace/ap/${id}`);
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not give on AP.'));
+      toast.error(friendlyError(e, "Could not send AP request."));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title="Give on AP" />
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <FormSection title="Gem details">
+        <FormSection title="Gems">
+          {lines.map((line) => {
+            const gem = gems.find((g) => g.id === line.gemId);
+            return (
+              <View
+                key={line.gemId}
+                style={[
+                  styles.lineCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    borderColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <View style={styles.lineHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.lineTitle, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {gem
+                        ? gem.variety?.trim() ||
+                          formatGemType(gem.gemType) ||
+                          gem.sku
+                        : line.gemId.slice(0, 8)}
+                    </Text>
+                    <Text
+                      style={[styles.lineSub, { color: colors.textMuted }]}
+                    >
+                      {gem
+                        ? `${gem.sku} · ${gem.currentWeight} ct`
+                        : "Gem"}
+                      {gem?.acquisitionCost
+                        ? ` · cost ${formatCurrency(gem.acquisitionCost)}`
+                        : ""}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => removeGem(line.gemId)}
+                    accessibilityLabel="Remove gem"
+                    hitSlop={8}
+                  >
+                    <Icon name="close" size={20} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+                <Input
+                  label="AP price (LKR)"
+                  value={line.agreedPrice}
+                  onChangeText={(v) => setPrice(line.gemId, v)}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  leftIcon="payments"
+                  error={errors[`price-${line.gemId}`]}
+                />
+              </View>
+            );
+          })}
           <GemSelectField
-            label="Gem"
-            gem={selectedGem}
+            label={lines.length ? "Add another gem" : "Gem"}
+            gem={null}
             placeholder="Select a gem"
             onPress={() => setGemSheetOpen(true)}
-            error={errors.gemId}
+            error={errors.gems}
           />
-          <Input
-            label="Minimum Price (LKR)"
-            value={minPrice}
-            onChangeText={(v) => {
-              setMinPrice(v);
-              setErrors((e) => {
-                if (!e.minPrice) return e;
-                const next = { ...e };
-                delete next.minPrice;
-                return next;
-              });
-            }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="payments"
-            error={errors.minPrice}
-          />
+        </FormSection>
+
+        <FormSection title="Terms">
           <Input
             label="Expected Days"
             value={days}
@@ -134,14 +247,25 @@ export default function AddApScreen() {
                 return next;
               });
             }}
-            typeFilter="broker"
-            emptyHint="Add a broker or holder contact first."
+            allowedBusinessKinds={["traders"]}
+            emptyHint="Pick a GemFort trader (required for Accept/Reject)."
             error={errors.holderId}
           />
+          {holder && !holder.linkedBusinessId ? (
+            <Text style={[styles.warn, { color: colors.error }]}>
+              This contact is not linked to a GemFort trader. Choose a trader
+              from the directory.
+            </Text>
+          ) : null}
         </FormSection>
 
         <ScreenInset>
-          <Button title="Create AP Record" icon="handshake" loading={loading} onPress={handleSubmit} />
+          <Button
+            title="Send AP request"
+            icon="handshake"
+            loading={loading}
+            onPress={handleSubmit}
+          />
         </ScreenInset>
       </ThemedScrollView>
 
@@ -149,18 +273,10 @@ export default function AddApScreen() {
         visible={gemSheetOpen}
         onClose={() => setGemSheetOpen(false)}
         gems={availableGems}
-        value={gemId}
+        value=""
         title="Select gem for AP"
         emptyHint="No available gems. Add a gem or free one from another AP first."
-        onSelect={(gem) => {
-          setGemId(gem.id);
-          setErrors((e) => {
-            if (!e.gemId) return e;
-            const next = { ...e };
-            delete next.gemId;
-            return next;
-          });
-        }}
+        onSelect={addGem}
       />
     </SafeAreaView>
   );
@@ -169,4 +285,19 @@ export default function AddApScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
+  lineCard: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  lineHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  lineTitle: { ...Typography.bodyMd, fontWeight: "600" },
+  lineSub: { ...Typography.caption, marginTop: 2 },
+  warn: { ...Typography.bodySmall, marginTop: Spacing.sm },
 });

@@ -11,6 +11,7 @@ export {
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
   Timestamp,
   increment,

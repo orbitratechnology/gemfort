@@ -53,12 +53,10 @@ function RootNavigator() {
       />
       <Stack.Screen name="profile/verify" options={{ headerShown: false }} />
       <Stack.Screen name="profile/business" options={{ headerShown: false }} />
+      <Stack.Screen name="profile/account" options={{ headerShown: false }} />
       <Stack.Screen name="request/[businessId]" options={{ headerShown: false }} />
       <Stack.Screen name="verify-certificate" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="notifications"
-        options={{ headerShown: true, title: 'Notifications', headerBackTitle: 'Back' }}
-      />
+      <Stack.Screen name="news/index" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -281,6 +281,7 @@ export default function AddChequeScreen() {
             contacts={contacts}
             value={contactId}
             error={errors.contactId}
+            allowedBusinessKinds={['traders', 'lapidaries']}
             onChange={(id) => {
               setContactId(id);
               clearField("contactId");

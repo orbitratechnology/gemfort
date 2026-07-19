@@ -71,6 +71,17 @@ export function budgetUsedPercent(trip: Trip, totalSpent: number): number {
   return Math.min(100, Math.round((totalSpent / trip.budget) * 100));
 }
 
+/** Calendar progress from start → expected end (clamped 0–100). */
+export function tripScheduleProgressPercent(trip: Trip): number {
+  const start = toTripDate(trip.startDate);
+  const end = toTripDate(trip.expectedEndDate);
+  if (!start || !end) return 0;
+  const totalMs = end.getTime() - start.getTime();
+  if (totalMs <= 0) return 100;
+  const elapsed = Date.now() - start.getTime();
+  return Math.min(100, Math.max(0, Math.round((elapsed / totalMs) * 100)));
+}
+
 export function canStartTrip(status: TripStatus): boolean {
   return status === 'planning';
 }

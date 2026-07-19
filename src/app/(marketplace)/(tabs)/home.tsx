@@ -13,14 +13,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carousel";
 import { HomeBusinessRail } from "@/components/marketplace/home-business-rail";
+import { HomeNewsTeaser } from "@/components/news/home-news-teaser";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { SkeletonList } from "@/components/ui/skeleton-list";
+import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { ROLE_LABELS, resolveProfileRole } from "@/constants/roles";
+import { ROLE_LABELS, canAccessModule, resolveProfileRole } from "@/constants/roles";
 import {
     buildHomeUpcoming,
     popularByRole,
@@ -33,6 +35,10 @@ import {
     fetchPublicListings,
     filterListings,
 } from "@/features/marketplace/marketplace-service";
+import {
+    fetchGemNewsTeaser,
+    fetchUpcomingExhibitions,
+} from "@/features/news/news-service";
 import {
     fetchApRecords,
     fetchCheques,
@@ -107,14 +113,16 @@ export default function HomeScreen() {
   const { user, profile } = useAuth();
   const unread = useUnreadNotificationCount();
 
+  const role = resolveProfileRole(profile);
   const displayName =
     profile?.displayName?.trim() || user?.displayName?.trim() || "Guest";
   const roleLabel = profile
-    ? (ROLE_LABELS[resolveProfileRole(profile)] ?? "Member")
+    ? (ROLE_LABELS[role] ?? "Member")
     : user
       ? "Member"
       : "Sign in";
   const initials = initialsFromName(displayName);
+  const showRequests = !!user && canAccessModule(role, "requests");
 
   const { data: myBusiness } = useQuery({
     queryKey: ["my-business", user?.uid],
@@ -184,6 +192,24 @@ export default function HomeScreen() {
     enabled: workspaceEnabled,
   });
 
+  const { data: localNews = [], refetch: refetchLocalNews } = useQuery({
+    queryKey: ["gem-news-teaser", "local"],
+    queryFn: () => fetchGemNewsTeaser("local", 3),
+    enabled: isFirebaseConfigured,
+  });
+
+  const { data: globalNews = [], refetch: refetchGlobalNews } = useQuery({
+    queryKey: ["gem-news-teaser", "global"],
+    queryFn: () => fetchGemNewsTeaser("global", 3),
+    enabled: isFirebaseConfigured,
+  });
+
+  const { data: newsShows = [], refetch: refetchNewsShows } = useQuery({
+    queryKey: ["exhibitions-teaser"],
+    queryFn: () => fetchUpcomingExhibitions("all", 6),
+    enabled: isFirebaseConfigured,
+  });
+
   const featured = useMemo(
     () => filterListings(listings, { sort: "recent" }).slice(0, FEATURED_LIMIT),
     [listings],
@@ -206,10 +232,11 @@ export default function HomeScreen() {
         services,
         trips,
         cheques,
+        currentUid: user?.uid,
         contactName: (id) =>
           contacts.find((c) => c.id === id)?.displayName ?? "Contact",
       }),
-    [apRecords, services, trips, cheques, contacts],
+    [apRecords, services, trips, cheques, contacts, user?.uid],
   );
 
   const upcomingPreview = useMemo(
@@ -217,9 +244,18 @@ export default function HomeScreen() {
     [upcoming],
   );
 
+  function contactName(id: string | null | undefined) {
+    return contacts.find((c) => c.id === id)?.displayName ?? "Contact";
+  }
+
   function refetchAll() {
     refetchListings();
     refetchBusinesses();
+    if (isFirebaseConfigured) {
+      void refetchLocalNews();
+      void refetchGlobalNews();
+      void refetchNewsShows();
+    }
     if (workspaceEnabled) {
       refetchContacts();
       refetchAp();
@@ -294,32 +330,55 @@ export default function HomeScreen() {
             </Text>
           </View>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
-          }
-          style={[
-            styles.iconBtn,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-          onPress={() => router.push("/notifications")}
-        >
-          <Icon
-            name="notifications-none"
-            size={20}
-            color={colors.onSurfaceVariant}
-          />
-          {unread > 0 ? (
-            <View
-              style={[styles.notifBadge, { backgroundColor: colors.error }]}
+        <View style={styles.headerActions}>
+          {showRequests ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Requests"
+              style={[
+                styles.iconBtn,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}
+              onPress={() =>
+                router.push(
+                  "/(marketplace)/(tabs)/workspace/requests" as never,
+                )
+              }
             >
-              <Text style={styles.notifBadgeText}>
-                {unread > 99 ? "99+" : unread}
-              </Text>
-            </View>
+              <Icon
+                name="outgoing-mail"
+                size={20}
+                color={colors.onSurfaceVariant}
+              />
+            </Pressable>
           ) : null}
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+            }
+            style={[
+              styles.iconBtn,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+            onPress={() => router.push("/notifications")}
+          >
+            <Icon
+              name="notifications-none"
+              size={20}
+              color={colors.onSurfaceVariant}
+            />
+            {unread > 0 ? (
+              <View
+                style={[styles.notifBadge, { backgroundColor: colors.error }]}
+              >
+                <Text style={styles.notifBadgeText}>
+                  {unread > 99 ? "99+" : unread}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       </View>
 
       <ThemedScrollView
@@ -330,6 +389,25 @@ export default function HomeScreen() {
         }
       >
         <HomeBannerCarousel />
+
+        {workspaceEnabled ? (
+          <ActiveProgressStrip
+            trips={trips}
+            apRecords={apRecords}
+            cheques={cheques}
+            contactName={contactName}
+            limit={5}
+            style={styles.section}
+          />
+        ) : null}
+
+        {isFirebaseConfigured ? (
+          <HomeNewsTeaser
+            local={localNews}
+            global={globalNews}
+            exhibitions={newsShows}
+          />
+        ) : null}
 
         {/* Quick actions */}
         <View style={styles.section}>
@@ -652,6 +730,11 @@ const styles = StyleSheet.create({
   },
   userName: { ...Typography.headlineMdMobile },
   userRole: { fontSize: 12, fontWeight: "500", marginTop: 1 },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   iconBtn: {
     width: 44,
     height: 44,

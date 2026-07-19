@@ -15,3 +15,7 @@ export async function getThemePreference(): Promise<ThemePreference> {
 export async function setThemePreference(preference: ThemePreference): Promise<void> {
   await SecureStore.setItemAsync(KEY, preference);
 }
+
+export async function clearThemePreference(): Promise<void> {
+  await SecureStore.deleteItemAsync(KEY);
+}

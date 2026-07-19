@@ -148,6 +148,15 @@ export const loginSchema = z.object({
 
 export type LoginForm = z.infer<typeof loginSchema>;
 
+const strongPassword = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(72, "Password is too long")
+  .refine(
+    (v) => /[A-Za-z]/.test(v) && /\d/.test(v),
+    "Include letters and a number",
+  );
+
 export const registerSchema = z.object({
   displayName: z
     .string()
@@ -163,14 +172,7 @@ export const registerSchema = z.object({
       const n = normalizePhoneNumber(v);
       return /^\+\d{10,15}$/.test(n);
     }, "Use a valid mobile (e.g. +94 77X XXX XXXX)"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(72, "Password is too long")
-    .refine(
-      (v) => /[A-Za-z]/.test(v) && /\d/.test(v),
-      "Include letters and a number",
-    ),
+  password: strongPassword,
   role: z.enum(["trader", "lapidary", "gem_lab"]),
 });
 
@@ -181,6 +183,71 @@ export const forgotPasswordSchema = z.object({
 });
 
 export type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password"),
+    newPassword: strongPassword,
+    confirmPassword: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, {
+    message: "Choose a different password",
+    path: ["newPassword"],
+  });
+
+export type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
+
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, "Enter your password to confirm"),
+  confirmText: z
+    .string()
+    .trim()
+    .refine((v) => v.toUpperCase() === "DELETE", 'Type DELETE to confirm'),
+});
+
+export type DeleteAccountForm = z.infer<typeof deleteAccountSchema>;
+
+/** Birthdate as ISO `YYYY-MM-DD` for verification. */
+export const verificationDateOfBirthSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose your date of birth")
+  .refine((value) => {
+    const [y, m, d] = value.split("-").map(Number);
+    const dob = new Date(Date.UTC(y, m - 1, d));
+    if (
+      Number.isNaN(dob.getTime()) ||
+      dob.getUTCFullYear() !== y ||
+      dob.getUTCMonth() !== m - 1 ||
+      dob.getUTCDate() !== d
+    ) {
+      return false;
+    }
+    const today = new Date();
+    const todayUtc = Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    );
+    const minUtc = Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate());
+    return dob.getTime() <= todayUtc && dob.getTime() >= minUtc;
+  }, "Enter a valid date of birth");
+
+export const verificationApplicantSchema = z.object({
+  dateOfBirth: verificationDateOfBirthSchema,
+  businessName: z
+    .string()
+    .trim()
+    .min(2, "Enter your business or company name")
+    .max(80, "Name is too long"),
+});
+
+export type VerificationApplicantForm = z.infer<
+  typeof verificationApplicantSchema
+>;
 
 export const verifyOtpSchema = z.object({
   code: z

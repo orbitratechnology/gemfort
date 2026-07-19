@@ -25,11 +25,16 @@ type ChequeDoc = {
 };
 type ApDoc = {
   ownerUid: string;
+  senderUid?: string;
+  receiverUid?: string;
+  receiverName?: string;
   status: string;
   apHolderContactId?: string;
   expectedReturnDate: Timestamp;
   soldDate?: Timestamp | null;
   paymentStatus?: string;
+  paymentSentAt?: Timestamp | null;
+  items?: { lineStatus?: string }[];
 };
 type ServiceDoc = {
   ownerUid: string;
@@ -110,17 +115,21 @@ export function buildGemTrackCandidatesForOwner(
 
   for (const doc of ctx.apRecords) {
     const r = doc.data() as ApDoc;
-    if (r.ownerUid !== ownerUid) continue;
-    const holder = contactName(ctx.contacts, r.apHolderContactId);
+    const partyUids = new Set(
+      [r.ownerUid, r.senderUid, r.receiverUid].filter(Boolean) as string[],
+    );
+    if (!partyUids.has(ownerUid)) continue;
+    const holder = r.receiverName || contactName(ctx.contacts, r.apHolderContactId);
+    const isAccepted = r.status === 'accepted' || r.status === 'with_holder';
 
-    if (r.status === 'with_holder') {
+    if (isAccepted) {
       const due = toDate(r.expectedReturnDate);
       if (due && startOfDay(due) < now) {
         candidates.push({
           recipientUid: ownerUid,
           type: 'ap_overdue',
           title: 'AP stone overdue',
-          message: `AP stone with ${holder} is ${daysOverdue(due)} day${daysOverdue(due) === 1 ? '' : 's'} overdue.`,
+          message: `AP with ${holder} is ${daysOverdue(due)} day${daysOverdue(due) === 1 ? '' : 's'} overdue.`,
           referenceType: 'ap',
           referenceId: doc.id,
         });
@@ -130,21 +139,28 @@ export function buildGemTrackCandidatesForOwner(
           recipientUid: ownerUid,
           type: 'ap_return_due_soon',
           title: 'AP return due soon',
-          message: `AP stone with ${holder} is due back in ${DUE_SOON_DAYS} days.`,
+          message: `AP with ${holder} is due back in ${DUE_SOON_DAYS} days.`,
           referenceType: 'ap',
           referenceId: doc.id,
         });
       }
     }
 
-    if (r.status === 'sold' && r.paymentStatus !== 'paid') {
-      const sold = toDate(r.soldDate ?? null);
+    const paymentPending =
+      r.status === 'payment_sent' ||
+      (r.status === 'sold' && r.paymentStatus !== 'paid') ||
+      (r.status === 'accepted' &&
+        (r.items ?? []).some((i) => i.lineStatus === 'sold') &&
+        !r.paymentSentAt);
+
+    if (paymentPending && (r.senderUid === ownerUid || r.ownerUid === ownerUid)) {
+      const sold = toDate(r.paymentSentAt ?? r.soldDate ?? null);
       if (sold && startOfDay(sold) < apPaymentCutoff) {
         candidates.push({
           recipientUid: ownerUid,
           type: 'ap_payment_overdue',
           title: 'AP payment overdue',
-          message: `Payment from AP sale (${holder}) is overdue.`,
+          message: `Payment from AP (${holder}) is overdue.`,
           referenceType: 'ap',
           referenceId: doc.id,
         });
