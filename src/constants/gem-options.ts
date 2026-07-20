@@ -369,6 +369,111 @@ export function flagUrl(countryCode: string, size: 40 | 80 = 40): string {
   return `https://flagcdn.com/w${size}/${countryCode}.png`;
 }
 
+/** Common aliases + non-origin countries that still appear as locations. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  ceylon: 'lk',
+  burma: 'mm',
+  'united states of america': 'us',
+  america: 'us',
+  usa: 'us',
+  uk: 'gb',
+  britain: 'gb',
+  'united kingdom': 'gb',
+  england: 'gb',
+  uae: 'ae',
+  emirates: 'ae',
+  'united arab emirates': 'ae',
+  'hong kong': 'hk',
+  singapore: 'sg',
+  switzerland: 'ch',
+  japan: 'jp',
+  germany: 'de',
+  france: 'fr',
+  italy: 'it',
+  belgium: 'be',
+  israel: 'il',
+  netherlands: 'nl',
+  holland: 'nl',
+  spain: 'es',
+  portugal: 'pt',
+  turkey: 'tr',
+  'saudi arabia': 'sa',
+  qatar: 'qa',
+  bahrain: 'bh',
+  kuwait: 'kw',
+  malaysia: 'my',
+  indonesia: 'id',
+  philippines: 'ph',
+  'south korea': 'kr',
+  korea: 'kr',
+  taiwan: 'tw',
+  mexico: 'mx',
+  argentina: 'ar',
+  chile: 'cl',
+  peru: 'pe',
+  egypt: 'eg',
+  morocco: 'ma',
+  ghana: 'gh',
+  botswana: 'bw',
+  namibia: 'na',
+  'new zealand': 'nz',
+  austria: 'at',
+  poland: 'pl',
+  sweden: 'se',
+  norway: 'no',
+  denmark: 'dk',
+  finland: 'fi',
+  ireland: 'ie',
+  scotland: 'gb',
+  wales: 'gb',
+};
+
+/**
+ * Resolve a slug, ISO code, display name, or free-text containing a country
+ * to an ISO 3166-1 alpha-2 code for flagcdn. Returns null when unknown.
+ */
+export function resolveCountryCode(
+  input: string | null | undefined,
+): string | null {
+  if (!input?.trim()) return null;
+  const raw = input.trim();
+  const lower = raw.toLowerCase();
+  const slug = lower.replace(/[\s-]+/g, '_');
+
+  if (/^[a-z]{2}$/i.test(raw)) {
+    return raw.toLowerCase() === 'un' ? 'un' : raw.toLowerCase();
+  }
+
+  const bySlug = GEM_ORIGINS.find((o) => o.value === slug || o.value === lower);
+  if (bySlug && bySlug.value !== 'other') return bySlug.countryCode;
+
+  const byLabel = GEM_ORIGINS.find((o) => o.label.toLowerCase() === lower);
+  if (byLabel && byLabel.value !== 'other') return byLabel.countryCode;
+
+  const byCode = GEM_ORIGINS.find((o) => o.countryCode === lower);
+  if (byCode && byCode.value !== 'other') return byCode.countryCode;
+
+  const alias = COUNTRY_ALIASES[lower] ?? COUNTRY_ALIASES[slug.replace(/_/g, ' ')];
+  if (alias) return alias;
+
+  // Free-text like "Ceylon, Sri Lanka" or "Mogok, Myanmar"
+  const originsByLength = [...GEM_ORIGINS]
+    .filter((o) => o.value !== 'other')
+    .sort((a, b) => b.label.length - a.label.length);
+  for (const o of originsByLength) {
+    if (lower.includes(o.label.toLowerCase())) return o.countryCode;
+  }
+
+  const aliasesByLength = Object.entries(COUNTRY_ALIASES).sort(
+    (a, b) => b[0].length - a[0].length,
+  );
+  for (const [name, code] of aliasesByLength) {
+    if (name.length >= 4 && lower.includes(name)) return code;
+  }
+
+  return null;
+}
+
 export function findColorShade(shadeValue: string): {
   family: GemColorFamily;
   shade: GemColorShade;

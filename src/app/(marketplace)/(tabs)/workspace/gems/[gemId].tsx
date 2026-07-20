@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { CountryLabel } from "@/components/ui/country-flag";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -356,12 +357,21 @@ export default function GemDetailScreen() {
                     {spec.label}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.specValue, { color: colors.onSurface }]}
-                  numberOfLines={2}
-                >
-                  {spec.value}
-                </Text>
+                {spec.label === "Origin" ? (
+                  <CountryLabel
+                    country={spec.value}
+                    size="sm"
+                    textStyle={[styles.specValue, { color: colors.onSurface }]}
+                    numberOfLines={2}
+                  />
+                ) : (
+                  <Text
+                    style={[styles.specValue, { color: colors.onSurface }]}
+                    numberOfLines={2}
+                  >
+                    {spec.value}
+                  </Text>
+                )}
               </View>
             );
           })}

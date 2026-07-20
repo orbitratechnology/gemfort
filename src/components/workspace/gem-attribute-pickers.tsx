@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -24,7 +25,6 @@ import {
     GEM_SHAPES,
     GEM_TREATMENTS,
     GEM_TYPES,
-    flagUrl,
     formatColorLabel,
     formatOptionLabel,
     formatOriginLabel,
@@ -727,11 +727,7 @@ export function OriginPickerSheet({
                 },
               ]}
             >
-              <Image
-                source={{ uri: flagUrl(item.countryCode) }}
-                style={styles.flag}
-                contentFit="cover"
-              />
+              <CountryFlag country={item.countryCode} size="lg" />
               <View style={styles.colorText}>
                 <Text
                   style={[
@@ -895,11 +891,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Radius.lg,
     borderWidth: 1.5,
-  },
-  flag: {
-    width: 36,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: "#ddd",
   },
 });

@@ -225,6 +225,7 @@ export default function DirectoryScreen() {
 
   return (
     <SafeAreaView
+      collapsable={false}
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >

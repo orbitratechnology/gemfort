@@ -6,9 +6,11 @@ import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 
 import { Button } from '@/components/ui/button';
+import { CountryFlag } from '@/components/ui/country-flag';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Input } from '@/components/ui/input';
 import { Spacing, Typography } from '@/constants/design-tokens';
+import { resolveCountryCode } from '@/constants/gem-options';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import { createListing, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -152,7 +154,17 @@ export default function CreateListingScreen() {
 
       <Input label="Title" value={title} onChangeText={setTitle} leftIcon="diamond" />
       <Input label="Carat Weight" value={caratWeight} onChangeText={setCaratWeight} keyboardType="decimal-pad" leftIcon="scale" />
-      <Input label="Origin" value={origin} onChangeText={setOrigin} leftIcon="place" />
+      <Input
+        label="Origin"
+        value={origin}
+        onChangeText={setOrigin}
+        leftIcon={resolveCountryCode(origin) ? undefined : 'place'}
+        leftElement={
+          resolveCountryCode(origin) ? (
+            <CountryFlag country={origin} size="lg" />
+          ) : undefined
+        }
+      />
 
       <Text style={[styles.section, { color: colors.primary }]}>Visibility</Text>
       {(['private', 'members_only', 'public'] as const).map((v) => (

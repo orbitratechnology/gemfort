@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NewsArticleCard } from '@/components/news/news-article-card';
+import { CountryFlag } from '@/components/ui/country-flag';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StackHeader } from '@/components/ui/stack-header';
 import { NEWS_REGIONS, NEWS_TOPICS } from '@/constants/news';
@@ -211,11 +212,16 @@ export default function GemNewsScreen() {
               <Text style={[styles.showTitle, { color: colors.onSurface }]} selectable>
                 {item.title}
               </Text>
-              <Text style={[styles.showMeta, { color: colors.textMuted }]} selectable>
-                {item.venue}
-                {item.city ? ` · ${item.city}` : ''}
-                {item.country ? `, ${item.country}` : ''}
-              </Text>
+              <View style={styles.showMetaRow}>
+                {item.country ? (
+                  <CountryFlag country={item.country} size="xs" />
+                ) : null}
+                <Text style={[styles.showMeta, { color: colors.textMuted }]} selectable>
+                  {item.venue}
+                  {item.city ? ` · ${item.city}` : ''}
+                  {item.country ? `, ${item.country}` : ''}
+                </Text>
+              </View>
               <Text style={[styles.showDates, { color: colors.primary }]}>
                 {formatDate(item.startDate)}
                 {item.endDate ? ` – ${formatDate(item.endDate)}` : ''}
@@ -270,8 +276,13 @@ const styles = StyleSheet.create({
     padding: Spacing.gutterMd,
     gap: 6,
   },
+  showMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   showTitle: { ...Typography.bodyLg, fontWeight: '700' },
-  showMeta: { ...Typography.bodyMd },
+  showMeta: { ...Typography.bodyMd, flexShrink: 1 },
   showDates: { ...Typography.labelMd, fontWeight: '700', marginTop: 4 },
   showRegion: { ...Typography.labelMd, textTransform: 'capitalize' },
 });

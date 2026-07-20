@@ -20,6 +20,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
@@ -117,12 +118,28 @@ function ProgressCardFace({
             {item.title}
           </Text>
         </View>
-        <Text
-          style={{ ...Typography.caption, color: colors.textMuted }}
-          numberOfLines={1}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            flexShrink: 1,
+          }}
         >
-          {item.subtitle}
-        </Text>
+          {item.country ? (
+            <CountryFlag country={item.country} size="xs" />
+          ) : null}
+          <Text
+            style={{
+              ...Typography.caption,
+              color: colors.textMuted,
+              flexShrink: 1,
+            }}
+            numberOfLines={1}
+          >
+            {item.subtitle}
+          </Text>
+        </View>
         <View
           style={{
             height: 4,

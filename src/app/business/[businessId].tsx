@@ -9,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { Button } from "@/components/ui/button";
+import { CountryLabel, PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
@@ -20,7 +21,7 @@ import {
     Spacing,
     Typography,
 } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
 import {
     demoBusinesses,
@@ -210,13 +211,15 @@ export default function BusinessProfileScreen() {
   }
 
   const role = roleLabel(business.businessType, isProvider);
-  const locationLine = [business.city, business.district, business.country]
-    .filter(Boolean)
-    .join(", ");
   const hasWhatsApp = !!business.contacts?.whatsapp?.value?.trim();
   const hasPhone = !!business.contacts?.phone?.value?.trim();
   const hasEmail = !!business.contacts?.email?.value?.trim();
   const hasSocial = hasAnySocialLink(business.socialLinks);
+  const hasLocation = !!(
+    business.city ||
+    business.district ||
+    business.country
+  );
 
   return (
     <SafeAreaView
@@ -305,16 +308,14 @@ export default function BusinessProfileScreen() {
               {role}
               {business.ownerName ? ` · ${business.ownerName}` : ""}
             </Text>
-            {locationLine ? (
-              <View style={styles.locRow}>
-                <Icon name="location-on" size={14} color={colors.textMuted} />
-                <Text
-                  style={[styles.locText, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {locationLine}
-                </Text>
-              </View>
+            {hasLocation ? (
+              <PlaceLabel
+                parts={[business.city, business.district]}
+                country={business.country}
+                size="xs"
+                style={styles.locRow}
+                textStyle={[styles.locText, { color: colors.textMuted }]}
+              />
             ) : null}
             {business.shortDescription?.trim() ? (
               <Text style={[styles.bio, { color: colors.onSurfaceVariant }]}>
@@ -574,14 +575,40 @@ export default function BusinessProfileScreen() {
             <FormSection>
               <View style={styles.detailList}>
                 {business.sellerProfile.sourceOrigins.length > 0 ? (
-                  <DetailRow
-                    icon="public"
-                    label="Origins"
-                    value={business.sellerProfile.sourceOrigins
-                      .map(labelize)
-                      .join(", ")}
-                    colors={colors}
-                  />
+                  <View style={styles.detailRow}>
+                    <View
+                      style={[
+                        styles.detailIcon,
+                        { backgroundColor: colors.surfaceContainerLow },
+                      ]}
+                    >
+                      <Icon
+                        name="public"
+                        size={16}
+                        color={colors.onSurfaceVariant}
+                      />
+                    </View>
+                    <View style={styles.detailBody}>
+                      <Text
+                        style={[styles.detailLabel, { color: colors.textMuted }]}
+                      >
+                        Origins
+                      </Text>
+                      <View style={styles.originChips}>
+                        {business.sellerProfile.sourceOrigins.map((origin) => (
+                          <CountryLabel
+                            key={origin}
+                            country={formatOriginLabel(origin)}
+                            size="xs"
+                            textStyle={[
+                              styles.detailValue,
+                              { color: colors.onSurface },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
                 ) : null}
                 {business.sellerProfile.stoneTypes.length > 0 ? (
                   <DetailRow
@@ -719,12 +746,18 @@ export default function BusinessProfileScreen() {
               >
                 {business.address || "Showroom / workshop"}
               </Text>
-              <Text
-                style={[styles.serviceDesc, { color: colors.onSurfaceVariant }]}
-                selectable
-              >
-                {locationLine}
-              </Text>
+              {hasLocation ? (
+                <PlaceLabel
+                  parts={[business.city, business.district]}
+                  country={business.country}
+                  size="xs"
+                  textStyle={[
+                    styles.serviceDesc,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                  selectable
+                />
+              ) : null}
             </View>
           </View>
         </FormSection>
@@ -953,6 +986,12 @@ const styles = StyleSheet.create({
   detailBody: { flex: 1, gap: 2 },
   detailLabel: { ...Typography.caption },
   detailValue: { ...Typography.bodyMd, fontWeight: "500" },
+  originChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 2,
+  },
 
   serviceRow: {
     flexDirection: "row",

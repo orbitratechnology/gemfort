@@ -16,6 +16,8 @@ export type ActiveProgressItem = {
   badge: string;
   title: string;
   subtitle: string;
+  /** When set, subtitle is rendered with a country flag. */
+  country?: string;
   /** Absolute date label, e.g. "22 Jul 2026" */
   dateLabel: string;
   /** Relative due, e.g. "in 3d" */
@@ -66,6 +68,7 @@ export function buildActiveProgressItems(input: {
       badge: "Ongoing",
       title: t.tripName,
       subtitle: [t.destinationCity, t.destinationCountry].filter(Boolean).join(", "),
+      country: t.destinationCountry,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       href: `/(marketplace)/(tabs)/workspace/trips/${t.id}`,

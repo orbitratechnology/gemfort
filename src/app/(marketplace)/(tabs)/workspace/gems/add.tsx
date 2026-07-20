@@ -1,11 +1,12 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MediaField } from "@/components/ui/media-field";
@@ -31,7 +32,6 @@ import {
     GEM_TREATMENTS,
     GEM_TYPES,
     findColorShade,
-    flagUrl,
     formatColorLabel,
     formatGemType,
     formatOptionLabel,
@@ -346,10 +346,9 @@ export default function AddGemScreen() {
                 error={errors.originCountry}
                 leading={
                   selectedOrigin ? (
-                    <Image
-                      source={{ uri: flagUrl(selectedOrigin.countryCode) }}
-                      style={styles.flagThumb}
-                      contentFit="cover"
+                    <CountryFlag
+                      country={selectedOrigin.countryCode}
+                      size="lg"
                     />
                   ) : undefined
                 }
@@ -451,6 +450,14 @@ export default function AddGemScreen() {
               <ReviewRow
                 label="Origin"
                 value={formatOriginLabel(originValue) || "—"}
+                leading={
+                  selectedOrigin ? (
+                    <CountryFlag
+                      country={selectedOrigin.countryCode}
+                      size="sm"
+                    />
+                  ) : undefined
+                }
               />
               <ReviewRow
                 label="Treatment"
@@ -538,7 +545,15 @@ export default function AddGemScreen() {
   );
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
+function ReviewRow({
+  label,
+  value,
+  leading,
+}: {
+  label: string;
+  value: string;
+  leading?: ReactNode;
+}) {
   const { colors } = useAppTheme();
   return (
     <View
@@ -547,12 +562,15 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
       <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>
         {label}
       </Text>
-      <Text
-        style={[styles.reviewValue, { color: colors.onSurface }]}
-        selectable
-      >
-        {value}
-      </Text>
+      <View style={styles.reviewValueRow}>
+        {leading}
+        <Text
+          style={[styles.reviewValue, { color: colors.onSurface }]}
+          selectable
+        >
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -584,12 +602,6 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 12,
   },
-  flagThumb: {
-    width: 36,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: "#ddd",
-  },
   placeholderIcon: {
     width: 36,
     height: 36,
@@ -609,6 +621,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   reviewLabel: { ...Typography.bodyMd },
+  reviewValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+    justifyContent: "flex-end",
+  },
   reviewValue: {
     ...Typography.bodyLg,
     fontWeight: "600",
