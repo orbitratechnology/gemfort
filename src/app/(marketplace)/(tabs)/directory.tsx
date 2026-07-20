@@ -477,9 +477,7 @@ export default function DirectoryScreen() {
                     <ListingCard
                       key={gem.id}
                       listing={gem}
-                      onPress={() =>
-                        router.push(`/listing/${gem.shareableSlug}`)
-                      }
+                      href={`/listing/${gem.shareableSlug}`}
                     />
                   ))}
                 </ProductGrid>
@@ -516,7 +514,7 @@ export default function DirectoryScreen() {
                           ? "Lapidary"
                           : "Trader"
                     }
-                    onPress={() => router.push(`/business/${b.id}`)}
+                    href={`/business/${b.id}`}
                   />
                 ))}
               </ProductGrid>

@@ -142,9 +142,7 @@ export default function ContactsListScreen() {
       <ContactListRow
         contact={item}
         isLastInSection={index === section.data.length - 1}
-        onPress={() =>
-          router.push(`/(marketplace)/(tabs)/workspace/contacts/${item.id}`)
-        }
+        href={`/(marketplace)/(tabs)/workspace/contacts/${item.id}`}
         onDelete={() => handleDelete(item)}
         onToggleFavourite={() => handleToggleFavourite(item)}
         onSwipeableOpen={handleSwipeableOpen}

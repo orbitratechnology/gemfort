@@ -52,6 +52,16 @@ type ReceivableDoc = {
   currency?: string;
   dueDate: Timestamp;
 };
+type BillDoc = {
+  ownerUid: string;
+  status: string;
+  direction?: string;
+  counterpartyContactId?: string;
+  amount: number;
+  amountSettled?: number;
+  currency?: string;
+  dueDate: Timestamp;
+};
 
 type OwnerContext = {
   contacts: Map<string, ContactDoc>;
@@ -60,6 +70,7 @@ type OwnerContext = {
   apRecords: QueryDocumentSnapshot[];
   services: QueryDocumentSnapshot[];
   receivables: QueryDocumentSnapshot[];
+  bills: QueryDocumentSnapshot[];
 };
 
 function contactName(contacts: Map<string, ContactDoc>, id: string | undefined, fallback = 'Unknown') {
@@ -111,6 +122,28 @@ export function buildGemTrackCandidatesForOwner(
         referenceId: doc.id,
       });
     }
+  }
+
+  for (const doc of ctx.bills) {
+    const b = doc.data() as BillDoc;
+    if (b.ownerUid !== ownerUid) continue;
+    if (b.status !== 'open' && b.status !== 'partial' && b.status !== 'overdue') continue;
+    const due = toDate(b.dueDate);
+    if (!due || !isSameDay(startOfDay(due), now)) continue;
+    const remaining = Math.max(0, b.amount - (b.amountSettled ?? 0));
+    if (remaining <= 0) continue;
+    const who = contactName(ctx.contacts, b.counterpartyContactId);
+    const isPayable = b.direction === 'payable';
+    candidates.push({
+      recipientUid: ownerUid,
+      type: 'bill_due_today',
+      title: 'Bill due today',
+      message: isPayable
+        ? `Pay ${formatCurrency(remaining, b.currency)} to ${who} today.`
+        : `Collect ${formatCurrency(remaining, b.currency)} from ${who} today.`,
+      referenceType: 'bill',
+      referenceId: doc.id,
+    });
   }
 
   for (const doc of ctx.apRecords) {
@@ -221,17 +254,18 @@ export function buildGemTrackCandidatesForOwner(
 }
 
 export async function loadOwnerContexts(db: Firestore): Promise<Map<string, OwnerContext>> {
-  const [cheques, apRecords, services, receivables, contacts, gems] = await Promise.all([
+  const [cheques, apRecords, services, receivables, bills, contacts, gems] = await Promise.all([
     db.collection('gemtrack_cheques').get(),
     db.collection('gemtrack_ap_records').get(),
     db.collection('gemtrack_services').get(),
     db.collection('gemtrack_receivables').get(),
+    db.collection('gemtrack_bills').get(),
     db.collection('gemtrack_contacts').get(),
     db.collection('gemtrack_gems').get(),
   ]);
 
   const owners = new Set<string>();
-  for (const snap of [cheques, apRecords, services, receivables]) {
+  for (const snap of [cheques, apRecords, services, receivables, bills]) {
     snap.docs.forEach((d) => {
       const uid = d.data().ownerUid as string | undefined;
       if (uid) owners.add(uid);
@@ -247,6 +281,7 @@ export async function loadOwnerContexts(db: Firestore): Promise<Map<string, Owne
       apRecords: [],
       services: [],
       receivables: [],
+      bills: [],
     });
   }
 
@@ -275,6 +310,10 @@ export async function loadOwnerContexts(db: Firestore): Promise<Map<string, Owne
   receivables.docs.forEach((d) => {
     const uid = d.data().ownerUid as string;
     contexts.get(uid)?.receivables.push(d);
+  });
+  bills.docs.forEach((d) => {
+    const uid = d.data().ownerUid as string;
+    contexts.get(uid)?.bills.push(d);
   });
 
   return contexts;

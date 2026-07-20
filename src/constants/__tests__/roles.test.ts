@@ -14,11 +14,13 @@ describe('normalizeUserRole', () => {
 });
 
 describe('role module matrix', () => {
-  it('gives traders gems/trips/ap/services but not jobs/certificates', () => {
+  it('gives traders gems/trips/ap/services/cheques/bills but not jobs/certificates', () => {
     expect(canAccessModule('trader', 'gems')).toBe(true);
     expect(canAccessModule('trader', 'trips')).toBe(true);
     expect(canAccessModule('trader', 'ap')).toBe(true);
     expect(canAccessModule('trader', 'services')).toBe(true);
+    expect(canAccessModule('trader', 'cheques')).toBe(true);
+    expect(canAccessModule('trader', 'bills')).toBe(true);
     expect(canAccessModule('trader', 'jobs')).toBe(false);
     expect(canAccessModule('trader', 'certificates')).toBe(false);
   });

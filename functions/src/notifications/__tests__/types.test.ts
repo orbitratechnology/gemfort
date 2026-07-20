@@ -16,6 +16,7 @@ describe('priorityForType', () => {
   it('marks overdue / maturing as medium', () => {
     assert.equal(priorityForType('ap_overdue'), 'medium');
     assert.equal(priorityForType('cheque_maturing_tomorrow'), 'medium');
+    assert.equal(priorityForType('bill_due_today'), 'medium');
   });
 
   it('defaults remaining types to low', () => {

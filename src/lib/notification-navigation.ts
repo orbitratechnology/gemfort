@@ -39,6 +39,10 @@ export function navigateFromNotificationRef(
     go(`/(marketplace)/(tabs)/workspace/cheques/${id}` as Href, options);
     return;
   }
+  if (type === 'bill' && id) {
+    go(`/(marketplace)/(tabs)/workspace/bills/${id}` as Href, options);
+    return;
+  }
   if (type === 'receivable') {
     go(
       '/(marketplace)/(tabs)/workspace/money/receivables' as Href,

@@ -498,6 +498,14 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /gemtrack_bills/{docId} {
+      allow read, write: if isOwner(resource.data.ownerUid)
+                         && isNotSuspended();
+      allow create: if isAnySignedIn()
+        && isOwner(request.resource.data.ownerUid);
+      allow read, write: if isAdmin();
+    }
+
     match /gemtrack_payments/{docId} {
       allow read, write: if isOwner(resource.data.ownerUid)
                          && isNotSuspended();

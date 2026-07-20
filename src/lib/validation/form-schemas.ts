@@ -132,6 +132,35 @@ export const addChequeSchema = z.object({
 
 export type AddChequeForm = z.infer<typeof addChequeSchema>;
 
+export const addBillSchema = z.object({
+  direction: z.enum(["payable", "receivable"]),
+  amount: positiveNumber("Amount"),
+  dueDays: z
+    .string()
+    .trim()
+    .min(1, "Due days required")
+    .refine((v) => /^\d+$/.test(v), "Enter whole days only")
+    .transform((v) => Number(v))
+    .refine((n) => n >= 0 && n <= 730, "Due must be 0-730 days from today"),
+  contactId: z.string().min(1, "Select who the bill is for"),
+  commissionPercent: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => {
+      if (v == null || v === "") return null;
+      const n = Number(v.replace(/,/g, ""));
+      return Number.isNaN(n) ? Number.NaN : n;
+    })
+    .refine(
+      (n) => n === null || (!Number.isNaN(n) && n >= 0 && n <= 100),
+      "Commission must be 0-100%",
+    ),
+  notes: z.string().trim().max(500, "Notes are too long").optional(),
+});
+
+export type AddBillForm = z.infer<typeof addBillSchema>;
+
 export const recordSaleSchema = z.object({
   gemId: z.string().min(1, "Choose which stone you are selling"),
   price: positiveNumber("Sale price"),
@@ -171,7 +200,7 @@ export const registerSchema = z.object({
     .refine((v) => {
       const n = normalizePhoneNumber(v);
       return /^\+\d{10,15}$/.test(n);
-    }, "Use a valid mobile (e.g. +94 77X XXX XXXX)"),
+    }, "Select your country and enter a valid mobile number"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary", "gem_lab"]),
 });

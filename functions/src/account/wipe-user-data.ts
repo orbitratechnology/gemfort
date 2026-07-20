@@ -35,6 +35,7 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'gemtrack_ap_records', field: 'ownerUid' },
   { collection: 'gemtrack_ap_payments', field: 'ownerUid' },
   { collection: 'gemtrack_cheques', field: 'ownerUid' },
+  { collection: 'gemtrack_bills', field: 'ownerUid' },
   { collection: 'gemtrack_payments', field: 'ownerUid' },
   { collection: 'gemtrack_receivables', field: 'ownerUid' },
   { collection: 'gemtrack_payables', field: 'ownerUid' },

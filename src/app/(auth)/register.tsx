@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ChipSelect } from '@/components/ui/chip-select';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { PhoneNumberField } from '@/components/ui/phone-number-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Brand } from '@/constants/brand-story';
 import { Spacing, Typography } from '@/constants/design-tokens';
@@ -122,18 +123,13 @@ export default function RegisterScreen() {
               textContentType="emailAddress"
               error={errors.email}
             />
-            <Input
+            <PhoneNumberField
               label="Phone"
-              leftIcon="phone"
               value={phone}
               onChangeText={(v) => {
                 setPhone(v);
                 clearField('phone');
               }}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              textContentType="telephoneNumber"
-              placeholder="+94 77X XXX XXXX"
               error={errors.phone}
             />
             <Input

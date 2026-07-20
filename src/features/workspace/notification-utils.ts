@@ -9,6 +9,7 @@ import {
 import type { GemTrackNotificationType } from "@/constants/gemtrack-notification-types";
 import { isGemTrackNotificationType } from "@/constants/gemtrack-notification-types";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
+import { detectBillsDueToday } from "@/features/workspace/bill-utils";
 import { detectChequesMaturingTomorrow } from "@/features/workspace/cheque-utils";
 import { effectiveReceivableStatus } from "@/features/workspace/payment-utils";
 import {
@@ -19,6 +20,7 @@ import { formatCurrency } from "@/lib/utils";
 import type {
     ApRecord,
     AppNotification,
+    Bill,
     Cheque,
     Contact,
     Receivable,
@@ -209,16 +211,38 @@ export function buildChequeMaturingCandidates(
   }));
 }
 
+export function buildBillDueTodayCandidates(
+  bills: Bill[],
+  contacts: Contact[],
+): NotificationCandidate[] {
+  return detectBillsDueToday(bills).map((b) => {
+    const remaining = Math.max(0, b.amount - b.amountSettled);
+    const who = contactName(contacts, b.counterpartyContactId);
+    const isPayable = b.direction === "payable";
+    return {
+      type: "bill_due_today" as const,
+      title: "Bill due today",
+      message: isPayable
+        ? `Pay ${formatCurrency(remaining, b.currency)} to ${who} today.`
+        : `Collect ${formatCurrency(remaining, b.currency)} from ${who} today.`,
+      referenceType: "bill",
+      referenceId: b.id,
+    };
+  });
+}
+
 export function buildGemTrackNotificationCandidates(input: {
   apRecords: ApRecord[];
   services: ServiceRecord[];
   cheques: Cheque[];
+  bills?: Bill[];
   receivables: Receivable[];
   contacts: Contact[];
   gems: WorkspaceGem[];
 }): NotificationCandidate[] {
   return [
     ...buildChequeMaturingCandidates(input.cheques, input.contacts),
+    ...buildBillDueTodayCandidates(input.bills ?? [], input.contacts),
     ...buildApOverdueCandidates(input.apRecords, input.contacts),
     ...detectApReturnDueSoon(input.apRecords, input.contacts),
     ...detectApPaymentOverdue(input.apRecords, input.contacts),

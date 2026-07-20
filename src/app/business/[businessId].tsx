@@ -1,7 +1,7 @@
 import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { router, useLocalSearchParams } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -253,29 +253,31 @@ export default function BusinessProfileScreen() {
 
           <View style={styles.avatarBlock}>
             <View style={styles.logoWrap}>
-              <View
-                style={[
-                  styles.logo,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                {business.logoUrl ? (
-                  <Image
-                    source={{ uri: business.logoUrl }}
-                    style={styles.logoImg}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <Text
-                    style={[styles.logoInitials, { color: colors.primary }]}
-                  >
-                    {initials(business.businessName)}
-                  </Text>
-                )}
-              </View>
+              <Link.AppleZoomTarget>
+                <View
+                  style={StyleSheet.flatten([
+                    styles.logo,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      borderColor: colors.background,
+                    },
+                  ])}
+                >
+                  {business.logoUrl ? (
+                    <Image
+                      source={{ uri: business.logoUrl }}
+                      style={styles.logoImg}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Text
+                      style={[styles.logoInitials, { color: colors.primary }]}
+                    >
+                      {initials(business.businessName)}
+                    </Text>
+                  )}
+                </View>
+              </Link.AppleZoomTarget>
               {business.badges.isVerified ||
               business.verificationStatus === "verified" ? (
                 <View

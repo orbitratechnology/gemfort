@@ -2,6 +2,8 @@ import { callFunction } from '@/lib/firebase/call-function';
 import { getFirebaseDb } from '@/lib/firebase/config';
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -9,6 +11,12 @@ import {
 } from '@/lib/firebase/db';
 import { normalizeApRecord } from '@/features/workspace/ap-normalize';
 import type { ApPaymentMethod, ApRecord } from '@/types';
+
+export async function fetchApRecordById(apId: string): Promise<ApRecord | null> {
+  const snap = await getDoc(doc(getFirebaseDb(), 'gemtrack_ap_records', apId));
+  if (!snap.exists()) return null;
+  return normalizeApRecord({ id: snap.id, ...snap.data() } as ApRecord);
+}
 
 export async function fetchGivenApRecords(uid: string): Promise<ApRecord[]> {
   const db = getFirebaseDb();

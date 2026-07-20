@@ -3,6 +3,7 @@ import type { Timestamp } from 'firebase-admin/firestore';
 export const GEMTRACK_NOTIFICATION_TYPES = [
   'cheque_maturing_tomorrow',
   'cheque_bounced',
+  'bill_due_today',
   'ap_overdue',
   'ap_return_due_soon',
   'ap_payment_overdue',
@@ -74,6 +75,7 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   if (
     type === 'ap_overdue' ||
     type === 'cheque_maturing_tomorrow' ||
+    type === 'bill_due_today' ||
     type === 'payment_overdue' ||
     type === 'service_overdue'
   ) {
@@ -102,6 +104,7 @@ export type UserNotificationPreferences = {
   pushChequeAlerts?: boolean;
   pushApAlerts?: boolean;
   pushPaymentAlerts?: boolean;
+  pushBillAlerts?: boolean;
 };
 
 export type UserDoc = {

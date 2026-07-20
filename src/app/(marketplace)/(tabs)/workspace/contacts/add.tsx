@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { PhoneNumberField } from '@/components/ui/phone-number-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
@@ -191,8 +192,8 @@ export default function AddContactScreen() {
         <FormSection title="Contact">
           <Input label="Name" value={displayName} onChangeText={setDisplayName} placeholder="Full name" leftIcon="person" />
           <Input label="Company" value={companyName} onChangeText={setCompanyName} placeholder="Optional" leftIcon="business" />
-          <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="phone" />
-          <Input label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" leftIcon="chat" />
+          <PhoneNumberField label="Phone" value={phone} onChangeText={setPhone} />
+          <PhoneNumberField label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} />
           <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" leftIcon="email" />
         </FormSection>
 

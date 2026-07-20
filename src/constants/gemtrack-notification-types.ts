@@ -2,6 +2,7 @@
 export const GEMTRACK_NOTIFICATION_TYPES = [
   'cheque_maturing_tomorrow',
   'cheque_bounced',
+  'bill_due_today',
   'ap_overdue',
   'ap_return_due_soon',
   'ap_payment_overdue',

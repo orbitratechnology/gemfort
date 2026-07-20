@@ -26,6 +26,9 @@ import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { calcWeightLossPercent, generateSku } from "@/lib/utils";
 import type {
     ApRecord,
+    Bill,
+    BillDirection,
+    BillStatus,
     Business,
     Cheque,
     ChequeDirection,
@@ -220,6 +223,16 @@ export async function fetchServices(
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord);
+}
+
+export async function fetchService(
+  serviceId: string,
+): Promise<ServiceRecord | null> {
+  const snap = await getDoc(
+    doc(getFirebaseDb(), "gemtrack_services", serviceId),
+  );
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as ServiceRecord;
 }
 
 export async function createService(
@@ -854,6 +867,7 @@ export async function recordReceivablePayment(
     commission: options?.commission ?? null,
     receivableId,
     payableId: null,
+    billId: null,
     gemId: null,
     contactId: data.contactId,
     transactionId: txnId,
@@ -914,6 +928,7 @@ export async function recordPayablePayment(
     commission: options?.commission ?? null,
     receivableId: null,
     payableId,
+    billId: null,
     gemId: null,
     contactId: data.contactId,
     transactionId: txnId,
@@ -931,6 +946,175 @@ export async function fetchPayments(ownerUid: string): Promise<Payment[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payment);
+}
+
+// ─── Bills ──────────────────────────────────────────
+
+export async function fetchBills(ownerUid: string): Promise<Bill[]> {
+  const q = query(
+    collection(getFirebaseDb(), "gemtrack_bills"),
+    where("ownerUid", "==", ownerUid),
+    orderBy("dueDate", "asc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Bill);
+}
+
+export async function fetchBill(billId: string): Promise<Bill | null> {
+  const snap = await getDoc(doc(getFirebaseDb(), "gemtrack_bills", billId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as Bill;
+}
+
+export async function createBill(
+  ownerUid: string,
+  input: {
+    direction: BillDirection;
+    amount: number;
+    currency?: string;
+    commissionPercent?: number | null;
+    counterpartyContactId: string;
+    dueDate: Timestamp;
+    gemId?: string | null;
+    notes?: string | null;
+  },
+): Promise<string> {
+  const now = Timestamp.now();
+  const currency = input.currency ?? "LKR";
+  const amountBase = await convertToBase(input.amount, currency);
+  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_bills"), {
+    ownerUid,
+    direction: input.direction,
+    amount: input.amount,
+    currency,
+    amountBase,
+    amountSettled: 0,
+    commissionPercent:
+      input.commissionPercent != null && !Number.isNaN(input.commissionPercent)
+        ? input.commissionPercent
+        : null,
+    counterpartyContactId: input.counterpartyContactId,
+    dueDate: input.dueDate,
+    status: "open" as BillStatus,
+    gemId: input.gemId ?? null,
+    notes: input.notes?.trim() ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return ref.id;
+}
+
+export async function updateBill(
+  billId: string,
+  data: Partial<
+    Pick<
+      Bill,
+      | "amount"
+      | "amountBase"
+      | "commissionPercent"
+      | "dueDate"
+      | "notes"
+      | "status"
+      | "gemId"
+    >
+  >,
+) {
+  const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  if (data.amount !== undefined) updates.amount = data.amount;
+  if (data.amountBase !== undefined) updates.amountBase = data.amountBase;
+  if (data.commissionPercent !== undefined)
+    updates.commissionPercent = data.commissionPercent;
+  if (data.dueDate !== undefined) updates.dueDate = data.dueDate;
+  if (data.notes !== undefined) updates.notes = data.notes?.trim() ?? null;
+  if (data.status !== undefined) updates.status = data.status;
+  if (data.gemId !== undefined) updates.gemId = data.gemId;
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), updates);
+}
+
+export async function updateBillStatus(billId: string, status: BillStatus) {
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function recordBillPayment(
+  ownerUid: string,
+  billId: string,
+  paymentAmount: number,
+  options?: {
+    currency?: string;
+    paymentMethod?: string | null;
+    notes?: string | null;
+  },
+) {
+  if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
+  const ref = doc(getFirebaseDb(), "gemtrack_bills", billId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Bill not found");
+  const data = snap.data() as Bill;
+  if (data.ownerUid !== ownerUid) throw new Error("Bill not found");
+  if (data.status === "cancelled" || data.status === "paid") {
+    throw new Error("Bill cannot accept payment");
+  }
+
+  const newSettled = Math.min(
+    data.amount,
+    data.amountSettled + paymentAmount,
+  );
+  const status: BillStatus =
+    newSettled >= data.amount
+      ? "paid"
+      : newSettled > 0
+        ? "partial"
+        : "open";
+  const now = Timestamp.now();
+  const currency = options?.currency ?? data.currency ?? "LKR";
+  const commission =
+    data.commissionPercent != null && data.commissionPercent > 0
+      ? Math.round(paymentAmount * (data.commissionPercent / 100) * 100) / 100
+      : null;
+
+  await updateDoc(ref, {
+    amountSettled: newSettled,
+    status,
+    updatedAt: serverTimestamp(),
+  });
+
+  const amountBase = await convertToBase(paymentAmount, currency);
+  const isReceivable = data.direction === "receivable";
+  const txnId = await createTransaction(ownerUid, {
+    type: isReceivable ? "income" : "expense",
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    category: isReceivable ? "other_income" : "other_expense",
+    description: isReceivable
+      ? `Bill received: ${data.notes?.trim() || "Bill payment"}`
+      : `Bill paid: ${data.notes?.trim() || "Bill payment"}`,
+    gemId: data.gemId,
+    contactId: data.counterpartyContactId,
+    date: now,
+  });
+
+  await addDoc(collection(getFirebaseDb(), "gemtrack_payments"), {
+    ownerUid,
+    direction: isReceivable ? "in" : "out",
+    amount: paymentAmount,
+    currency,
+    amountBase,
+    paymentMethod: options?.paymentMethod ?? null,
+    commission,
+    receivableId: null,
+    payableId: null,
+    billId,
+    gemId: data.gemId,
+    contactId: data.counterpartyContactId,
+    transactionId: txnId,
+    notes: options?.notes ?? null,
+    paymentDate: now,
+    createdAt: now,
+  });
 }
 
 // ─── Cheques ──────────────────────────────────────

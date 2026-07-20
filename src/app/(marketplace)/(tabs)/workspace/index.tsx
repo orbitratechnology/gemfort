@@ -24,6 +24,10 @@ import {
 } from "@/features/marketplace/request-service";
 import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
+    detectBillsDueToday,
+    getBillSummary,
+} from "@/features/workspace/bill-utils";
+import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
 } from "@/features/workspace/cheque-utils";
@@ -33,6 +37,7 @@ import {
     detectOverdueAp,
     detectOverdueServices,
     fetchApRecords,
+    fetchBills,
     fetchCheques,
     fetchContacts,
     fetchGems,
@@ -130,6 +135,12 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "cheques"),
   });
 
+  const { data: bills = [] } = useQuery({
+    queryKey: ["bills", userId],
+    queryFn: () => fetchBills(userId!),
+    enabled: !!userId && canAccessModule(role, "bills"),
+  });
+
   const { data: trips = [] } = useQuery({
     queryKey: ["trips", userId],
     queryFn: () => fetchTrips(userId!),
@@ -190,6 +201,8 @@ export default function WorkspaceHub() {
   const overdueAp = detectOverdueAp(apRecords);
   const maturingCheques = detectChequesMaturingTomorrow(cheques);
   const chequeSummary = getChequeSummary(cheques);
+  const billsDueToday = detectBillsDueToday(bills);
+  const billSummary = getBillSummary(bills);
   const { active: activeTrips } = getTripsByStatus(trips);
   const ongoingTrips = trips.filter((t) => t.status === "ongoing");
   const takenPendingAp = apRecords.filter(
@@ -289,6 +302,17 @@ export default function WorkspaceHub() {
           : undefined,
     },
     {
+      label: "Bills",
+      value: billSummary.openCount,
+      icon: "receipt-long",
+      route: `${WORKSPACE}/bills`,
+      group: "money",
+      hint:
+        billsDueToday.length > 0
+          ? `${billsDueToday.length} due today`
+          : undefined,
+    },
+    {
       label: "Contacts",
       value: contacts.length,
       icon: "group",
@@ -309,6 +333,7 @@ export default function WorkspaceHub() {
     if (m.label === "Trips") return canAccessModule(role, "trips");
     if (m.label === "AP") return canAccessModule(role, "ap");
     if (m.label === "Cheques") return canAccessModule(role, "cheques");
+    if (m.label === "Bills") return canAccessModule(role, "bills");
     if (m.label === "Contacts") return role === "trader" || role === "admin";
     return true;
   });
@@ -370,6 +395,11 @@ export default function WorkspaceHub() {
               route: `${WORKSPACE}/cheques/add`,
             },
             {
+              label: "Bill",
+              icon: "receipt-long",
+              route: `${WORKSPACE}/bills/add`,
+            },
+            {
               label: "Sale",
               icon: "sell",
               route: `${WORKSPACE}/money/record-sale`,
@@ -416,6 +446,14 @@ export default function WorkspaceHub() {
       icon: "money-check-dollar" as const,
       tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
+    })),
+    ...billsDueToday.map((b) => ({
+      id: `bill-${b.id}`,
+      title: "Bill due today",
+      subtitle: `${formatCurrency(b.amount - b.amountSettled, b.currency)}`,
+      icon: "receipt-long" as const,
+      tone: "warning" as const,
+      route: `${WORKSPACE}/bills/${b.id}`,
     })),
   ];
 
@@ -498,6 +536,7 @@ export default function WorkspaceHub() {
         trips={trips}
         apRecords={apRecords}
         cheques={cheques}
+        bills={bills}
         contactName={(id) =>
           contacts.find((c) => c.id === id)?.displayName ?? "Contact"
         }

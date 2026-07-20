@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { router, useLocalSearchParams } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
     ActivityIndicator,
@@ -199,22 +199,24 @@ export default function GemDetailScreen() {
             { backgroundColor: colors.surfaceContainerLowest },
           ]}
         >
-          {gem.photoUrls?.[0] ? (
-            <Image
-              source={{ uri: gem.photoUrls[0] }}
-              style={styles.heroImage}
-              contentFit="cover"
-            />
-          ) : (
-            <View
-              style={[
-                styles.heroPlaceholder,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              <Icon name="diamond" size={48} color={colors.outlineVariant} />
-            </View>
-          )}
+          <Link.AppleZoomTarget>
+            {gem.photoUrls?.[0] ? (
+              <Image
+                source={{ uri: gem.photoUrls[0] }}
+                style={styles.heroImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View
+                style={StyleSheet.flatten([
+                  styles.heroPlaceholder,
+                  { backgroundColor: colors.surfaceContainerHigh },
+                ])}
+              >
+                <Icon name="diamond" size={48} color={colors.outlineVariant} />
+              </View>
+            )}
+          </Link.AppleZoomTarget>
           {isCertified ? (
             <View
               style={[

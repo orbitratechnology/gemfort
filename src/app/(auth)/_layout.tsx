@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 
 export default function AuthLayout() {
   const { colors } = useAppTheme();
@@ -8,6 +9,7 @@ export default function AuthLayout() {
   return (
     <Stack
       screenOptions={{
+        ...silkStackScreenOptions,
         headerShown: true,
         headerTintColor: colors.primary,
         headerStyle: { backgroundColor: colors.background },

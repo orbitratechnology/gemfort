@@ -83,6 +83,14 @@
       ]
     },
     {
+      "collectionGroup": "gemtrack_bills",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "gemtrack_trips",
       "queryScope": "COLLECTION",
       "fields": [
