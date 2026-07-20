@@ -171,7 +171,7 @@ export const registerSchema = z.object({
     .refine((v) => {
       const n = normalizePhoneNumber(v);
       return /^\+\d{10,15}$/.test(n);
-    }, "Use a valid mobile (e.g. +94 77X XXX XXXX)"),
+    }, "Select your country and enter a valid mobile number"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary", "gem_lab"]),
 });

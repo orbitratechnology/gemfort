@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { CallLogRow } from "@/components/workspace/call-log-row";
@@ -193,19 +194,15 @@ export default function ContactDetailScreen() {
               onChangeText={setDisplayName}
               leftIcon="person"
             />
-            <Input
+            <PhoneNumberField
               label="Phone"
               value={phone}
               onChangeText={setPhone}
-              keyboardType="phone-pad"
-              leftIcon="phone"
             />
-            <Input
+            <PhoneNumberField
               label="WhatsApp"
               value={whatsapp}
               onChangeText={setWhatsapp}
-              keyboardType="phone-pad"
-              leftIcon="whatsapp"
             />
             <Input
               label="Email"
