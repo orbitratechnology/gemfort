@@ -265,10 +265,6 @@ export default function HomeScreen() {
     }
   }
 
-  function openBusiness(b: Business) {
-    router.push(`/business/${b.id}`);
-  }
-
   function browseDirectory(tab?: string) {
     router.push({
       pathname: "/(marketplace)/(tabs)/directory",
@@ -639,7 +635,6 @@ export default function HomeScreen() {
             ) : (
               <HomeBusinessRail
                 businesses={block.data}
-                onPress={openBusiness}
                 emptyLabel={block.empty}
                 onBrowse={() => browseDirectory(block.tab)}
                 roleHint={block.role}
@@ -674,7 +669,7 @@ export default function HomeScreen() {
                 <ListingCard
                   key={gem.id}
                   listing={gem}
-                  onPress={() => router.push(`/listing/${gem.shareableSlug}`)}
+                  href={`/listing/${gem.shareableSlug}`}
                 />
               ))}
             </ProductGrid>

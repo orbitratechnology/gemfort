@@ -1,6 +1,7 @@
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import { warmUpFirestore } from '@/lib/firebase/init';
+import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 import { AuthProvider } from '@/providers/auth-provider';
 import { PushNotificationRegistrar } from '@/providers/push-notification-registrar';
 import { QueryProvider } from '@/providers/query-provider';
@@ -32,6 +33,7 @@ function RootNavigator() {
   return (
     <Stack
       screenOptions={{
+        ...silkStackScreenOptions,
         headerShown: false,
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.primary,
@@ -43,10 +45,8 @@ function RootNavigator() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(marketplace)" />
       <Stack.Screen name="business/[businessId]" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="listing/[slug]"
-        options={{ headerShown: true, title: 'Listing', headerBackTitle: 'Back' }}
-      />
+      {/* headerShown false: Apple Zoom conflicts with native headers */}
+      <Stack.Screen name="listing/[slug]" options={{ headerShown: false }} />
       <Stack.Screen
         name="listings/create"
         options={{ headerShown: true, title: 'Create Listing', headerBackTitle: 'Back' }}

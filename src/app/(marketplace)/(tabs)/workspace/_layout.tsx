@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 
 /**
  * Every workspace screen renders its own transparent in-screen header
@@ -17,6 +18,7 @@ export default function WorkspaceLayout() {
   return (
     <Stack
       screenOptions={{
+        ...silkStackScreenOptions,
         headerShown: false,
         contentStyle: { backgroundColor: colors.background },
       }}

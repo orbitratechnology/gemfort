@@ -1,4 +1,3 @@
-import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
@@ -19,9 +18,9 @@ import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-    Palette,
     Radius,
     Spacing,
     Typography,
@@ -359,28 +358,15 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
       <FormSectionLabel title="CONTACT" />
       <FormSection>
-        <Input
+        <PhoneNumberField
           label="WhatsApp"
           value={whatsapp}
           onChangeText={setWhatsapp}
-          keyboardType="phone-pad"
-          placeholder="+94 77X XXX XXXX"
-          leftElement={
-            <FontAwesome6
-              name="whatsapp"
-              iconStyle="brand"
-              size={20}
-              color={Palette.whatsapp}
-            />
-          }
         />
-        <Input
+        <PhoneNumberField
           label="Phone"
           value={phone}
           onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="+94 XX XXX XXXX"
-          leftIcon="phone"
         />
       </FormSection>
 
