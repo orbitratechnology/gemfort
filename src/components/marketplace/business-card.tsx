@@ -2,9 +2,10 @@ import { Image } from "expo-image";
 import { Link, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import type { Business } from "@/types";
 
@@ -109,13 +110,18 @@ export function BusinessCard({
       </Text>
 
       <View style={styles.locationRow}>
-        <Icon name="location-on" size={12} color={colors.textMuted} />
+        {resolveCountryCode(business.country) ? (
+          <CountryFlag country={business.country} size="xs" />
+        ) : (
+          <Icon name="location-on" size={12} color={colors.textMuted} />
+        )}
         <Text
           style={[styles.location, { color: colors.textMuted }]}
           numberOfLines={1}
         >
           {business.city}
           {business.district ? `, ${business.district}` : ""}
+          {business.country ? `, ${business.country}` : ""}
           {years > 0 ? ` · ${years}y` : ""}
         </Text>
       </View>

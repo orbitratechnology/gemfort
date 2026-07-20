@@ -9,12 +9,15 @@ import {
     Text,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carousel";
 import { HomeBusinessRail } from "@/components/marketplace/home-business-rail";
-import { HomeNewsTeaser } from "@/components/news/home-news-teaser";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { HomeNewsTeaser } from "@/components/news/home-news-teaser";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
@@ -22,7 +25,11 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { SkeletonList } from "@/components/ui/skeleton-list";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { ROLE_LABELS, canAccessModule, resolveProfileRole } from "@/constants/roles";
+import {
+    ROLE_LABELS,
+    canAccessModule,
+    resolveProfileRole,
+} from "@/constants/roles";
 import {
     buildHomeUpcoming,
     popularByRole,
@@ -110,8 +117,10 @@ function initialsFromName(name: string) {
 
 export default function HomeScreen() {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
   const unread = useUnreadNotificationCount();
+  const [chromeHeight, setChromeHeight] = useState(0);
 
   const role = resolveProfileRole(profile);
   const displayName =
@@ -280,112 +289,18 @@ export default function HomeScreen() {
   }
 
   const showAvatarImage = !!avatarUri && !avatarFailed;
+  // Estimate until onLayout so content doesn't jump under the chrome.
+  const topPad =
+    (chromeHeight > 0 ? chromeHeight : insets.top + 68) + Spacing.stackSm;
 
   return (
-    <SafeAreaView
+    <View
+      collapsable={false}
       style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
     >
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${displayName}, ${roleLabel}`}
-          style={styles.headerLeft}
-          onPress={() => router.push("/(marketplace)/(tabs)/profile")}
-        >
-          {showAvatarImage ? (
-            <Image
-              source={{ uri: avatarUri }}
-              style={styles.avatar}
-              contentFit="cover"
-              recyclingKey={avatarUri}
-              onError={() => setFailedAvatarUri(avatarUri)}
-            />
-          ) : (
-            <View
-              style={[
-                styles.avatarFallback,
-                { backgroundColor: colors.primaryContainer },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.avatarInitial,
-                  { color: colors.onPrimaryContainer },
-                ]}
-              >
-                {initials}
-              </Text>
-            </View>
-          )}
-          <View style={styles.headerCopy}>
-            <Text
-              style={[styles.userName, { color: colors.onSurface }]}
-              numberOfLines={1}
-            >
-              {displayName}
-            </Text>
-            <Text
-              style={[styles.userRole, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {roleLabel}
-            </Text>
-          </View>
-        </Pressable>
-        <View style={styles.headerActions}>
-          {showRequests ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Requests"
-              style={[
-                styles.iconBtn,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-              onPress={() =>
-                router.push(
-                  "/(marketplace)/(tabs)/workspace/requests" as never,
-                )
-              }
-            >
-              <Icon
-                name="outgoing-mail"
-                size={20}
-                color={colors.onSurfaceVariant}
-              />
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
-            }
-            style={[
-              styles.iconBtn,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-            onPress={() => router.push("/notifications")}
-          >
-            <Icon
-              name="notifications-none"
-              size={20}
-              color={colors.onSurfaceVariant}
-            />
-            {unread > 0 ? (
-              <View
-                style={[styles.notifBadge, { backgroundColor: colors.error }]}
-              >
-                <Text style={styles.notifBadgeText}>
-                  {unread > 99 ? "99+" : unread}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-      </View>
-
+      {/* First descendant must be ScrollView for NativeTabs scroll-to-top. */}
       <ThemedScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: topPad }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetchAll} />
@@ -697,12 +612,130 @@ export default function HomeScreen() {
           )}
         </View>
       </ThemedScrollView>
-    </SafeAreaView>
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.chrome, { backgroundColor: colors.background }]}
+        onLayout={(e) => setChromeHeight(e.nativeEvent.layout.height)}
+      >
+        <SafeAreaView edges={["top"]}>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${displayName}, ${roleLabel}`}
+              style={styles.headerLeft}
+              onPress={() => router.push("/(marketplace)/(tabs)/profile")}
+            >
+              {showAvatarImage ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                  recyclingKey={avatarUri}
+                  onError={() => setFailedAvatarUri(avatarUri)}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatarFallback,
+                    { backgroundColor: colors.primaryContainer },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarInitial,
+                      { color: colors.onPrimaryContainer },
+                    ]}
+                  >
+                    {initials}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.headerCopy}>
+                <Text
+                  style={[styles.userName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {displayName}
+                </Text>
+                <Text
+                  style={[styles.userRole, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {roleLabel}
+                </Text>
+              </View>
+            </Pressable>
+            <View style={styles.headerActions}>
+              {showRequests ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Requests"
+                  style={[
+                    styles.iconBtn,
+                    { backgroundColor: colors.surfaceContainerLowest },
+                  ]}
+                  onPress={() =>
+                    router.push(
+                      "/(marketplace)/(tabs)/workspace/requests" as never,
+                    )
+                  }
+                >
+                  <Icon
+                    name="outgoing-mail"
+                    size={20}
+                    color={colors.onSurfaceVariant}
+                  />
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  unread > 0
+                    ? `Notifications, ${unread} unread`
+                    : "Notifications"
+                }
+                style={[
+                  styles.iconBtn,
+                  { backgroundColor: colors.surfaceContainerLowest },
+                ]}
+                onPress={() => router.push("/notifications")}
+              >
+                <Icon
+                  name="notifications-none"
+                  size={20}
+                  color={colors.onSurfaceVariant}
+                />
+                {unread > 0 ? (
+                  <View
+                    style={[
+                      styles.notifBadge,
+                      { backgroundColor: colors.error },
+                    ]}
+                  >
+                    <Text style={styles.notifBadgeText}>
+                      {unread > 99 ? "99+" : unread}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  chrome: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -766,7 +799,6 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: Spacing.stackSm,
     paddingBottom: 120,
     gap: Spacing.sectionGap,
   },

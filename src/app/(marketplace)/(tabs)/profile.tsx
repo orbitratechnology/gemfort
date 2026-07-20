@@ -142,6 +142,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView
+      collapsable={false}
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >

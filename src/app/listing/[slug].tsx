@@ -5,6 +5,7 @@ import { Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { CountryLabel } from "@/components/ui/country-flag";
 import { ThemedScrollView, ThemedView } from "@/components/ui/screen";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -96,10 +97,17 @@ export default function PublicListingScreen() {
         <Text style={[styles.title, { color: colors.primary }]} selectable>
           {listing.title}
         </Text>
-        <Text style={[styles.specs, { color: colors.textMuted }]} selectable>
-          {listing.caratWeight} ct · {listing.gemType.replace(/_/g, " ")} ·{" "}
-          {listing.origin}
-        </Text>
+        <View style={styles.specsRow}>
+          <Text style={[styles.specs, { color: colors.textMuted }]} selectable>
+            {listing.caratWeight} ct · {listing.gemType.replace(/_/g, " ")} ·{" "}
+          </Text>
+          <CountryLabel
+            country={listing.origin}
+            size="xs"
+            textStyle={[styles.specs, { color: colors.textMuted }]}
+            selectable
+          />
+        </View>
 
         <Card>
           {listing.showPrice && listing.priceMin ? (
@@ -165,6 +173,12 @@ const styles = StyleSheet.create({
   hero: { width: "100%", height: 240, borderRadius: 12 },
   heroPlaceholder: { width: "100%", height: 240, borderRadius: 12 },
   title: { ...Typography.h1 },
+  specsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+  },
   specs: { ...Typography.body, textTransform: "capitalize" },
   price: { ...Typography.h2 },
   treatment: { ...Typography.body, marginTop: Spacing.sm },

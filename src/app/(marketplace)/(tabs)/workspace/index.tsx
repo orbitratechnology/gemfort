@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -96,6 +100,8 @@ function toneColors(tone: AlertItem["tone"], colors: ThemeColors) {
 export default function WorkspaceHub() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const [chromeHeight, setChromeHeight] = useState(0);
   const userId = user?.uid;
   const role = resolveProfileRole(profile);
 
@@ -501,51 +507,18 @@ export default function WorkspaceHub() {
         ? "workspace-premium"
         : "account-balance-wallet";
 
+  // Estimate until onLayout (header ~56 + optional strip).
+  const topPad =
+    (chromeHeight > 0 ? chromeHeight : insets.top + 56) + Spacing.stackSm;
+
   return (
-    <SafeAreaView
+    <View
+      collapsable={false}
       style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
     >
-      <StackHeader
-        title="Workspace"
-        showBack={false}
-        right={
-          showRequests ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Requests"
-              onPress={() => router.push(`${WORKSPACE}/requests` as never)}
-              style={({ pressed }) => [
-                styles.headerIconBtn,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <Icon
-                name="outgoing-mail"
-                size={20}
-                color={colors.onSurfaceVariant}
-              />
-            </Pressable>
-          ) : null
-        }
-      />
-      <ActiveProgressStrip
-        trips={trips}
-        apRecords={apRecords}
-        cheques={cheques}
-        bills={bills}
-        contactName={(id) =>
-          contacts.find((c) => c.id === id)?.displayName ?? "Contact"
-        }
-        limit={4}
-        compact
-        style={styles.headerTripWrap}
-      />
+      {/* First descendant must be ScrollView for NativeTabs scroll-to-top. */}
       <ThemedScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: topPad }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -1269,12 +1242,66 @@ export default function WorkspaceHub() {
           </View>
         ) : null}
       </ThemedScrollView>
-    </SafeAreaView>
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.chrome, { backgroundColor: colors.background }]}
+        onLayout={(e) => setChromeHeight(e.nativeEvent.layout.height)}
+      >
+        <SafeAreaView edges={["top"]}>
+          <StackHeader
+            title="Workspace"
+            showBack={false}
+            right={
+              showRequests ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Requests"
+                  onPress={() => router.push(`${WORKSPACE}/requests` as never)}
+                  style={({ pressed }) => [
+                    styles.headerIconBtn,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      opacity: pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="outgoing-mail"
+                    size={20}
+                    color={colors.onSurfaceVariant}
+                  />
+                </Pressable>
+              ) : null
+            }
+          />
+          <ActiveProgressStrip
+            trips={trips}
+            apRecords={apRecords}
+            cheques={cheques}
+            bills={bills}
+            contactName={(id) =>
+              contacts.find((c) => c.id === id)?.displayName ?? "Contact"
+            }
+            limit={4}
+            compact
+            style={styles.headerTripWrap}
+          />
+        </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  chrome: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+  },
   headerIconBtn: {
     width: 40,
     height: 40,
@@ -1289,7 +1316,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.stackSm,
     paddingBottom: 120,
     gap: Spacing.sectionGap,
   },

@@ -5,6 +5,7 @@ import { StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipSelect } from '@/components/ui/chip-select';
+import { CountryFlag } from '@/components/ui/country-flag';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { TRIP_TYPES } from '@/constants/trip-options';
 import { Spacing, Typography } from '@/constants/design-tokens';
+import { resolveCountryCode } from '@/constants/gem-options';
 import { createTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Timestamp } from '@/lib/firebase/db';
@@ -151,7 +153,12 @@ export default function AddTripScreen() {
               clearField('destinationCountry');
             }}
             placeholder="Sri Lanka"
-            leftIcon="public"
+            leftIcon={resolveCountryCode(destinationCountry) ? undefined : 'public'}
+            leftElement={
+              resolveCountryCode(destinationCountry) ? (
+                <CountryFlag country={destinationCountry} size="lg" />
+              ) : undefined
+            }
             error={errors.destinationCountry}
           />
           <Input

@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { PlaceLabel } from "@/components/ui/country-flag";
 import { StackHeader } from "@/components/ui/stack-header";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -88,12 +89,12 @@ function TripRow({
             </Text>
           </View>
         </View>
-        <Text
-          style={[styles.rowSub, { color: colors.textMuted }]}
-          numberOfLines={1}
-        >
-          {trip.destinationCity}, {trip.destinationCountry}
-        </Text>
+        <PlaceLabel
+          parts={[trip.destinationCity]}
+          country={trip.destinationCountry}
+          size="xs"
+          textStyle={[styles.rowSub, { color: colors.textMuted }]}
+        />
         <Text style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}>
           {formatTripDates(trip)} · {typeMeta.label}
         </Text>

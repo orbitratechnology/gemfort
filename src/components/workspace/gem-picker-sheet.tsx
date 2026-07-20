@@ -10,10 +10,11 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { WorkspaceGem } from "@/types";
@@ -268,14 +269,37 @@ export function GemPickerSheet({
                   {formatGemType(item.gemType)}
                   {item.cutType ? ` · ${item.cutType}` : ""}
                 </Text>
-                <Text
-                  style={[styles.meta, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {item.currentWeight} ct
-                  {item.originCountry ? ` · ${item.originCountry}` : ""}
-                  {` · ${item.status.replace(/_/g, " ")}`}
-                </Text>
+                <View style={styles.metaRow}>
+                  <Text
+                    style={[styles.meta, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {item.currentWeight} ct
+                  </Text>
+                  {item.originCountry ? (
+                    <>
+                      <Text
+                        style={[styles.meta, { color: colors.textMuted }]}
+                      >
+                        {" · "}
+                      </Text>
+                      <CountryFlag country={item.originCountry} size="xs" />
+                      <Text
+                        style={[styles.meta, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {" "}
+                        {formatOriginLabel(item.originCountry)}
+                      </Text>
+                    </>
+                  ) : null}
+                  <Text
+                    style={[styles.meta, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {` · ${item.status.replace(/_/g, " ")}`}
+                  </Text>
+                </View>
               </View>
               {selected ? (
                 <Icon name="check-circle" size={22} color={colors.primary} />
@@ -445,6 +469,11 @@ const styles = StyleSheet.create({
   sku: { ...Typography.labelMd, fontWeight: "700" },
   type: { ...Typography.bodySmall },
   meta: { ...Typography.caption, textTransform: "capitalize" },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   fieldWrap: { gap: Spacing.stackSm },
   fieldLabel: {

@@ -2,9 +2,10 @@ import { Image } from "expo-image";
 import { Link, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatCurrency } from "@/lib/utils";
 import type { MarketplaceListing } from "@/types";
@@ -72,7 +73,11 @@ export function ListingCard({ listing, href, onPress }: ListingCardProps) {
           {formatGemType(listing.gemType)} · {listing.caratWeight} ct
         </Text>
         <View style={styles.originRow}>
-          <Icon name="location-on" size={12} color={colors.textMuted} />
+          {resolveCountryCode(listing.origin) ? (
+            <CountryFlag country={listing.origin} size="xs" />
+          ) : (
+            <Icon name="location-on" size={12} color={colors.textMuted} />
+          )}
           <Text
             style={[styles.origin, { color: colors.textMuted }]}
             numberOfLines={1}
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
   originRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 4,
   },
   origin: {
     ...Typography.caption,

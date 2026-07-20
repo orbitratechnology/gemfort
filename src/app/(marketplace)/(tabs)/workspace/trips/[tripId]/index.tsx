@@ -5,6 +5,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { PlaceLabel } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -220,9 +221,12 @@ export default function TripDetailScreen() {
               </Text>
             </View>
           </View>
-          <Text style={[styles.heroLoc, { color: colors.onPrimary + "CC" }]}>
-            {trip.destinationCity}, {trip.destinationCountry}
-          </Text>
+          <PlaceLabel
+            parts={[trip.destinationCity]}
+            country={trip.destinationCountry}
+            size="sm"
+            textStyle={[styles.heroLoc, { color: colors.onPrimary + "CC" }]}
+          />
           <Text style={[styles.heroDates, { color: colors.onPrimary + "AA" }]}>
             {formatTripDates(trip)}
           </Text>
