@@ -12,6 +12,12 @@ Self-contained executor plans from the whole-app motion audit. **Do not invent v
 | 004 | EmptyState entrance | LOW | DONE | 003 |
 | 005 | Color picker single-sheet push | MEDIUM | DONE | 001 (recommended) |
 
+## Product features
+
+| # | Title | Status |
+| --- | --- | --- |
+| 006 | [Gem Trader Bills](006-bills.md) | DONE |
+
 ## Recommended execution order
 
 1. **003** — foundation (`Motion` consumption + `useReduceMotion`)

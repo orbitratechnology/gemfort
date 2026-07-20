@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { Link, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
@@ -13,6 +14,8 @@ export const GEM_CARD_MAX_WIDTH = 188;
 
 type GemCardProps = {
   gem: WorkspaceGem;
+  /** Prefer href for Apple Zoom shared-element transitions (iOS 18+). */
+  href?: Href;
   onPress?: () => void;
 };
 
@@ -20,7 +23,7 @@ type GemCardProps = {
  * Workspace inventory tile for 2-column ecommerce grids.
  * Image-led, status pill, SKU + type, weight, asking price.
  */
-export function GemCard({ gem, onPress }: GemCardProps) {
+export function GemCard({ gem, href, onPress }: GemCardProps) {
   const { colors } = useAppTheme();
   const photo = gem.photoUrls?.[0];
   const currency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? "LKR";
@@ -29,38 +32,24 @@ export function GemCard({ gem, onPress }: GemCardProps) {
       ? formatCurrency(gem.askingPrice, currency)
       : "No price set";
 
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
-      style={({ pressed }) => [
-        styles.card,
-        {
-          backgroundColor: colors.surfaceContainerLowest,
-          opacity: pressed ? 0.92 : 1,
-          transform: [{ scale: pressed ? 0.985 : 1 }],
-        },
-      ]}
+  const media = photo ? (
+    <Image source={{ uri: photo }} style={styles.image} contentFit="cover" />
+  ) : (
+    <View
+      style={StyleSheet.flatten([
+        styles.image,
+        styles.placeholder,
+        { backgroundColor: colors.surfaceContainerHigh },
+      ])}
     >
+      <Icon name="diamond" size={28} color={colors.outlineVariant} />
+    </View>
+  );
+
+  const body = (
+    <>
       <View style={styles.media}>
-        {photo ? (
-          <Image
-            source={{ uri: photo }}
-            style={styles.image}
-            contentFit="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.image,
-              styles.placeholder,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-          >
-            <Icon name="diamond" size={28} color={colors.outlineVariant} />
-          </View>
-        )}
+        {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
         <View style={[styles.statusPill, { backgroundColor: colors.primary }]}>
           <Text
             style={[styles.statusText, { color: colors.onPrimary }]}
@@ -98,6 +87,40 @@ export function GemCard({ gem, onPress }: GemCardProps) {
           {price}
         </Text>
       </View>
+    </>
+  );
+
+  const pressableStyle = ({ pressed }: { pressed: boolean }) => [
+    styles.card,
+    {
+      backgroundColor: colors.surfaceContainerLowest,
+      opacity: pressed ? 0.92 : 1,
+      transform: [{ scale: pressed ? 0.985 : 1 }],
+    },
+  ];
+
+  if (href) {
+    return (
+      <Link href={href} asChild>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
+          style={pressableStyle}
+        >
+          {body}
+        </Pressable>
+      </Link>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
+      style={pressableStyle}
+    >
+      {body}
     </Pressable>
   );
 }

@@ -11,6 +11,7 @@ import { RectButton } from "react-native-gesture-handler";
 import Swipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { Link, type Href } from "expo-router";
 
 import { Icon } from "@/components/ui/icon";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -29,7 +30,7 @@ const ACTION_WIDTH = 74;
 type ContactListRowProps = {
   contact: Contact;
   isLastInSection: boolean;
-  onPress: () => void;
+  href: Href;
   onDelete: () => Promise<void>;
   onToggleFavourite: () => Promise<void>;
   onSwipeableOpen: (id: string, methods: SwipeableMethods) => void;
@@ -39,7 +40,7 @@ type ContactListRowProps = {
 function ContactListRowInner({
   contact,
   isLastInSection,
-  onPress,
+  href,
   onDelete,
   onToggleFavourite,
   onSwipeableOpen,
@@ -193,8 +194,8 @@ function ContactListRowInner({
       onSwipeableClose={() => onSwipeableClose(contact.id)}
       childrenContainerStyle={styles.swipeChild}
     >
+      <Link href={href} asChild>
       <Pressable
-        onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={contact.displayName}
         style={({ pressed }) => [
@@ -205,11 +206,13 @@ function ContactListRowInner({
           },
         ]}
       >
-        <ContactAvatar
-          name={contact.displayName}
-          photoUrl={contact.photoUrl}
-          size={40}
-        />
+        <Link.AppleZoom>
+          <ContactAvatar
+            name={contact.displayName}
+            photoUrl={contact.photoUrl}
+            size={40}
+          />
+        </Link.AppleZoom>
         <View
           style={[
             styles.body,
@@ -248,6 +251,7 @@ function ContactListRowInner({
           ) : null}
         </View>
       </Pressable>
+      </Link>
     </Swipeable>
   );
 }

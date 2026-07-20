@@ -1,193 +1,132 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { type ReactNode } from "react";
+import { Pressable } from "react-native";
+import { FadeInUp, FadeOutUp } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { toast, Toaster } from "sonner-native";
 
-import { Icon, type IconName } from '@/components/ui/icon';
-import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
+import { Icon } from "@/components/ui/icon";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
-export type ToastVariant = 'success' | 'error' | 'info';
+export type ToastVariant = "success" | "error" | "info";
 
 type ToastOptions = { variant?: ToastVariant; duration?: number };
 
-type ToastState = {
-  id: number;
-  message: string;
-  variant: ToastVariant;
-};
-
-type ToastContextValue = {
+type ToastApi = {
   show: (message: string, options?: ToastOptions) => void;
   success: (message: string, duration?: number) => void;
   error: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
 };
 
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-const VARIANT_ICON: Record<ToastVariant, IconName> = {
-  success: 'check-circle',
-  error: 'error-outline',
-  info: 'info-outline',
-};
-
+/**
+ * Thin facade over [sonner-native](https://sonner-native.netlify.app/) so existing
+ * `useToast().success/error/info` call sites keep working.
+ * Place `<Toaster />` in the Expo Router root layout (via this provider).
+ */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
+  // sonner-native: when `offset` is set it replaces safe-area insets entirely
+  // (see getInsetValues). Always include status-bar / notch inset.
+  const topOffset = insets.top + Spacing.sm;
 
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const toastVisibleRef = useRef(false);
-  const [opacity] = useState(() => new Animated.Value(0));
-  const [translateY] = useState(() => new Animated.Value(-20));
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const idRef = useRef(0);
-
-  const hide = useCallback(() => {
-    const duration = reduceMotion ? Motion.fast : Motion.normal;
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration,
-        easing: easeOut,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: reduceMotion ? 0 : -20,
-        duration,
-        easing: easeOut,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      toastVisibleRef.current = false;
-      setToast(null);
-    });
-  }, [opacity, translateY, reduceMotion]);
-
-  const show = useCallback(
-    (message: string, options?: ToastOptions) => {
-      if (timer.current) clearTimeout(timer.current);
-      idRef.current += 1;
-      const next: ToastState = {
-        id: idRef.current,
-        message,
-        variant: options?.variant ?? 'info',
-      };
-      const isReplacement = toastVisibleRef.current;
-
-      toastVisibleRef.current = true;
-      setToast(next);
-
-      if (!isReplacement) {
-        opacity.setValue(0);
-        translateY.setValue(reduceMotion ? 0 : -20);
-      }
-
-      if (reduceMotion) {
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: Motion.fast,
-          easing: easeOut,
-          useNativeDriver: true,
-        }).start();
-      } else {
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: Motion.normal,
-            easing: easeOut,
-            useNativeDriver: true,
-          }),
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: Motion.spring.damping,
-            stiffness: Motion.spring.stiffness,
-          }),
-        ]).start();
-      }
-      timer.current = setTimeout(hide, options?.duration ?? 3000);
-    },
-    [hide, opacity, translateY, reduceMotion],
-  );
-
-  const value: ToastContextValue = {
-    show,
-    success: (m, d) => show(m, { variant: 'success', duration: d }),
-    error: (m, d) => show(m, { variant: 'error', duration: d }),
-    info: (m, d) => show(m, { variant: 'info', duration: d }),
+  const toastSurface = {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous" as const,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    boxShadow: isDark
+      ? "0 8px 28px rgba(0, 0, 0, 0.45)"
+      : "0 8px 28px rgba(0, 22, 44, 0.12)",
   };
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-
-  const accent =
-    toast?.variant === 'success'
-      ? colors.successEmerald
-      : toast?.variant === 'error'
-        ? colors.error
-        : colors.primary;
-
   return (
-    <ToastContext.Provider value={value}>
+    <>
       {children}
-      {toast ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[styles.wrap, { top: insets.top + Spacing.sm, opacity, transform: [{ translateY }] }]}>
+      <Toaster
+        theme={isDark ? "dark" : "light"}
+        position="top-center"
+        closeButton={false}
+        swipeToDismissDirection="up"
+        visibleToasts={3}
+        duration={3200}
+        gap={10}
+        offset={topOffset}
+        enableStacking
+        positionerStyle={{ width: "100%", left: 0, right: 0 }}
+        animation={{
+          enter: FadeInUp.duration(280).springify().damping(18),
+          exit: FadeOutUp.duration(180),
+        }}
+        ToastWrapper={({ toastId, children: toastChildren, style, ...rest }) => (
           <Pressable
-            onPress={hide}
-            style={[
-              styles.toast,
-              { backgroundColor: colors.surfaceContainerHighest, borderLeftColor: accent },
-            ]}>
-            <Icon name={VARIANT_ICON[toast.variant]} size={20} color={accent} />
-            <Text style={[styles.message, { color: colors.onSurface }]} numberOfLines={2}>
-              {toast.message}
-            </Text>
+            {...rest}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss notification"
+            onPress={() => toast.dismiss(toastId)}
+            // Must span the positioner: toasts are position:absolute;width:100%.
+            // A shrink-wrapped wrapper shifts them off-center (half off-screen).
+            style={[{ width: "100%", alignSelf: "stretch" }, style]}
+          >
+            {toastChildren}
           </Pressable>
-        </Animated.View>
-      ) : null}
-    </ToastContext.Provider>
+        )}
+        toastOptions={{
+          style: toastSurface,
+          toastContainerStyle: { width: "100%" },
+          titleStyle: {
+            ...Typography.bodyMd,
+            color: colors.onSurface,
+            fontWeight: "600",
+          },
+          descriptionStyle: {
+            ...Typography.bodySmall,
+            color: colors.textMuted,
+          },
+          success: toastSurface,
+          error: toastSurface,
+          warning: toastSurface,
+          info: toastSurface,
+        }}
+        icons={{
+          success: (
+            <Icon name="check-circle" size={18} color={colors.successEmerald} />
+          ),
+          error: <Icon name="error" size={18} color={colors.error} />,
+          warning: (
+            <Icon name="warning" size={18} color={colors.warningAmber} />
+          ),
+          info: <Icon name="info" size={18} color={colors.primary} />,
+        }}
+      />
+    </>
   );
 }
 
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext);
-  if (!ctx) {
-    // No-op fallback so calls never crash outside the provider.
-    return {
-      show: () => {},
-      success: () => {},
-      error: () => {},
-      info: () => {},
-    };
+function showToast(message: string, options?: ToastOptions) {
+  const duration = options?.duration;
+  const variant = options?.variant ?? "info";
+  if (variant === "success") {
+    toast.success(message, { duration });
+    return;
   }
-  return ctx;
+  if (variant === "error") {
+    toast.error(message, { duration });
+    return;
+  }
+  toast(message, { duration });
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    left: Spacing.containerMargin,
-    right: Spacing.containerMargin,
-    zIndex: 9999,
-    alignItems: 'center',
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    borderLeftWidth: 4,
-    shadowColor: '#00162C',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  message: { ...Typography.bodyMd, flex: 1 },
-});
+/** App-wide toast API — backed by sonner-native. */
+export function useToast(): ToastApi {
+  return {
+    show: showToast,
+    success: (message, duration) => toast.success(message, { duration }),
+    error: (message, duration) => toast.error(message, { duration }),
+    info: (message, duration) => toast(message, { duration }),
+  };
+}

@@ -197,7 +197,7 @@ export default function GemsListScreen() {
           <View style={[styles.cell, { maxWidth: cellMaxWidth }]}>
             <GemCard
               gem={item}
-              onPress={() => router.push(`/(marketplace)/(tabs)/workspace/gems/${item.id}`)}
+              href={`/(marketplace)/(tabs)/workspace/gems/${item.id}`}
             />
           </View>
         )}

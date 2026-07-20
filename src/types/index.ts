@@ -33,6 +33,7 @@ export type UserProfile = {
     pushChequeAlerts?: boolean;
     pushApAlerts?: boolean;
     pushPaymentAlerts?: boolean;
+    pushBillAlerts?: boolean;
   };
   phoneVerified?: boolean;
   /** ISO date `YYYY-MM-DD` — collected during verification. */
@@ -424,6 +425,7 @@ export type Payment = {
   commission: number | null;
   receivableId: string | null;
   payableId: string | null;
+  billId: string | null;
   gemId: string | null;
   contactId: string | null;
   transactionId: string | null;
@@ -440,6 +442,34 @@ export type FinancialReportType =
   | "cheque_maturity";
 
 export type ChequeDirection = "received" | "given";
+
+export type BillDirection = "payable" | "receivable";
+
+export type BillStatus =
+  | "open"
+  | "partial"
+  | "paid"
+  | "cancelled"
+  | "overdue";
+
+export type Bill = {
+  id: string;
+  ownerUid: string;
+  direction: BillDirection;
+  amount: number;
+  currency: string;
+  amountBase: number;
+  /** Paid or received so far */
+  amountSettled: number;
+  commissionPercent: number | null;
+  counterpartyContactId: string;
+  dueDate: Timestamp;
+  status: BillStatus;
+  gemId: string | null;
+  notes: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
 
 export type ChequeStatus =
   | "holding"

@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { CallLogRow } from "@/components/workspace/call-log-row";
@@ -193,19 +194,15 @@ export default function ContactDetailScreen() {
               onChangeText={setDisplayName}
               leftIcon="person"
             />
-            <Input
+            <PhoneNumberField
               label="Phone"
               value={phone}
               onChangeText={setPhone}
-              keyboardType="phone-pad"
-              leftIcon="phone"
             />
-            <Input
+            <PhoneNumberField
               label="WhatsApp"
               value={whatsapp}
               onChangeText={setWhatsapp}
-              keyboardType="phone-pad"
-              leftIcon="whatsapp"
             />
             <Input
               label="Email"
@@ -313,11 +310,13 @@ export default function ContactDetailScreen() {
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <ContactAvatar
-            name={contact.displayName}
-            photoUrl={contact.photoUrl}
-            size={96}
-          />
+          <Link.AppleZoomTarget>
+            <ContactAvatar
+              name={contact.displayName}
+              photoUrl={contact.photoUrl}
+              size={96}
+            />
+          </Link.AppleZoomTarget>
           <Text
             style={[styles.name, { color: colors.onSurface }]}
             selectable

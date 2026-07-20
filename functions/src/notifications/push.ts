@@ -12,6 +12,7 @@ import {
 function prefAllowsPush(type: NotificationType, prefs: UserNotificationPreferences): boolean {
   if (type.startsWith('announcement_')) return prefs.pushAnnouncements !== false;
   if (type.startsWith('cheque_')) return prefs.pushChequeAlerts !== false;
+  if (type.startsWith('bill_')) return prefs.pushBillAlerts !== false;
   if (type.startsWith('ap_') || type === 'service_overdue') return prefs.pushApAlerts !== false;
   if (type.startsWith('payment_')) return prefs.pushPaymentAlerts !== false;
   return true;

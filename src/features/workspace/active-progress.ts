@@ -1,13 +1,14 @@
 import { startOfDay } from "date-fns";
 
+import type { IconName } from "@/components/ui/icon";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
+import { isOpenBill, toDate as billToDate } from "@/features/workspace/bill-utils";
 import { isPendingCheque, toDate as chequeToDate } from "@/features/workspace/cheque-utils";
 import { toTripDate, tripScheduleProgressPercent } from "@/features/workspace/trip-utils";
-import { formatDate, formatRelativeDue } from "@/lib/utils";
-import type { ApRecord, Cheque, Trip } from "@/types";
-import type { IconName } from "@/components/ui/icon";
+import { formatCurrency, formatDate, formatRelativeDue } from "@/lib/utils";
+import type { ApRecord, Bill, Cheque, Trip } from "@/types";
 
-export type ActiveProgressKind = "trip" | "ap" | "cheque";
+export type ActiveProgressKind = "trip" | "ap" | "cheque" | "bill";
 
 export type ActiveProgressItem = {
   id: string;
@@ -43,11 +44,12 @@ function toJs(ts: { toDate?: () => Date } | Date | null | undefined): Date | nul
   return ts.toDate?.() ?? null;
 }
 
-/** Ongoing trips + open APs + pending cheques, soonest due first. */
+/** Ongoing trips + open APs + pending cheques + open bills, soonest due first. */
 export function buildActiveProgressItems(input: {
   trips: Trip[];
   apRecords: ApRecord[];
   cheques: Cheque[];
+  bills?: Bill[];
   contactName: (id: string | null | undefined) => string;
   limit?: number;
 }): ActiveProgressItem[] {
@@ -121,6 +123,31 @@ export function buildActiveProgressItems(input: {
       progress: scheduleProgress(start, end),
       overdue,
       icon: "money-check-dollar",
+      sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
+    });
+  }
+
+  for (const b of input.bills ?? []) {
+    if (!isOpenBill(b)) continue;
+    const end = billToDate(b.dueDate);
+    const endDay = end ? startOfDay(end) : null;
+    const overdue = !!endDay && endDay < today;
+    const who = input.contactName(b.counterpartyContactId) || "Contact";
+    const remaining = Math.max(0, b.amount - b.amountSettled);
+    items.push({
+      id: `bill-${b.id}`,
+      kind: "bill",
+      badge: overdue ? "Bill overdue" : "Bill",
+      title: who,
+      subtitle: `${formatCurrency(remaining, b.currency)}${
+        end ? ` · due ${formatDate(end)}` : ""
+      }`,
+      dateLabel: end ? formatDate(end) : "—",
+      when: formatRelativeDue(end),
+      href: `/(marketplace)/(tabs)/workspace/bills/${b.id}`,
+      progress: scheduleProgress(toJs(b.createdAt), end),
+      overdue,
+      icon: "receipt-long",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
     });
   }

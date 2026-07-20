@@ -41,6 +41,7 @@ import {
 } from "@/features/news/news-service";
 import {
     fetchApRecords,
+    fetchBills,
     fetchCheques,
     fetchContacts,
     fetchServices,
@@ -50,7 +51,6 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { useAuth } from "@/providers/auth-provider";
-import type { Business } from "@/types";
 
 const FEATURED_LIMIT = 6;
 const UPCOMING_LIMIT = 8;
@@ -192,6 +192,12 @@ export default function HomeScreen() {
     enabled: workspaceEnabled,
   });
 
+  const { data: bills = [], refetch: refetchBills } = useQuery({
+    queryKey: ["bills", user?.uid],
+    queryFn: () => fetchBills(user!.uid),
+    enabled: workspaceEnabled && canAccessModule(role, "bills"),
+  });
+
   const { data: localNews = [], refetch: refetchLocalNews } = useQuery({
     queryKey: ["gem-news-teaser", "local"],
     queryFn: () => fetchGemNewsTeaser("local", 3),
@@ -262,11 +268,8 @@ export default function HomeScreen() {
       refetchServices();
       refetchTrips();
       refetchCheques();
+      refetchBills();
     }
-  }
-
-  function openBusiness(b: Business) {
-    router.push(`/business/${b.id}`);
   }
 
   function browseDirectory(tab?: string) {
@@ -395,6 +398,7 @@ export default function HomeScreen() {
             trips={trips}
             apRecords={apRecords}
             cheques={cheques}
+            bills={bills}
             contactName={contactName}
             limit={5}
             style={styles.section}
@@ -639,7 +643,6 @@ export default function HomeScreen() {
             ) : (
               <HomeBusinessRail
                 businesses={block.data}
-                onPress={openBusiness}
                 emptyLabel={block.empty}
                 onBrowse={() => browseDirectory(block.tab)}
                 roleHint={block.role}
@@ -674,7 +677,7 @@ export default function HomeScreen() {
                 <ListingCard
                   key={gem.id}
                   listing={gem}
-                  onPress={() => router.push(`/listing/${gem.shareableSlug}`)}
+                  href={`/listing/${gem.shareableSlug}`}
                 />
               ))}
             </ProductGrid>

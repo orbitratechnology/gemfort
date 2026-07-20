@@ -1,171 +1,270 @@
-import { Redirect } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Redirect, Stack } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, type ReactNode } from "react";
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Icon, type IconName } from '@/components/ui/icon';
-import { ThemedView } from '@/components/ui/screen';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { NotificationRow } from "@/components/notifications/notification-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
+import { Spacing, Typography } from "@/constants/design-tokens";
+import {
+  resolveNotificationVisuals,
+  type NotificationVisual,
+} from "@/features/workspace/notification-visuals";
 import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-} from '@/features/workspace/workspace-service';
-import { useThemeStyles } from '@/hooks/use-theme-styles';
-import { navigateFromNotificationRef } from '@/lib/notification-navigation';
-import { formatRelativeTime } from '@/lib/utils';
-import { useAuth } from '@/providers/auth-provider';
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
+import { navigateFromNotificationRef } from "@/lib/notification-navigation";
+import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
+import type { AppNotification } from "@/types";
 
-function iconForType(type: string): IconName {
-  if (type.startsWith('cheque_')) return 'money-check-dollar';
-  if (type.startsWith('ap_')) return 'hourglass-empty';
-  if (type.startsWith('service_')) return 'handyman';
-  if (type.startsWith('payment_')) return 'payments';
-  if (type.startsWith('verification_')) return 'verified-user';
-  if (type.startsWith('announcement_')) return 'campaign';
-  if (type.startsWith('report_')) return 'flag';
-  if (type.startsWith('account_')) return 'manage-accounts';
-  return 'notifications';
+const EMPTY_VISUAL: NotificationVisual = {
+  imageUrl: null,
+  shape: "circle",
+  label: "?",
+  fallbackIcon: "notifications",
+};
+
+function HeaderIconButton({
+  label,
+  onPress,
+  disabled,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        minWidth: 40,
+        minHeight: 40,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: disabled ? 0.35 : pressed ? 0.65 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
 }
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
-  const ts = useThemeStyles();
+  const { colors } = useAppTheme();
+  const toast = useToast();
   const queryClient = useQueryClient();
 
-  const { data: notifications = [], refetch, isRefetching } = useQuery({
-    queryKey: ['notifications', user?.uid],
+  const {
+    data: notifications = [],
+    refetch,
+    isRefetching,
+    isLoading,
+  } = useQuery({
+    queryKey: ["notifications", user?.uid],
     queryFn: () => fetchNotifications(user!.uid),
     enabled: !!user,
   });
 
-  if (!user) return <Redirect href="/(auth)/login" />;
+  const { data: visuals = {} } = useQuery({
+    queryKey: [
+      "notification-visuals",
+      user?.uid,
+      notifications
+        .map((n) => `${n.id}:${n.referenceType}:${n.referenceId}`)
+        .join("|"),
+    ],
+    queryFn: () => resolveNotificationVisuals(notifications, user!.uid),
+    enabled: !!user && notifications.length > 0,
+  });
 
   const unread = notifications.filter((n) => !n.isRead).length;
 
-  async function handleTap(
-    id: string,
-    refType: string | null,
-    refId: string | null,
-  ) {
-    await markNotificationRead(id);
-    await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    navigateFromNotificationRef(refType, refId, { fromInbox: true });
-  }
+  const handleTap = useCallback(
+    async (n: AppNotification) => {
+      try {
+        if (!n.isRead) {
+          await markNotificationRead(n.id);
+          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        }
+        navigateFromNotificationRef(n.referenceType, n.referenceId, {
+          fromInbox: true,
+        });
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not open notification."));
+      }
+    },
+    [queryClient, toast],
+  );
 
-  async function handleMarkAllRead() {
-    if (!user) return;
-    await markAllNotificationsRead(user.uid);
-    await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-  }
+  const handleMarkAllRead = useCallback(async () => {
+    if (!user || unread === 0) return;
+    try {
+      await markAllNotificationsRead(user.uid);
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("All caught up");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not mark notifications read."));
+    }
+  }, [user, unread, queryClient, toast]);
+
+  if (!user) return <Redirect href="/(auth)/login" />;
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <Icon name="notifications" size={18} color={ts.colors.primary} />
-          <Text style={[styles.header, ts.textMuted]}>{unread} unread</Text>
-        </View>
-        {unread > 0 ? (
-          <Button
-            title="Mark all read"
-            icon="done-all"
-            variant="ghost"
-            onPress={handleMarkAllRead}
-          />
-        ) : null}
-      </View>
+    <>
+      <Stack.Screen
+        options={{
+          title: "Notifications",
+          headerRight: () => (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 2,
+                marginRight: 4,
+              }}
+            >
+              <View
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={
+                  unread > 0
+                    ? `${unread} unread`
+                    : "No unread notifications"
+                }
+                style={{
+                  minWidth: 40,
+                  minHeight: 40,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <View style={{ position: "relative" }}>
+                  <Icon
+                    name={unread > 0 ? "mark-email-unread" : "mark-email-read"}
+                    size={22}
+                    color={
+                      unread > 0 ? colors.primary : colors.onSurfaceVariant
+                    }
+                  />
+                  {unread > 0 ? (
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: -4,
+                        right: -8,
+                        minWidth: 16,
+                        height: 16,
+                        paddingHorizontal: 4,
+                        borderRadius: 8,
+                        backgroundColor: colors.error,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: colors.onError,
+                          fontSize: 10,
+                          fontWeight: "700",
+                          fontVariant: ["tabular-nums"],
+                        }}
+                      >
+                        {unread > 99 ? "99+" : String(unread)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              <HeaderIconButton
+                label="Mark all as read"
+                onPress={handleMarkAllRead}
+                disabled={unread === 0}
+              >
+                <Icon
+                  name="done-all"
+                  size={22}
+                  color={
+                    unread > 0 ? colors.primary : colors.onSurfaceVariant
+                  }
+                />
+              </HeaderIconButton>
+            </View>
+          ),
+        }}
+      />
+
       <FlatList
         data={notifications}
         keyExtractor={(n) => n.id}
-        onRefresh={refetch}
-        refreshing={isRefetching}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <EmptyState
-            icon="notifications-none"
-            title="You're all caught up"
-            subtitle="New alerts about cheques, AP stones, and payments will show here."
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: Spacing.xxl,
+        }}
+        ItemSeparatorComponent={() => (
+          <View
+            style={{
+              height: StyleSheet.hairlineWidth,
+              backgroundColor: colors.outlineVariant,
+              marginLeft: Spacing.containerMargin + 48 + Spacing.md,
+            }}
           />
+        )}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-        renderItem={({ item: n }) => (
-          <Pressable
-            onPress={() => handleTap(n.id, n.referenceType, n.referenceId)}
-          >
-            <Card
-              style={[
-                styles.card,
-                !n.isRead && {
-                  borderLeftWidth: 3,
-                  borderLeftColor: ts.colors.accent,
-                },
-              ]}
+        ListEmptyComponent={
+          isLoading ? (
+            <View
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingTop: Spacing.xxl,
+              }}
             >
-              <View style={styles.cardRow}>
-                <View
-                  style={[
-                    styles.iconWrap,
-                    { backgroundColor: ts.colors.primaryMuted },
-                  ]}
-                >
-                  <Icon
-                    name={iconForType(n.type)}
-                    size={20}
-                    color={ts.colors.primary}
-                  />
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={[styles.title, ts.text]}>{n.title}</Text>
-                  <Text style={[styles.message, ts.textSecondary]}>
-                    {n.message}
-                  </Text>
-                  <View style={styles.metaRow}>
-                    <Icon
-                      name="schedule"
-                      size={14}
-                      color={ts.colors.textMuted}
-                    />
-                    <Text style={[styles.date, ts.textMuted]}>
-                      {formatRelativeTime(n.createdAt)}
-                    </Text>
-                  </View>
-                </View>
-                <Icon name="chevron-right" size={20} color={ts.colors.outline} />
-              </View>
-            </Card>
-          </Pressable>
+              <Text style={{ ...Typography.bodyMd, color: colors.textMuted }}>
+                Loading…
+              </Text>
+            </View>
+          ) : (
+            <EmptyState
+              icon="notifications-none"
+              title="You're all caught up"
+              subtitle="Alerts about AP, cheques, bills, and payments show up here."
+            />
+          )
+        }
+        renderItem={({ item }) => (
+          <NotificationRow
+            notification={item}
+            visual={visuals[item.id] ?? EMPTY_VISUAL}
+            onPress={() => handleTap(item)}
+          />
         )}
       />
-    </ThemedView>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  header: { ...Typography.body },
-  list: { padding: Spacing.lg, paddingTop: Spacing.sm },
-  card: { marginBottom: Spacing.sm },
-  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: { flex: 1, minWidth: 0 },
-  title: { ...Typography.h3 },
-  message: { ...Typography.body, marginTop: 2 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  date: { ...Typography.caption },
-});

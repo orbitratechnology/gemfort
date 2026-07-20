@@ -44,7 +44,7 @@ export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps)
 
   return (
     <View
-      style={[
+      style={StyleSheet.flatten([
         styles.fallback,
         {
           width: size,
@@ -52,7 +52,8 @@ export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps)
           borderRadius: radius,
           backgroundColor: colors.primaryMuted,
         },
-      ]}>
+      ])}
+    >
       <Text style={[styles.text, { color: colors.primary, fontSize: size * 0.32 }]}>
         {initials(name)}
       </Text>

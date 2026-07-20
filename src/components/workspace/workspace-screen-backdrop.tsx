@@ -6,6 +6,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type WorkspaceBackdropKind =
   | 'cheques'
+  | 'bills'
   | 'gems'
   | 'trips'
   | 'services'
@@ -21,6 +22,10 @@ const KIND: Record<
   cheques: {
     icon: 'money-check-dollar',
     satellites: ['money-check-dollar', 'money-check-dollar'],
+  },
+  bills: {
+    icon: 'receipt-long',
+    satellites: ['payments', 'receipt-long'],
   },
   gems: { icon: 'diamond', satellites: ['diamond', 'auto-awesome'] },
   trips: { icon: 'flight', satellites: ['public', 'luggage'] },
