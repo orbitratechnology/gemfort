@@ -34,6 +34,7 @@ import {
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
 import { formatCurrency, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -227,6 +228,16 @@ export default function BusinessProfileScreen() {
     business.district ||
     business.country
   );
+  const profileUrl = businessShareUrl(business.id);
+  const businessName = business.businessName;
+
+  function handleShareProfile() {
+    void shareLink({
+      url: profileUrl,
+      message: `Check out ${businessName} on GemFort`,
+      title: businessName,
+    });
+  }
 
   return (
     <SafeAreaView
@@ -236,17 +247,37 @@ export default function BusinessProfileScreen() {
       <StackHeader
         title={business.businessName}
         right={
-          user && !isOwnBusiness ? (
+          <View style={styles.headerActions}>
             <Pressable
-              onPress={() => setReportOpen(true)}
+              onPress={() => void copyLink(profileUrl)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Report business"
+              accessibilityLabel="Copy profile link"
               style={styles.headerAction}
             >
-              <Icon name="flag" size={20} color={colors.onSurfaceVariant} />
+              <Icon name="link" size={20} color={colors.onSurfaceVariant} />
             </Pressable>
-          ) : null
+            <Pressable
+              onPress={handleShareProfile}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share business profile"
+              style={styles.headerAction}
+            >
+              <Icon name="share" size={20} color={colors.onSurfaceVariant} />
+            </Pressable>
+            {user && !isOwnBusiness ? (
+              <Pressable
+                onPress={() => setReportOpen(true)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Report business"
+                style={styles.headerAction}
+              >
+                <Icon name="flag" size={20} color={colors.onSurfaceVariant} />
+              </Pressable>
+            ) : null}
+          </View>
         }
       />
 
@@ -896,6 +927,10 @@ function DetailRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerAction: {
     width: 40,
     height: 40,

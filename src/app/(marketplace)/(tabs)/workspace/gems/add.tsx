@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
-import { router } from "expo-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -74,6 +74,9 @@ export default function AddGemScreen() {
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
   const toast = useToast();
+  const { sharedImageUris } = useLocalSearchParams<{
+    sharedImageUris?: string;
+  }>();
 
   const [step, setStep] = useState(0);
   const [gemType, setGemType] = useState("blue_sapphire");
@@ -93,6 +96,30 @@ export default function AddGemScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
+  const [didApplyShared, setDidApplyShared] = useState(false);
+
+  useEffect(() => {
+    if (didApplyShared || !sharedImageUris) return;
+    try {
+      const parsed = JSON.parse(sharedImageUris) as unknown;
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const media: LocalMedia[] = parsed
+        .filter((uri): uri is string => typeof uri === "string" && uri.length > 0)
+        .slice(0, MAX_GEM_PHOTOS)
+        .map((uri, index) => ({
+          uri,
+          kind: "image" as const,
+          mimeType: "image/jpeg",
+          fileName: `shared-${index + 1}.jpg`,
+        }));
+      if (media.length === 0) return;
+      setPhotos(media);
+      setStep(1);
+      setDidApplyShared(true);
+    } catch {
+      // Ignore malformed share params.
+    }
+  }, [sharedImageUris, didApplyShared]);
 
   const selectedType = useMemo(
     () => GEM_TYPES.find((t) => t.value === gemType) ?? GEM_TYPES[0],

@@ -1,5 +1,4 @@
 import * as Print from 'expo-print';
-import { shareAsync } from 'expo-sharing';
 import { format } from 'date-fns';
 
 import { getCategoryMeta } from '@/constants/transaction-categories';
@@ -17,6 +16,7 @@ import {
   getPayableSummary,
   getReceivableSummary,
 } from '@/features/workspace/payment-utils';
+import { shareFile } from '@/lib/share';
 import { formatCurrency } from '@/lib/utils';
 import type {
   Cheque,
@@ -236,5 +236,10 @@ export function buildReportHtml(
 
 export async function exportReportPdf(html: string, filename: string): Promise<void> {
   const { uri } = await Print.printToFileAsync({ html });
-  await shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf', dialogTitle: filename });
+  await shareFile({
+    uri,
+    UTI: '.pdf',
+    mimeType: 'application/pdf',
+    dialogTitle: filename,
+  });
 }

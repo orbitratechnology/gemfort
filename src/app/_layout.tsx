@@ -55,6 +55,7 @@ function RootNavigator() {
       <Stack.Screen name="profile/business" options={{ headerShown: false }} />
       <Stack.Screen name="profile/account" options={{ headerShown: false }} />
       <Stack.Screen name="request/[businessId]" options={{ headerShown: false }} />
+      <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen name="verify-certificate" options={{ headerShown: false }} />
       <Stack.Screen name="news/index" options={{ headerShown: false }} />
     </Stack>

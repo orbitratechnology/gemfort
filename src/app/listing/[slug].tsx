@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { Link, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,13 @@ import { CountryLabel } from "@/components/ui/country-flag";
 import { ThemedScrollView, ThemedView } from "@/components/ui/screen";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusiness } from "@/features/marketplace/marketplace-service";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { formatCurrency, openWhatsApp } from "@/lib/utils";
 
 export default function PublicListingScreen() {
@@ -69,10 +71,25 @@ export default function PublicListingScreen() {
   if (!listing) return null;
 
   const photo = listing.photoUrls?.[0];
+  const shareUrl =
+    listing.shareableUrl || listingShareUrl(listing.shareableSlug || slug!);
+  const listingTitle = listing.title;
   const sellerWhatsapp =
     business?.contacts?.whatsapp?.isVisible && business.contacts.whatsapp.value
       ? business.contacts.whatsapp.value
       : null;
+
+  function handleShare() {
+    void shareLink({
+      url: shareUrl,
+      message: `Check out this gem on GemFort: ${listingTitle}`,
+      title: listingTitle,
+    });
+  }
+
+  function handleCopyLink() {
+    void copyLink(shareUrl);
+  }
 
   const hero = photo ? (
     <Image source={{ uri: photo }} style={styles.hero} contentFit="cover" />
@@ -90,7 +107,31 @@ export default function PublicListingScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title={listing.title} />
+      <StackHeader
+        title={listing.title}
+        right={
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={handleCopyLink}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Copy listing link"
+              style={styles.headerBtn}
+            >
+              <Icon name="link" size={22} color={colors.onSurface} />
+            </Pressable>
+            <Pressable
+              onPress={handleShare}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share listing"
+              style={styles.headerBtn}
+            >
+              <Icon name="share" size={22} color={colors.onSurface} />
+            </Pressable>
+          </View>
+        }
+      />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <Link.AppleZoomTarget>{hero}</Link.AppleZoomTarget>
 
@@ -132,6 +173,13 @@ export default function PublicListingScreen() {
           ) : null}
         </Card>
 
+        <Button
+          title="Share listing"
+          icon="share"
+          variant="secondary"
+          onPress={handleShare}
+        />
+
         {sellerWhatsapp ? (
           <Button
             title="WhatsApp to Inquire"
@@ -163,6 +211,13 @@ export default function PublicListingScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.md },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerBtn: {
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   center: {
     flex: 1,
     alignItems: "center",

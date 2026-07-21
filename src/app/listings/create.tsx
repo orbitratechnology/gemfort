@@ -2,8 +2,6 @@ import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
 
 import { Button } from '@/components/ui/button';
 import { CountryFlag } from '@/components/ui/country-flag';
@@ -15,10 +13,11 @@ import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-serv
 import { createListing, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { alert } from '@/lib/alert';
+import { friendlyError } from '@/lib/errors';
+import { copyLink, listingShareUrl, shareLink } from '@/lib/share';
 import { openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
 
 export default function CreateListingScreen() {
   const { user, profile } = useAuth();
@@ -105,8 +104,8 @@ export default function CreateListingScreen() {
         currency: 'USD',
         photoUrls: [],
       });
-      const url = `https://gemfort.app/l/${slug}`;
-      await Clipboard.setStringAsync(url);
+      const url = listingShareUrl(slug);
+      await copyLink(url, { silent: true });
       const whatsapp = business.contacts?.whatsapp?.value;
       alert(
         'Published',
@@ -121,7 +120,16 @@ export default function CreateListingScreen() {
                 },
               ]
             : []),
-          { text: 'Share', onPress: () => Sharing.shareAsync(url).catch(() => {}) },
+          {
+            text: 'Share',
+            onPress: () => {
+              void shareLink({
+                url,
+                message: `Check out my gem listing: ${resolvedTitle}`,
+                title: resolvedTitle,
+              });
+            },
+          },
           { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
         ],
         { haptic: 'success' },
