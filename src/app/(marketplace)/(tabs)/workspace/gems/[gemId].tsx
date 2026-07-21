@@ -29,6 +29,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
+import { shareFile, shareLink } from "@/lib/share";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -185,12 +186,47 @@ export default function GemDetailScreen() {
     { label: "Origin", value: gem.originCountry || "Unknown" },
   ];
 
+  const photo = gem.photoUrls?.[0]?.trim() || null;
+  const gemSummary = `${formatGemType(gem.gemType)} ${gem.currentWeight}ct · ${gem.sku}`;
+  const gemSku = gem.sku;
+  const gemIdForShare = gem.id;
+
+  async function handleShareGem() {
+    if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
+      await shareFile({
+        uri: photo,
+        mimeType: "image/jpeg",
+        dialogTitle: gemSku,
+        UTI: "public.jpeg",
+      });
+      return;
+    }
+    await shareLink({
+      message: `GemFort gem: ${gemSummary}`,
+      url: `gemfort://workspace/gems/${gemIdForShare}`,
+      title: gemSku,
+    });
+  }
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title={gem.sku} />
+      <StackHeader
+        title={gem.sku}
+        right={
+          <Pressable
+            onPress={() => void handleShareGem()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Share gem"
+            style={styles.headerBtn}
+          >
+            <Icon name="share" size={22} color={colors.onSurface} />
+          </Pressable>
+        }
+      />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.lead}>
@@ -668,6 +704,12 @@ export default function GemDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  headerBtn: {
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: {
     paddingBottom: 48,

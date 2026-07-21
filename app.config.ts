@@ -88,7 +88,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
-    "expo-sharing",
+    [
+      "expo-sharing",
+      {
+        ios: {
+          enabled: true,
+          activationRule: {
+            supportsImageWithMaxCount: 10,
+            supportsFileWithMaxCount: 5,
+            supportsText: false,
+          },
+        },
+        android: {
+          enabled: true,
+          singleShareMimeTypes: ["image/*", "application/pdf"],
+          multipleShareMimeTypes: ["image/*"],
+        },
+      },
+    ],
     "expo-dev-client",
     "expo-font",
     "expo-image",
