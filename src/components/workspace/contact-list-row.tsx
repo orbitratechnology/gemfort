@@ -1,6 +1,5 @@
 import { memo, useCallback, useRef } from "react";
 import {
-  Alert,
   Linking,
   Pressable,
   StyleSheet,
@@ -22,6 +21,7 @@ import {
 } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
+import { alert } from "@/lib/alert";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import type { Contact } from "@/types";
 
@@ -29,6 +29,8 @@ const ACTION_WIDTH = 74;
 
 type ContactListRowProps = {
   contact: Contact;
+  /** Override avatar (e.g. resolved business logo). Defaults to contact.photoUrl. */
+  photoUrl?: string | null;
   isLastInSection: boolean;
   href: Href;
   onDelete: () => Promise<void>;
@@ -39,6 +41,7 @@ type ContactListRowProps = {
 
 function ContactListRowInner({
   contact,
+  photoUrl,
   isLastInSection,
   href,
   onDelete,
@@ -75,7 +78,7 @@ function ContactListRowInner({
 
   const handleDelete = useCallback(() => {
     close();
-    Alert.alert(
+    alert(
       "Delete Contact",
       `Are you sure you want to delete ${contact.displayName}?`,
       [
@@ -85,7 +88,9 @@ function ContactListRowInner({
           style: "destructive",
           onPress: () => {
             void onDelete().catch((e) => {
-              Alert.alert("Couldn’t delete", friendlyError(e));
+              alert("Couldn’t delete", friendlyError(e), undefined, {
+                haptic: "error",
+              });
             });
           },
         },
@@ -209,7 +214,7 @@ function ContactListRowInner({
         <Link.AppleZoom>
           <ContactAvatar
             name={contact.displayName}
-            photoUrl={contact.photoUrl}
+            photoUrl={photoUrl ?? contact.photoUrl}
             size={40}
           />
         </Link.AppleZoom>

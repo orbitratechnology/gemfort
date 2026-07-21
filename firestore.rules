@@ -98,6 +98,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════
+    // SYSTEM (FX cache — Admin SDK writes only)
+    // ═══════════════════════════════════════════════
+
+    match /system/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
     // USERS
     // ═══════════════════════════════════════════════
 
@@ -499,6 +508,7 @@ service cloud.firestore {
     }
 
     match /gemtrack_bills/{docId} {
+      // Owner-only personal tracking — never shared with contacts/counterparties.
       allow read, write: if isOwner(resource.data.ownerUid)
                          && isNotSuspended();
       allow create: if isAnySignedIn()

@@ -53,6 +53,16 @@ export default function MarketplaceTabLayout() {
         />
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+
+      {/* iOS 26 search tab — hidden on Android (system search is iOS-only). */}
+      <NativeTabs.Trigger
+        name="search"
+        role="search"
+        hidden={process.env.EXPO_OS !== "ios"}
+      >
+        <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
+        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

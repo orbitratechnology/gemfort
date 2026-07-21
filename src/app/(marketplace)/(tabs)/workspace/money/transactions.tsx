@@ -5,6 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -18,6 +22,7 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -26,10 +31,14 @@ import { friendlyError } from '@/lib/errors';
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [type, setType] = useState<'income' | 'expense'>('income');
-  const [amount, setAmount] = useState('');
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [description, setDescription] = useState('');
   const [gemId, setGemId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -62,20 +71,20 @@ export default function TransactionsScreen() {
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
 
   async function handleAdd() {
-    if (!user || !amount) return;
+    if (!user || !money.amount) return;
     setLoading(true);
     try {
       await createTransaction(user.uid, {
         type,
-        amount: parseFloat(amount),
-        currency: 'LKR',
+        amount: parseFloat(money.amount),
+        currency: money.currency,
         category: 'general',
         description: description || (type === 'income' ? 'Income' : 'Expense'),
         gemId,
         contactId: null,
         date: Timestamp.now(),
       });
-      setAmount('');
+      setMoney({ amount: '', currency: preferred });
       setDescription('');
       setGemId(null);
       setShowForm(false);
@@ -130,7 +139,7 @@ export default function TransactionsScreen() {
                 <Text style={[styles.typeText, { color: type === 'expense' ? colors.error : colors.onSurfaceVariant }]}>Expense</Text>
               </Pressable>
             </View>
-            <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" leftIcon="payments" />
+            <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
             <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
             <Button title="Add Transaction" icon="add" loading={loading} onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>

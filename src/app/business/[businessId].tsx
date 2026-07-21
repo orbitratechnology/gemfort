@@ -23,6 +23,7 @@ import {
 } from "@/constants/design-tokens";
 import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
+import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import {
     demoBusinesses,
     fetchBusiness,
@@ -114,6 +115,12 @@ export default function BusinessProfileScreen() {
   );
   const services =
     business?.providerProfile?.services?.filter((s) => s.isActive) ?? [];
+  const certificateOfferings = business?.labProfile
+    ? normalizeLabCertificateOfferings(
+        business.labProfile.certificateOfferings,
+        business.labProfile.reportTypes,
+      ).filter((o) => o.isActive)
+    : [];
 
   const isOwnBusiness = !!user && user.uid === business?.ownerUid;
   const isVerifiedMember =
@@ -714,6 +721,61 @@ export default function BusinessProfileScreen() {
                         ]}
                       >
                         {s.turnaroundDaysMin}-{s.turnaroundDaysMax} days
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </FormSection>
+          </>
+        ) : null}
+
+        {/* Gem Lab certificate offerings */}
+        {isLab && certificateOfferings.length > 0 ? (
+          <>
+            <FormSectionLabel title="CERTIFICATES" />
+            <FormSection>
+              {certificateOfferings.map((c) => (
+                <View key={c.id} style={styles.serviceRow}>
+                  <View
+                    style={[
+                      styles.serviceIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="workspace-premium"
+                      size={20}
+                      color={colors.onPrimaryContainer}
+                    />
+                  </View>
+                  <View style={styles.serviceBody}>
+                    <Text
+                      style={[styles.serviceName, { color: colors.onSurface }]}
+                      numberOfLines={2}
+                      selectable
+                    >
+                      {c.title}
+                    </Text>
+                    {c.description ? (
+                      <Text
+                        style={[
+                          styles.serviceDesc,
+                          { color: colors.onSurfaceVariant },
+                        ]}
+                        numberOfLines={3}
+                      >
+                        {c.description}
+                      </Text>
+                    ) : null}
+                    <View style={styles.serviceMetaRow}>
+                      <Text
+                        style={[styles.serviceMeta, { color: colors.primary }]}
+                        selectable
+                      >
+                        {c.price != null
+                          ? formatCurrency(c.price, c.currency)
+                          : "Inquire"}
                       </Text>
                     </View>
                   </View>

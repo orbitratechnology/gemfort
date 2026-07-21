@@ -4,12 +4,16 @@ import { useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CountryFlag } from "@/components/ui/country-flag";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
-import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { MediaField } from "@/components/ui/media-field";
+import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -40,6 +44,7 @@ import {
 } from "@/constants/gem-options";
 import { createGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
     extensionForMedia,
@@ -51,7 +56,8 @@ import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
-const STEPS = ["Details", "Photo", "Review"] as const;
+const STEPS = ["Details", "Photos", "Review"] as const;
+const MAX_GEM_PHOTOS = 10;
 
 type SheetKey =
   | "type"
@@ -66,6 +72,7 @@ type SheetKey =
 export default function AddGemScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
 
   const [step, setStep] = useState(0);
@@ -76,9 +83,13 @@ export default function AddGemScreen() {
   const [cutType, setCutType] = useState("");
   const [shape, setShape] = useState("");
   const [roughWeight, setRoughWeight] = useState("");
-  const [acquisitionCost, setAcquisitionCost] = useState("");
+  const [acquisition, setAcquisition] = useState<CurrencyAmountValue>({
+    amount: "",
+    currency: preferred,
+  });
   const [treatment, setTreatment] = useState<GemTreatmentValue>("natural");
-  const [photo, setPhoto] = useState<LocalMedia | null>(null);
+  /** Index 0 is the primary album image. */
+  const [photos, setPhotos] = useState<LocalMedia[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
@@ -111,7 +122,7 @@ export default function AddGemScreen() {
       gemType,
       originCountry,
       roughWeight,
-      acquisitionCost,
+      acquisitionCost: acquisition.amount,
       treatment,
       colorPrimary: colorShade,
       clarity,
@@ -129,6 +140,24 @@ export default function AddGemScreen() {
     return result.data;
   }
 
+  function validatePhotos() {
+    if (photos.length < 1) {
+      setErrors((prev) => ({
+        ...prev,
+        photos: "Add at least one photo of the gem.",
+      }));
+      toast.error("Add at least one photo of the gem.");
+      return false;
+    }
+    clearField("photos");
+    return true;
+  }
+
+  function handlePhotosChange(next: LocalMedia[]) {
+    setPhotos(next);
+    if (next.length > 0) clearField("photos");
+  }
+
   function handleNext() {
     if (step === 0) {
       if (!validateDetails()) return;
@@ -136,6 +165,7 @@ export default function AddGemScreen() {
       return;
     }
     if (step === 1) {
+      if (!validatePhotos()) return;
       setStep(2);
       return;
     }
@@ -149,23 +179,29 @@ export default function AddGemScreen() {
       setStep(0);
       return;
     }
+    if (!validatePhotos()) {
+      setStep(1);
+      return;
+    }
     setLoading(true);
     try {
-      let photoUrls: string[] = [];
-      if (photo) {
-        const ext = extensionForMedia(photo);
-        const url = await uploadLocalMedia(
-          photo,
-          `gemtrack_gems/${user.uid}/${Date.now()}.${ext}`,
-        );
-        photoUrls = [url];
-      }
+      const stamp = Date.now();
+      const photoUrls = await Promise.all(
+        photos.map((photo, index) => {
+          const ext = extensionForMedia(photo);
+          return uploadLocalMedia(
+            photo,
+            `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+          );
+        }),
+      );
       const colorLabel = formatColorLabel(data.colorPrimary);
       const gemId = await createGem(user.uid, {
         gemType: data.gemType,
         originCountry: data.originCountry,
         roughWeight: data.roughWeight,
         acquisitionCost: data.acquisitionCost,
+        acquisitionCurrency: acquisition.currency,
         colorPrimary: colorLabel || data.colorPrimary,
         clarity: formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity,
         cutType: formatOptionLabel(GEM_CUTS, data.cutType) || data.cutType,
@@ -196,53 +232,54 @@ export default function AddGemScreen() {
       >
         <ScreenInset>
           <View style={styles.stepRow}>
-          {STEPS.map((label, i) => {
-            const active = i === step;
-            const done = i < step;
-            return (
-              <View key={label} style={styles.stepItem}>
-                <View
-                  style={[
-                    styles.stepDot,
-                    {
-                      backgroundColor:
-                        active || done
-                          ? colors.primary
-                          : colors.surfaceContainerHigh,
-                    },
-                  ]}
-                >
-                  {done ? (
-                    <Icon name="check" size={14} color={colors.onPrimary} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.stepNum,
-                        {
-                          color: active
-                            ? colors.onPrimary
-                            : colors.onSurfaceVariant,
-                        },
-                      ]}
-                    >
-                      {i + 1}
-                    </Text>
-                  )}
+            {STEPS.map((label, i) => {
+              const active = i === step;
+              const done = i < step;
+              return (
+                <View key={label} style={styles.stepItem}>
+                  <View
+                    style={[
+                      styles.stepDot,
+                      {
+                        backgroundColor:
+                          active || done
+                            ? colors.primary
+                            : colors.surfaceContainerHigh,
+                      },
+                    ]}
+                  >
+                    {done ? (
+                      <Icon name="check" size={14} color={colors.onPrimary} />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.stepNum,
+                          {
+                            color: active
+                              ? colors.onPrimary
+                              : colors.onSurfaceVariant,
+                          },
+                        ]}
+                      >
+                        {i + 1}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      {
+                        color:
+                          active || done ? colors.primary : colors.textMuted,
+                      },
+                    ]}
+                  >
+                    {label}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.stepLabel,
-                    {
-                      color: active || done ? colors.primary : colors.textMuted,
-                    },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+              );
+            })}
+          </View>
         </ScreenInset>
 
         {step === 0 ? (
@@ -354,36 +391,27 @@ export default function AddGemScreen() {
                 }
               />
 
-              <View style={styles.row}>
-                <View style={styles.flex}>
-                  <Input
-                    label="Weight (ct)"
-                    value={roughWeight}
-                    onChangeText={(v) => {
-                      setRoughWeight(v);
-                      clearField("roughWeight");
-                    }}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    leftIcon="scale"
-                    error={errors.roughWeight}
-                  />
-                </View>
-                <View style={styles.flex}>
-                  <Input
-                    label="Purchase price"
-                    value={acquisitionCost}
-                    onChangeText={(v) => {
-                      setAcquisitionCost(v);
-                      clearField("acquisitionCost");
-                    }}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    leftIcon="payments"
-                    error={errors.acquisitionCost}
-                  />
-                </View>
-              </View>
+              <Input
+                label="Weight (ct)"
+                value={roughWeight}
+                onChangeText={(v) => {
+                  setRoughWeight(v);
+                  clearField("roughWeight");
+                }}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                leftIcon="scale"
+                error={errors.roughWeight}
+              />
+              <CurrencyAmountField
+                label="Purchase price"
+                value={acquisition}
+                onChange={(next) => {
+                  setAcquisition(next);
+                  clearField("acquisitionCost");
+                }}
+                error={errors.acquisitionCost}
+              />
             </FormSection>
 
             <FormSection title="Treatment" hint="Natural is the default.">
@@ -410,14 +438,16 @@ export default function AddGemScreen() {
 
         {step === 1 ? (
           <FormSection
-            title="Photo"
-            hint="Optional. Helps you recognise the stone later."
+            title="Photos"
+            hint="At least one photo required. First is primary unless you pick another."
           >
-            <MediaField
-              value={photo}
-              onChange={setPhoto}
-              emptyTitle="Add photo"
-              emptySubtitle="Kept on device until you save"
+            <MediaAlbumField
+              value={photos}
+              onChange={handlePhotosChange}
+              max={MAX_GEM_PHOTOS}
+              error={errors.photos}
+              emptyTitle="Add photos"
+              emptySubtitle="At least 1 required · kept on device until you save"
             />
           </FormSection>
         ) : null}
@@ -445,7 +475,10 @@ export default function AddGemScreen() {
               <ReviewRow label="Weight" value={`${roughWeight} ct`} />
               <ReviewRow
                 label="Price"
-                value={formatCurrency(parseFloat(acquisitionCost) || 0)}
+                value={formatCurrency(
+                  parseFloat(acquisition.amount) || 0,
+                  acquisition.currency,
+                )}
               />
               <ReviewRow
                 label="Origin"
@@ -463,7 +496,14 @@ export default function AddGemScreen() {
                 label="Treatment"
                 value={formatOptionLabel(GEM_TREATMENTS, treatment) || "—"}
               />
-              <ReviewRow label="Photo" value={photo ? "Selected" : "None"} />
+              <ReviewRow
+                label="Photos"
+                value={
+                  photos.length === 0
+                    ? "None"
+                    : `${photos.length} · primary set`
+                }
+              />
             </View>
           </FormSection>
         ) : null}

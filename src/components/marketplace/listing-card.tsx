@@ -1,8 +1,15 @@
 import { Image } from "expo-image";
 import { Link, type Href } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
 import { CountryFlag } from "@/components/ui/country-flag";
+import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
@@ -15,13 +22,19 @@ type ListingCardProps = {
   /** Prefer href for Apple Zoom shared-element transitions (iOS 18+). */
   href?: Href;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Marketplace gem tile for 2-column ecommerce grids.
- * Image-led, compact meta, price-forward — full half-width of the screen.
+ * Uses ElevatedCard so chrome (border + shadow) works with Link asChild.
  */
-export function ListingCard({ listing, href, onPress }: ListingCardProps) {
+export function ListingCard({
+  listing,
+  href,
+  onPress,
+  style,
+}: ListingCardProps) {
   const { colors } = useAppTheme();
   const price =
     listing.showPrice && listing.priceMin
@@ -46,8 +59,13 @@ export function ListingCard({ listing, href, onPress }: ListingCardProps) {
     </View>
   );
 
-  const body = (
-    <>
+  return (
+    <ElevatedCard
+      href={href}
+      onPress={onPress}
+      accessibilityLabel={`${listing.title}, ${price}`}
+      style={[styles.card, style]}
+    >
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
         {listing.isCertified ? (
@@ -88,60 +106,26 @@ export function ListingCard({ listing, href, onPress }: ListingCardProps) {
         <Text
           style={[styles.price, { color: colors.primary }]}
           numberOfLines={1}
+          selectable
         >
           {price}
         </Text>
       </View>
-    </>
-  );
-
-  const pressableStyle = ({ pressed }: { pressed: boolean }) => [
-    styles.card,
-    {
-      backgroundColor: colors.surfaceContainerLowest,
-      opacity: pressed ? 0.92 : 1,
-      transform: [{ scale: pressed ? 0.985 : 1 }],
-    },
-  ];
-
-  if (href) {
-    return (
-      <Link href={href} asChild>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${listing.title}, ${price}`}
-          style={pressableStyle}
-        >
-          {body}
-        </Pressable>
-      </Link>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${listing.title}, ${price}`}
-      style={pressableStyle}
-    >
-      {body}
-    </Pressable>
+    </ElevatedCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    boxShadow: "0 4px 16px rgba(15, 118, 110, 0.08)",
   },
   media: {
     width: "100%",
     aspectRatio: 1,
     position: "relative",
+    overflow: "hidden",
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   image: {
     width: "100%",

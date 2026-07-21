@@ -6,6 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipSelect } from '@/components/ui/chip-select';
 import { CountryFlag } from '@/components/ui/country-flag';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
@@ -16,6 +20,7 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { resolveCountryCode } from '@/constants/gem-options';
 import { createTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { Timestamp } from '@/lib/firebase/db';
 import { friendlyError } from '@/lib/errors';
 import { addTripSchema, parseForm } from '@/lib/validation/form-schemas';
@@ -26,6 +31,7 @@ import type { TripType } from '@/types';
 export default function AddTripScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
 
   const [tripName, setTripName] = useState('');
@@ -33,8 +39,14 @@ export default function AddTripScreen() {
   const [destinationCountry, setDestinationCountry] = useState('Sri Lanka');
   const [destinationCity, setDestinationCity] = useState('');
   const [durationDays, setDurationDays] = useState('7');
-  const [budget, setBudget] = useState('');
-  const [cashCarried, setCashCarried] = useState('');
+  const [budget, setBudget] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
+  const [cashCarried, setCashCarried] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -56,8 +68,8 @@ export default function AddTripScreen() {
       destinationCity,
       destinationCountry,
       durationDays,
-      budget,
-      cashCarried,
+      budget: budget.amount,
+      cashCarried: cashCarried.amount,
       notes: notes || undefined,
     });
     if (!result.success) {
@@ -79,6 +91,7 @@ export default function AddTripScreen() {
         startDate: start,
         expectedEndDate: end,
         budget: data.budget ?? 0,
+        budgetCurrency: budget.currency,
         cashCarried: data.cashCarried ?? 0,
         notes: data.notes || null,
       });
@@ -175,28 +188,22 @@ export default function AddTripScreen() {
         </FormSection>
 
         <FormSection title="Money" hint="Optional. Helps track spend on the road.">
-          <Input
-            label="Budget (LKR)"
+          <CurrencyAmountField
+            label="Budget"
             value={budget}
-            onChangeText={(v) => {
-              setBudget(v);
+            onChange={(next) => {
+              setBudget(next);
               clearField('budget');
             }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="account-balance-wallet"
             error={errors.budget}
           />
-          <Input
-            label="Cash carried (LKR)"
+          <CurrencyAmountField
+            label="Cash carried"
             value={cashCarried}
-            onChangeText={(v) => {
-              setCashCarried(v);
+            onChange={(next) => {
+              setCashCarried(next);
               clearField('cashCarried');
             }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="payments"
             error={errors.cashCarried}
           />
           <Input

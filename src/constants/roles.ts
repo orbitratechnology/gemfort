@@ -26,6 +26,37 @@ export const LAPIDARY_SERVICE_OPTIONS = [
 
 export type LapidaryServiceId = (typeof LAPIDARY_SERVICE_OPTIONS)[number]['id'];
 
+/** Standard certificate tiers Gem Labs can offer publicly with a price. */
+export const LAB_CERTIFICATE_TYPE_OPTIONS = [
+  {
+    id: 'gem_brief_memo',
+    title: 'Gem Brief / Memo',
+    description:
+      'Pocket-sized plastic card with standard ID data and a small stone photo. Perfect for quick, low-cost verification.',
+  },
+  {
+    id: 'standard_photo_certificate',
+    title: 'Standard Photo Certificate',
+    description:
+      'Full paper report detailing species, dimensions, and standard treatments (heated vs. unheated).',
+  },
+  {
+    id: 'advanced_origin_certificate',
+    title: 'Advanced / Origin Certificate',
+    description:
+      'In-depth chemical analysis using spectrometry to issue an opinion on geographic origin.',
+  },
+  {
+    id: 'diamond_grading_report',
+    title: 'Diamond Grading Report',
+    description:
+      'Dedicated assessment mapping the classic 4Cs (Color, Clarity, Cut, Carat Weight).',
+  },
+] as const;
+
+export type LabCertificateTypeId =
+  (typeof LAB_CERTIFICATE_TYPE_OPTIONS)[number]['id'];
+
 export type WorkspaceModule =
   | 'gems'
   | 'trips'

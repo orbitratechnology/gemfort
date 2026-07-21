@@ -3,6 +3,7 @@ import {
   fetchBusiness,
   fetchBusinessByOwnerUid,
 } from "@/features/marketplace/marketplace-service";
+import { gemPrimaryPhotoUrl, resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchApRecordById } from "@/features/workspace/ap-lifecycle-service";
 import {
   fetchBill,
@@ -181,7 +182,7 @@ export async function resolveNotificationVisuals(
         n.type === "ap_gem_sold" || n.type.includes("gem");
       const firstGemId = ap.items?.[0]?.gemId;
       const gemPhoto = firstGemId
-        ? gems.get(firstGemId)?.photoUrls?.[0]
+        ? gemPrimaryPhotoUrl(gems.get(firstGemId))
         : null;
       const counterpartyUid =
         ap.senderUid === viewerUid ? ap.receiverUid : ap.senderUid;
@@ -215,7 +216,7 @@ export async function resolveNotificationVisuals(
     if (n.referenceType === "service") {
       const service = services.get(refId);
       if (!service) continue;
-      const gemPhoto = gems.get(service.gemId)?.photoUrls?.[0] ?? null;
+      const gemPhoto = gemPrimaryPhotoUrl(gems.get(service.gemId));
       const biz = service.providerBusinessId
         ? businessesById.get(service.providerBusinessId)
         : null;
@@ -244,15 +245,10 @@ export async function resolveNotificationVisuals(
         const contact = cheque.counterpartyContactId
           ? contacts.get(cheque.counterpartyContactId)
           : null;
-        const linkedBiz = contact?.linkedBusinessId
-          ? businessesById.get(contact.linkedBusinessId)
-          : null;
-        visual.imageUrl =
-          contact?.photoUrl ?? linkedBiz?.logoUrl ?? null;
+        visual.imageUrl = resolvePartyPhotoUrl(contact, businessesById);
         visual.shape = "circle";
         visual.label =
           contact?.displayName ||
-          linkedBiz?.businessName ||
           cheque.issuedBy ||
           "Cheque";
       }
@@ -265,13 +261,9 @@ export async function resolveNotificationVisuals(
       const contact = bill.counterpartyContactId
         ? contacts.get(bill.counterpartyContactId)
         : null;
-      const linkedBiz = contact?.linkedBusinessId
-        ? businessesById.get(contact.linkedBusinessId)
-        : null;
-      visual.imageUrl = contact?.photoUrl ?? linkedBiz?.logoUrl ?? null;
+      visual.imageUrl = resolvePartyPhotoUrl(contact, businessesById);
       visual.shape = "circle";
-      visual.label =
-        contact?.displayName || linkedBiz?.businessName || "Bill";
+      visual.label = contact?.displayName || "Bill";
       continue;
     }
 
@@ -288,7 +280,7 @@ export async function resolveNotificationVisuals(
         visual.shape = "circle";
         visual.label = biz?.businessName || ann.title || "News";
       } else if (ann.linkedGemId) {
-        visual.imageUrl = gems.get(ann.linkedGemId)?.photoUrls?.[0] ?? null;
+        visual.imageUrl = gemPrimaryPhotoUrl(gems.get(ann.linkedGemId));
         visual.shape = "rounded";
         visual.label = ann.title || "News";
       }

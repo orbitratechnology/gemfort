@@ -126,6 +126,7 @@ export function buildGemTrackCandidatesForOwner(
 
   for (const doc of ctx.bills) {
     const b = doc.data() as BillDoc;
+    // Personal tracking only: never notify counterparties or linked users.
     if (b.ownerUid !== ownerUid) continue;
     if (b.status !== 'open' && b.status !== 'partial' && b.status !== 'overdue') continue;
     const due = toDate(b.dueDate);
@@ -248,9 +249,12 @@ export function buildGemTrackCandidatesForOwner(
         referenceId: doc.id,
       });
     }
-  }
+    }
 
-  return candidates;
+  // Bills are private: never emit a bill alert to anyone except this owner.
+  return candidates.filter(
+    (c) => c.type !== 'bill_due_today' || c.recipientUid === ownerUid,
+  );
 }
 
 export async function loadOwnerContexts(db: Firestore): Promise<Map<string, OwnerContext>> {

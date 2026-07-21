@@ -5,10 +5,13 @@ import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChipSelect } from "@/components/ui/chip-select";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { type IconName } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
@@ -21,6 +24,7 @@ import {
   updateGemStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
 import { formatCurrency } from "@/lib/utils";
@@ -40,6 +44,7 @@ export default function RecordSaleScreen() {
   const { gemId: gemIdParam } = useLocalSearchParams<{ gemId?: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -47,7 +52,10 @@ export default function RecordSaleScreen() {
     gemIdParam ?? null,
   );
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState<CurrencyAmountValue>({
+    amount: "",
+    currency: preferred,
+  });
   const [buyerContactId, setBuyerContactId] = useState("");
   const [buyerCustomName, setBuyerCustomName] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("transfer");
@@ -81,7 +89,7 @@ export default function RecordSaleScreen() {
   const buyerLabel =
     buyerContact?.displayName?.trim() || buyerCustomName.trim() || "";
 
-  const salePrice = parseFloat(price) || 0;
+  const salePrice = parseFloat(price.amount) || 0;
   const costBasis = gem?.totalCost ?? 0;
   const netProfit = salePrice - costBasis;
   const roi =
@@ -100,7 +108,7 @@ export default function RecordSaleScreen() {
     if (!user) return;
     const result = parseForm(recordSaleSchema, {
       gemId: selectedGemId ?? "",
-      price,
+      price: price.amount,
       buyer: buyerLabel || undefined,
       method,
     });
@@ -122,7 +130,7 @@ export default function RecordSaleScreen() {
       await createTransaction(user.uid, {
         type: "income",
         amount: data.price,
-        currency: "LKR",
+        currency: price.currency,
         category: "sale",
         description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
         gemId: gem.id,
@@ -133,7 +141,7 @@ export default function RecordSaleScreen() {
         gem.id,
         user.uid,
         "sold",
-        `Sold for ${formatCurrency(data.price)}`,
+        `Sold for ${formatCurrency(data.price, price.currency)}`,
       );
       await queryClient.invalidateQueries({ queryKey: ["gems"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -185,16 +193,13 @@ export default function RecordSaleScreen() {
         </ScreenInset>
 
         <FormSection title="Sale details">
-          <Input
-            label="Final sale price (LKR)"
+          <CurrencyAmountField
+            label="Final sale price"
             value={price}
-            onChangeText={(v) => {
-              setPrice(v);
+            onChange={(next) => {
+              setPrice(next);
               clearField("price");
             }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="payments"
             error={errors.price}
           />
           <ContactPicker
@@ -271,7 +276,7 @@ export default function RecordSaleScreen() {
                     selectable
                   >
                     {netProfit >= 0 ? "+" : ""}
-                    {formatCurrency(netProfit)}
+                    {formatCurrency(netProfit, price.currency)}
                   </Text>
                 </View>
                 <View style={styles.projCell}>

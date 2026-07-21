@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { ChipSelect } from "@/components/ui/chip-select";
 import {
   FormSection,
   FormSectionLabel,
@@ -15,9 +16,13 @@ import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
 import {
   BILL_DIRECTION_LABELS,
   BILL_STATUS_LABELS,
+  billCommissionAmount,
+  billGemIds,
+  billNetAfterCommission,
   dueLabel,
   isOpenBill,
   remainingAmount,
@@ -25,14 +30,27 @@ import {
 import {
   fetchBill,
   fetchContacts,
+  fetchGems,
   recordBillPayment,
   updateBillStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
+import type { ApPaymentMethod } from "@/types";
+
+const PAY_METHODS: {
+  value: ApPaymentMethod;
+  label: string;
+  icon: "payments" | "account-balance" | "money-check-dollar";
+}[] = [
+  { value: "cash", label: "Cash", icon: "payments" },
+  { value: "transfer", label: "Transfer", icon: "account-balance" },
+  { value: "cheque", label: "Cheque", icon: "money-check-dollar" },
+];
 
 export default function BillDetailScreen() {
   const { billId } = useLocalSearchParams<{ billId: string }>();
@@ -43,7 +61,7 @@ export default function BillDetailScreen() {
 
   const [showPayForm, setShowPayForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
+  const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
   const [loading, setLoading] = useState(false);
 
   const { data: bill, isLoading } = useQuery({
@@ -58,6 +76,12 @@ export default function BillDetailScreen() {
     enabled: !!bill?.ownerUid,
   });
 
+  const { data: gems = [] } = useQuery({
+    queryKey: ["gems", bill?.ownerUid],
+    queryFn: () => fetchGems(bill!.ownerUid),
+    enabled: !!bill?.ownerUid,
+  });
+
   const contactName =
     contacts.find((c) => c.id === bill?.counterpartyContactId)?.displayName ??
     "—";
@@ -69,31 +93,61 @@ export default function BillDetailScreen() {
     await queryClient.invalidateQueries({ queryKey: ["transactions"] });
   }
 
-  async function handleRecordPayment(full?: boolean) {
+  function openPayForm(amount: number) {
+    setPaymentAmount(String(amount));
+    setShowPayForm(true);
+  }
+
+  function goToCheque(amount: number) {
+    if (!bill) return;
+    const gemIds = billGemIds(bill);
+    router.push({
+      pathname: "/(marketplace)/(tabs)/workspace/cheques/add",
+      params: {
+        amount: String(amount),
+        settleAmount: String(amount),
+        contactId: bill.counterpartyContactId,
+        gemId: gemIds[0] ?? undefined,
+        billId: bill.id,
+        direction: bill.direction === "payable" ? "given" : "received",
+      },
+    });
+  }
+
+  async function handleRecordPayment() {
     if (!user || !bill) return;
     const remaining = remainingAmount(bill);
-    const parsed = full
-      ? remaining
-      : paymentAmount
-        ? parseFloat(paymentAmount)
-        : remaining;
-    if (!parsed || parsed <= 0) {
+    const parsed = paymentAmount
+      ? parseFloat(paymentAmount)
+      : remaining;
+    if (!parsed || parsed <= 0 || Number.isNaN(parsed)) {
       toast.error("Enter a valid payment amount");
       return;
     }
+    if (!payMethod) {
+      toast.error("Select how it was paid");
+      return;
+    }
+    if (payMethod === "cheque") {
+      goToCheque(parsed);
+      return;
+    }
+
     setLoading(true);
     try {
       await recordBillPayment(user.uid, bill.id, parsed, {
         currency: bill.currency,
-        paymentMethod: paymentMethod || null,
+        paymentMethod: payMethod,
       });
       await invalidate();
       toast.success(
-        bill.direction === "receivable" ? "Payment received" : "Payment recorded",
+        bill.direction === "receivable"
+          ? "Payment received"
+          : "Payment recorded",
       );
       setShowPayForm(false);
       setPaymentAmount("");
-      setPaymentMethod("");
+      setPayMethod("cash");
     } catch (e) {
       toast.error(friendlyError(e, "Payment could not be recorded."));
     } finally {
@@ -103,7 +157,7 @@ export default function BillDetailScreen() {
 
   function handleCancel() {
     if (!bill) return;
-    Alert.alert("Cancel bill", "Mark this bill as cancelled?", [
+    alert("Cancel bill", "Mark this bill as cancelled?", [
       { text: "No", style: "cancel" },
       {
         text: "Yes",
@@ -141,10 +195,15 @@ export default function BillDetailScreen() {
   const remaining = remainingAmount(bill);
   const isPayable = bill.direction === "payable";
   const open = isOpenBill(bill);
-  const commissionHint =
-    bill.commissionPercent != null && bill.commissionPercent > 0
-      ? `${bill.commissionPercent}% of each payment`
-      : null;
+  const commissionOnFace = billCommissionAmount(
+    bill.amount,
+    bill.commissionPercent,
+  );
+  const netOnFace = billNetAfterCommission(
+    bill.amount,
+    bill.commissionPercent,
+  );
+  const linkedGemIds = billGemIds(bill);
 
   return (
     <SafeAreaView
@@ -236,10 +295,28 @@ export default function BillDetailScreen() {
 
         <FormSection title="Details">
           <DetailRow
-            label="Total"
+            label="Face amount"
             value={formatCurrency(bill.amount, bill.currency)}
             colors={colors}
           />
+          {commissionOnFace > 0 ? (
+            <>
+              <DetailRow
+                label={
+                  isPayable
+                    ? `Your commission (${bill.commissionPercent}%)`
+                    : `Commission to ${contactName} (${bill.commissionPercent}%)`
+                }
+                value={formatCurrency(commissionOnFace, bill.currency)}
+                colors={colors}
+              />
+              <DetailRow
+                label={isPayable ? "Total to pay" : "You receive"}
+                value={formatCurrency(netOnFace, bill.currency)}
+                colors={colors}
+              />
+            </>
+          ) : null}
           <DetailRow
             label="Settled"
             value={formatCurrency(bill.amountSettled, bill.currency)}
@@ -250,18 +327,43 @@ export default function BillDetailScreen() {
             value={formatCurrency(remaining, bill.currency)}
             colors={colors}
           />
-          <DetailRow label="Due date" value={formatDate(bill.dueDate)} colors={colors} />
-          {commissionHint ? (
-            <DetailRow label="Commission" value={commissionHint} colors={colors} />
-          ) : null}
+          <DetailRow
+            label="Due date"
+            value={formatDate(bill.dueDate)}
+            colors={colors}
+          />
           {bill.notes ? (
             <DetailRow label="Notes" value={bill.notes} colors={colors} />
           ) : null}
         </FormSection>
 
+        {linkedGemIds.length > 0 ? (
+          <FormSection title="Gems">
+            {linkedGemIds.map((id) => {
+              const gem = gems.find((g) => g.id === id);
+              return (
+                <DetailRow
+                  key={id}
+                  label={gem?.sku ?? "Gem"}
+                  value={
+                    gem
+                      ? gem.variety?.trim() ||
+                        formatGemType(gem.gemType) ||
+                        gem.sku
+                      : id.slice(0, 8)
+                  }
+                  colors={colors}
+                />
+              );
+            })}
+          </FormSection>
+        ) : null}
+
         {open ? (
           <>
-            <FormSectionLabel title="Record payment" />
+            <FormSectionLabel
+              title={isPayable ? "Record payment" : "Record receipt"}
+            />
             <ScreenInset>
               {showPayForm ? (
                 <View style={styles.payForm}>
@@ -273,23 +375,33 @@ export default function BillDetailScreen() {
                     placeholder={String(remaining)}
                     leftIcon="payments"
                   />
-                  <Input
-                    label="Method"
-                    value={paymentMethod}
-                    onChangeText={setPaymentMethod}
-                    placeholder="Cash, transfer…"
-                    leftIcon="account-balance-wallet"
+                  <ChipSelect
+                    label="How was it paid?"
+                    options={PAY_METHODS}
+                    value={payMethod}
+                    onChange={setPayMethod}
+                    layout="split"
                   />
-                  {commissionHint ? (
+                  {commissionOnFace > 0 ? (
                     <Text style={[styles.hint, { color: colors.textMuted }]}>
-                      Commission {commissionHint} will be stored on the payment
+                      {isPayable
+                        ? `On payment: net outflow + your ${bill.commissionPercent}% commission`
+                        : `On payment: net inflow after ${bill.commissionPercent}% for ${contactName}`}
                     </Text>
                   ) : null}
                   <Button
-                    title="Confirm"
-                    icon="check-circle"
+                    title={
+                      payMethod === "cheque"
+                        ? "Continue with cheque"
+                        : isPayable
+                          ? "Paid"
+                          : "Received"
+                    }
+                    icon={
+                      payMethod === "cheque" ? "money-check-dollar" : "check-circle"
+                    }
                     loading={loading}
-                    onPress={() => handleRecordPayment(false)}
+                    onPress={handleRecordPayment}
                   />
                   <Button
                     title="Cancel"
@@ -300,22 +412,17 @@ export default function BillDetailScreen() {
               ) : (
                 <View style={styles.payActions}>
                   <Button
-                    title={
-                      isPayable ? "Pay remaining" : "Receive remaining"
-                    }
+                    title={isPayable ? "Paid" : "Received"}
                     icon="check-circle"
                     loading={loading}
                     style={styles.flex1}
-                    onPress={() => handleRecordPayment(true)}
+                    onPress={() => openPayForm(remaining)}
                   />
                   <Button
                     title="Partial"
                     variant="secondary"
                     style={styles.flex1}
-                    onPress={() => {
-                      setPaymentAmount(String(remaining));
-                      setShowPayForm(true);
-                    }}
+                    onPress={() => openPayForm(remaining)}
                   />
                 </View>
               )}
@@ -350,7 +457,10 @@ function DetailRow({
       <Text style={[styles.detailLabel, { color: colors.textMuted }]}>
         {label}
       </Text>
-      <Text style={[styles.detailValue, { color: colors.onSurface }]} selectable>
+      <Text
+        style={[styles.detailValue, { color: colors.onSurface }]}
+        selectable
+      >
         {value}
       </Text>
     </View>

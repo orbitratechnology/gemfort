@@ -55,11 +55,11 @@ export function EmptyState({
         easing: easeOut,
         useNativeDriver: true,
       }),
-      Animated.spring(iconScale, {
+      Animated.timing(iconScale, {
         toValue: 1,
+        duration: Motion.normal,
+        easing: easeOut,
         useNativeDriver: true,
-        damping: Motion.spring.damping,
-        stiffness: Motion.spring.stiffness,
       }),
     ]);
     const copyAnim = Animated.timing(copyOpacity, {

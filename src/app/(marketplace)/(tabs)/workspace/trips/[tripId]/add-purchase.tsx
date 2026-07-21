@@ -6,6 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { CountryFlag } from '@/components/ui/country-flag';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
@@ -14,6 +18,7 @@ import { GEM_TYPES, resolveCountryCode } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { createGemOnSourcingTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -22,20 +27,24 @@ export default function AddTripPurchaseScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [gemType, setGemType] = useState('blue_sapphire');
   const [originCountry, setOriginCountry] = useState('Sri Lanka');
   const [roughWeight, setRoughWeight] = useState('');
-  const [acquisitionCost, setAcquisitionCost] = useState('');
+  const [acquisition, setAcquisition] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     if (!user || !tripId) return;
     const weight = parseFloat(roughWeight);
-    const cost = parseFloat(acquisitionCost);
+    const cost = parseFloat(acquisition.amount);
     if (!weight || weight <= 0 || !cost || cost <= 0) {
       toast.error('Enter valid weight and purchase price.');
       return;
@@ -48,6 +57,7 @@ export default function AddTripPurchaseScreen() {
         originCountry: originCountry.trim() || 'Unknown',
         roughWeight: weight,
         acquisitionCost: cost,
+        acquisitionCurrency: acquisition.currency,
         notes: notes || null,
       });
       await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
@@ -119,13 +129,10 @@ export default function AddTripPurchaseScreen() {
           placeholder="0.00"
           leftIcon="scale"
         />
-        <Input
-          label="Purchase price (LKR)"
-          value={acquisitionCost}
-          onChangeText={setAcquisitionCost}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          leftIcon="payments"
+        <CurrencyAmountField
+          label="Purchase price"
+          value={acquisition}
+          onChange={setAcquisition}
         />
         <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 

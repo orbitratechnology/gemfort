@@ -81,6 +81,11 @@ export async function createGem(
   const sku = generateSku(existing.length + 1);
   const now = Timestamp.now();
   const status: GemStatus = input.roughWeight > 0 ? "rough" : "ready_for_sale";
+  const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
+  const acquisitionCostBase = await convertToBase(
+    input.acquisitionCost,
+    acquisitionCurrency,
+  );
 
   const gemData = {
     ownerUid,
@@ -93,8 +98,8 @@ export async function createGem(
     acquisitionType: input.acquisitionType ?? "purchased",
     acquisitionDate: input.acquisitionDate ?? now,
     acquisitionCost: input.acquisitionCost,
-    acquisitionCurrency: input.acquisitionCurrency ?? "LKR",
-    acquisitionCostBase: input.acquisitionCost,
+    acquisitionCurrency,
+    acquisitionCostBase,
     roughWeight: input.roughWeight,
     currentWeight: input.currentWeight ?? input.roughWeight,
     colorPrimary: input.colorPrimary ?? null,
@@ -107,7 +112,7 @@ export async function createGem(
     status,
     currentLocation: null,
     currentHolderContactId: null,
-    totalCost: input.acquisitionCost,
+    totalCost: acquisitionCostBase,
     totalCostCurrency: "LKR",
     askingPrice: input.askingPrice ?? null,
     askingPriceCurrency: input.askingPriceCurrency ?? null,
@@ -152,8 +157,8 @@ export async function createGem(
     costType: "acquisition",
     description: "Acquisition cost",
     amount: input.acquisitionCost,
-    currency: "LKR",
-    amountBase: input.acquisitionCost,
+    currency: gemData.acquisitionCurrency,
+    amountBase: gemData.acquisitionCostBase,
     serviceRecordId: null,
     date: now,
     createdAt: now,
@@ -616,12 +621,26 @@ export async function syncContactBusinessLinks(
   const next = [...contacts];
   await Promise.all(
     contacts.map(async (contact, index) => {
-      if (contact.linkedBusinessId) return;
-      const match = matchBusinessForContact(contact, businesses);
+      const match =
+        (contact.linkedBusinessId
+          ? businesses.find((b) => b.id === contact.linkedBusinessId)
+          : null) ?? matchBusinessForContact(contact, businesses);
+
       if (!match) return;
+
       const fields = linkFieldsFromBusiness(match);
-      await updateContact(contact.id, fields);
-      next[index] = { ...contact, ...fields };
+      const updates: Partial<Contact> = {};
+      if (contact.linkedBusinessId !== match.id) {
+        Object.assign(updates, fields);
+      }
+      // Keep contact avatars in sync with the matched business logo when empty.
+      if (!contact.photoUrl && match.logoUrl) {
+        updates.photoUrl = match.logoUrl;
+      }
+      if (Object.keys(updates).length === 0) return;
+
+      await updateContact(contact.id, updates);
+      next[index] = { ...contact, ...updates };
     }),
   );
   return next;
@@ -644,12 +663,19 @@ export async function ensureContactForBusiness(
     null;
 
   if (found) {
+    const updates: Partial<Contact> = {};
     if (found.linkedBusinessId !== business.id) {
-      await updateContact(found.id, fields);
+      Object.assign(updates, fields);
+    }
+    if (!found.photoUrl && business.logoUrl) {
+      updates.photoUrl = business.logoUrl;
+    }
+    if (Object.keys(updates).length > 0) {
+      await updateContact(found.id, updates);
     }
     return {
       contactId: found.id,
-      contact: { ...found, ...fields },
+      contact: { ...found, ...updates },
       created: false,
     };
   }
@@ -773,13 +799,17 @@ export async function createReceivable(
   ownerUid: string,
   input: Omit<
     Receivable,
-    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountReceived"
+    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountReceived" | "amountBase"
   >,
 ) {
   const now = Timestamp.now();
+  const currency = input.currency ?? "LKR";
+  const amountBase = await convertToBase(input.amount, currency);
   return (
     await addDoc(collection(getFirebaseDb(), "gemtrack_receivables"), {
       ...input,
+      currency,
+      amountBase,
       ownerUid,
       amountReceived: 0,
       status: "pending",
@@ -793,13 +823,17 @@ export async function createPayable(
   ownerUid: string,
   input: Omit<
     Payable,
-    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountPaid"
+    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountPaid" | "amountBase"
   >,
 ) {
   const now = Timestamp.now();
+  const currency = input.currency ?? "LKR";
+  const amountBase = await convertToBase(input.amount, currency);
   return (
     await addDoc(collection(getFirebaseDb(), "gemtrack_payables"), {
       ...input,
+      currency,
+      amountBase,
       ownerUid,
       amountPaid: 0,
       status: "pending",
@@ -957,13 +991,35 @@ export async function fetchBills(ownerUid: string): Promise<Bill[]> {
     orderBy("dueDate", "asc"),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Bill);
+  return snap.docs.map((d) => {
+    const raw = d.data();
+    return {
+      id: d.id,
+      ...raw,
+      gemIds:
+        Array.isArray(raw.gemIds) && raw.gemIds.length > 0
+          ? raw.gemIds
+          : raw.gemId
+            ? [raw.gemId]
+            : [],
+    } as Bill;
+  });
 }
 
 export async function fetchBill(billId: string): Promise<Bill | null> {
   const snap = await getDoc(doc(getFirebaseDb(), "gemtrack_bills", billId));
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Bill;
+  const raw = snap.data();
+  return {
+    id: snap.id,
+    ...raw,
+    gemIds:
+      Array.isArray(raw.gemIds) && raw.gemIds.length > 0
+        ? raw.gemIds
+        : raw.gemId
+          ? [raw.gemId]
+          : [],
+  } as Bill;
 }
 
 export async function createBill(
@@ -976,12 +1032,24 @@ export async function createBill(
     counterpartyContactId: string;
     dueDate: Timestamp;
     gemId?: string | null;
+    gemIds?: string[];
     notes?: string | null;
   },
 ): Promise<string> {
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
+  const gemIds = [
+    ...new Set(
+      (input.gemIds?.length
+        ? input.gemIds
+        : input.gemId
+          ? [input.gemId]
+          : []
+      ).filter(Boolean),
+    ),
+  ];
+  const gemId = gemIds[0] ?? input.gemId ?? null;
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_bills"), {
     ownerUid,
     direction: input.direction,
@@ -996,7 +1064,8 @@ export async function createBill(
     counterpartyContactId: input.counterpartyContactId,
     dueDate: input.dueDate,
     status: "open" as BillStatus,
-    gemId: input.gemId ?? null,
+    gemId,
+    gemIds,
     notes: input.notes?.trim() ?? null,
     createdAt: now,
     updatedAt: now,
@@ -1016,6 +1085,7 @@ export async function updateBill(
       | "notes"
       | "status"
       | "gemId"
+      | "gemIds"
     >
   >,
 ) {
@@ -1027,7 +1097,13 @@ export async function updateBill(
   if (data.dueDate !== undefined) updates.dueDate = data.dueDate;
   if (data.notes !== undefined) updates.notes = data.notes?.trim() ?? null;
   if (data.status !== undefined) updates.status = data.status;
-  if (data.gemId !== undefined) updates.gemId = data.gemId;
+  if (data.gemIds !== undefined) {
+    const gemIds = [...new Set(data.gemIds.filter(Boolean))];
+    updates.gemIds = gemIds;
+    updates.gemId = gemIds[0] ?? null;
+  } else if (data.gemId !== undefined) {
+    updates.gemId = data.gemId;
+  }
   await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), updates);
 }
 
@@ -1073,7 +1149,17 @@ export async function recordBillPayment(
   const commission =
     data.commissionPercent != null && data.commissionPercent > 0
       ? Math.round(paymentAmount * (data.commissionPercent / 100) * 100) / 100
-      : null;
+      : 0;
+  const net = Math.max(
+    0,
+    Math.round((paymentAmount - commission) * 100) / 100,
+  );
+  const primaryGemId =
+    data.gemId ??
+    (Array.isArray(data.gemIds) && data.gemIds.length > 0
+      ? data.gemIds[0]
+      : null);
+  const noteLabel = data.notes?.trim() || "Bill";
 
   await updateDoc(ref, {
     amountSettled: newSettled,
@@ -1081,34 +1167,69 @@ export async function recordBillPayment(
     updatedAt: serverTimestamp(),
   });
 
-  const amountBase = await convertToBase(paymentAmount, currency);
   const isReceivable = data.direction === "receivable";
+  /**
+   * Payable: commission is yours → expense net to counterparty + income commission.
+   * Receivable: commission is theirs → income net you keep + expense their commission.
+   */
+  const principalAmount = commission > 0 ? net : paymentAmount;
+  const principalBase = await convertToBase(principalAmount, currency);
   const txnId = await createTransaction(ownerUid, {
     type: isReceivable ? "income" : "expense",
-    amount: paymentAmount,
+    amount: principalAmount,
     currency,
-    amountBase,
+    amountBase: principalBase,
     category: isReceivable ? "other_income" : "other_expense",
     description: isReceivable
-      ? `Bill received: ${data.notes?.trim() || "Bill payment"}`
-      : `Bill paid: ${data.notes?.trim() || "Bill payment"}`,
-    gemId: data.gemId,
+      ? `Bill received: ${noteLabel}${commission > 0 ? " (after commission)" : ""}`
+      : `Bill paid: ${noteLabel}${commission > 0 ? " (after commission)" : ""}`,
+    gemId: primaryGemId,
     contactId: data.counterpartyContactId,
     date: now,
   });
 
+  if (commission > 0) {
+    const commissionBase = await convertToBase(commission, currency);
+    if (isReceivable) {
+      await createTransaction(ownerUid, {
+        type: "expense",
+        amount: commission,
+        currency,
+        amountBase: commissionBase,
+        category: "other_expense",
+        description: `Bill commission to counterparty: ${noteLabel}`,
+        gemId: primaryGemId,
+        contactId: data.counterpartyContactId,
+        date: now,
+      });
+    } else {
+      await createTransaction(ownerUid, {
+        type: "income",
+        amount: commission,
+        currency,
+        amountBase: commissionBase,
+        category: "other_income",
+        description: `Bill commission earned: ${noteLabel}`,
+        gemId: primaryGemId,
+        contactId: data.counterpartyContactId,
+        date: now,
+      });
+    }
+  }
+
+  const settlementBase = await convertToBase(paymentAmount, currency);
   await addDoc(collection(getFirebaseDb(), "gemtrack_payments"), {
     ownerUid,
     direction: isReceivable ? "in" : "out",
     amount: paymentAmount,
     currency,
-    amountBase,
+    amountBase: settlementBase,
     paymentMethod: options?.paymentMethod ?? null,
-    commission,
+    commission: commission > 0 ? commission : null,
     receivableId: null,
     payableId: null,
     billId,
-    gemId: data.gemId,
+    gemId: primaryGemId,
     contactId: data.counterpartyContactId,
     transactionId: txnId,
     notes: options?.notes ?? null,
@@ -1153,10 +1274,13 @@ export async function createCheque(
     photoUrl?: string | null;
     gemId?: string | null;
     apRecordId?: string | null;
+    billId?: string | null;
     notes?: string | null;
   },
 ): Promise<string> {
   const now = Timestamp.now();
+  const currency = input.currency ?? "LKR";
+  const amountBase = await convertToBase(input.amount, currency);
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_cheques"), {
     ownerUid,
     direction: input.direction,
@@ -1165,8 +1289,8 @@ export async function createCheque(
     bankCode: input.bankCode?.trim() ?? null,
     branch: input.branch?.trim() ?? null,
     amount: input.amount,
-    currency: input.currency ?? "LKR",
-    amountBase: input.amount,
+    currency,
+    amountBase,
     counterpartyContactId: input.counterpartyContactId,
     issuedBy: input.issuedBy.trim(),
     issueDate: input.issueDate,
@@ -1179,6 +1303,7 @@ export async function createCheque(
     photoUrl: input.photoUrl ?? null,
     gemId: input.gemId ?? null,
     apRecordId: input.apRecordId ?? null,
+    billId: input.billId ?? null,
     tripId: null,
     notes: input.notes?.trim() ?? null,
     createdAt: now,
@@ -1197,6 +1322,7 @@ export async function updateCheque(
       | "branch"
       | "amount"
       | "amountBase"
+      | "currency"
       | "issuedBy"
       | "issueDate"
       | "maturityDate"
@@ -1212,7 +1338,17 @@ export async function updateCheque(
   if (data.branch !== undefined) updates.branch = data.branch?.trim() ?? null;
   if (data.amount !== undefined) {
     updates.amount = data.amount;
-    updates.amountBase = data.amountBase ?? data.amount;
+    if (data.amountBase !== undefined) {
+      updates.amountBase = data.amountBase;
+    } else if (data.currency) {
+      updates.amountBase = await convertToBase(data.amount, data.currency);
+    } else {
+      // Preserve prior currency conversion when only face amount is patched.
+      const snap = await getDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId));
+      const existing = snap.data() as Cheque | undefined;
+      const currency = existing?.currency ?? "LKR";
+      updates.amountBase = await convertToBase(data.amount, currency);
+    }
   }
   if (data.issuedBy !== undefined) updates.issuedBy = data.issuedBy.trim();
   if (data.issueDate !== undefined) updates.issueDate = data.issueDate;
@@ -1347,6 +1483,8 @@ export async function addTripExpense(
   },
 ): Promise<string> {
   const now = Timestamp.now();
+  const currency = input.currency ?? "LKR";
+  const amountBase = await convertToBase(input.amount, currency);
   const ref = await addDoc(
     collection(getFirebaseDb(), "gemtrack_trip_expenses"),
     {
@@ -1356,8 +1494,8 @@ export async function addTripExpense(
       category: input.category,
       description: input.description?.trim() ?? null,
       amount: input.amount,
-      currency: input.currency ?? "LKR",
-      amountBase: input.amount,
+      currency,
+      amountBase,
       paymentMethod: input.paymentMethod ?? null,
       receiptPhotoUrl: input.receiptPhotoUrl ?? null,
       createdAt: now,
@@ -1425,6 +1563,7 @@ export async function createGemOnSourcingTrip(
     originCountry: string;
     roughWeight: number;
     acquisitionCost: number;
+    acquisitionCurrency?: string;
     notes?: string | null;
   },
 ): Promise<string> {
@@ -1433,6 +1572,7 @@ export async function createGemOnSourcingTrip(
     originCountry: input.originCountry,
     roughWeight: input.roughWeight,
     acquisitionCost: input.acquisitionCost,
+    acquisitionCurrency: input.acquisitionCurrency ?? "LKR",
     notes: input.notes ?? `Purchased on trip`,
   });
 

@@ -12,6 +12,7 @@ import {
   subYears,
 } from 'date-fns';
 
+import { outstandingBase } from '@/lib/money';
 import type { Payable, Receivable, Transaction } from '@/types';
 
 export type TransactionSection = {
@@ -48,16 +49,21 @@ function formatSectionTitle(date: Date): string {
   return format(date, 'dd MMM yyyy');
 }
 
+function txBase(t: Transaction): number {
+  if (typeof t.amountBase === 'number') return t.amountBase;
+  return t.currency === 'LKR' ? t.amount : 0;
+}
+
 export function getMonthTotals(transactions: Transaction[], referenceDate = new Date()) {
   const monthStart = startOfMonth(referenceDate);
 
   const income = transactions
     .filter((t) => t.type === 'income' && t.date.toDate() >= monthStart)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + txBase(t), 0);
 
   const expense = transactions
     .filter((t) => t.type === 'expense' && t.date.toDate() >= monthStart)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + txBase(t), 0);
 
   return { income, expense, net: income - expense };
 }
@@ -108,8 +114,8 @@ export function getRangeTotals(transactions: Transaction[], range: DateRange) {
   for (const t of transactions) {
     const date = t.date.toDate();
     if (date < range.start || date > range.end) continue;
-    if (t.type === 'income') income += t.amount;
-    else expense += t.amount;
+    if (t.type === 'income') income += txBase(t);
+    else expense += txBase(t);
   }
   return { income, expense, net: income - expense };
 }
@@ -141,21 +147,36 @@ export function getCategoryBreakdown(
     const date = t.date.toDate();
     if (date < range.start || date > range.end) continue;
     const key = t.category || 'other';
-    totals.set(key, (totals.get(key) ?? 0) + t.amount);
+    totals.set(key, (totals.get(key) ?? 0) + txBase(t));
   }
   return Array.from(totals.entries())
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 }
 
-/** Outstanding money still owed to you (receivables) and owed by you (payables). */
+/** Outstanding money still owed to you (receivables) and owed by you (payables) — LKR base. */
 export function getOutstanding(receivables: Receivable[], payables: Payable[]) {
   const toCollect = receivables
     .filter((r) => r.status !== 'paid')
-    .reduce((sum, r) => sum + Math.max(0, r.amount - r.amountReceived), 0);
+    .reduce(
+      (sum, r) =>
+        sum +
+        outstandingBase(
+          r.amount,
+          r.amountReceived,
+          r.amountBase,
+          r.currency,
+        ),
+      0,
+    );
   const toPay = payables
     .filter((p) => p.status !== 'paid')
-    .reduce((sum, p) => sum + Math.max(0, p.amount - p.amountPaid), 0);
+    .reduce(
+      (sum, p) =>
+        sum +
+        outstandingBase(p.amount, p.amountPaid, p.amountBase, p.currency),
+      0,
+    );
   return { toCollect, toPay };
 }
 
@@ -180,8 +201,8 @@ export function getCashFlowBuckets(
       const date = t.date.toDate();
       if (date.getFullYear() !== year) continue;
       const bucket = buckets[date.getMonth()];
-      if (t.type === 'income') bucket.income += t.amount;
-      else bucket.expense += t.amount;
+      if (t.type === 'income') bucket.income += txBase(t);
+      else bucket.expense += txBase(t);
     }
     return buckets;
   }
@@ -198,8 +219,8 @@ export function getCashFlowBuckets(
     const date = t.date.toDate();
     if (!isWithinInterval(date, { start: range.start, end: range.end })) continue;
     const idx = Math.min(Math.floor((date.getDate() - 1) / 7), weekCount - 1);
-    if (t.type === 'income') buckets[idx].income += t.amount;
-    else buckets[idx].expense += t.amount;
+    if (t.type === 'income') buckets[idx].income += txBase(t);
+    else buckets[idx].expense += txBase(t);
   }
   return buckets;
 }

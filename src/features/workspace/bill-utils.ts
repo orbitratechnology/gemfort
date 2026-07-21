@@ -49,6 +49,29 @@ export function remainingAmount(b: Bill): number {
   return Math.max(0, b.amount - b.amountSettled);
 }
 
+/** Linked gems, preferring `gemIds` and falling back to legacy `gemId`. */
+export function billGemIds(b: Pick<Bill, "gemId" | "gemIds">): string[] {
+  if (Array.isArray(b.gemIds) && b.gemIds.length > 0) return b.gemIds;
+  if (b.gemId) return [b.gemId];
+  return [];
+}
+
+export function billCommissionAmount(
+  amount: number,
+  percent: number | null | undefined,
+): number {
+  if (percent == null || percent <= 0 || !Number.isFinite(amount)) return 0;
+  return Math.round(amount * (percent / 100) * 100) / 100;
+}
+
+/** Face amount minus commission (net cash to counterparty / net you keep). */
+export function billNetAfterCommission(
+  amount: number,
+  percent: number | null | undefined,
+): number {
+  return Math.max(0, Math.round((amount - billCommissionAmount(amount, percent)) * 100) / 100);
+}
+
 export function getBillSummary(bills: Bill[]) {
   const open = bills.filter(isOpenBill);
   const payable = open.filter((b) => b.direction === "payable");

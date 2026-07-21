@@ -12,6 +12,7 @@ import {
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Palette, Radius, TouchTarget, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { haptics, type HapticKind } from '@/lib/haptics';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'whatsapp' | 'phone';
 
@@ -22,6 +23,8 @@ type ButtonProps = PressableProps & {
   icon?: IconName;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  /** Press-down haptic. Default `light`; set `false` to disable. */
+  haptic?: HapticKind | false;
 };
 
 export function Button({
@@ -33,6 +36,8 @@ export function Button({
   style,
   textStyle,
   accessibilityLabel,
+  haptic = 'light',
+  onPressIn,
   ...props
 }: ButtonProps) {
   const { colors } = useAppTheme();
@@ -66,6 +71,7 @@ export function Button({
 
   const v = variantStyles[variant];
   const iconColor = (v.text.color as string) ?? colors.onPrimary;
+  const isDisabled = disabled || loading;
 
   return (
     <Pressable
@@ -74,11 +80,15 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         v.container,
-        (disabled || loading) && styles.disabled,
+        isDisabled && styles.disabled,
         pressed && styles.pressed,
         style,
       ]}
-      disabled={disabled || loading}
+      disabled={isDisabled}
+      onPressIn={(e) => {
+        if (!isDisabled && haptic) haptics.play(haptic);
+        onPressIn?.(e);
+      }}
       {...props}>
       {loading ? (
         <ActivityIndicator color={iconColor} />

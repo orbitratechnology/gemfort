@@ -1,41 +1,43 @@
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
-import { CallLogRow } from "@/components/workspace/call-log-row";
+import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
+import { CallLogRow } from "@/components/workspace/call-log-row";
+import { WorkspaceModules } from "@/components/workspace/workspace-modules";
 import type { ThemeColors } from "@/constants/design-tokens";
-import {
-    Radius,
-    Spacing,
-    TouchTarget,
-    Typography,
-} from "@/constants/design-tokens";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     fetchIncomingServiceRequests,
     fetchLabCertificates,
     fetchLapidaryJobs,
 } from "@/features/marketplace/request-service";
-import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
     detectBillsDueToday,
     getBillSummary,
 } from "@/features/workspace/bill-utils";
+import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
 } from "@/features/workspace/cheque-utils";
 import { getMonthTotals } from "@/features/workspace/money-utils";
+import {
+    resolveBusinessPhotoById,
+    resolveBusinessPhotoByOwnerUid,
+    resolvePartyPhotoUrl,
+} from "@/features/workspace/party-photo";
 import { getTripsByStatus } from "@/features/workspace/trip-utils";
 import {
     detectOverdueAp,
@@ -128,6 +130,50 @@ export default function WorkspaceHub() {
     queryFn: () => fetchContacts(userId!),
     enabled: !!userId,
   });
+
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!userId,
+  });
+
+  const contactPhoto = useMemo(
+    () => (id: string | null | undefined) => {
+      if (!id) return null;
+      const contact = contacts.find((c) => c.id === id);
+      return resolvePartyPhotoUrl(contact, businesses);
+    },
+    [contacts, businesses],
+  );
+
+  const businessPhoto = useMemo(
+    () => (id: string | null | undefined) =>
+      resolveBusinessPhotoById(id, businesses),
+    [businesses],
+  );
+
+  const ownerBusinessPhoto = useMemo(
+    () => (uid: string | null | undefined) =>
+      resolveBusinessPhotoByOwnerUid(uid, businesses),
+    [businesses],
+  );
+
+  const apImage = useMemo(
+    () => (record: (typeof apRecords)[number]) => {
+      const isTaken = !!userId && record.receiverUid === userId;
+      if (isTaken) {
+        return {
+          url: ownerBusinessPhoto(record.senderUid),
+          shape: "circle" as const,
+        };
+      }
+      const partyId = record.receiverContactId || record.apHolderContactId;
+      const url =
+        contactPhoto(partyId) || businessPhoto(record.receiverBusinessId);
+      return { url, shape: "circle" as const };
+    },
+    [userId, contactPhoto, businessPhoto, ownerBusinessPhoto],
+  );
 
   const { data: transactions = [] } = useQuery({
     queryKey: ["transactions", userId],
@@ -777,106 +823,8 @@ export default function WorkspaceHub() {
           </View>
         ) : null}
 
-        {/* Modules — grouped 2-col cards */}
-        <View style={styles.moduleSection}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Modules
-          </Text>
-
-          {moduleGroups.map((group) => (
-            <View key={group.id} style={styles.moduleGroup}>
-              <Text
-                style={[styles.moduleGroupTitle, { color: colors.textMuted }]}
-              >
-                {group.title}
-              </Text>
-              <View style={styles.moduleGrid}>
-                {group.items.map((m) => (
-                  <Pressable
-                    key={m.label}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${m.label}, ${m.value}${m.hint ? `, ${m.hint}` : ""}`}
-                    onPress={() => router.push(m.route as never)}
-                    style={({ pressed }) => [
-                      styles.moduleTile,
-                      {
-                        backgroundColor: pressed
-                          ? colors.surfaceContainerLow
-                          : colors.surfaceContainerLowest,
-                        transform: [{ scale: pressed ? 0.97 : 1 }],
-                        boxShadow: pressed
-                          ? "0 1px 4px rgba(15, 118, 110, 0.04)"
-                          : "0 2px 12px rgba(15, 118, 110, 0.06)",
-                      },
-                    ]}
-                  >
-                    <View style={styles.moduleTopRow}>
-                      <View style={styles.moduleIconWrap}>
-                        <View
-                          style={[
-                            styles.moduleIcon,
-                            { backgroundColor: colors.primaryContainer },
-                          ]}
-                        >
-                          <Icon
-                            name={m.icon}
-                            size={24}
-                            color={colors.onPrimaryContainer}
-                          />
-                        </View>
-                        {m.badgeCount && m.badgeCount > 0 ? (
-                          <View
-                            style={[
-                              styles.moduleBadge,
-                              { backgroundColor: colors.error },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.moduleBadgeText,
-                                { color: colors.onError },
-                              ]}
-                            >
-                              {m.badgeCount > 99 ? "99+" : m.badgeCount}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text
-                        style={[
-                          styles.moduleValue,
-                          { color: colors.onSurface },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {m.value}
-                      </Text>
-                    </View>
-                    <View style={styles.moduleNameBlock}>
-                      <Text
-                        style={[
-                          styles.moduleLabel,
-                          { color: colors.onSurface },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {m.label}
-                      </Text>
-                      {m.hint ? (
-                        <Text
-                          style={[styles.moduleHint, { color: colors.primary }]}
-                          numberOfLines={1}
-                        >
-                          {m.hint}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
+        {/* Modules — gradient group panels + tiles */}
+        <WorkspaceModules groups={moduleGroups} colors={colors} />
 
         {/* Operations overview */}
         <View style={styles.section}>
@@ -1280,9 +1228,15 @@ export default function WorkspaceHub() {
             apRecords={apRecords}
             cheques={cheques}
             bills={bills}
+            services={services}
+            currentUid={userId}
             contactName={(id) =>
               contacts.find((c) => c.id === id)?.displayName ?? "Contact"
             }
+            contactPhoto={contactPhoto}
+            businessPhoto={businessPhoto}
+            ownerBusinessPhoto={ownerBusinessPhoto}
+            apImage={apImage}
             limit={4}
             compact
             style={styles.headerTripWrap}
@@ -1381,89 +1335,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   countPillText: { ...Typography.caption, fontWeight: "700" },
-
-  moduleSection: {
-    gap: Spacing.lg,
-  },
-  moduleGroup: {
-    gap: Spacing.sm,
-  },
-  moduleGroupTitle: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  moduleGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
-  },
-  moduleTile: {
-    width: "48%",
-    flexGrow: 1,
-    minHeight: Math.max(112, TouchTarget.minHeight + 64),
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    justifyContent: "space-between",
-    gap: Spacing.sm,
-  },
-  moduleTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  moduleIconWrap: {
-    position: "relative",
-  },
-  moduleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  moduleBadge: {
-    position: "absolute",
-    top: -4,
-    right: -6,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  moduleBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    lineHeight: 13,
-  },
-  moduleValue: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    flexShrink: 1,
-    textAlign: "right",
-    fontSize: 28,
-    lineHeight: 32,
-  },
-  moduleNameBlock: {
-    gap: 2,
-  },
-  moduleLabel: {
-    ...Typography.bodyLg,
-    fontWeight: "700",
-  },
-  moduleHint: {
-    ...Typography.labelMd,
-    fontWeight: "600",
-  },
 
   actionsCard: {
     flexDirection: "row",

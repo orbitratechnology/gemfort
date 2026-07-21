@@ -16,6 +16,7 @@ import {
 
 import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carousel";
 import { HomeBusinessRail } from "@/components/marketplace/home-business-rail";
+import { HomeCurrencyRates } from "@/components/marketplace/home-currency-rates";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { HomeNewsTeaser } from "@/components/news/home-news-teaser";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,6 +25,8 @@ import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { SkeletonList } from "@/components/ui/skeleton-list";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
     ROLE_LABELS,
@@ -47,14 +50,22 @@ import {
     fetchUpcomingExhibitions,
 } from "@/features/news/news-service";
 import {
+    gemPrimaryPhotoUrl,
+    resolveBusinessPhotoById,
+    resolveBusinessPhotoByOwnerUid,
+    resolvePartyPhotoUrl,
+} from "@/features/workspace/party-photo";
+import {
     fetchApRecords,
     fetchBills,
     fetchCheques,
     fetchContacts,
+    fetchGems,
     fetchServices,
     fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useInvalidateExchangeRates } from "@/hooks/use-exchange-rates";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { useAuth } from "@/providers/auth-provider";
@@ -118,6 +129,7 @@ function initialsFromName(name: string) {
 export default function HomeScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const invalidateRates = useInvalidateExchangeRates();
   const { user, profile } = useAuth();
   const unread = useUnreadNotificationCount();
   const [chromeHeight, setChromeHeight] = useState(0);
@@ -177,11 +189,64 @@ export default function HomeScreen() {
     enabled: workspaceEnabled,
   });
 
+  const { data: gems = [] } = useQuery({
+    queryKey: ["gems", user?.uid],
+    queryFn: () => fetchGems(user!.uid),
+    enabled: workspaceEnabled && canAccessModule(role, "gems"),
+  });
+
+  const gemPhotoById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of gems) {
+      const url = gemPrimaryPhotoUrl(g);
+      if (url) map.set(g.id, url);
+    }
+    return map;
+  }, [gems]);
+
+  const contactPhoto = useMemo(
+    () => (id: string | null | undefined) => {
+      if (!id) return null;
+      const contact = contacts.find((c) => c.id === id);
+      return resolvePartyPhotoUrl(contact, businesses);
+    },
+    [contacts, businesses],
+  );
+
+  const businessPhoto = useMemo(
+    () => (id: string | null | undefined) =>
+      resolveBusinessPhotoById(id, businesses),
+    [businesses],
+  );
+
+  const ownerBusinessPhoto = useMemo(
+    () => (uid: string | null | undefined) =>
+      resolveBusinessPhotoByOwnerUid(uid, businesses),
+    [businesses],
+  );
+
   const { data: apRecords = [], refetch: refetchAp } = useQuery({
     queryKey: ["ap", user?.uid],
     queryFn: () => fetchApRecords(user!.uid),
     enabled: workspaceEnabled,
   });
+
+  const apImage = useMemo(
+    () => (record: (typeof apRecords)[number]) => {
+      const isTaken = !!user?.uid && record.receiverUid === user.uid;
+      if (isTaken) {
+        return {
+          url: ownerBusinessPhoto(record.senderUid),
+          shape: "circle" as const,
+        };
+      }
+      const partyId = record.receiverContactId || record.apHolderContactId;
+      const url =
+        contactPhoto(partyId) || businessPhoto(record.receiverBusinessId);
+      return { url, shape: "circle" as const };
+    },
+    [user?.uid, contactPhoto, businessPhoto, ownerBusinessPhoto],
+  );
 
   const { data: services = [], refetch: refetchServices } = useQuery({
     queryKey: ["services", user?.uid],
@@ -250,8 +315,28 @@ export default function HomeScreen() {
         currentUid: user?.uid,
         contactName: (id) =>
           contacts.find((c) => c.id === id)?.displayName ?? "Contact",
+        contactPhoto,
+        apImage,
+        serviceImage: (s) => {
+          const gemUrl = gemPhotoById.get(s.gemId) ?? null;
+          if (gemUrl) return { url: gemUrl, shape: "rounded" };
+          return {
+            url: contactPhoto(s.providerContactId),
+            shape: "circle",
+          };
+        },
       }),
-    [apRecords, services, trips, cheques, contacts, user?.uid],
+    [
+      apRecords,
+      services,
+      trips,
+      cheques,
+      contacts,
+      user?.uid,
+      contactPhoto,
+      apImage,
+      gemPhotoById,
+    ],
   );
 
   const upcomingPreview = useMemo(
@@ -266,6 +351,7 @@ export default function HomeScreen() {
   function refetchAll() {
     refetchListings();
     refetchBusinesses();
+    void invalidateRates();
     if (isFirebaseConfigured) {
       void refetchLocalNews();
       void refetchGlobalNews();
@@ -301,12 +387,23 @@ export default function HomeScreen() {
       {/* First descendant must be ScrollView for NativeTabs scroll-to-top. */}
       <ThemedScrollView
         contentContainerStyle={[styles.content, { paddingTop: topPad }]}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetchAll} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetchAll}
+            progressViewOffset={topPad}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
         }
       >
         <HomeBannerCarousel />
+
+        <View style={styles.section}>
+          <HomeCurrencyRates />
+        </View>
 
         {workspaceEnabled ? (
           <ActiveProgressStrip
@@ -314,7 +411,13 @@ export default function HomeScreen() {
             apRecords={apRecords}
             cheques={cheques}
             bills={bills}
+            services={services}
+            currentUid={user?.uid}
             contactName={contactName}
+            contactPhoto={contactPhoto}
+            businessPhoto={businessPhoto}
+            ownerBusinessPhoto={ownerBusinessPhoto}
+            apImage={apImage}
             limit={5}
             style={styles.section}
           />
@@ -452,22 +555,39 @@ export default function HomeScreen() {
                     },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.upcomingIcon,
-                      {
-                        backgroundColor: item.overdue
-                          ? colors.errorContainer
-                          : colors.primary + "14",
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={KIND_ICON[item.kind] ?? "event"}
-                      size={18}
-                      color={item.overdue ? colors.error : colors.primary}
-                    />
-                  </View>
+                  {item.imageUrl ? (
+                    item.imageShape === "rounded" ? (
+                      <GemThumb
+                        uri={item.imageUrl}
+                        label={item.title}
+                        size={36}
+                        radius={10}
+                      />
+                    ) : (
+                      <ContactAvatar
+                        name={item.title}
+                        photoUrl={item.imageUrl}
+                        size={36}
+                      />
+                    )
+                  ) : (
+                    <View
+                      style={[
+                        styles.upcomingIcon,
+                        {
+                          backgroundColor: item.overdue
+                            ? colors.errorContainer
+                            : colors.primary + "14",
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={KIND_ICON[item.kind] ?? "event"}
+                        size={18}
+                        color={item.overdue ? colors.error : colors.primary}
+                      />
+                    </View>
+                  )}
                   <View style={styles.upcomingCopy}>
                     <Text
                       style={[
@@ -811,6 +931,8 @@ const styles = StyleSheet.create({
   /** Full-bleed horizontal rails; header stays inset */
   sectionBleed: {
     gap: Spacing.stackMd,
+    // Let rail card shadows paint without the section clipping them
+    overflow: "visible",
   },
   sectionInset: {
     paddingHorizontal: Spacing.containerMargin,

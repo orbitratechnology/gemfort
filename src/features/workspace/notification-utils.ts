@@ -215,6 +215,7 @@ export function buildBillDueTodayCandidates(
   bills: Bill[],
   contacts: Contact[],
 ): NotificationCandidate[] {
+  // Private reminders for the bill owner only — contact names are labels, not recipients.
   return detectBillsDueToday(bills).map((b) => {
     const remaining = Math.max(0, b.amount - b.amountSettled);
     const who = contactName(contacts, b.counterpartyContactId);

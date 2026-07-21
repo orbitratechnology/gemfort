@@ -5,6 +5,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -15,6 +19,7 @@ import { TRIP_EXPENSE_CATEGORIES } from '@/constants/trip-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { addTripExpense } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import {
   extensionForMedia,
   uploadLocalMedia,
@@ -28,11 +33,15 @@ export default function AddTripExpenseScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [category, setCategory] = useState('transport');
-  const [amount, setAmount] = useState('');
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [description, setDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
@@ -40,7 +49,7 @@ export default function AddTripExpenseScreen() {
 
   async function handleSubmit() {
     if (!user || !tripId) return;
-    const parsed = parseFloat(amount);
+    const parsed = parseFloat(money.amount);
     if (!parsed || parsed <= 0) {
       toast.error('Enter a valid amount.');
       return;
@@ -60,6 +69,7 @@ export default function AddTripExpenseScreen() {
       await addTripExpense(user.uid, tripId, {
         category,
         amount: parsed,
+        currency: money.currency,
         description: description || null,
         paymentMethod: paymentMethod || null,
         receiptPhotoUrl,
@@ -126,13 +136,10 @@ export default function AddTripExpenseScreen() {
         </FormSection>
 
         <ScreenInset style={styles.fields}>
-        <Input
-          label="Amount (LKR)"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          leftIcon="payments"
+        <CurrencyAmountField
+          label="Amount"
+          value={money}
+          onChange={setMoney}
         />
         <Input
           label="Description"

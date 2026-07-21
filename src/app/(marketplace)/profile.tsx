@@ -3,7 +3,6 @@ import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { useCallback } from "react";
 import {
-    Alert,
     Linking,
     Pressable,
     ScrollView,
@@ -30,6 +29,7 @@ import {
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { alert } from "@/lib/alert";
 import { logoutUser } from "@/lib/firebase/auth-service";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
@@ -330,7 +330,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Log Out"
             onPress={() =>
-              Alert.alert("Sign out?", "You can sign back in anytime.", [
+              alert("Sign out?", "You can sign back in anytime.", [
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Log Out",

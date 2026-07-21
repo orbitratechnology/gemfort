@@ -196,7 +196,7 @@ const lightTheme: ThemeColors = {
   tabBar: Palette.surfaceContainerLowest,
   tabBarBorder: Palette.surfaceVariant,
   header: Palette.surfaceContainerLowest,
-  cardShadow: 'rgba(0, 22, 44, 0.05)',
+  cardShadow: 'rgba(0, 22, 44, 0.12)',
   alertCriticalBg: Palette.errorContainer,
   alertWarningBg: '#fef3c7',
   alertInfoBg: '#e0f2fe',

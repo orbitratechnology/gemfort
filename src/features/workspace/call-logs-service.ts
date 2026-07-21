@@ -2,6 +2,10 @@ import { PermissionsAndroid } from "react-native";
 import type { LogData } from "react-native-calllogs-android";
 
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
+import {
+  businessLogoUrl,
+  resolvePartyPhotoUrl,
+} from "@/features/workspace/party-photo";
 import type { Business, Contact } from "@/types";
 
 export type CallPartyKind = "contact" | "business";
@@ -99,7 +103,7 @@ function buildPhoneIndex(
         kind: "contact",
         id: contact.id,
         name: contact.displayName,
-        photoUrl: contact.photoUrl,
+        photoUrl: resolvePartyPhotoUrl(contact, businesses),
         href: `${WORKSPACE}/contacts/${contact.id}`,
       });
     }
@@ -116,7 +120,7 @@ function buildPhoneIndex(
         kind: "business",
         id: business.id,
         name: business.businessName,
-        photoUrl: null,
+        photoUrl: businessLogoUrl(business),
         href: `/business/${business.id}`,
       });
     }

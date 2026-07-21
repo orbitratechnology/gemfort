@@ -7,6 +7,7 @@ import { toast, Toaster } from "sonner-native";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { haptics } from "@/lib/haptics";
 
 export type ToastVariant = "success" | "error" | "info";
 
@@ -59,7 +60,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         enableStacking
         positionerStyle={{ width: "100%", left: 0, right: 0 }}
         animation={{
-          enter: FadeInUp.duration(280).springify().damping(18),
+          enter: FadeInUp.duration(280),
           exit: FadeOutUp.duration(180),
         }}
         ToastWrapper={({ toastId, children: toastChildren, style, ...rest }) => (
@@ -111,13 +112,16 @@ function showToast(message: string, options?: ToastOptions) {
   const duration = options?.duration;
   const variant = options?.variant ?? "info";
   if (variant === "success") {
+    haptics.success();
     toast.success(message, { duration });
     return;
   }
   if (variant === "error") {
+    haptics.error();
     toast.error(message, { duration });
     return;
   }
+  haptics.light();
   toast(message, { duration });
 }
 
@@ -125,8 +129,17 @@ function showToast(message: string, options?: ToastOptions) {
 export function useToast(): ToastApi {
   return {
     show: showToast,
-    success: (message, duration) => toast.success(message, { duration }),
-    error: (message, duration) => toast.error(message, { duration }),
-    info: (message, duration) => toast(message, { duration }),
+    success: (message, duration) => {
+      haptics.success();
+      toast.success(message, { duration });
+    },
+    error: (message, duration) => {
+      haptics.error();
+      toast.error(message, { duration });
+    },
+    info: (message, duration) => {
+      haptics.light();
+      toast(message, { duration });
+    },
   };
 }

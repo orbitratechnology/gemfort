@@ -6,11 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { Input } from '@/components/ui/input';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContactPicker } from '@/components/workspace/contact-picker';
-import { SUPPORTED_CURRENCIES } from '@/constants/currencies';
+import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   effectiveReceivableStatus,
@@ -23,6 +27,7 @@ import {
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { formatCurrency, formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -32,18 +37,27 @@ import type { Receivable } from '@/types';
 export default function ReceivablesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [contactId, setContactId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('LKR');
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [paymentMethod, setPaymentMethod] = useState('');
-  const [commission, setCommission] = useState('');
+  const [commission, setCommission] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
 
   const { data: receivables = [], refetch, isRefetching } = useQuery({
     queryKey: ['receivables', user?.uid],
@@ -64,7 +78,7 @@ export default function ReceivablesScreen() {
   );
 
   async function handleAdd() {
-    if (!user || !contactId || !amount) {
+    if (!user || !contactId || !money.amount) {
       toast.error('Select a contact and enter an amount.');
       return;
     }
@@ -73,17 +87,16 @@ export default function ReceivablesScreen() {
       const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
       await createReceivable(user.uid, {
         contactId,
-        amount: parseFloat(amount),
-        currency,
+        amount: parseFloat(money.amount),
+        currency: money.currency,
         description: description || 'Receivable',
         dueDate: due,
       });
       await queryClient.invalidateQueries({ queryKey: ['receivables'] });
       toast.success('Receivable added');
-      setAmount('');
+      setMoney({ amount: '', currency: preferred });
       setDescription('');
       setContactId('');
-      setCurrency('LKR');
       setShowForm(false);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save receivable.'));
@@ -95,7 +108,7 @@ export default function ReceivablesScreen() {
   async function handleRecordPayment(item: Receivable) {
     if (!user) return;
     const remaining = item.amount - item.amountReceived;
-    const parsed = paymentAmount ? parseFloat(paymentAmount) : remaining;
+    const parsed = paymentMoney.amount ? parseFloat(paymentMoney.amount) : remaining;
     if (!parsed || parsed <= 0) {
       toast.error('Enter a valid payment amount');
       return;
@@ -103,18 +116,18 @@ export default function ReceivablesScreen() {
     setLoading(true);
     try {
       await recordReceivablePayment(user.uid, item.id, parsed, {
-        currency: item.currency,
+        currency: paymentMoney.currency,
         paymentMethod: paymentMethod || null,
-        commission: commission ? parseFloat(commission) : null,
+        commission: commission.amount ? parseFloat(commission.amount) : null,
       });
       await queryClient.invalidateQueries({ queryKey: ['receivables'] });
       await queryClient.invalidateQueries({ queryKey: ['payments'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Payment recorded');
       setPayingId(null);
-      setPaymentAmount('');
+      setPaymentMoney({ amount: '', currency: preferred });
       setPaymentMethod('');
-      setCommission('');
+      setCommission({ amount: '', currency: preferred });
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
     } finally {
@@ -170,22 +183,17 @@ export default function ReceivablesScreen() {
         {!paid ? (
           isPaying ? (
             <View style={styles.payForm}>
-              <Input
+              <CurrencyAmountField
                 label="Payment amount"
-                value={paymentAmount}
-                onChangeText={setPaymentAmount}
-                keyboardType="decimal-pad"
+                value={paymentMoney}
+                onChange={setPaymentMoney}
                 placeholder={String(remaining)}
-                leftIcon="payments"
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
-              <Input
+              <CurrencyAmountField
                 label="Commission (optional)"
                 value={commission}
-                onChangeText={setCommission}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                leftIcon="payments"
+                onChange={setCommission}
               />
               <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
@@ -197,16 +205,20 @@ export default function ReceivablesScreen() {
                 variant="secondary"
                 style={styles.flex1}
                 onPress={() => {
+                  const currency = resolveCurrencyCode(item.currency, preferred);
                   setPayingId(item.id);
-                  setPaymentAmount(String(remaining));
+                  setPaymentMoney({ amount: String(remaining), currency });
+                  setCommission({ amount: '', currency });
                 }}
               />
               <Button
                 title="Partial"
                 variant="ghost"
                 onPress={() => {
+                  const currency = resolveCurrencyCode(item.currency, preferred);
                   setPayingId(item.id);
-                  setPaymentAmount('');
+                  setPaymentMoney({ amount: '', currency });
+                  setCommission({ amount: '', currency });
                 }}
               />
             </View>
@@ -255,25 +267,7 @@ export default function ReceivablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker label="From contact" contacts={contacts} value={contactId} onChange={setContactId} />
-                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" leftIcon="payments" />
-                <View style={styles.currencyRow}>
-                  {SUPPORTED_CURRENCIES.slice(0, 4).map((c) => (
-                    <Pressable
-                      key={c.code}
-                      onPress={() => setCurrency(c.code)}
-                      style={[
-                        styles.currencyChip,
-                        {
-                          backgroundColor: currency === c.code ? colors.primary : colors.surfaceContainerLow,
-                          borderColor: currency === c.code ? colors.primary : colors.outlineVariant,
-                        },
-                      ]}>
-                      <Text style={{ color: currency === c.code ? colors.onPrimary : colors.onSurface, ...Typography.labelMd }}>
-                        {c.code}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
                 <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
                 <Button title="Add Receivable" icon="add" loading={loading} onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
@@ -305,13 +299,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.gutterMd,
     gap: Spacing.md,
-  },
-  currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  currencyChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
   },
   row: { borderRadius: Radius.lg, padding: Spacing.gutterMd, gap: 6 },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

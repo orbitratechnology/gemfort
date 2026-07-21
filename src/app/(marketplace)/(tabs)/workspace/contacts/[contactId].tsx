@@ -2,7 +2,6 @@ import { Link, router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
-  Alert,
   Linking,
   Pressable,
   StyleSheet,
@@ -28,6 +27,8 @@ import {
   Spacing,
   Typography,
 } from "@/constants/design-tokens";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import { resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import {
   deleteContact,
   fetchContactHistory,
@@ -36,6 +37,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
+import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -62,6 +64,12 @@ export default function ContactDetailScreen() {
     enabled: !!user,
   });
 
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!user,
+  });
+
   const { data: history } = useQuery({
     queryKey: ["contact-history", user?.uid, contactId],
     queryFn: () => fetchContactHistory(user!.uid, contactId!),
@@ -71,6 +79,7 @@ export default function ContactDetailScreen() {
   const { logs: allCallLogs } = useMatchedCallLogs({ enabled: !!user });
 
   const contact = contacts.find((c) => c.id === contactId);
+  const avatarUrl = resolvePartyPhotoUrl(contact, businesses);
 
   const contactCalls = useMemo(
     () =>
@@ -124,7 +133,7 @@ export default function ContactDetailScreen() {
 
   function handleDelete() {
     if (!contact) return;
-    Alert.alert("Delete Contact", "This cannot be undone.", [
+    alert("Delete Contact", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -313,7 +322,7 @@ export default function ContactDetailScreen() {
           <Link.AppleZoomTarget>
             <ContactAvatar
               name={contact.displayName}
-              photoUrl={contact.photoUrl}
+              photoUrl={avatarUrl}
               size={96}
             />
           </Link.AppleZoomTarget>

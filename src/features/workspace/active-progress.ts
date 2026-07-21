@@ -6,9 +6,9 @@ import { isOpenBill, toDate as billToDate } from "@/features/workspace/bill-util
 import { isPendingCheque, toDate as chequeToDate } from "@/features/workspace/cheque-utils";
 import { toTripDate, tripScheduleProgressPercent } from "@/features/workspace/trip-utils";
 import { formatCurrency, formatDate, formatRelativeDue } from "@/lib/utils";
-import type { ApRecord, Bill, Cheque, Trip } from "@/types";
+import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
 
-export type ActiveProgressKind = "trip" | "ap" | "cheque" | "bill";
+export type ActiveProgressKind = "trip" | "ap" | "cheque" | "bill" | "service";
 
 export type ActiveProgressItem = {
   id: string;
@@ -27,6 +27,10 @@ export type ActiveProgressItem = {
   overdue: boolean;
   icon: IconName;
   sortAt: number;
+  /** Contact / business profile photo (or trip icon fallback). */
+  imageUrl?: string | null;
+  /** People/business = circle; gems = rounded. Default circle. */
+  imageShape?: "circle" | "rounded";
 };
 
 function scheduleProgress(
@@ -46,17 +50,44 @@ function toJs(ts: { toDate?: () => Date } | Date | null | undefined): Date | nul
   return ts.toDate?.() ?? null;
 }
 
-/** Ongoing trips + open APs + pending cheques + open bills, soonest due first. */
+const OPEN_SERVICE_STATUSES = new Set([
+  "given",
+  "in_progress",
+  "overdue",
+]);
+
+/** Ongoing trips + open APs + pending cheques + open bills + active services. */
 export function buildActiveProgressItems(input: {
   trips: Trip[];
   apRecords: ApRecord[];
   cheques: Cheque[];
   bills?: Bill[];
+  services?: ServiceRecord[];
+  /** Signed-in uid — used to pick the other party on Taken APs. */
+  currentUid?: string | null;
   contactName: (id: string | null | undefined) => string;
+  /** Contact / business avatar for cheque, bill, AP, and service rows. */
+  contactPhoto?: (id: string | null | undefined) => string | null;
+  /** Direct business logo by business id (services / AP receiverBusinessId). */
+  businessPhoto?: (id: string | null | undefined) => string | null;
+  /** Business logo by GemFort owner uid (AP sender when Taken). */
+  ownerBusinessPhoto?: (uid: string | null | undefined) => string | null;
+  /**
+   * Optional override for AP leading thumb. Prefer party (circle) over gem.
+   * When omitted, party photo is resolved from contact / business helpers.
+   */
+  apImage?: (record: ApRecord) => {
+    url: string | null;
+    shape: "circle" | "rounded";
+  } | null;
   limit?: number;
 }): ActiveProgressItem[] {
   const today = startOfDay(new Date());
   const items: ActiveProgressItem[] = [];
+  const contactPhoto = input.contactPhoto ?? (() => null);
+  const businessPhoto = input.businessPhoto ?? (() => null);
+  const ownerBusinessPhoto = input.ownerBusinessPhoto ?? (() => null);
+  const uid = input.currentUid ?? null;
 
   for (const t of input.trips) {
     if (t.status !== "ongoing") continue;
@@ -67,7 +98,9 @@ export function buildActiveProgressItems(input: {
       kind: "trip",
       badge: "Ongoing",
       title: t.tripName,
-      subtitle: [t.destinationCity, t.destinationCountry].filter(Boolean).join(", "),
+      subtitle: [t.destinationCity, t.destinationCountry]
+        .filter(Boolean)
+        .join(", "),
       country: t.destinationCountry,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
@@ -85,14 +118,23 @@ export function buildActiveProgressItems(input: {
     const end = toJs(r.expectedReturnDate);
     const endDay = end ? startOfDay(end) : null;
     const overdue = !!endDay && endDay < today;
-    const holder =
-      r.receiverName ||
-      input.contactName(r.receiverContactId || r.apHolderContactId);
+    const isTaken = !!uid && r.receiverUid === uid;
+    const partyName = isTaken
+      ? r.senderName || "Sender"
+      : r.receiverName ||
+        input.contactName(r.receiverContactId || r.apHolderContactId);
+    const override = input.apImage?.(r) ?? null;
+    const partyUrl =
+      override?.url ??
+      (isTaken
+        ? ownerBusinessPhoto(r.senderUid)
+        : contactPhoto(r.receiverContactId || r.apHolderContactId) ||
+          businessPhoto(r.receiverBusinessId));
     items.push({
       id: `ap-${r.id}`,
       kind: "ap",
       badge: overdue ? "AP overdue" : "AP out",
-      title: holder,
+      title: partyName,
       subtitle: end ? `Return by ${formatDate(end)}` : "Return date TBD",
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
@@ -101,6 +143,8 @@ export function buildActiveProgressItems(input: {
       overdue,
       icon: "handshake",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      imageUrl: partyUrl,
+      imageShape: override?.shape ?? "circle",
     });
   }
 
@@ -116,10 +160,10 @@ export function buildActiveProgressItems(input: {
       id: `cheque-${c.id}`,
       kind: "cheque",
       badge: overdue ? "Cheque due" : "Cheque",
-      title: c.chequeNumber,
+      title: who,
       subtitle: end
-        ? `Matures ${formatDate(end)} · ${who}`
-        : who,
+        ? `#${c.chequeNumber} · matures ${formatDate(end)}`
+        : `#${c.chequeNumber}`,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       href: `/(marketplace)/(tabs)/workspace/cheques/${c.id}`,
@@ -127,6 +171,8 @@ export function buildActiveProgressItems(input: {
       overdue,
       icon: "money-check-dollar",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      imageUrl: contactPhoto(c.counterpartyContactId),
+      imageShape: "circle",
     });
   }
 
@@ -152,6 +198,42 @@ export function buildActiveProgressItems(input: {
       overdue,
       icon: "receipt-long",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      imageUrl: contactPhoto(b.counterpartyContactId),
+      imageShape: "circle",
+    });
+  }
+
+  for (const s of input.services ?? []) {
+    if (!OPEN_SERVICE_STATUSES.has(s.status)) continue;
+    const start = toJs(s.dateGiven);
+    const end = toJs(s.expectedReturnDate);
+    const endDay = end ? startOfDay(end) : null;
+    const overdue =
+      s.status === "overdue" || (!!endDay && endDay < today);
+    const who =
+      s.providerName?.trim() ||
+      input.contactName(s.providerContactId) ||
+      "Provider";
+    const photo =
+      contactPhoto(s.providerContactId) ||
+      businessPhoto(s.providerBusinessId);
+    items.push({
+      id: `service-${s.id}`,
+      kind: "service",
+      badge: overdue ? "Service overdue" : "Service",
+      title: who,
+      subtitle: `${s.serviceType.replace(/_/g, " ")}${
+        end ? ` · due ${formatDate(end)}` : ""
+      }`,
+      dateLabel: end ? formatDate(end) : "—",
+      when: formatRelativeDue(end),
+      href: `/(marketplace)/(tabs)/workspace/services/${s.id}`,
+      progress: scheduleProgress(start, end),
+      overdue,
+      icon: "build",
+      sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
+      imageUrl: photo,
+      imageShape: "circle",
     });
   }
 

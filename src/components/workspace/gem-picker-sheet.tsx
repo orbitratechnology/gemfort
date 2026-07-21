@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { WorkspaceGem } from "@/types";
@@ -210,7 +211,7 @@ export function GemPickerSheet({
         }
         renderItem={({ item }) => {
           const selected = value === item.id;
-          const photo = item.photoUrls?.[0];
+          const photo = gemPrimaryPhotoUrl(item);
           return (
             <Pressable
               accessibilityRole="button"
@@ -329,7 +330,7 @@ export function GemSelectField({
   error,
 }: GemSelectFieldProps) {
   const { colors } = useAppTheme();
-  const photo = gem?.photoUrls?.[0];
+  const photo = gemPrimaryPhotoUrl(gem);
 
   return (
     <View style={styles.fieldWrap}>
