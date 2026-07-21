@@ -16,9 +16,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchServices } from "@/features/workspace/workspace-service";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
+import {
+  fetchGems,
+  fetchServices,
+} from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatRelativeDue } from "@/lib/utils";
@@ -81,6 +86,21 @@ export default function ServicesListScreen() {
     queryFn: () => fetchServices(user!.uid),
     enabled: !!user,
   });
+
+  const { data: gems = [] } = useQuery({
+    queryKey: ["gems", user?.uid],
+    queryFn: () => fetchGems(user!.uid),
+    enabled: !!user,
+  });
+
+  const gemPhotoById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of gems) {
+      const url = gemPrimaryPhotoUrl(g);
+      if (url) map.set(g.id, url);
+    }
+    return map;
+  }, [gems]);
 
   const filtered = useMemo(() => {
     let list = services;
@@ -217,11 +237,12 @@ export default function ServicesListScreen() {
                 )
               }
             >
-              <View
-                style={[styles.thumb, { backgroundColor: colors.primaryMuted }]}
-              >
-                <Icon name="diamond" size={28} color={colors.primary} />
-              </View>
+              <GemThumb
+                uri={gemPhotoById.get(item.gemId) ?? null}
+                label={item.serviceType}
+                size={56}
+                radius={12}
+              />
               <View style={styles.cardBody}>
                 <View style={styles.cardTopRow}>
                   <Text

@@ -123,6 +123,13 @@ export async function apPaymentSent(input: {
   return callFunction('apPaymentSent', input);
 }
 
-export async function apPaymentReceived(apId: string) {
-  return callFunction('apPaymentReceived', { apId });
+export async function apPaymentReceived(
+  apId: string,
+  options?: { method?: ApPaymentMethod; chequeId?: string | null },
+) {
+  return callFunction('apPaymentReceived', {
+    apId,
+    method: options?.method,
+    chequeId: options?.chequeId,
+  });
 }

@@ -45,6 +45,17 @@ export type UserProfile = {
 
 export type BusinessType = "trader" | "lapidary" | "gem_lab" | string;
 
+/** Priced certificate tier on a Gem Lab public profile. */
+export type LabCertificateOffering = {
+  id: string;
+  title: string;
+  description: string;
+  /** Flat fee; null means inquire / not set. */
+  price: number | null;
+  currency: string;
+  isActive: boolean;
+};
+
 export type Business = {
   id: string;
   ownerUid: string;
@@ -104,7 +115,10 @@ export type Business = {
   } | null;
   labProfile?: {
     accreditations: string[];
+    /** @deprecated Prefer certificateOfferings; kept for directory chips / legacy. */
     reportTypes: string[];
+    /** Public certificate menu with prices — edited by the lab. */
+    certificateOfferings?: LabCertificateOffering[];
     isAcceptingOrders: boolean;
     certificatesIssued: number;
   } | null;
@@ -391,6 +405,8 @@ export type Receivable = {
   amount: number;
   amountReceived: number;
   currency: string;
+  /** LKR equivalent of `amount` at create/update time. */
+  amountBase?: number;
   description: string;
   dueDate: Timestamp;
   status: "pending" | "partial" | "paid" | "overdue";
@@ -405,6 +421,8 @@ export type Payable = {
   amount: number;
   amountPaid: number;
   currency: string;
+  /** LKR equivalent of `amount` at create/update time. */
+  amountBase?: number;
   description: string;
   dueDate: Timestamp;
   status: "pending" | "partial" | "paid" | "overdue";
@@ -461,11 +479,20 @@ export type Bill = {
   amountBase: number;
   /** Paid or received so far */
   amountSettled: number;
+  /**
+   * Percent of each settlement taken as commission from the face amount
+   * (owner's private books only — never paid out or notified externally).
+   * Payable → commission is income for the bill owner.
+   * Receivable → commission is tracked as the counterparty's cut on your books.
+   */
   commissionPercent: number | null;
   counterpartyContactId: string;
   dueDate: Timestamp;
   status: BillStatus;
+  /** Primary / legacy single gem link (first of `gemIds` when set). */
   gemId: string | null;
+  /** Linked stones for this bill (optional). */
+  gemIds: string[];
   notes: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -503,6 +530,8 @@ export type Cheque = {
   photoUrl: string | null;
   gemId: string | null;
   apRecordId: string | null;
+  /** Linked bill when cheque settles / records a bill payment */
+  billId: string | null;
   tripId: string | null;
   notes: string | null;
   createdAt: Timestamp;

@@ -6,6 +6,10 @@ import { StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChipSelect } from "@/components/ui/chip-select";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
@@ -26,8 +30,11 @@ import { bankHasBranches } from "@/constants/sri-lanka-branches";
 import {
     createCheque,
     fetchContacts,
+    recordBillPayment,
 } from "@/features/workspace/workspace-service";
+import { apPaymentReceived, apPaymentSent } from "@/features/workspace/ap-lifecycle-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
 import {
@@ -55,24 +62,56 @@ const DIRECTIONS = [
   },
 ];
 
+function firstParam(v: string | string[] | undefined): string {
+  if (Array.isArray(v)) return v[0] ?? "";
+  return v ?? "";
+}
+
 export default function AddChequeScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{
+  const raw = useLocalSearchParams<{
     amount?: string;
     gemId?: string;
     apRecordId?: string;
+    billId?: string;
     contactId?: string;
+    direction?: string;
+    /** After save: settle bill payment for this amount */
+    settleAmount?: string;
+    /** After save: mark AP payment sent (holder) */
+    confirmApSent?: string;
+    /** After save: confirm AP payment received (owner) */
+    confirmApReceived?: string;
   }>();
 
-  const [direction, setDirection] = useState<ChequeDirection>("received");
+  const paramAmount = firstParam(raw.amount);
+  const paramContactId = firstParam(raw.contactId);
+  const paramGemId = firstParam(raw.gemId) || null;
+  const paramApRecordId = firstParam(raw.apRecordId) || null;
+  const paramBillId = firstParam(raw.billId) || null;
+  const paramDirection = firstParam(raw.direction);
+  const settleAmount = firstParam(raw.settleAmount);
+  const confirmApSent = firstParam(raw.confirmApSent) === "1";
+  const confirmApReceived = firstParam(raw.confirmApReceived) === "1";
+
+  const initialDirection: ChequeDirection =
+    paramDirection === "given" || paramDirection === "received"
+      ? paramDirection
+      : "received";
+
+  const [direction, setDirection] = useState<ChequeDirection>(initialDirection);
   const [chequeNumber, setChequeNumber] = useState("");
   const [bankCode, setBankCode] = useState<string | null>(null);
   const [branch, setBranch] = useState("");
-  const [amount, setAmount] = useState(params.amount ?? "");
-  const [contactId, setContactId] = useState(params.contactId ?? "");
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: paramAmount,
+    currency: preferred,
+  });
+  const [contactId, setContactId] = useState(paramContactId);
   const [issuedBy, setIssuedBy] = useState("");
   const [maturityDays, setMaturityDays] = useState("30");
   const [notes, setNotes] = useState("");
@@ -122,7 +161,7 @@ export default function AddChequeScreen() {
       chequeNumber,
       bankName,
       branch: branch || undefined,
-      amount,
+      amount: money.amount,
       maturityDays,
       contactId,
       issuedBy: issuedBy || undefined,
@@ -167,19 +206,76 @@ export default function AddChequeScreen() {
         bankCode,
         branch: data.branch || null,
         amount: data.amount,
+        currency: money.currency,
         counterpartyContactId: data.contactId,
         issuedBy: issuer,
         issueDate: now,
         maturityDate: maturity,
         photoUrl,
-        gemId: params.gemId ?? null,
-        apRecordId: params.apRecordId ?? null,
+        gemId: paramGemId,
+        apRecordId: paramApRecordId,
+        billId: paramBillId,
         notes: data.notes || null,
       });
 
+      if (paramBillId) {
+        const settle = parseFloat(settleAmount || String(data.amount));
+        if (settle > 0) {
+          await recordBillPayment(user.uid, paramBillId, settle, {
+            paymentMethod: "cheque",
+            notes: `Cheque ${data.chequeNumber}`,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["bills"] });
+          await queryClient.invalidateQueries({ queryKey: ["bill", paramBillId] });
+          await queryClient.invalidateQueries({ queryKey: ["payments"] });
+          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        }
+      }
+
+      if (paramApRecordId && confirmApSent) {
+        await apPaymentSent({
+          apId: paramApRecordId,
+          method: "cheque",
+          amount: data.amount,
+          chequeId: id,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      }
+
+      if (paramApRecordId && confirmApReceived) {
+        await apPaymentReceived(paramApRecordId, {
+          method: "cheque",
+          chequeId: id,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        await queryClient.invalidateQueries({ queryKey: ["money"] });
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-      toast.success("Cheque added to your tracker.");
-      router.replace(`/(marketplace)/(tabs)/workspace/cheques/${id}` as never);
+      toast.success(
+        paramBillId
+          ? "Cheque saved and bill payment recorded."
+          : confirmApReceived
+            ? "Cheque saved and AP payment confirmed."
+            : confirmApSent
+              ? "Cheque saved and payment marked sent."
+              : "Cheque added to your tracker.",
+      );
+
+      if (paramBillId) {
+        router.replace(
+          `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
+        );
+      } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
+        router.replace(
+          `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
+        );
+      } else {
+        router.replace(
+          `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
+        );
+      }
     } catch (e) {
       toast.error(friendlyError(e, "Could not save cheque."));
     } finally {
@@ -200,7 +296,13 @@ export default function AddChequeScreen() {
       >
         <ScreenInset>
           <Text style={[styles.lead, { color: colors.textMuted }]}>
-            Track post-dated cheques and maturity dates.
+            {paramBillId
+              ? "Cheque linked to this bill — saving records the payment."
+              : confirmApReceived
+                ? "Cheque linked to this AP — saving confirms payment received."
+                : confirmApSent
+                  ? "Cheque linked to this AP — saving marks payment sent."
+                  : "Track post-dated cheques and maturity dates."}
           </Text>
         </ScreenInset>
 
@@ -244,16 +346,13 @@ export default function AddChequeScreen() {
             error={errors.branch}
             disabled={!canPickBranch}
           />
-          <Input
-            label="Amount (LKR)"
-            value={amount}
-            onChangeText={(v) => {
-              setAmount(v);
+          <CurrencyAmountField
+            label="Amount"
+            value={money}
+            onChange={(next) => {
+              setMoney(next);
               clearField("amount");
             }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="payments"
             error={errors.amount}
           />
           <Input
@@ -331,7 +430,7 @@ export default function AddChequeScreen() {
           bankName={bankName}
           bankCode={bankCode}
           branch={branch}
-          amount={amount}
+          amount={money.amount}
           issuedBy={issuedBy || selectedContact?.displayName || ""}
           maturityDateLabel={maturityPreview}
         />

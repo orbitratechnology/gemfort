@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   Text,
@@ -15,27 +15,45 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
 
+/* Reanimated SharedValue `.value` writes are intentional in this file. */
+/* eslint-disable react-hooks/immutability */
+
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
   buildActiveProgressItems,
   type ActiveProgressItem,
 } from "@/features/workspace/active-progress";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import type { ApRecord, Bill, Cheque, Trip } from "@/types";
+import { haptics } from "@/lib/haptics";
+import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
+
+/** High enough to list every ongoing item in the long-press sheet. */
+const ALL_ITEMS_LIMIT = 100;
 
 type ActiveProgressStripProps = {
   trips: Trip[];
   apRecords: ApRecord[];
   cheques: Cheque[];
   bills?: Bill[];
+  services?: ServiceRecord[];
+  currentUid?: string | null;
   contactName: (id: string | null | undefined) => string;
+  contactPhoto?: (id: string | null | undefined) => string | null;
+  businessPhoto?: (id: string | null | undefined) => string | null;
+  ownerBusinessPhoto?: (uid: string | null | undefined) => string | null;
+  apImage?: (record: ApRecord) => {
+    url: string | null;
+    shape: "circle" | "rounded";
+  } | null;
   /** Max cards in the deck. */
   limit?: number;
   compact?: boolean;
@@ -44,9 +62,10 @@ type ActiveProgressStripProps = {
 
 const SWIPE_THRESHOLD = 72;
 const STACK_VISIBLE = 3;
-const SPRING = { damping: 18, stiffness: 220, mass: 0.8 };
+const FLY_OUT = 280;
+const SETTLE_MS = 180;
 
-function ProgressCardFace({
+const ProgressCardFace = memo(function ProgressCardFace({
   item,
   compact,
   colors,
@@ -56,6 +75,9 @@ function ProgressCardFace({
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
   const tone = item.overdue ? colors.error : colors.primary;
+  const thumbSize = compact ? 30 : 34;
+  const imageUrl = item.imageUrl?.trim() || null;
+  const showPartyAvatar = item.kind !== "trip";
 
   return (
     <View
@@ -68,23 +90,38 @@ function ProgressCardFace({
         minHeight: compact ? 64 : 76,
       }}
     >
-      <View
-        style={{
-          width: compact ? 30 : 34,
-          height: compact ? 30 : 34,
-          borderRadius: 10,
-          borderCurve: "continuous",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.primaryContainer,
-        }}
-      >
-        <Icon
-          name={item.icon}
-          size={compact ? 15 : 18}
-          color={colors.onPrimaryContainer}
+      {imageUrl && item.imageShape === "rounded" ? (
+        <GemThumb
+          uri={imageUrl}
+          label={item.title}
+          size={thumbSize}
+          radius={10}
         />
-      </View>
+      ) : showPartyAvatar ? (
+        <ContactAvatar
+          name={item.title}
+          photoUrl={imageUrl}
+          size={thumbSize}
+        />
+      ) : (
+        <View
+          style={{
+            width: thumbSize,
+            height: thumbSize,
+            borderRadius: 10,
+            borderCurve: "continuous",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.primaryContainer,
+          }}
+        >
+          <Icon
+            name={item.icon}
+            size={compact ? 15 : 18}
+            color={colors.onPrimaryContainer}
+          />
+        </View>
+      )}
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         <View
           style={{
@@ -159,45 +196,40 @@ function ProgressCardFace({
           />
         </View>
       </View>
-      <View style={{ alignItems: "flex-end", gap: 2, maxWidth: 88 }}>
+      <View style={{ alignItems: "flex-end", gap: 6 }}>
         <Text
           style={{ ...Typography.caption, fontWeight: "700", color: tone }}
           numberOfLines={1}
         >
           {item.when}
         </Text>
-        <Text
-          style={{
-            ...Typography.caption,
-            fontSize: 11,
-            color: colors.textMuted,
-          }}
-          numberOfLines={1}
-        >
-          {item.dateLabel}
-        </Text>
+        <Icon
+          name={item.icon}
+          size={compact ? 14 : 16}
+          color={colors.onSurfaceVariant}
+        />
       </View>
     </View>
   );
-}
+});
 
-function StackedCard({
+const StackedCard = memo(function StackedCard({
   item,
   depth,
   compact,
   isFront,
   translateX,
-  onPress,
+  surfaceColor,
 }: {
   item: ActiveProgressItem;
   depth: number;
   compact?: boolean;
   isFront: boolean;
   translateX: SharedValue<number>;
-  onPress: () => void;
+  surfaceColor: string;
 }) {
   const { colors } = useAppTheme();
-  const toneBorder = item.overdue ? colors.error + "44" : "transparent";
+  const peekY = compact ? 7 : 9;
 
   const animatedStyle = useAnimatedStyle(() => {
     if (isFront) {
@@ -208,12 +240,6 @@ function StackedCard({
         [-8, 0, 8],
         Extrapolation.CLAMP,
       );
-      const opacity = interpolate(
-        Math.abs(x),
-        [0, 140],
-        [1, 0.55],
-        Extrapolation.CLAMP,
-      );
       return {
         transform: [
           { translateX: x },
@@ -221,113 +247,147 @@ function StackedCard({
           { scale: 1 },
           { rotate: `${rotate}deg` },
         ],
-        opacity,
-        zIndex: 10,
+        opacity: interpolate(
+          Math.abs(x),
+          [0, 140],
+          [1, 0.55],
+          Extrapolation.CLAMP,
+        ),
       };
     }
 
-    // Cards behind rise slightly as the front card is dragged away.
-    const pull = Math.min(1, Math.abs(translateX.value) / SWIPE_THRESHOLD);
-    const baseY = depth * (compact ? 7 : 9);
-    const baseScale = 1 - depth * 0.045;
-    const y = baseY - pull * (compact ? 7 : 9);
-    const scale = baseScale + pull * 0.045;
-
+    const pull = interpolate(
+      Math.abs(translateX.value),
+      [0, SWIPE_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
     return {
       transform: [
         { translateX: 0 },
-        { translateY: y },
-        { scale },
+        { translateY: depth * peekY * (1 - pull) },
+        { scale: 1 - depth * 0.045 + pull * 0.045 },
         { rotate: "0deg" },
       ],
       opacity: 1 - depth * 0.18,
-      zIndex: 10 - depth,
     };
-  });
+  }, [isFront, depth, peekY]);
 
   return (
     <Animated.View
-      pointerEvents={isFront ? "auto" : "none"}
+      pointerEvents={isFront ? "box-none" : "none"}
       style={[
         {
-          position: depth === 0 ? "relative" : "absolute",
+          position: "absolute",
           left: 0,
           right: 0,
           top: 0,
+          zIndex: 10 - depth,
           borderRadius: compact ? Radius.lg : Radius.xl,
           borderCurve: "continuous",
-          backgroundColor: colors.surfaceContainerLowest,
+          backgroundColor: surfaceColor,
           borderWidth: item.overdue ? 1 : 0,
-          borderColor: toneBorder,
-          boxShadow: "0 2px 12px rgba(15, 118, 110, 0.08)",
+          borderColor: item.overdue ? colors.error + "44" : "transparent",
         },
         animatedStyle,
       ]}
     >
-      {isFront ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${item.badge}. ${item.title}. ${item.when}`}
-          onPress={onPress}
-          style={({ pressed }) => [{ opacity: pressed ? 0.96 : 1 }]}
-        >
-          <ProgressCardFace item={item} compact={compact} colors={colors} />
-        </Pressable>
-      ) : (
-        <ProgressCardFace item={item} compact={compact} colors={colors} />
-      )}
+      <ProgressCardFace item={item} compact={compact} colors={colors} />
     </Animated.View>
   );
-}
+});
 
 export function ActiveProgressStrip({
   trips,
   apRecords,
   cheques,
   bills = [],
+  services = [],
+  currentUid,
   contactName,
+  contactPhoto,
+  businessPhoto,
+  ownerBusinessPhoto,
+  apImage,
   limit = 6,
   compact = false,
   style,
 }: ActiveProgressStripProps) {
   const { colors } = useAppTheme();
-  const items = useMemo(
+  const allItems = useMemo(
     () =>
       buildActiveProgressItems({
         trips,
         apRecords,
         cheques,
         bills,
+        services,
+        currentUid,
         contactName,
-        limit,
+        contactPhoto,
+        businessPhoto,
+        ownerBusinessPhoto,
+        apImage,
+        limit: ALL_ITEMS_LIMIT,
       }),
-    [trips, apRecords, cheques, bills, contactName, limit],
+    [
+      trips,
+      apRecords,
+      cheques,
+      bills,
+      services,
+      currentUid,
+      contactName,
+      contactPhoto,
+      businessPhoto,
+      ownerBusinessPhoto,
+      apImage,
+    ],
+  );
+  const items = useMemo(
+    () => allItems.slice(0, limit),
+    [allItems, limit],
   );
 
   const [index, setIndex] = useState(0);
+  const [listOpen, setListOpen] = useState(false);
   const translateX = useSharedValue(0);
-
-  // Keep index in range when the item list shrinks.
-  useEffect(() => {
-    if (items.length === 0) {
-      setIndex(0);
-      return;
-    }
-    if (index >= items.length) setIndex(0);
-  }, [items.length, index]);
-
   const count = items.length;
+  const deckIndex = count > 0 ? index % count : 0;
 
-  function advance(dir: 1 | -1) {
-    if (count <= 1) return;
-    setIndex((i) => (i + dir + count) % count);
-    translateX.value = 0;
-  }
+  const advance = useCallback(
+    (dir: 1 | -1) => {
+      if (count <= 1) return;
+      haptics.selection();
+      setIndex((i) => (i + dir + count) % count);
+      translateX.value = 0;
+    },
+    [count, translateX],
+  );
+
+  const openList = useCallback(() => {
+    haptics.longPress();
+    setListOpen(true);
+  }, []);
+  const closeList = useCallback(() => setListOpen(false), []);
+
+  const openFront = useCallback(() => {
+    const item = items[deckIndex];
+    if (!item) return;
+    haptics.light();
+    router.push(item.href as never);
+  }, [items, deckIndex]);
+
+  const openListed = useCallback((href: string) => {
+    haptics.selection();
+    setListOpen(false);
+    router.push(href as never);
+  }, []);
 
   const pan = Gesture.Pan()
     .enabled(count > 1)
     .activeOffsetX([-14, 14])
-    .failOffsetY([-10, 10])
+    .failOffsetY([-12, 12])
     .onUpdate((e) => {
       translateX.value = e.translationX;
     })
@@ -336,44 +396,67 @@ export function ActiveProgressStrip({
         Math.abs(e.translationX) > SWIPE_THRESHOLD ||
         Math.abs(e.velocityX) > 700;
       if (!shouldSwipe) {
-        translateX.value = withSpring(0, SPRING);
+        translateX.value = withTiming(0, { duration: SETTLE_MS });
         return;
       }
       const dir: 1 | -1 = e.translationX < 0 ? 1 : -1;
-      const fly = dir === 1 ? -280 : 280;
-      translateX.value = withTiming(fly, { duration: 180 }, (finished) => {
+      const fly = dir === 1 ? -FLY_OUT : FLY_OUT;
+      translateX.value = withTiming(fly, { duration: 140 }, (finished) => {
         if (!finished) return;
         runOnJS(advance)(dir);
       });
     });
 
+  const longPress = Gesture.LongPress()
+    .minDuration(400)
+    .maxDistance(14)
+    .onStart(() => {
+      runOnJS(openList)();
+    });
+
+  const tap = Gesture.Tap().onEnd(() => {
+    runOnJS(openFront)();
+  });
+
+  const composed = Gesture.Exclusive(pan, longPress, tap);
+
   if (count === 0) return null;
 
   const visible = Array.from(
     { length: Math.min(STACK_VISIBLE, count) },
-    (_, depth) => items[(index + depth) % count]!,
+    (_, depth) => ({
+      item: items[(deckIndex + depth) % count]!,
+      depth,
+    }),
   );
 
-  // Stack peek needs vertical room under the front card.
+  // Fixed height so swipes don't thrash layout when the front card identity changes.
+  const cardHeight = compact ? 64 : 76;
   const peekPad = count > 1 ? (compact ? 16 : 20) : 0;
+  const surfaceColor = colors.surfaceContainerLowest;
 
   return (
     <Animated.View entering={FadeIn.duration(280)} style={[{ gap: 8 }, style]}>
-      <GestureDetector gesture={pan}>
-        <View style={{ paddingBottom: peekPad }}>
-          {/* Render back → front so z-order is correct without fighting absolute layers */}
+      <GestureDetector gesture={composed}>
+        <View
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Ongoing progress. Long press to see all."
+          accessibilityHint="Swipe to browse. Long press for the full list."
+          style={{ height: cardHeight + peekPad }}
+        >
           {visible
-            .map((item, depth) => ({ item, depth }))
+            .slice()
             .reverse()
             .map(({ item, depth }) => (
               <StackedCard
-                key={`${item.id}-${depth === 0 ? index : `d${depth}`}`}
+                key={item.id}
                 item={item}
                 depth={depth}
                 compact={compact}
                 isFront={depth === 0}
                 translateX={translateX}
-                onPress={() => router.push(item.href as never)}
+                surfaceColor={surfaceColor}
               />
             ))}
         </View>
@@ -388,10 +471,10 @@ export function ActiveProgressStrip({
             gap: 6,
           }}
           accessibilityRole="adjustable"
-          accessibilityLabel={`Ongoing item ${index + 1} of ${count}`}
+          accessibilityLabel={`Ongoing item ${deckIndex + 1} of ${count}`}
         >
           {items.map((item, i) => {
-            const active = i === index;
+            const active = i === deckIndex;
             return (
               <Pressable
                 key={item.id}
@@ -401,6 +484,8 @@ export function ActiveProgressStrip({
                   translateX.value = 0;
                   setIndex(i);
                 }}
+                onLongPress={openList}
+                delayLongPress={400}
                 hitSlop={6}
                 style={{
                   width: active ? 16 : 6,
@@ -415,6 +500,41 @@ export function ActiveProgressStrip({
           })}
         </View>
       ) : null}
+
+      <BottomSheet
+        visible={listOpen}
+        onClose={closeList}
+        title={`Ongoing · ${allItems.length}`}
+      >
+        <View style={{ gap: Spacing.sm }}>
+          {allItems.map((item) => {
+            const tone = item.overdue ? colors.error : colors.primary;
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.badge}. ${item.title}. ${item.when}`}
+                onPress={() => openListed(item.href)}
+                style={({ pressed }) => ({
+                  borderRadius: Radius.lg,
+                  borderCurve: "continuous",
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderWidth: item.overdue ? 1 : 0,
+                  borderColor: item.overdue ? tone + "44" : "transparent",
+                  opacity: pressed ? 0.92 : 1,
+                  overflow: "hidden",
+                })}
+              >
+                <ProgressCardFace
+                  item={item}
+                  compact
+                  colors={colors}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </Animated.View>
   );
 }

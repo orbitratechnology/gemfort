@@ -23,14 +23,17 @@ import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
 import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-import-sheet";
 import { CONTACT_TYPES } from "@/constants/contact-types";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
     filterContacts,
     groupContactsByLetter,
 } from "@/features/workspace/contact-utils";
+import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
     deleteContact,
     fetchContacts,
+    syncContactBusinessLinks,
     updateContact,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -63,9 +66,24 @@ export default function ContactsListScreen() {
     isRefetching,
   } = useQuery({
     queryKey: ["contacts", user?.uid],
-    queryFn: () => fetchContacts(user!.uid),
+    queryFn: async () => {
+      const list = await fetchContacts(user!.uid);
+      const businesses = await fetchBusinesses();
+      return syncContactBusinessLinks(list, businesses);
+    },
     enabled: !!user,
   });
+
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!user,
+  });
+
+  const contactPhotoMap = useMemo(
+    () => buildContactPhotoMap(contacts, businesses),
+    [contacts, businesses],
+  );
 
   const filtered = useMemo(
     () => filterContacts(contacts, debouncedQuery, typeFilter),
@@ -141,6 +159,7 @@ export default function ContactsListScreen() {
     }) => (
       <ContactListRow
         contact={item}
+        photoUrl={contactPhotoMap.get(item.id)}
         isLastInSection={index === section.data.length - 1}
         href={`/(marketplace)/(tabs)/workspace/contacts/${item.id}`}
         onDelete={() => handleDelete(item)}
@@ -150,6 +169,7 @@ export default function ContactsListScreen() {
       />
     ),
     [
+      contactPhotoMap,
       handleDelete,
       handleSwipeableClose,
       handleSwipeableOpen,

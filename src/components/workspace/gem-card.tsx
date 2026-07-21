@@ -1,10 +1,18 @@
 import { Image } from "expo-image";
 import { Link, type Href } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 
+import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatCurrency } from "@/lib/utils";
 import type { WorkspaceGem } from "@/types";
@@ -17,15 +25,16 @@ type GemCardProps = {
   /** Prefer href for Apple Zoom shared-element transitions (iOS 18+). */
   href?: Href;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Workspace inventory tile for 2-column ecommerce grids.
- * Image-led, status pill, SKU + type, weight, asking price.
+ * Uses ElevatedCard so chrome (border + shadow) works with Link asChild.
  */
-export function GemCard({ gem, href, onPress }: GemCardProps) {
+export function GemCard({ gem, href, onPress, style }: GemCardProps) {
   const { colors } = useAppTheme();
-  const photo = gem.photoUrls?.[0];
+  const photo = gemPrimaryPhotoUrl(gem);
   const currency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? "LKR";
   const price =
     gem.askingPrice != null
@@ -46,8 +55,13 @@ export function GemCard({ gem, href, onPress }: GemCardProps) {
     </View>
   );
 
-  const body = (
-    <>
+  return (
+    <ElevatedCard
+      href={href}
+      onPress={onPress}
+      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
+      style={[styles.card, style]}
+    >
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
         <View style={[styles.statusPill, { backgroundColor: colors.primary }]}>
@@ -64,6 +78,7 @@ export function GemCard({ gem, href, onPress }: GemCardProps) {
         <Text
           style={[styles.sku, { color: colors.onSurfaceVariant }]}
           numberOfLines={1}
+          selectable
         >
           {gem.sku}
         </Text>
@@ -83,45 +98,12 @@ export function GemCard({ gem, href, onPress }: GemCardProps) {
         <Text
           style={[styles.price, { color: colors.primary }]}
           numberOfLines={1}
+          selectable
         >
           {price}
         </Text>
       </View>
-    </>
-  );
-
-  const pressableStyle = ({ pressed }: { pressed: boolean }) => [
-    styles.card,
-    {
-      backgroundColor: colors.surfaceContainerLowest,
-      opacity: pressed ? 0.92 : 1,
-      transform: [{ scale: pressed ? 0.985 : 1 }],
-    },
-  ];
-
-  if (href) {
-    return (
-      <Link href={href} asChild>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
-          style={pressableStyle}
-        >
-          {body}
-        </Pressable>
-      </Link>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
-      style={pressableStyle}
-    >
-      {body}
-    </Pressable>
+    </ElevatedCard>
   );
 }
 
@@ -130,18 +112,18 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: GEM_CARD_MAX_WIDTH,
     alignSelf: "center",
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    boxShadow: "0 4px 16px rgba(15, 118, 110, 0.08)",
   },
   media: {
     width: "100%",
     aspectRatio: 1,
     position: "relative",
+    overflow: "hidden",
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
   },
   image: {
-    ...StyleSheet.absoluteFill,
+    width: "100%",
+    height: "100%",
   },
   placeholder: {
     alignItems: "center",

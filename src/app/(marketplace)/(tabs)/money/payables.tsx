@@ -6,11 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from '@/components/ui/currency-amount-field';
 import { Input } from '@/components/ui/input';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContactPicker } from '@/components/workspace/contact-picker';
-import { SUPPORTED_CURRENCIES } from '@/constants/currencies';
+import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
 import {
@@ -20,6 +24,7 @@ import {
   recordPayablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { formatCurrency, formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -29,16 +34,22 @@ import type { Payable } from '@/types';
 export default function PayablesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [contactId, setContactId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('LKR');
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
+    amount: '',
+    currency: preferred,
+  });
   const [paymentMethod, setPaymentMethod] = useState('');
 
   const { data: payables = [], refetch, isRefetching } = useQuery({
@@ -60,7 +71,7 @@ export default function PayablesScreen() {
   );
 
   async function handleAdd() {
-    if (!user || !contactId || !amount) {
+    if (!user || !contactId || !money.amount) {
       toast.error('Select a contact and enter an amount.');
       return;
     }
@@ -69,17 +80,16 @@ export default function PayablesScreen() {
       const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
       await createPayable(user.uid, {
         contactId,
-        amount: parseFloat(amount),
-        currency,
+        amount: parseFloat(money.amount),
+        currency: money.currency,
         description: description || 'Payable',
         dueDate: due,
       });
       await queryClient.invalidateQueries({ queryKey: ['payables'] });
       toast.success('Payable added');
-      setAmount('');
+      setMoney({ amount: '', currency: preferred });
       setDescription('');
       setContactId('');
-      setCurrency('LKR');
       setShowForm(false);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save payable.'));
@@ -91,7 +101,7 @@ export default function PayablesScreen() {
   async function handleRecordPayment(item: Payable) {
     if (!user) return;
     const remaining = item.amount - item.amountPaid;
-    const parsed = paymentAmount ? parseFloat(paymentAmount) : remaining;
+    const parsed = paymentMoney.amount ? parseFloat(paymentMoney.amount) : remaining;
     if (!parsed || parsed <= 0) {
       toast.error('Enter a valid payment amount');
       return;
@@ -99,7 +109,7 @@ export default function PayablesScreen() {
     setLoading(true);
     try {
       await recordPayablePayment(user.uid, item.id, parsed, {
-        currency: item.currency,
+        currency: paymentMoney.currency,
         paymentMethod: paymentMethod || null,
       });
       await queryClient.invalidateQueries({ queryKey: ['payables'] });
@@ -107,7 +117,7 @@ export default function PayablesScreen() {
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Payment recorded');
       setPayingId(null);
-      setPaymentAmount('');
+      setPaymentMoney({ amount: '', currency: preferred });
       setPaymentMethod('');
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
@@ -164,13 +174,11 @@ export default function PayablesScreen() {
         {!paid ? (
           isPaying ? (
             <View style={styles.payForm}>
-              <Input
+              <CurrencyAmountField
                 label="Payment amount"
-                value={paymentAmount}
-                onChangeText={setPaymentAmount}
-                keyboardType="decimal-pad"
+                value={paymentMoney}
+                onChange={setPaymentMoney}
                 placeholder={String(remaining)}
-                leftIcon="payments"
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
               <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
@@ -184,7 +192,10 @@ export default function PayablesScreen() {
                 style={styles.flex1}
                 onPress={() => {
                   setPayingId(item.id);
-                  setPaymentAmount(String(remaining));
+                  setPaymentMoney({
+                    amount: String(remaining),
+                    currency: resolveCurrencyCode(item.currency, preferred),
+                  });
                 }}
               />
               <Button
@@ -192,7 +203,10 @@ export default function PayablesScreen() {
                 variant="ghost"
                 onPress={() => {
                   setPayingId(item.id);
-                  setPaymentAmount('');
+                  setPaymentMoney({
+                    amount: '',
+                    currency: resolveCurrencyCode(item.currency, preferred),
+                  });
                 }}
               />
             </View>
@@ -241,25 +255,7 @@ export default function PayablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker label="To contact" contacts={contacts} value={contactId} onChange={setContactId} />
-                <Input label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" leftIcon="payments" />
-                <View style={styles.currencyRow}>
-                  {SUPPORTED_CURRENCIES.slice(0, 4).map((c) => (
-                    <Pressable
-                      key={c.code}
-                      onPress={() => setCurrency(c.code)}
-                      style={[
-                        styles.currencyChip,
-                        {
-                          backgroundColor: currency === c.code ? colors.primary : colors.surfaceContainerLow,
-                          borderColor: currency === c.code ? colors.primary : colors.outlineVariant,
-                        },
-                      ]}>
-                      <Text style={{ color: currency === c.code ? colors.onPrimary : colors.onSurface, ...Typography.labelMd }}>
-                        {c.code}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
                 <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
                 <Button title="Add Payable" icon="add" loading={loading} onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
@@ -288,13 +284,6 @@ const styles = StyleSheet.create({
   overdueBanner: { padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1 },
   overdueTitle: { ...Typography.labelMd, fontWeight: '700' },
   form: { borderRadius: Radius.lg, padding: Spacing.gutterMd, gap: Spacing.md },
-  currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  currencyChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
   row: { borderRadius: Radius.lg, padding: Spacing.gutterMd, gap: 6 },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   amount: { ...Typography.headlineSm },

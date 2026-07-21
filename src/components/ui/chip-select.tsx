@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { haptics } from '@/lib/haptics';
 
 export type ChipOption<T extends string = string> = {
   value: T;
@@ -51,7 +52,7 @@ export function ChipSelect<T extends string>({
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               accessibilityLabel={opt.label}
-              onPress={() => onChange(opt.value)}
+              onPress={haptics.wrap('selection', () => onChange(opt.value))}
               style={({ pressed }) => [
                 isRow ? styles.rowChip : styles.chip,
                 layout === 'split' && styles.splitChip,

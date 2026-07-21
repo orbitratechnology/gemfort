@@ -13,8 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   BILL_DIRECTION_LABELS,
   BILL_STATUS_LABELS,
@@ -23,6 +25,7 @@ import {
   isOpenBill,
   remainingAmount,
 } from "@/features/workspace/bill-utils";
+import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
   fetchBills,
   fetchContacts,
@@ -31,18 +34,22 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import type { Bill } from "@/types";
+import { useMemo } from "react";
 
 function BillRow({
   bill,
   contactName,
+  contactPhotoUrl,
   colors,
 }: {
   bill: Bill;
   contactName: string;
+  contactPhotoUrl: string | null;
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
   const isPayable = bill.direction === "payable";
   const remaining = remainingAmount(bill);
+  const partyLabel = contactName || "Contact";
 
   return (
     <Link
@@ -59,31 +66,39 @@ function BillRow({
           },
         ]}
       >
-        <View
-          style={[
-            styles.rowIcon,
-            {
-              backgroundColor: isPayable
-                ? colors.errorContainer
-                : colors.secondaryContainer,
-            },
-          ]}
-        >
-          <Icon
-            name={isPayable ? "call-made" : "call-received"}
-            size={20}
-            color={
-              isPayable ? colors.error : colors.onSecondaryContainer
-            }
+        {contactPhotoUrl ? (
+          <ContactAvatar
+            name={partyLabel}
+            photoUrl={contactPhotoUrl}
+            size={44}
           />
-        </View>
+        ) : (
+          <View
+            style={[
+              styles.rowIcon,
+              {
+                backgroundColor: isPayable
+                  ? colors.errorContainer
+                  : colors.secondaryContainer,
+              },
+            ]}
+          >
+            <Icon
+              name={isPayable ? "call-made" : "call-received"}
+              size={20}
+              color={
+                isPayable ? colors.error : colors.onSecondaryContainer
+              }
+            />
+          </View>
+        )}
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <Text
               style={[styles.rowTitle, { color: colors.onSurface }]}
               numberOfLines={1}
             >
-              {contactName || "Contact"}
+              {partyLabel}
             </Text>
             <Text
               style={[styles.rowAmount, { color: colors.primary }]}
@@ -144,7 +159,20 @@ export default function BillsIndexScreen() {
     enabled: !!user,
   });
 
-  const contactMap = new Map(contacts.map((c) => [c.id, c.displayName]));
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!user,
+  });
+
+  const contactMap = useMemo(
+    () => new Map(contacts.map((c) => [c.id, c.displayName])),
+    [contacts],
+  );
+  const contactPhotoMap = useMemo(
+    () => buildContactPhotoMap(contacts, businesses),
+    [contacts, businesses],
+  );
   const summary = getBillSummary(bills);
   const open = bills.filter(isOpenBill);
   const closed = bills.filter((b) => !isOpenBill(b));
@@ -245,6 +273,9 @@ export default function BillsIndexScreen() {
                 key={b.id}
                 bill={b}
                 contactName={contactMap.get(b.counterpartyContactId) ?? ""}
+                contactPhotoUrl={
+                  contactPhotoMap.get(b.counterpartyContactId) ?? null
+                }
                 colors={colors}
               />
             ))}
@@ -261,6 +292,9 @@ export default function BillsIndexScreen() {
                 key={b.id}
                 bill={b}
                 contactName={contactMap.get(b.counterpartyContactId) ?? ""}
+                contactPhotoUrl={
+                  contactPhotoMap.get(b.counterpartyContactId) ?? null
+                }
                 colors={colors}
               />
             ))}

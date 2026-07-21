@@ -207,7 +207,48 @@ function businessForRole(uid, p) {
     providerProfile: null,
     labProfile: {
       accreditations: ['GIA', 'Gübelin'],
-      reportTypes: ['identification', 'origin'],
+      reportTypes: [
+        'standard_photo_certificate',
+        'advanced_origin_certificate',
+      ],
+      certificateOfferings: [
+        {
+          id: 'gem_brief_memo',
+          title: 'Gem Brief / Memo',
+          description:
+            'Pocket-sized plastic card with standard ID data and a small stone photo. Perfect for quick, low-cost verification.',
+          price: 3500,
+          currency: 'LKR',
+          isActive: false,
+        },
+        {
+          id: 'standard_photo_certificate',
+          title: 'Standard Photo Certificate',
+          description:
+            'Full paper report detailing species, dimensions, and standard treatments (heated vs. unheated).',
+          price: 8500,
+          currency: 'LKR',
+          isActive: true,
+        },
+        {
+          id: 'advanced_origin_certificate',
+          title: 'Advanced / Origin Certificate',
+          description:
+            'In-depth chemical analysis using spectrometry to issue an opinion on geographic origin.',
+          price: 18000,
+          currency: 'LKR',
+          isActive: true,
+        },
+        {
+          id: 'diamond_grading_report',
+          title: 'Diamond Grading Report',
+          description:
+            'Dedicated assessment mapping the classic 4Cs (Color, Clarity, Cut, Carat Weight).',
+          price: 22000,
+          currency: 'LKR',
+          isActive: false,
+        },
+      ],
       isAcceptingOrders: true,
       certificatesIssued: 1,
     },

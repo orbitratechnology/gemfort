@@ -5,6 +5,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../admin';
 import { REGION } from '../config';
 import { createNotificationDoc, formatCurrency } from '../notifications/create';
+import { convertToBaseServer, loadServerRates } from './exchange-rates';
 
 type ApPaymentMethod = 'cash' | 'transfer' | 'cheque';
 
@@ -410,13 +411,17 @@ export const recordApGemSale = onCall(
     });
     await batch.commit();
 
+    const saleCurrency = line.currency || 'LKR';
+    const rates = await loadServerRates();
+    const saleAmountBase = convertToBaseServer(soldPrice, saleCurrency, rates);
+
     // Receiver books sale income now
     await db.collection('gemtrack_transactions').add({
       ownerUid: uid,
       type: 'income',
       amount: soldPrice,
-      currency: line.currency || 'LKR',
-      amountBase: soldPrice,
+      currency: saleCurrency,
+      amountBase: saleAmountBase,
       category: 'gem_sale',
       description: `AP sale: ${line.gemLabel}${data.soldToName ? ` → ${data.soldToName}` : ''}`,
       gemId: line.gemId,
@@ -551,7 +556,12 @@ export const apPaymentReceived = onCall(
   { region: REGION, timeoutSeconds: 60 },
   async (request) => {
     const uid = requireAuth(request.auth?.uid);
-    const { apId } = request.data as { apId?: string };
+    const data = request.data as {
+      apId?: string;
+      method?: ApPaymentMethod;
+      chequeId?: string | null;
+    };
+    const apId = data.apId;
     if (!apId) throw new HttpsError('invalid-argument', 'apId required.');
 
     const ref = db.collection('gemtrack_ap_records').doc(apId);
@@ -565,16 +575,24 @@ export const apPaymentReceived = onCall(
       throw new HttpsError('failed-precondition', 'Waiting for payment sent first.');
     }
 
+    if (data.method && !['cash', 'transfer', 'cheque'].includes(data.method)) {
+      throw new HttpsError('invalid-argument', 'Invalid payment method.');
+    }
+
     const now = Timestamp.now();
     const amount = ap.paymentAmount ?? 0;
     const currency = (ap.items?.[0]?.currency as string) || 'LKR';
     const soldTotal = (ap.items ?? [])
       .filter((i) => i.lineStatus === 'sold')
       .reduce((s, i) => s + (i.soldPrice ?? 0), 0);
+    const method = data.method ?? ap.paymentMethod;
+    const chequeId = data.chequeId ?? ap.paymentChequeId ?? null;
 
     await ref.update({
       status: 'done',
       paymentReceivedAt: now,
+      ...(data.method ? { paymentMethod: data.method } : {}),
+      ...(data.chequeId !== undefined ? { paymentChequeId: chequeId } : {}),
       updatedAt: now,
     });
 
@@ -585,9 +603,12 @@ export const apPaymentReceived = onCall(
       receiverUid: ap.receiverUid,
       actorUid: uid,
       type: 'received',
-      method: ap.paymentMethod,
+      method,
       amount,
     });
+
+    const rates = await loadServerRates();
+    const amountBase = convertToBaseServer(amount, currency, rates);
 
     // Sender income
     await db.collection('gemtrack_transactions').add({
@@ -595,7 +616,7 @@ export const apPaymentReceived = onCall(
       type: 'income',
       amount,
       currency,
-      amountBase: amount,
+      amountBase,
       category: 'ap_income',
       description: `AP payment from ${ap.receiverName}`,
       gemId: null,
@@ -610,7 +631,7 @@ export const apPaymentReceived = onCall(
       type: 'expense',
       amount,
       currency,
-      amountBase: amount,
+      amountBase,
       category: 'other_expense',
       description: `AP payout to ${ap.senderName}`,
       gemId: null,

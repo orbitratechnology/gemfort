@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { Image } from "expo-image";
+import { Link, router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,10 +14,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ApSideTabs } from "@/components/workspace/ap-side-tabs";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { fetchBusinessByOwnerUid, fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   apAgreedTotal,
   apStatusLabel,
@@ -28,12 +32,27 @@ import {
   respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
 import { getApSummary, isApOverdue } from "@/features/workspace/ap-utils";
+import {
+  gemPrimaryPhotoUrl,
+  resolvePartyPhotoUrl,
+} from "@/features/workspace/party-photo";
+import {
+  fetchContacts,
+  fetchGem,
+  fetchGems,
+} from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { ApLifecycleStatus, ApRecord } from "@/types";
+import type {
+  ApLifecycleStatus,
+  ApRecord,
+  Business,
+  Contact,
+  WorkspaceGem,
+} from "@/types";
 
 type ApSide = "given" | "taken";
 
@@ -57,7 +76,7 @@ const SECTION_TITLE: Record<SectionKey, string> = {
   accepted: "Accepted",
   payment_sent: "Payment sent",
   done: "Done",
-  closed: "Rejected / Cancelled",
+  closed: "Closed",
 };
 
 function sectionFor(status: ApLifecycleStatus): SectionKey {
@@ -68,74 +87,287 @@ function sectionFor(status: ApLifecycleStatus): SectionKey {
   return "closed";
 }
 
+function statusTone(
+  record: ApRecord,
+  colors: ReturnType<typeof useAppTheme>["colors"],
+): { bg: string; fg: string; accent: string; icon: IconName } {
+  if (isApOverdue(record)) {
+    return {
+      bg: colors.errorContainer,
+      fg: colors.error,
+      accent: colors.error,
+      icon: "warning",
+    };
+  }
+  if (record.status === "pending") {
+    return {
+      bg: colors.secondaryContainer,
+      fg: colors.onSecondaryContainer,
+      accent: colors.secondary,
+      icon: "hourglass-top",
+    };
+  }
+  if (record.status === "payment_sent" || record.status === "sold") {
+    return {
+      bg: colors.primaryContainer,
+      fg: colors.onPrimaryContainer,
+      accent: colors.primary,
+      icon: "payments",
+    };
+  }
+  if (record.status === "done") {
+    return {
+      bg: colors.successEmerald + "22",
+      fg: colors.successEmerald,
+      accent: colors.successEmerald,
+      icon: "check-circle",
+    };
+  }
+  if (record.status === "rejected" || record.status === "cancelled") {
+    return {
+      bg: colors.surfaceContainerHighest,
+      fg: colors.onSurfaceVariant,
+      accent: colors.outline,
+      icon: "cancel",
+    };
+  }
+  return {
+    bg: colors.primaryContainer,
+    fg: colors.onPrimaryContainer,
+    accent: colors.primary,
+    icon: "handshake",
+  };
+}
+
+function gemHeadline(record: ApRecord): string {
+  const items = record.items ?? [];
+  if (items.length === 0) return "AP stones";
+  const first = items[0]?.gemLabel?.trim() || "Gem";
+  if (items.length === 1) return first;
+  return `${first} +${items.length - 1}`;
+}
+
+function gemBreakdown(record: ApRecord): string {
+  const items = record.items ?? [];
+  if (items.length === 0) return "No gems";
+  const held = items.filter((i) => i.lineStatus === "held").length;
+  const sold = items.filter((i) => i.lineStatus === "sold").length;
+  const returned = items.filter((i) => i.lineStatus === "returned").length;
+  const parts: string[] = [];
+  if (held) parts.push(`${held} held`);
+  if (sold) parts.push(`${sold} sold`);
+  if (returned) parts.push(`${returned} returned`);
+  if (parts.length === 0) {
+    return `${items.length} gem${items.length === 1 ? "" : "s"}`;
+  }
+  return parts.join(" · ");
+}
+
+function resolvePartyPhoto(
+  record: ApRecord,
+  side: ApSide,
+  contactById: Map<string, Contact>,
+  logoByOwnerUid: Map<string, string>,
+  businesses: Business[],
+): string | null {
+  if (side === "given") {
+    const contact = contactById.get(record.receiverContactId);
+    const fromContact = resolvePartyPhotoUrl(contact, businesses);
+    if (fromContact) return fromContact;
+    return logoByOwnerUid.get(record.receiverUid) ?? null;
+  }
+  const byName = [...contactById.values()].find(
+    (c) =>
+      c.displayName.trim().toLowerCase() ===
+      (record.senderName || "").trim().toLowerCase(),
+  );
+  const fromContact = resolvePartyPhotoUrl(byName, businesses);
+  if (fromContact) return fromContact;
+  return logoByOwnerUid.get(record.senderUid) ?? null;
+}
+
+function GemThumb({
+  uri,
+  label,
+  colors,
+}: {
+  uri: string | null;
+  label: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.gemPhoto}
+        contentFit="cover"
+        recyclingKey={uri}
+        accessibilityLabel={`${label} photo`}
+      />
+    );
+  }
+  return (
+    <View
+      style={[
+        styles.gemPhoto,
+        styles.gemFallback,
+        { backgroundColor: colors.surfaceContainerHigh },
+      ]}
+    >
+      <Icon name="diamond" size={22} color={colors.outlineVariant} />
+    </View>
+  );
+}
+
 function ApRow({
   record,
   side,
   colors,
+  gemPhotoUrl,
+  partyPhotoUrl,
   onRespond,
   responding,
 }: {
   record: ApRecord;
   side: ApSide;
   colors: ReturnType<typeof useAppTheme>["colors"];
+  gemPhotoUrl: string | null;
+  partyPhotoUrl: string | null;
   onRespond?: (action: "accepted" | "rejected") => void;
   responding?: boolean;
 }) {
   const overdue = isApOverdue(record);
-  const gemCount = record.items?.length || 1;
   const party =
     side === "given"
       ? record.receiverName || "Holder"
       : record.senderName || "Sender";
   const total = apAgreedTotal(record);
   const currency = record.items?.[0]?.currency || record.currency || "LKR";
+  const tone = statusTone(record, colors);
+  const showActions =
+    side === "taken" && record.status === "pending" && !!onRespond;
+  const dueLabel =
+    isApOngoing(record.status) || record.status === "pending"
+      ? formatRelativeDue(record.expectedReturnDate)
+      : null;
+  const amountColor = overdue
+    ? colors.error
+    : record.status === "done"
+      ? colors.successEmerald
+      : colors.primary;
+  const cardBg = overdue
+    ? colors.errorContainer + "66"
+    : record.status === "pending"
+      ? colors.secondaryContainer + "55"
+      : colors.surfaceContainerLowest;
 
   return (
-    <Pressable
-      onPress={() =>
-        router.push(`/(marketplace)/(tabs)/workspace/ap/${record.id}`)
-      }
-      style={({ pressed }) => [
-        styles.row,
-        {
-          backgroundColor: colors.surfaceContainerLowest,
-          borderColor: overdue ? colors.error + "55" : colors.outlineVariant,
-          opacity: pressed ? 0.92 : 1,
-        },
-      ]}
-    >
-      <View style={styles.rowTop}>
-        <Text style={[styles.party, { color: colors.onSurface }]} numberOfLines={1}>
-          {party}
-        </Text>
-        <Text style={[styles.price, { color: colors.primary }]}>
-          {formatCurrency(total, currency)}
-        </Text>
-      </View>
-      <Text style={[styles.meta, { color: colors.onSurfaceVariant }]}>
-        {gemCount} gem{gemCount === 1 ? "" : "s"} · {apStatusLabel(record.status)}
-        {isApOngoing(record.status)
-          ? ` · ${formatRelativeDue(record.expectedReturnDate)}`
-          : ""}
-      </Text>
-      {side === "taken" && record.status === "pending" && onRespond ? (
+    <View style={styles.rowWrap}>
+      <Link
+        href={`/(marketplace)/(tabs)/workspace/ap/${record.id}` as never}
+        asChild
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatCurrency(total, currency)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
+          style={({ pressed }) => [
+            styles.row,
+            {
+              backgroundColor: cardBg,
+              borderColor: overdue
+                ? colors.error + "66"
+                : colors.outlineVariant,
+              opacity: pressed ? 0.88 : 1,
+            },
+          ]}
+        >
+          <View style={[styles.accent, { backgroundColor: tone.accent }]} />
+          <View style={styles.mediaStack}>
+            <GemThumb
+              uri={gemPhotoUrl}
+              label={gemHeadline(record)}
+              colors={colors}
+            />
+            <View
+              style={[
+                styles.partyBadge,
+                { borderColor: colors.surfaceContainerLowest },
+              ]}
+            >
+              <ContactAvatar
+                name={party}
+                photoUrl={partyPhotoUrl}
+                size={28}
+              />
+            </View>
+          </View>
+          <View style={styles.rowBody}>
+            <View style={styles.rowTop}>
+              <Text
+                style={[styles.rowTitle, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {gemHeadline(record)}
+              </Text>
+              <Text
+                style={[styles.rowAmount, { color: amountColor }]}
+                selectable
+              >
+                {formatCurrency(total, currency)}
+              </Text>
+            </View>
+            <View style={styles.partyRow}>
+              <Icon
+                name={side === "given" ? "call-made" : "call-received"}
+                size={14}
+                color={colors.onSurfaceVariant}
+              />
+              <Text
+                style={[styles.rowSub, { color: colors.onSurfaceVariant }]}
+                numberOfLines={1}
+              >
+                {side === "given" ? "To" : "From"} {party}
+              </Text>
+            </View>
+            <Text
+              style={[styles.rowSub, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {gemBreakdown(record)}
+              {dueLabel ? ` · ${dueLabel}` : ""}
+            </Text>
+            <View style={styles.rowMeta}>
+              <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+                <Icon name={tone.icon} size={12} color={tone.fg} />
+                <Text style={[styles.badgeText, { color: tone.fg }]}>
+                  {overdue ? "Overdue" : apStatusLabel(record.status)}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
+        </Pressable>
+      </Link>
+
+      {showActions ? (
         <View style={styles.actions}>
           <Button
             title="Accept"
+            icon="check"
             loading={responding}
-            onPress={() => onRespond("accepted")}
+            onPress={() => onRespond!("accepted")}
             style={styles.actionBtn}
           />
           <Button
             title="Reject"
             variant="secondary"
             loading={responding}
-            onPress={() => onRespond("rejected")}
+            onPress={() => onRespond!("rejected")}
             style={styles.actionBtn}
           />
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 }
 
@@ -159,16 +391,117 @@ export default function ApListScreen() {
     enabled: !!user,
   });
 
-  const records = side === "given" ? givenQ.data ?? [] : takenQ.data ?? [];
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts", user?.uid],
+    queryFn: () => fetchContacts(user!.uid),
+    enabled: !!user,
+  });
+
+  const { data: ownedGems = [] } = useQuery({
+    queryKey: ["gems", user?.uid],
+    queryFn: () => fetchGems(user!.uid),
+    enabled: !!user,
+  });
+
+  const allRecords = useMemo(
+    () => [...(givenQ.data ?? []), ...(takenQ.data ?? [])],
+    [givenQ.data, takenQ.data],
+  );
+
+  const missingGemIds = useMemo(() => {
+    const known = new Set(ownedGems.map((g) => g.id));
+    const ids = new Set<string>();
+    for (const r of allRecords) {
+      for (const item of r.items ?? []) {
+        if (item.gemId && !known.has(item.gemId)) ids.add(item.gemId);
+      }
+    }
+    return [...ids].sort();
+  }, [allRecords, ownedGems]);
+
+  const { data: extraGems = [] } = useQuery({
+    queryKey: ["ap", "gem-photos", user?.uid, missingGemIds.join(",")],
+    queryFn: async () => {
+      const results = await Promise.all(missingGemIds.map((id) => fetchGem(id)));
+      return results.filter((g): g is WorkspaceGem => !!g);
+    },
+    enabled: !!user && missingGemIds.length > 0,
+  });
+
+  const counterpartyUids = useMemo(() => {
+    const uids = new Set<string>();
+    for (const r of givenQ.data ?? []) {
+      if (r.receiverUid) uids.add(r.receiverUid);
+    }
+    for (const r of takenQ.data ?? []) {
+      if (r.senderUid) uids.add(r.senderUid);
+    }
+    return [...uids].sort();
+  }, [givenQ.data, takenQ.data]);
+
+  const { data: logosByOwner = {} } = useQuery({
+    queryKey: ["ap", "party-logos", user?.uid, counterpartyUids.join(",")],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        counterpartyUids.map(async (uid) => {
+          const biz = await fetchBusinessByOwnerUid(uid);
+          return [uid, biz?.logoUrl ?? null] as const;
+        }),
+      );
+      const map: Record<string, string> = {};
+      for (const [uid, logo] of entries) {
+        if (logo) map[uid] = logo;
+      }
+      return map;
+    },
+    enabled: !!user && counterpartyUids.length > 0,
+  });
+
+  const contactById = useMemo(
+    () => new Map(contacts.map((c) => [c.id, c])),
+    [contacts],
+  );
+
+  const gemPhotoById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of ownedGems) {
+      const url = gemPrimaryPhotoUrl(g);
+      if (url) map.set(g.id, url);
+    }
+    for (const g of extraGems) {
+      const url = gemPrimaryPhotoUrl(g);
+      if (url) map.set(g.id, url);
+    }
+    return map;
+  }, [ownedGems, extraGems]);
+
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!user,
+  });
+
+  const logoByOwnerUid = useMemo(
+    () => new Map(Object.entries(logosByOwner)),
+    [logosByOwner],
+  );
+
+  const records = useMemo(
+    () => (side === "given" ? (givenQ.data ?? []) : (takenQ.data ?? [])),
+    [side, givenQ.data, takenQ.data],
+  );
   const isRefetching = givenQ.isRefetching || takenQ.isRefetching;
   const summary = useMemo(() => getApSummary(records), [records]);
+  const takenPending = useMemo(
+    () => (takenQ.data ?? []).filter((r) => r.status === "pending").length,
+    [takenQ.data],
+  );
 
   const sections = useMemo(() => {
     const map = new Map<SectionKey, ApRecord[]>();
     for (const key of SECTION_ORDER) map.set(key, []);
     for (const r of records) {
-      const key = sectionFor(r.status);
-      map.get(key)!.push(r);
+      map.get(sectionFor(r.status))!.push(r);
     }
     return SECTION_ORDER.map((key) => ({
       key,
@@ -195,23 +528,6 @@ export default function ApListScreen() {
     }
   }
 
-  const listData =
-    records.length === 0
-      ? []
-      : sections.flatMap((s) => [
-          {
-            type: "header" as const,
-            key: `h-${s.key}`,
-            title: s.title,
-            count: s.data.length,
-          },
-          ...s.data.map((r) => ({
-            type: "row" as const,
-            key: r.id,
-            record: r,
-          })),
-        ]);
-
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -220,103 +536,80 @@ export default function ApListScreen() {
       <WorkspaceScreenBackdrop kind="ap" />
       <StackHeader title="AP Stones" />
 
-      <View style={styles.tabs}>
-        {(["given", "taken"] as const).map((t) => {
-          const active = side === t;
-          return (
-            <Pressable
-              key={t}
-              onPress={() => setSide(t)}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: active
-                    ? colors.primary
-                    : colors.surfaceContainerLowest,
-                  borderColor: active ? colors.primary : colors.outlineVariant,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: active ? colors.onPrimary : colors.onSurface },
-                ]}
-              >
-                {t === "given" ? "Given" : "Taken"}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <ApSideTabs
+        side={side}
+        onChange={setSide}
+        takenPendingCount={takenPending}
+      />
 
-      <FlatList
-        data={listData}
-        keyExtractor={(item) => item.key}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <Text style={[styles.lead, { color: colors.textMuted }]}>
-              {side === "given"
-                ? "Stones you sent on approval."
-                : "Stones traders sent you on approval."}
-            </Text>
-            <View style={styles.statsRow}>
-              <View
+      >
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          {side === "given"
+            ? "Stones you sent on approval."
+            : "Stones traders sent you on approval."}
+        </Text>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCol}>
+              <Text
                 style={[
-                  styles.statCell,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                  },
+                  styles.summaryLabel,
+                  { color: colors.onPrimary + "99" },
                 ]}
               >
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                  {side === "given" ? "Out" : "Holding"}
-                </Text>
-                <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {summary.totalOut}
-                </Text>
-                <Text style={[styles.statHint, { color: colors.textMuted }]}>
-                  {summary.pendingRequests} pending
-                </Text>
-              </View>
-              <View
+                {side === "given" ? "OUT" : "HOLDING"}
+              </Text>
+              <Text
+                style={[styles.summaryValue, { color: colors.onPrimary }]}
+                selectable
+              >
+                {summary.totalOut}
+                {summary.pendingRequests > 0
+                  ? ` · ${summary.pendingRequests} pending`
+                  : ""}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.summaryDivider,
+                { backgroundColor: colors.onPrimary + "22" },
+              ]}
+            />
+            <View style={styles.summaryCol}>
+              <Text
                 style={[
-                  styles.statCell,
-                  {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
+                  styles.summaryLabel,
+                  { color: colors.onPrimary + "99" },
                 ]}
               >
-                <Text
-                  style={[styles.statLabel, { color: colors.onPrimary + "CC" }]}
-                >
-                  Agreed value
-                </Text>
-                <Text
-                  style={[styles.statValue, { color: colors.onPrimary }]}
-                  numberOfLines={1}
-                >
-                  {formatCurrency(summary.totalValue)}
-                </Text>
-                <Text
-                  style={[styles.statHint, { color: colors.onPrimary + "CC" }]}
-                >
-                  {summary.overdueCount > 0
-                    ? `${summary.overdueCount} overdue`
-                    : "Active APs"}
-                </Text>
-              </View>
+                AGREED
+              </Text>
+              <Text
+                style={[styles.summaryValue, { color: colors.onPrimary }]}
+                selectable
+              >
+                {formatCurrency(summary.totalValue)}
+              </Text>
             </View>
           </View>
-        }
-        ListEmptyComponent={
+          {summary.overdueCount > 0 ? (
+            <Text
+              style={[styles.summaryHint, { color: colors.onPrimary + "CC" }]}
+            >
+              {summary.overdueCount} overdue
+            </Text>
+          ) : null}
+        </View>
+
+        {records.length === 0 ? (
           <EmptyState
             icon="handshake"
             title={side === "given" ? "No AP given" : "No AP taken"}
@@ -337,31 +630,49 @@ export default function ApListScreen() {
               ) : undefined
             }
           />
-        }
-        renderItem={({ item }) => {
-          if (item.type === "header") {
-            return (
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {item.title}
-                {item.count > 0 ? ` (${item.count})` : ""}
+        ) : (
+          sections.map((section) => (
+            <View key={section.key} style={styles.section}>
+              <Text
+                style={[styles.sectionTitle, { color: colors.onSurface }]}
+              >
+                {section.title}
               </Text>
-            );
-          }
-          return (
-            <ApRow
-              record={item.record}
-              side={side}
-              colors={colors}
-              responding={respondingId === item.record.id}
-              onRespond={
-                side === "taken"
-                  ? (action) => onRespond(item.record.id, action)
-                  : undefined
-              }
-            />
-          );
-        }}
-      />
+              <View style={styles.list}>
+                {section.data.map((r) => {
+                  const firstGemId = r.items?.[0]?.gemId;
+                  return (
+                    <ApRow
+                      key={r.id}
+                      record={r}
+                      side={side}
+                      colors={colors}
+                      gemPhotoUrl={
+                        firstGemId
+                          ? (gemPhotoById.get(firstGemId) ?? null)
+                          : null
+                      }
+                      partyPhotoUrl={resolvePartyPhoto(
+                        r,
+                        side,
+                        contactById,
+                        logoByOwnerUid,
+                        businesses,
+                      )}
+                      responding={respondingId === r.id}
+                      onRespond={
+                        side === "taken"
+                          ? (action) => onRespond(r.id, action)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
 
       {side === "given" ? (
         <Pressable
@@ -372,7 +683,9 @@ export default function ApListScreen() {
             { backgroundColor: colors.primary },
             pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
           ]}
-          onPress={() => router.push("/(marketplace)/(tabs)/workspace/ap/add")}
+          onPress={() =>
+            router.push("/(marketplace)/(tabs)/workspace/ap/add" as never)
+          }
         >
           <Icon name="add" size={28} color={colors.onPrimary} />
         </Pressable>
@@ -383,63 +696,105 @@ export default function ApListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  tabs: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.containerMargin,
-    marginBottom: Spacing.sm,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  tabText: { ...Typography.labelMd, fontWeight: "700" },
   content: {
     paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: 100,
+    paddingBottom: 112,
+    gap: Spacing.lg,
+  },
+  subtitle: { ...Typography.bodySmall, lineHeight: 20 },
+  summaryCard: {
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    padding: Spacing.lg,
     gap: Spacing.sm,
   },
-  listHeader: { gap: Spacing.stackMd, marginBottom: Spacing.stackSm },
-  lead: { ...Typography.bodyMd },
-  statsRow: { flexDirection: "row", gap: Spacing.gutterMd },
-  statCell: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+  summaryRow: { flexDirection: "row", alignItems: "center" },
+  summaryCol: { flex: 1, gap: 4 },
+  summaryDivider: { width: 1, alignSelf: "stretch", marginHorizontal: 12 },
+  summaryLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  summaryValue: { ...Typography.bodyMd, fontWeight: "700" },
+  summaryHint: { ...Typography.caption, fontWeight: "600" },
+  section: { gap: Spacing.md },
+  sectionTitle: { ...Typography.bodyLg, fontWeight: "700" },
+  list: { gap: Spacing.md },
+  rowWrap: { gap: Spacing.sm },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingRight: 12,
+    paddingLeft: 0,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
+  },
+  accent: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  mediaStack: {
+    width: 56,
+    height: 56,
+    marginLeft: 10,
+  },
+  gemPhoto: {
+    width: 56,
+    height: 56,
     borderRadius: Radius.lg,
-    borderWidth: 1,
-    gap: 2,
-    minHeight: 84,
+    borderCurve: "continuous",
+  },
+  gemFallback: {
+    alignItems: "center",
     justifyContent: "center",
   },
-  statLabel: { ...Typography.labelMd },
-  statValue: { ...Typography.headlineSm, letterSpacing: -0.3 },
-  statHint: { ...Typography.caption },
-  sectionTitle: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
+  partyBadge: {
+    position: "absolute",
+    right: -4,
+    bottom: -4,
+    borderRadius: 16,
+    borderWidth: 2,
   },
-  row: {
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: Spacing.lg,
-    gap: 6,
-    marginBottom: Spacing.xs,
-  },
+  rowBody: { flex: 1, gap: 4, minWidth: 0 },
   rowTop: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: Spacing.sm,
+    gap: 8,
   },
-  party: { ...Typography.headlineSmMobile, flex: 1 },
-  price: { ...Typography.bodyMd, fontWeight: "700" },
-  meta: { ...Typography.bodySmall },
-  actions: { flexDirection: "row", gap: Spacing.sm, marginTop: Spacing.sm },
+  rowTitle: { ...Typography.bodyMd, fontWeight: "700", flex: 1 },
+  rowAmount: {
+    ...Typography.bodyMd,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  partyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  rowSub: { ...Typography.caption },
+  rowMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+  },
+  badgeText: { fontSize: 11, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: Spacing.sm },
   actionBtn: { flex: 1 },
   fab: {
     position: "absolute",
@@ -450,6 +805,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 100,
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.18)",
   },
 });

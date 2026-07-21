@@ -193,3 +193,19 @@ export async function updateFcmToken(uid: string, token: string | null) {
     updatedAt: serverTimestamp(),
   });
 }
+
+export async function updatePreferredCurrency(
+  uid: string,
+  preferredCurrency: string,
+) {
+  const auth = getFirebaseAuth();
+  const current = auth.currentUser;
+  if (!current || current.uid !== uid) {
+    throw new Error('Not signed in as the target user');
+  }
+  await getIdToken(current);
+  await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+    preferredCurrency,
+    updatedAt: serverTimestamp(),
+  });
+}

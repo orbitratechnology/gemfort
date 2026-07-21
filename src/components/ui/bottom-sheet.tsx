@@ -16,6 +16,7 @@ import { Icon } from '@/components/ui/icon';
 import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
+import { haptics } from '@/lib/haptics';
 
 type BottomSheetProps = {
   visible: boolean;
@@ -87,11 +88,11 @@ export function BottomSheet({
     }
     translateY.setValue(sheetOffsetRef.current);
     Animated.parallel([
-      Animated.spring(translateY, {
+      Animated.timing(translateY, {
         toValue: 0,
+        duration: Motion.normal,
+        easing: easeOut,
         useNativeDriver: true,
-        damping: Motion.spring.damping,
-        stiffness: Motion.spring.stiffness,
       }),
       Animated.timing(backdrop, {
         toValue: 1,
@@ -140,6 +141,7 @@ export function BottomSheet({
   useEffect(() => {
     if (visible) {
       exitingRef.current = false;
+      haptics.sheetOpen();
       const id = requestAnimationFrame(() => runEnter());
       return () => cancelAnimationFrame(id);
     }
@@ -153,6 +155,7 @@ export function BottomSheet({
 
   function handleClose() {
     if (!presented || exitingRef.current) return;
+    haptics.sheetClose();
     runExit(onClose);
   }
 
@@ -232,7 +235,7 @@ export function FilterChipGroup<T extends string>({
           return (
             <Pressable
               key={opt.id}
-              onPress={() => onChange(opt.id)}
+              onPress={haptics.wrap('selection', () => onChange(opt.id))}
               style={[
                 styles.chip,
                 active

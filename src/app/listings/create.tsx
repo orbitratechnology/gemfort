@@ -1,7 +1,7 @@
 import { Redirect, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
 
@@ -14,6 +14,7 @@ import { resolveCountryCode } from '@/constants/gem-options';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import { createListing, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { alert } from '@/lib/alert';
 import { openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -63,7 +64,7 @@ export default function CreateListingScreen() {
     try {
       const business = await fetchBusinessByOwnerUid(user.uid);
       if (!business) {
-        Alert.alert(
+        alert(
           'Business profile required',
           'Set up your business profile before publishing listings.',
           [
@@ -107,19 +108,24 @@ export default function CreateListingScreen() {
       const url = `https://gemfort.app/l/${slug}`;
       await Clipboard.setStringAsync(url);
       const whatsapp = business.contacts?.whatsapp?.value;
-      Alert.alert('Published', `Link copied:\n${url}`, [
-        ...(whatsapp
-          ? [
-              {
-                text: 'WhatsApp',
-                onPress: () =>
-                  Linking.openURL(openWhatsApp(whatsapp, `Check out my gem listing: ${url}`)),
-              },
-            ]
-          : []),
-        { text: 'Share', onPress: () => Sharing.shareAsync(url).catch(() => {}) },
-        { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
-      ]);
+      alert(
+        'Published',
+        `Link copied:\n${url}`,
+        [
+          ...(whatsapp
+            ? [
+                {
+                  text: 'WhatsApp',
+                  onPress: () =>
+                    Linking.openURL(openWhatsApp(whatsapp, `Check out my gem listing: ${url}`)),
+                },
+              ]
+            : []),
+          { text: 'Share', onPress: () => Sharing.shareAsync(url).catch(() => {}) },
+          { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
+        ],
+        { haptic: 'success' },
+      );
     } catch (e) {
       toast.error(friendlyError(e, 'Could not publish listing.'));
     } finally {

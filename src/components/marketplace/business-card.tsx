@@ -1,8 +1,15 @@
 import { Image } from "expo-image";
 import { Link, type Href } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    StyleSheet,
+    Text,
+    View,
+    type StyleProp,
+    type ViewStyle,
+} from "react-native";
 
 import { CountryFlag } from "@/components/ui/country-flag";
+import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
@@ -26,26 +33,44 @@ type BusinessCardProps = {
   onPress?: () => void;
   /** Visual cue for sellers vs providers in mixed contexts */
   roleLabel?: "Trader" | "Lapidary" | "Gem Lab" | "Seller" | "Provider";
+  /** Layout extras (e.g. fixed width for horizontal rails). */
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
- * Directory tile — recognition-first: logo, role, name, place, specialty.
+ * Directory tile — banner, logo, role, name, country flag, specialties.
  */
 export function BusinessCard({
   business,
   href,
   onPress,
   roleLabel,
+  style,
 }: BusinessCardProps) {
   const { colors } = useAppTheme();
-  const rawSpecs =
-    business.sellerProfile?.gemSpecializations?.slice(0, 2) ??
-    business.providerProfile?.gemSpecializations?.slice(0, 2) ??
-    business.labProfile?.reportTypes?.slice(0, 2) ??
-    [];
-  const specs = rawSpecs.map((s) => formatGemType(s));
+  const specs = (() => {
+    if (business.sellerProfile?.gemSpecializations?.length) {
+      return business.sellerProfile.gemSpecializations
+        .slice(0, 2)
+        .map((s) => formatGemType(s));
+    }
+    if (business.providerProfile?.gemSpecializations?.length) {
+      return business.providerProfile.gemSpecializations
+        .slice(0, 2)
+        .map((s) => formatGemType(s));
+    }
+    if (business.labProfile) {
+      const active = (business.labProfile.certificateOfferings ?? []).filter(
+        (o) => o.isActive,
+      );
+      if (active.length) return active.slice(0, 2).map((o) => o.title);
+      return (business.labProfile.reportTypes ?? [])
+        .slice(0, 2)
+        .map((s) => formatGemType(s));
+    }
+    return [];
+  })();
   const verified = business.badges.isVerified;
-  const years = business.badges.yearsActive;
   const inferredRole =
     roleLabel ??
     (business.businessType === "gem_lab" || business.labProfile
@@ -53,16 +78,29 @@ export function BusinessCard({
       : business.businessType === "lapidary" || business.providerProfile
         ? "Lapidary"
         : "Trader");
+  const countryCode = resolveCountryCode(business.country);
+
+  const bannerInner = business.coverPhotoUrl ? (
+    <Image
+      source={{ uri: business.coverPhotoUrl }}
+      style={styles.bannerImg}
+      contentFit="cover"
+    />
+  ) : (
+    <View
+      style={StyleSheet.flatten([
+        styles.bannerImg,
+        { backgroundColor: colors.surfaceContainerHigh },
+      ])}
+    />
+  );
+
+  // AppleZoom/Slot rejects style arrays on its direct child — keep a single style object.
+  const banner = <View style={styles.bannerImg}>{bannerInner}</View>;
 
   const logoInner = business.logoUrl ? (
     <Image
       source={{ uri: business.logoUrl }}
-      style={styles.logoImg}
-      contentFit="cover"
-    />
-  ) : business.coverPhotoUrl ? (
-    <Image
-      source={{ uri: business.coverPhotoUrl }}
       style={styles.logoImg}
       contentFit="cover"
     />
@@ -72,21 +110,17 @@ export function BusinessCard({
     </Text>
   );
 
-  const logo = (
-    <View
-      style={StyleSheet.flatten([
-        styles.logo,
-        { backgroundColor: colors.surfaceContainerHigh },
-      ])}
+  return (
+    <ElevatedCard
+      href={href}
+      onPress={onPress}
+      accessibilityLabel={`${business.businessName}, ${inferredRole}${business.province ? `, ${business.province}` : ""}`}
+      style={[styles.card, style]}
     >
-      {logoInner}
-    </View>
-  );
-
-  const body = (
-    <>
-      <View style={styles.header}>
-        {href ? <Link.AppleZoom>{logo}</Link.AppleZoom> : logo}
+      <View style={styles.media}>
+        <View style={styles.banner}>
+          {href ? <Link.AppleZoom>{banner}</Link.AppleZoom> : banner}
+        </View>
         {verified ? (
           <View
             style={[
@@ -97,131 +131,137 @@ export function BusinessCard({
             <Icon name="verified" size={14} color={colors.onPrimaryContainer} />
           </View>
         ) : null}
-      </View>
-
-      <Text style={[styles.role, { color: colors.textMuted }]}>
-        {inferredRole}
-      </Text>
-      <Text
-        style={[styles.name, { color: colors.onSurface }]}
-        numberOfLines={2}
-      >
-        {business.businessName}
-      </Text>
-
-      <View style={styles.locationRow}>
-        {resolveCountryCode(business.country) ? (
-          <CountryFlag country={business.country} size="xs" />
-        ) : (
-          <Icon name="location-on" size={12} color={colors.textMuted} />
-        )}
-        <Text
-          style={[styles.location, { color: colors.textMuted }]}
-          numberOfLines={1}
+        <View
+          style={[
+            styles.logo,
+            {
+              backgroundColor: colors.surfaceContainerLowest,
+              borderColor: colors.surfaceContainerLowest,
+            },
+          ]}
         >
-          {business.city}
-          {business.district ? `, ${business.district}` : ""}
-          {business.country ? `, ${business.country}` : ""}
-          {years > 0 ? ` · ${years}y` : ""}
-        </Text>
-      </View>
-
-      {specs.length > 0 ? (
-        <View style={styles.tags}>
-          {specs.map((s) => (
-            <View
-              key={s}
-              style={[
-                styles.tag,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Text
-                style={[styles.tagText, { color: colors.onSurfaceVariant }]}
-                numberOfLines={1}
-              >
-                {s}
-              </Text>
-            </View>
-          ))}
+          {logoInner}
         </View>
-      ) : business.shortDescription ? (
-        <Text
-          style={[styles.blurb, { color: colors.onSurfaceVariant }]}
-          numberOfLines={2}
-        >
-          {business.shortDescription}
-        </Text>
-      ) : null}
-    </>
-  );
+      </View>
 
-  const pressableStyle = ({ pressed }: { pressed: boolean }) => [
-    styles.card,
-    {
-      backgroundColor: colors.surfaceContainerLowest,
-      opacity: pressed ? 0.94 : 1,
-    },
-  ];
+      <View style={styles.body}>
+        <View style={styles.titleRow}>
+          <View style={styles.titleCopy}>
+            <Text style={[styles.role, { color: colors.textMuted }]}>
+              {inferredRole}
+            </Text>
+            <Text
+              style={[styles.name, { color: colors.onSurface }]}
+              numberOfLines={2}
+            >
+              {business.businessName}
+            </Text>
+          </View>
+          {countryCode ? (
+            <CountryFlag country={business.country} size="sm" />
+          ) : null}
+        </View>
 
-  if (href) {
-    return (
-      <Link href={href} asChild>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${business.businessName}, ${inferredRole}, ${business.city}`}
-          style={pressableStyle}
-        >
-          {body}
-        </Pressable>
-      </Link>
-    );
-  }
+        {business.shortDescription ? (
+          <Text
+            style={[styles.description, { color: colors.onSurfaceVariant }]}
+            numberOfLines={2}
+          >
+            {business.shortDescription}
+          </Text>
+        ) : null}
 
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${business.businessName}, ${inferredRole}, ${business.city}`}
-      style={pressableStyle}
-    >
-      {body}
-    </Pressable>
+        {business.province ? (
+          <Text
+            style={[styles.province, { color: colors.textMuted }]}
+            numberOfLines={1}
+          >
+            {business.province}
+          </Text>
+        ) : null}
+
+        {specs.length > 0 ? (
+          <View style={styles.tags}>
+            {specs.map((s) => (
+              <View
+                key={s}
+                style={[
+                  styles.tag,
+                  { backgroundColor: colors.surfaceContainerLow },
+                ]}
+              >
+                <Text
+                  style={[styles.tagText, { color: colors.onSurfaceVariant }]}
+                  numberOfLines={1}
+                >
+                  {s}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </ElevatedCard>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: 14,
-    gap: 4,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 8,
+  media: {
+    position: "relative",
+  },
+  banner: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    overflow: "hidden",
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+  },
+  bannerImg: {
+    width: "100%",
+    height: "100%",
   },
   logo: {
-    width: 52,
-    height: 52,
+    position: "absolute",
+    left: 12,
+    bottom: -22,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     borderCurve: "continuous",
+    borderWidth: 2,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
   logoImg: { width: "100%", height: "100%" },
-  logoInitials: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  logoInitials: { fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
   verified: {
+    position: "absolute",
+    top: 8,
+    right: 8,
     width: 28,
     height: 28,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  body: {
+    paddingHorizontal: 12,
+    paddingTop: 28,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  titleCopy: {
+    flex: 1,
+    gap: 2,
   },
   role: {
     fontSize: 10,
@@ -233,24 +273,19 @@ const styles = StyleSheet.create({
     ...Typography.bodyLg,
     fontWeight: "700",
     lineHeight: 22,
-    minHeight: 44,
   },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    marginTop: 2,
-  },
-  location: {
+  province: {
     ...Typography.caption,
-    flex: 1,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  description: {
+    ...Typography.caption,
+    lineHeight: 16,
   },
   tags: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 8,
   },
   tag: {
     paddingHorizontal: 8,
@@ -261,10 +296,5 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 11,
     fontWeight: "600",
-  },
-  blurb: {
-    ...Typography.caption,
-    lineHeight: 16,
-    marginTop: 6,
   },
 });

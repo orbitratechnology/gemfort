@@ -1,33 +1,118 @@
-import { BASE_CURRENCY } from '@/constants/currencies';
+import { BASE_CURRENCY, SUPPORTED_CURRENCIES } from '@/constants/currencies';
 
-type RateCache = {
-  fetchedAt: number;
+export type ExchangeRatesSnapshot = {
+  /** Foreign units per 1 LKR (API shape). LKR is always 1. */
   rates: Record<string, number>;
+  updatedAt: number;
+  provider: string;
 };
+
+type RateCache = ExchangeRatesSnapshot & { fetchedAt: number };
 
 let cache: RateCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000;
+const FIRESTORE_FRESH_MS = 24 * 60 * 60 * 1000;
 
-/** Fetch LKR-equivalent rates for major currencies via Frankfurter (no API key). */
-export async function fetchExchangeRates(base = BASE_CURRENCY): Promise<Record<string, number>> {
-  if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
-    return cache.rates;
+const OPEN_ER_API = `https://open.er-api.com/v6/latest/${BASE_CURRENCY}`;
+
+const QUOTE_CODES = SUPPORTED_CURRENCIES.map((c) => c.code).filter(
+  (c) => c !== BASE_CURRENCY,
+);
+
+function normalizeRates(raw: Record<string, number>): Record<string, number> {
+  const rates: Record<string, number> = { [BASE_CURRENCY]: 1 };
+  for (const code of QUOTE_CODES) {
+    const value = raw[code];
+    if (typeof value === 'number' && value > 0) {
+      rates[code] = value;
+    }
   }
+  return rates;
+}
 
-  const codes = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'AUD', 'SGD'].join(',');
-  const res = await fetch(`https://api.frankfurter.app/latest?from=${base}&to=${codes}`);
+async function fetchFromOpenErApi(): Promise<ExchangeRatesSnapshot> {
+  const res = await fetch(OPEN_ER_API);
   if (!res.ok) throw new Error('Could not fetch exchange rates.');
 
-  const data = (await res.json()) as { rates: Record<string, number> };
-  const rates: Record<string, number> = { [base]: 1 };
+  const data = (await res.json()) as {
+    result?: string;
+    rates?: Record<string, number>;
+    time_last_update_unix?: number;
+  };
 
-  for (const [code, rate] of Object.entries(data.rates)) {
-    // API returns: 1 LKR = rate USD — invert to get 1 USD in LKR
-    rates[code] = 1 / rate;
+  if (data.result !== 'success' || !data.rates) {
+    throw new Error('Could not fetch exchange rates.');
   }
 
-  cache = { fetchedAt: Date.now(), rates };
-  return rates;
+  return {
+    rates: normalizeRates(data.rates),
+    updatedAt: (data.time_last_update_unix ?? Math.floor(Date.now() / 1000)) * 1000,
+    provider: 'open.er-api.com',
+  };
+}
+
+async function fetchFromFirestore(): Promise<ExchangeRatesSnapshot | null> {
+  try {
+    const { doc, getDoc, getFirebaseDb } = await import('@/lib/firebase/db');
+    const snap = await getDoc(doc(getFirebaseDb(), 'system', 'exchange_rates'));
+    if (!snap.exists()) return null;
+    const data = snap.data() as {
+      rates?: Record<string, number>;
+      updatedAt?: { toMillis?: () => number } | number;
+      provider?: string;
+      base?: string;
+    };
+    if (!data.rates || data.base !== BASE_CURRENCY) return null;
+
+    let updatedAt = Date.now();
+    if (typeof data.updatedAt === 'number') updatedAt = data.updatedAt;
+    else if (data.updatedAt?.toMillis) updatedAt = data.updatedAt.toMillis();
+
+    if (Date.now() - updatedAt > FIRESTORE_FRESH_MS) return null;
+
+    return {
+      rates: normalizeRates(data.rates),
+      updatedAt,
+      provider: data.provider ?? 'firestore',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch LKR-based rates (foreign per 1 LKR). Prefers fresh Firestore cache, else open.er-api. */
+export async function fetchExchangeRatesSnapshot(): Promise<ExchangeRatesSnapshot> {
+  if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
+    return { rates: cache.rates, updatedAt: cache.updatedAt, provider: cache.provider };
+  }
+
+  const fromFs = await fetchFromFirestore();
+  const snapshot = fromFs ?? (await fetchFromOpenErApi());
+
+  cache = { ...snapshot, fetchedAt: Date.now() };
+  return snapshot;
+}
+
+/** @deprecated Prefer fetchExchangeRatesSnapshot — returns foreign-per-LKR map. */
+export async function fetchExchangeRates(
+  _base = BASE_CURRENCY,
+): Promise<Record<string, number>> {
+  const snap = await fetchExchangeRatesSnapshot();
+  return snap.rates;
+}
+
+/** How many LKR equal 1 unit of `currency`. */
+export function lkrPerUnit(
+  currency: string,
+  rates: Record<string, number>,
+  base = BASE_CURRENCY,
+): number {
+  if (currency === base) return 1;
+  const foreignPerBase = rates[currency];
+  if (!foreignPerBase || foreignPerBase <= 0) {
+    throw new Error(`Missing exchange rate for ${currency}.`);
+  }
+  return 1 / foreignPerBase;
 }
 
 export async function convertToBase(
@@ -36,10 +121,8 @@ export async function convertToBase(
   base = BASE_CURRENCY,
 ): Promise<number> {
   if (currency === base) return amount;
-  const rates = await fetchExchangeRates(base);
-  const rate = rates[currency];
-  if (!rate) return amount;
-  return Number((amount * rate).toFixed(2));
+  const { rates } = await fetchExchangeRatesSnapshot();
+  return convertToBaseSync(amount, currency, rates, base);
 }
 
 export function convertToBaseSync(
@@ -49,7 +132,35 @@ export function convertToBaseSync(
   base = BASE_CURRENCY,
 ): number {
   if (currency === base) return amount;
-  const rate = rates[currency];
-  if (!rate) return amount;
-  return Number((amount * rate).toFixed(2));
+  const perUnit = lkrPerUnit(currency, rates, base);
+  return Number((amount * perUnit).toFixed(2));
+}
+
+export async function convertFromBase(
+  amountBase: number,
+  currency: string,
+  base = BASE_CURRENCY,
+): Promise<number> {
+  if (currency === base) return amountBase;
+  const { rates } = await fetchExchangeRatesSnapshot();
+  return convertFromBaseSync(amountBase, currency, rates, base);
+}
+
+export function convertFromBaseSync(
+  amountBase: number,
+  currency: string,
+  rates: Record<string, number>,
+  base = BASE_CURRENCY,
+): number {
+  if (currency === base) return amountBase;
+  const foreignPerBase = rates[currency];
+  if (!foreignPerBase || foreignPerBase <= 0) {
+    throw new Error(`Missing exchange rate for ${currency}.`);
+  }
+  return Number((amountBase * foreignPerBase).toFixed(2));
+}
+
+/** Clear in-memory cache (tests / pull-to-refresh). */
+export function clearExchangeRateCache() {
+  cache = null;
 }

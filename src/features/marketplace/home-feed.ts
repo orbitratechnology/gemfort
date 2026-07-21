@@ -18,6 +18,8 @@ export type HomeUpcomingItem = {
   date: Date;
   href: string;
   overdue: boolean;
+  imageUrl?: string | null;
+  imageShape?: "circle" | "rounded";
 };
 
 const LOOKAHEAD_DAYS = 21;
@@ -40,6 +42,15 @@ export function buildHomeUpcoming(input: {
   trips: Trip[];
   cheques?: Cheque[];
   contactName: (id: string | null | undefined) => string;
+  contactPhoto?: (id: string | null | undefined) => string | null;
+  apImage?: (record: ApRecord) => {
+    url: string | null;
+    shape: "circle" | "rounded";
+  } | null;
+  serviceImage?: (service: ServiceRecord) => {
+    url: string | null;
+    shape: "circle" | "rounded";
+  } | null;
   /** When set, surfaces Taken pending + Given payment_sent for this user. */
   currentUid?: string | null;
 }): HomeUpcomingItem[] {
@@ -48,10 +59,12 @@ export function buildHomeUpcoming(input: {
   const lookback = addDays(today, -OVERDUE_LOOKBACK_DAYS);
   const items: HomeUpcomingItem[] = [];
   const uid = input.currentUid ?? null;
+  const contactPhoto = input.contactPhoto ?? (() => null);
 
   if (uid) {
     for (const r of input.apRecords) {
       if (r.status === 'pending' && r.receiverUid === uid) {
+        const img = input.apImage?.(r) ?? null;
         items.push({
           id: `ap-pending-${r.id}`,
           kind: 'ap',
@@ -61,9 +74,12 @@ export function buildHomeUpcoming(input: {
           date: today,
           href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
           overdue: false,
+          imageUrl: img?.url ?? null,
+          imageShape: img?.shape ?? 'rounded',
         });
       }
       if (r.status === 'payment_sent' && r.senderUid === uid) {
+        const img = input.apImage?.(r) ?? null;
         items.push({
           id: `ap-pay-${r.id}`,
           kind: 'ap',
@@ -73,6 +89,8 @@ export function buildHomeUpcoming(input: {
           date: today,
           href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
           overdue: false,
+          imageUrl: img?.url ?? null,
+          imageShape: img?.shape ?? 'rounded',
         });
       }
     }
@@ -88,6 +106,7 @@ export function buildHomeUpcoming(input: {
       r.receiverName ||
       input.contactName(r.receiverContactId || r.apHolderContactId);
     const overdue = day < today;
+    const img = input.apImage?.(r) ?? null;
     items.push({
       id: `ap-${r.id}`,
       kind: 'ap',
@@ -97,6 +116,8 @@ export function buildHomeUpcoming(input: {
       date: day,
       href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
       overdue,
+      imageUrl: img?.url ?? null,
+      imageShape: img?.shape ?? 'rounded',
     });
   }
 
@@ -108,6 +129,7 @@ export function buildHomeUpcoming(input: {
     if (!inWindow(day, horizon, lookback)) continue;
     const who = s.providerName?.trim() || 'Provider';
     const overdue = day < today;
+    const img = input.serviceImage?.(s) ?? null;
     items.push({
       id: `svc-${s.id}`,
       kind: 'service',
@@ -117,6 +139,8 @@ export function buildHomeUpcoming(input: {
       date: day,
       href: `/(marketplace)/(tabs)/workspace/services/${s.id}`,
       overdue,
+      imageUrl: img?.url ?? null,
+      imageShape: img?.shape ?? 'rounded',
     });
   }
 
@@ -157,6 +181,8 @@ export function buildHomeUpcoming(input: {
       date: day,
       href: `/(marketplace)/(tabs)/workspace/cheques/${c.id}`,
       overdue,
+      imageUrl: contactPhoto(c.counterpartyContactId),
+      imageShape: 'circle',
     });
   }
 

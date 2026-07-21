@@ -16,7 +16,7 @@ import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { useReduceMotion } from "@/hooks/use-reduce-motion";
+import { easeOut, useReduceMotion } from "@/hooks/use-reduce-motion";
 import {
     GEM_CLARITIES,
     GEM_COLOR_FAMILIES,
@@ -446,11 +446,11 @@ export function ColorPickerSheet({
       translateX.setValue(toValue);
       return;
     }
-    Animated.spring(translateX, {
+    Animated.timing(translateX, {
       toValue,
+      duration: Motion.normal,
+      easing: easeOut,
       useNativeDriver: true,
-      damping: Motion.spring.damping,
-      stiffness: Motion.spring.stiffness,
     }).start();
   }, [family, panelWidth, reduceMotion, translateX]);
 

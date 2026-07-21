@@ -16,7 +16,12 @@ import {
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
 import { businessTypeFromRole, directoryTabFromBusinessType, normalizeUserRole, ROLE_LABELS } from '@/constants/roles';
-import type { Announcement, Business, BusinessType, FraudReportType, MarketplaceListing, UserRole } from '@/types';
+import {
+  defaultLabCertificateOfferings,
+  reportTypesFromOfferings,
+  sanitizeLabCertificateOfferings,
+} from '@/features/marketplace/lab-certificate-offerings';
+import type { Announcement, Business, BusinessType, FraudReportType, LabCertificateOffering, MarketplaceListing, UserRole } from '@/types';
 
 export type DirectoryBusinessFilter = 'trader' | 'lapidary' | 'gem_lab' | 'seller' | 'provider';
 
@@ -89,47 +94,46 @@ export async function fetchBusiness(businessId: string): Promise<Business | null
   return { id: snap.id, ...snap.data() } as Business;
 }
 
+function businessUpdatedAtMs(business: Business): number {
+  const raw = business.updatedAt as { toMillis?: () => number; seconds?: number } | null | undefined;
+  if (raw && typeof raw.toMillis === 'function') return raw.toMillis();
+  if (raw && typeof raw.seconds === 'number') return raw.seconds * 1000;
+  return 0;
+}
+
+/** Prefer verified / most recently updated when an owner has multiple business docs. */
+export function pickPrimaryBusiness(businesses: Business[]): Business | null {
+  if (businesses.length === 0) return null;
+  return [...businesses].sort((a, b) => {
+    const aVerified =
+      a.verificationStatus === 'verified' || a.badges?.isVerified === true ? 1 : 0;
+    const bVerified =
+      b.verificationStatus === 'verified' || b.badges?.isVerified === true ? 1 : 0;
+    if (bVerified !== aVerified) return bVerified - aVerified;
+    return businessUpdatedAtMs(b) - businessUpdatedAtMs(a);
+  })[0]!;
+}
+
 export async function fetchBusinessByOwnerUid(ownerUid: string): Promise<Business | null> {
   const q = query(
     collection(getFirebaseDb(), 'businesses'),
     where('ownerUid', '==', ownerUid),
-    limit(1),
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as Business;
+  const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Business);
+  return pickPrimaryBusiness(items);
 }
 
-/** Keep business verification in sync when the user profile is already verified. */
+/**
+ * Client cannot write verification/badges (Firestore rules). Kept as a no-op so
+ * callers still receive the business document after a profile-verified check.
+ */
 export async function syncBusinessVerificationFromProfile(
   business: Business,
-  profileVerified: boolean,
+  _profileVerified: boolean,
 ): Promise<Business> {
-  if (!profileVerified) return business;
-  const already =
-    business.verificationStatus === 'verified' && business.badges?.isVerified === true;
-  if (already) return business;
-
-  const year = new Date().getFullYear();
-  await updateDoc(doc(getFirebaseDb(), 'businesses', business.id), {
-    verificationStatus: 'verified',
-    verificationTier: business.verificationTier === 'none' ? 'full' : business.verificationTier,
-    'badges.isVerified': true,
-    'badges.verifiedSinceYear': business.badges?.verifiedSinceYear ?? year,
-    updatedAt: serverTimestamp(),
-  });
-
-  return {
-    ...business,
-    verificationStatus: 'verified',
-    verificationTier: business.verificationTier === 'none' ? 'full' : business.verificationTier,
-    badges: {
-      ...business.badges,
-      isVerified: true,
-      verifiedSinceYear: business.badges?.verifiedSinceYear ?? year,
-    },
-  };
+  return business;
 }
 
 export function isBusinessVerified(business: Business | null | undefined): boolean {
@@ -174,6 +178,22 @@ export async function createBusinessProfile(
     };
   },
 ): Promise<string> {
+  // Avoid duplicate owner docs — edit screen used to create a new one whenever
+  // sync/fetch failed and left the form in "create" mode.
+  const existing = await fetchBusinessByOwnerUid(ownerUid);
+  if (existing) {
+    await updateBusinessProfile(existing.id, {
+      businessName: input.businessName,
+      shortDescription: input.shortDescription,
+      city: input.city,
+      address: input.address,
+      whatsapp: input.whatsapp,
+      phone: input.phone,
+      socialLinks: input.socialLinks,
+    });
+    return existing.id;
+  }
+
   const now = Timestamp.now();
   const type = input.businessType === 'seller' ? 'trader' : input.businessType === 'cutter' || input.businessType === 'provider' ? 'lapidary' : input.businessType;
   const isTrader = type === 'trader';
@@ -230,12 +250,16 @@ export async function createBusinessProfile(
         }
       : null,
     labProfile: isLab
-      ? {
-          accreditations: [],
-          reportTypes: ['full', 'brief', 'origin'],
-          isAcceptingOrders: true,
-          certificatesIssued: 0,
-        }
+      ? (() => {
+          const certificateOfferings = defaultLabCertificateOfferings();
+          return {
+            accreditations: [],
+            reportTypes: reportTypesFromOfferings(certificateOfferings),
+            certificateOfferings,
+            isAcceptingOrders: true,
+            certificatesIssued: 0,
+          };
+        })()
       : null,
     contacts: {
       whatsapp: { value: wa, isVisible: !!wa },
@@ -283,6 +307,8 @@ export async function updateBusinessProfile(
       facebook?: string;
       wechat?: string;
     };
+    /** Gem Lab certificate menu (prices + active tiers). */
+    certificateOfferings?: LabCertificateOffering[];
   },
 ) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
@@ -308,6 +334,14 @@ export async function updateBusinessProfile(
       facebook: data.socialLinks.facebook?.trim() ?? '',
       wechat: data.socialLinks.wechat?.trim() ?? '',
     };
+  }
+  if (data.certificateOfferings !== undefined) {
+    const certificateOfferings = sanitizeLabCertificateOfferings(
+      data.certificateOfferings,
+    );
+    updates['labProfile.certificateOfferings'] = certificateOfferings;
+    updates['labProfile.reportTypes'] =
+      reportTypesFromOfferings(certificateOfferings);
   }
   await updateDoc(doc(getFirebaseDb(), 'businesses', businessId), updates);
 }
@@ -442,7 +476,20 @@ export function demoBusinesses(filters?: {
       providerProfile: null,
       labProfile: {
         accreditations: ['NGJA'],
-        reportTypes: ['full', 'brief'],
+        reportTypes: ['standard_photo_certificate', 'gem_brief_memo'],
+        certificateOfferings: defaultLabCertificateOfferings().map((o) => ({
+          ...o,
+          isActive:
+            o.id === 'standard_photo_certificate' || o.id === 'gem_brief_memo',
+          price:
+            o.id === 'gem_brief_memo'
+              ? 3500
+              : o.id === 'standard_photo_certificate'
+                ? 8500
+                : o.id === 'advanced_origin_certificate'
+                  ? 18000
+                  : 22000,
+        })),
         isAcceptingOrders: true,
         certificatesIssued: 120,
       },

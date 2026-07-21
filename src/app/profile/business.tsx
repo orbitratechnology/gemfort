@@ -32,9 +32,9 @@ import {
     createBusinessProfile,
     fetchBusinessByOwnerUid,
     isBusinessVerified,
-    syncBusinessVerificationFromProfile,
     updateBusinessProfile,
 } from "@/features/marketplace/marketplace-service";
+import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
@@ -46,8 +46,44 @@ import {
 } from "@/lib/firebase/storage-service";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { Business, UserProfile } from "@/types";
+import type { Business, LabCertificateOffering, UserProfile } from "@/types";
 
+type CertDraft = {
+  id: string;
+  title: string;
+  description: string;
+  priceText: string;
+  currency: string;
+  isActive: boolean;
+};
+
+function draftsFromBusiness(business: Business | null | undefined): CertDraft[] {
+  return normalizeLabCertificateOfferings(
+    business?.labProfile?.certificateOfferings,
+    business?.labProfile?.reportTypes,
+  ).map((o) => ({
+    id: o.id,
+    title: o.title,
+    description: o.description,
+    priceText: o.price != null ? String(o.price) : "",
+    currency: o.currency || "LKR",
+    isActive: o.isActive,
+  }));
+}
+
+function offeringsFromDrafts(drafts: CertDraft[]): LabCertificateOffering[] {
+  return drafts.map((d) => {
+    const parsed = Number(d.priceText.replace(/,/g, "").trim());
+    return {
+      id: d.id,
+      title: d.title,
+      description: d.description,
+      price: Number.isFinite(parsed) && parsed >= 0 ? parsed : null,
+      currency: d.currency || "LKR",
+      isActive: d.isActive,
+    };
+  });
+}
 const BANNER_H = COVER_BANNER_HEIGHT;
 const AVATAR = 96;
 const AVATAR_OVERLAP = 48;
@@ -105,13 +141,26 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
   const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
+  const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
+    draftsFromBusiness(business),
+  );
 
   const accountTypeLabel = accountTypeLabelFromRegistration(profile);
   const derivedBusinessType = businessTypeFromRegistration(profile);
+  const isLab =
+    derivedBusinessType === "gem_lab" ||
+    business?.businessType === "gem_lab" ||
+    business?.businessType === "lab" ||
+    !!business?.labProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
 
+  function updateCertDraft(id: string, patch: Partial<CertDraft>) {
+    setCertDrafts((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    );
+  }
   const canSave =
     businessName.trim().length > 0 &&
     city.trim().length > 0 &&
@@ -174,6 +223,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           socialLinks,
           logoUrl: nextLogo,
           coverPhotoUrl: nextCover,
+          ...(isLab
+            ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
+            : {}),
         });
       } else {
         if (!derivedBusinessType) {
@@ -196,16 +248,21 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             socialLinks,
           },
         );
-        if (nextLogo || nextCover) {
-          await updateBusinessProfile(id, {
-            logoUrl: nextLogo,
-            coverPhotoUrl: nextCover,
-          });
+        const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
+        if (nextLogo) mediaAndCert.logoUrl = nextLogo;
+        if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
+        if (isLab) {
+          mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
+        }
+        if (Object.keys(mediaAndCert).length > 0) {
+          await updateBusinessProfile(id, mediaAndCert);
         }
       }
 
       setCoverLocal(null);
       setLogoLocal(null);
+      setCoverUri(nextCover);
+      setLogoUri(nextLogo);
       await queryClient.invalidateQueries({ queryKey: ["my-business"] });
       if (business) {
         await queryClient.invalidateQueries({
@@ -356,6 +413,90 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         />
       </FormSection>
 
+      {isLab ? (
+        <>
+          <FormSectionLabel title="CERTIFICATE TYPES" />
+          <FormSection>
+            <Text style={[styles.certHint, { color: colors.textMuted }]}>
+              Toggle tiers you offer and set a public price. Leave price blank to
+              show “Inquire”.
+            </Text>
+            {certDrafts.map((cert) => (
+              <View
+                key={cert.id}
+                style={[
+                  styles.certCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    opacity: cert.isActive ? 1 : 0.72,
+                  },
+                ]}
+              >
+                <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: cert.isActive }}
+                  accessibilityLabel={`${cert.title}, ${cert.isActive ? "offered" : "not offered"}`}
+                  onPress={() =>
+                    updateCertDraft(cert.id, { isActive: !cert.isActive })
+                  }
+                  style={styles.certHeader}
+                >
+                  <View style={styles.certHeaderCopy}>
+                    <Text
+                      style={[styles.certTitle, { color: colors.onSurface }]}
+                      numberOfLines={2}
+                    >
+                      {cert.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.certDesc,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                      numberOfLines={3}
+                    >
+                      {cert.description}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.certToggle,
+                      {
+                        backgroundColor: cert.isActive
+                          ? colors.primary
+                          : colors.surfaceContainerHigh,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name={cert.isActive ? "check" : "close"}
+                      size={16}
+                      color={
+                        cert.isActive
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant
+                      }
+                    />
+                  </View>
+                </Pressable>
+                {cert.isActive ? (
+                  <Input
+                    label={`Price (${cert.currency})`}
+                    value={cert.priceText}
+                    onChangeText={(priceText) =>
+                      updateCertDraft(cert.id, { priceText })
+                    }
+                    placeholder="e.g. 8500"
+                    keyboardType="decimal-pad"
+                    leftIcon="payments"
+                  />
+                ) : null}
+              </View>
+            ))}
+          </FormSection>
+        </>
+      ) : null}
+
       <FormSectionLabel title="CONTACT" />
       <FormSection>
         <PhoneNumberField
@@ -466,15 +607,8 @@ export default function MyBusinessProfileScreen() {
   const { user, profile } = useAuth();
 
   const { data: business, isLoading } = useQuery({
-    queryKey: ["my-business", user?.uid, profile?.verificationStatus],
-    queryFn: async () => {
-      const biz = await fetchBusinessByOwnerUid(user!.uid);
-      if (!biz) return null;
-      return syncBusinessVerificationFromProfile(
-        biz,
-        profile?.verificationStatus === "verified",
-      );
-    },
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
     enabled: !!user,
   });
 
@@ -648,4 +782,31 @@ const styles = StyleSheet.create({
   linkBody: { flex: 1, gap: 2 },
   linkText: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
   linkSub: { ...Typography.bodySmall },
+
+  certHint: {
+    ...Typography.caption,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: 2,
+  },
+  certCard: {
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  certHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+  },
+  certHeaderCopy: { flex: 1, gap: 4, minWidth: 0 },
+  certTitle: { ...Typography.bodyLg, fontWeight: "700" },
+  certDesc: { ...Typography.caption, lineHeight: 16 },
+  certToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

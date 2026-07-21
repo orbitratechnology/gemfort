@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   updateChequeStatus,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { alert } from '@/lib/alert';
 import { friendlyError } from '@/lib/errors';
 import { formatCurrency, formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
 import { useToast } from '@/providers/toast-provider';
@@ -63,7 +64,7 @@ export default function ChequeDetailScreen() {
     }
 
     if (status === 'cancelled') {
-      Alert.alert('Cancel cheque', 'Mark this cheque as cancelled?', [
+      alert('Cancel cheque', 'Mark this cheque as cancelled?', [
         { text: 'No', style: 'cancel' },
         { text: 'Yes', style: 'destructive', onPress: () => applyStatus('cancelled') },
       ]);

@@ -13,14 +13,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     CHEQUE_STATUS_LABELS,
     getChequeSummary,
     getUpcomingCheques,
     maturityLabel,
 } from "@/features/workspace/cheque-utils";
+import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
     fetchCheques,
     fetchContacts,
@@ -29,20 +32,24 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import type { Cheque } from "@/types";
+import { useMemo } from "react";
 
 function ChequeRow({
   cheque,
   contactName,
+  contactPhotoUrl,
   colors,
   onPress,
 }: {
   cheque: Cheque;
   contactName: string;
+  contactPhotoUrl: string | null;
   colors: ReturnType<typeof useAppTheme>["colors"];
   onPress: () => void;
 }) {
   const isBounced = cheque.status === "bounced";
   const isReceived = cheque.direction === "received";
+  const partyLabel = contactName || cheque.issuedBy || "Counterparty";
 
   return (
     <Pressable
@@ -57,30 +64,38 @@ function ChequeRow({
         pressed && { opacity: 0.85 },
       ]}
     >
-      <View
-        style={[
-          styles.rowIcon,
-          {
-            backgroundColor: isBounced
-              ? colors.errorContainer
-              : isReceived
-                ? colors.secondaryContainer
-                : colors.surfaceContainerHigh,
-          },
-        ]}
-      >
-        <Icon
-          name="money-check-dollar"
-          size={20}
-          color={
-            isBounced
-              ? colors.error
-              : isReceived
-                ? colors.onSecondaryContainer
-                : colors.onSurfaceVariant
-          }
+      {contactPhotoUrl || cheque.photoUrl ? (
+        <ContactAvatar
+          name={partyLabel}
+          photoUrl={contactPhotoUrl || cheque.photoUrl}
+          size={44}
         />
-      </View>
+      ) : (
+        <View
+          style={[
+            styles.rowIcon,
+            {
+              backgroundColor: isBounced
+                ? colors.errorContainer
+                : isReceived
+                  ? colors.secondaryContainer
+                  : colors.surfaceContainerHigh,
+            },
+          ]}
+        >
+          <Icon
+            name="money-check-dollar"
+            size={20}
+            color={
+              isBounced
+                ? colors.error
+                : isReceived
+                  ? colors.onSecondaryContainer
+                  : colors.onSurfaceVariant
+            }
+          />
+        </View>
+      )}
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <Text
@@ -100,7 +115,7 @@ function ChequeRow({
           style={[styles.rowSub, { color: colors.textMuted }]}
           numberOfLines={1}
         >
-          {isReceived ? "From" : "To"} {contactName || cheque.issuedBy}
+          {isReceived ? "From" : "To"} {partyLabel}
         </Text>
         <View style={styles.rowMeta}>
           <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
@@ -152,7 +167,20 @@ export default function ChequesScreen() {
     enabled: !!user,
   });
 
-  const contactMap = new Map(contacts.map((c) => [c.id, c.displayName]));
+  const { data: businesses = [] } = useQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    enabled: !!user,
+  });
+
+  const contactMap = useMemo(
+    () => new Map(contacts.map((c) => [c.id, c.displayName])),
+    [contacts],
+  );
+  const contactPhotoMap = useMemo(
+    () => buildContactPhotoMap(contacts, businesses),
+    [contacts, businesses],
+  );
   const summary = getChequeSummary(cheques);
   const upcoming = getUpcomingCheques(cheques);
   const bounced = cheques.filter((c) => c.status === "bounced");
@@ -265,6 +293,9 @@ export default function ChequesScreen() {
                 contactName={
                   contactMap.get(c.counterpartyContactId) ?? c.issuedBy
                 }
+                contactPhotoUrl={
+                  contactPhotoMap.get(c.counterpartyContactId) ?? null
+                }
                 colors={colors}
                 onPress={() =>
                   router.push(
@@ -294,6 +325,9 @@ export default function ChequesScreen() {
                 cheque={c}
                 contactName={
                   contactMap.get(c.counterpartyContactId) ?? c.issuedBy
+                }
+                contactPhotoUrl={
+                  contactPhotoMap.get(c.counterpartyContactId) ?? null
                 }
                 colors={colors}
                 onPress={() =>

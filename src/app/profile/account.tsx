@@ -1,7 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -18,6 +17,7 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { alert } from '@/lib/alert';
 import { friendlyError } from '@/lib/errors';
 import {
   changePassword,
@@ -104,7 +104,7 @@ export default function AccountSettingsScreen() {
       return;
     }
 
-    Alert.alert(
+    alert(
       'Delete account permanently?',
       'This removes your profile, listings, workspace data, uploads, and sign-in. This cannot be undone.',
       [
@@ -117,6 +117,7 @@ export default function AccountSettingsScreen() {
           },
         },
       ],
+      { haptic: 'error' },
     );
   }
 

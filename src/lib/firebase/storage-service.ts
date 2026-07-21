@@ -20,6 +20,8 @@ export type PickMediaOptions = {
   /** Default: images only. */
   allows?: 'images' | 'videos' | 'all' | 'documents';
   quality?: number;
+  /** Max items when using pickLocalMediaMany. Default 10. */
+  selectionLimit?: number;
 };
 
 function inferKind(mimeType?: string | null, allows?: PickMediaOptions['allows']): LocalMediaKind {
@@ -34,6 +36,21 @@ function fileNameFromUri(uri: string): string {
   const cleaned = uri.split('?')[0] ?? uri;
   const parts = cleaned.split('/');
   return parts[parts.length - 1] || 'media';
+}
+
+function assetToLocalMedia(
+  asset: ImagePicker.ImagePickerAsset,
+  allows: PickMediaOptions['allows'],
+): LocalMedia {
+  return {
+    uri: asset.uri,
+    kind: inferKind(asset.mimeType, allows),
+    mimeType: asset.mimeType ?? null,
+    fileName: asset.fileName ?? fileNameFromUri(asset.uri),
+    fileSize: asset.fileSize ?? null,
+    width: asset.width ?? null,
+    height: asset.height ?? null,
+  };
 }
 
 /** Pick media into local device storage only. Does not upload. */
@@ -67,16 +84,40 @@ export async function pickLocalMedia(options: PickMediaOptions = {}): Promise<Lo
   });
 
   if (result.canceled || !result.assets[0]) return null;
-  const asset = result.assets[0];
-  return {
-    uri: asset.uri,
-    kind: inferKind(asset.mimeType, allows),
-    mimeType: asset.mimeType ?? null,
-    fileName: asset.fileName ?? fileNameFromUri(asset.uri),
-    fileSize: asset.fileSize ?? null,
-    width: asset.width ?? null,
-    height: asset.height ?? null,
-  };
+  return assetToLocalMedia(result.assets[0], allows);
+}
+
+/**
+ * Pick one or more images/videos into local device storage. Does not upload.
+ * First item is suitable as the album primary until the user reorders.
+ */
+export async function pickLocalMediaMany(
+  options: PickMediaOptions = {},
+): Promise<LocalMedia[]> {
+  const allows = options.allows ?? 'images';
+  if (allows === 'documents') {
+    const one = await pickLocalMedia(options);
+    return one ? [one] : [];
+  }
+
+  const mediaTypes =
+    allows === 'videos'
+      ? (['videos'] as const)
+      : allows === 'all'
+        ? (['images', 'videos'] as const)
+        : (['images'] as const);
+
+  const limit = Math.max(1, options.selectionLimit ?? 10);
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: [...mediaTypes],
+    quality: options.quality ?? 0.8,
+    allowsEditing: false,
+    allowsMultipleSelection: true,
+    selectionLimit: limit,
+  });
+
+  if (result.canceled || !result.assets?.length) return [];
+  return result.assets.slice(0, limit).map((asset) => assetToLocalMedia(asset, allows));
 }
 
 /** @deprecated Prefer pickLocalMedia + upload on submit. */

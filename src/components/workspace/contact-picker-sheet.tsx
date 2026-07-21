@@ -22,6 +22,7 @@ import {
   filterBusinessesByKinds,
 } from '@/features/workspace/contact-business-link';
 import { filterContacts } from '@/features/workspace/contact-utils';
+import { resolvePartyPhotoUrl } from '@/features/workspace/party-photo';
 import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
 import { syncContactBusinessLinks } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -158,10 +159,12 @@ function SearchBox({
 
 function ContactRow({
   contact,
+  photoUrl,
   selected,
   onPress,
 }: {
   contact: Contact;
+  photoUrl?: string | null;
   selected: boolean;
   onPress: () => void;
 }) {
@@ -182,7 +185,11 @@ function ContactRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <ContactAvatar name={contact.displayName} photoUrl={contact.photoUrl} size={40} />
+      <ContactAvatar
+        name={contact.displayName}
+        photoUrl={photoUrl ?? contact.photoUrl}
+        size={40}
+      />
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
@@ -409,27 +416,36 @@ export function PartyPickerSheet({
     }
   }, [visible, showDirectory, preferBusinesses]);
 
-  const { data: businesses = [], isLoading } = useQuery({
+  const { data: directoryBusinesses = [], isLoading } = useQuery({
     queryKey: ['party-picker-businesses', allowedBusinessKinds.join(',')],
     queryFn: async () => {
       if (!isFirebaseConfigured) return [];
       const all = await fetchBusinesses();
       return filterBusinessesByKinds(all, allowedBusinessKinds);
     },
-    enabled: visible && showDirectory,
+    enabled: visible,
   });
 
+  // Full directory for contact logo fallback (not filtered by picker kinds).
+  const { data: allBusinesses = [] } = useQuery({
+    queryKey: ['home-businesses'],
+    queryFn: () => fetchBusinesses(),
+    enabled: visible && isFirebaseConfigured,
+  });
+
+  const businesses = directoryBusinesses;
+
   useEffect(() => {
-    if (!visible || !showDirectory || businesses.length === 0) return;
+    if (!visible || allBusinesses.length === 0) return;
     let cancelled = false;
     void (async () => {
-      const synced = await syncContactBusinessLinks(contactsProp, businesses);
+      const synced = await syncContactBusinessLinks(contactsProp, allBusinesses);
       if (!cancelled) setContacts(synced);
     })();
     return () => {
       cancelled = true;
     };
-  }, [visible, showDirectory, businesses, contactsProp]);
+  }, [visible, allBusinesses, contactsProp]);
 
   const filteredBusinesses = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
@@ -568,6 +584,7 @@ export function PartyPickerSheet({
           renderItem={({ item }) => (
             <ContactRow
               contact={item}
+              photoUrl={resolvePartyPhotoUrl(item, allBusinesses)}
               selected={value?.source === 'contact' && value.contactId === item.id}
               onPress={() => {
                 onSelect({

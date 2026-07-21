@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ScreenInset } from "@/components/ui/form-section";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { haptics } from "@/lib/haptics";
 
 const CONTACTS_HREF = "/(marketplace)/(tabs)/workspace/contacts";
 const CALLS_HREF = "/(marketplace)/(tabs)/workspace/contacts/calls";
@@ -62,7 +63,9 @@ export function ContactsHubTabs({
             <Pressable
               key={tab.id}
               onPress={() => {
-                if (!selected) router.replace(tab.href as never);
+                if (selected) return;
+                haptics.selection();
+                router.replace(tab.href as never);
               }}
               accessibilityRole="tab"
               accessibilityState={{ selected }}

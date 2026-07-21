@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ import {
     updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -107,7 +108,7 @@ export default function TripDetailScreen() {
 
   async function handleDistributeOverhead() {
     if (!user || !trip) return;
-    Alert.alert(
+    alert(
       "Distribute overhead",
       "Split trip expenses across gems purchased on this trip by purchase cost?",
       [

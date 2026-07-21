@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
-    Alert,
     Linking,
     Pressable,
     ScrollView,
@@ -15,8 +14,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
+import {
+    getCurrencyLabel,
+    type CurrencyCode,
+} from "@/constants/currencies";
 import {
     Radius,
     Spacing,
@@ -30,9 +34,16 @@ import {
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { logoutUser } from "@/lib/firebase/auth-service";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import { alert } from "@/lib/alert";
+import {
+    logoutUser,
+    updatePreferredCurrency,
+} from "@/lib/firebase/auth-service";
+import { friendlyError } from "@/lib/errors";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
+import { useToast } from "@/providers/toast-provider";
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
   { id: "system", label: "System", icon: "brightness-auto" },
@@ -102,6 +113,10 @@ function Row({
 export default function ProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
+  const preferredCurrency = usePreferredCurrency();
+  const toast = useToast();
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
 
   const { data: business } = useQuery({
     queryKey: ["my-business", user?.uid],
@@ -127,6 +142,20 @@ export default function ProfileScreen() {
   async function handleLogout() {
     await logoutUser();
     router.replace("/(marketplace)/(tabs)/home");
+  }
+
+  async function handleCurrencySelect(code: CurrencyCode) {
+    if (!user || code === preferredCurrency || savingCurrency) return;
+    setSavingCurrency(true);
+    try {
+      await updatePreferredCurrency(user.uid, code);
+      await refreshProfile();
+      toast.success(`Display currency set to ${code}`);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not update currency."));
+    } finally {
+      setSavingCurrency(false);
+    }
   }
 
   const effectiveRole = resolveProfileRole(profile);
@@ -296,6 +325,24 @@ export default function ProfileScreen() {
             </View>
           </FormSection>
 
+          <FormSectionLabel title="PREFERENCES" />
+          <FormSection padded={false}>
+            <Row
+              colors={colors}
+              icon="payments"
+              label="Preferred currency"
+              subtitle={`${preferredCurrency} · ${getCurrencyLabel(preferredCurrency)}`}
+              onPress={() => setCurrencyPickerOpen(true)}
+              trailing={
+                <Text
+                  style={[styles.trailingValue, { color: colors.textMuted }]}
+                >
+                  {preferredCurrency}
+                </Text>
+              }
+            />
+          </FormSection>
+
           <FormSectionLabel title="ACCOUNT & APP" />
           <FormSection padded={false}>
             <Row
@@ -331,7 +378,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Log Out"
             onPress={() =>
-              Alert.alert("Sign out?", "You can sign back in anytime.", [
+              alert("Sign out?", "You can sign back in anytime.", [
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Log Out",
@@ -352,6 +399,17 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <CurrencyPickerSheet
+        visible={currencyPickerOpen}
+        onClose={() => setCurrencyPickerOpen(false)}
+        value={preferredCurrency}
+        onSelect={(code) => {
+          setCurrencyPickerOpen(false);
+          void handleCurrencySelect(code);
+        }}
+        title="Preferred currency"
+      />
     </SafeAreaView>
   );
 }

@@ -2,40 +2,57 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ChipSelect } from "@/components/ui/chip-select";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import {
+  GemPickerSheet,
+  GemSelectField,
+} from "@/components/workspace/gem-picker-sheet";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
+import {
+  billCommissionAmount,
+  billNetAfterCommission,
+} from "@/features/workspace/bill-utils";
 import {
   createBill,
   fetchContacts,
+  fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { BillDirection } from "@/types";
+import type { BillDirection, WorkspaceGem } from "@/types";
 
 const DIRECTIONS = [
   {
     value: "payable" as const,
     label: "To pay",
-    subtitle: "You owe them",
+    subtitle: "You owe them · your commission cut",
     icon: "call-made" as const,
   },
   {
     value: "receivable" as const,
     label: "To receive",
-    subtitle: "They owe you",
+    subtitle: "They owe you · their commission cut",
     icon: "call-received" as const,
   },
 ];
@@ -43,15 +60,21 @@ const DIRECTIONS = [
 export default function AddBillScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [direction, setDirection] = useState<BillDirection>("payable");
-  const [amount, setAmount] = useState("");
+  const [money, setMoney] = useState<CurrencyAmountValue>({
+    amount: "",
+    currency: preferred,
+  });
   const [contactId, setContactId] = useState("");
   const [dueDays, setDueDays] = useState("7");
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState("");
+  const [gemIds, setGemIds] = useState<string[]>([]);
+  const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -61,11 +84,46 @@ export default function AddBillScreen() {
     enabled: !!user,
   });
 
+  const { data: gems = [] } = useQuery({
+    queryKey: ["gems", user?.uid],
+    queryFn: () => fetchGems(user!.uid),
+    enabled: !!user,
+  });
+
+  const availableGems = useMemo(
+    () => gems.filter((g) => !gemIds.includes(g.id)),
+    [gems, gemIds],
+  );
+
+  const selectedGems = useMemo(
+    () =>
+      gemIds
+        .map((id) => gems.find((g) => g.id === id))
+        .filter((g): g is WorkspaceGem => !!g),
+    [gemIds, gems],
+  );
+
   const duePreview = useMemo(() => {
     const days = parseInt(dueDays, 10);
     if (Number.isNaN(days) || days < 0) return null;
     return format(addDays(new Date(), days), "d MMM yyyy");
   }, [dueDays]);
+
+  const faceAmount = useMemo(() => {
+    const n = Number(String(money.amount).replace(/,/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [money.amount]);
+
+  const commissionPct = useMemo(() => {
+    const raw = commissionPercent.trim();
+    if (!raw) return null;
+    const n = Number(raw.replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }, [commissionPercent]);
+
+  const commissionValue = billCommissionAmount(faceAmount, commissionPct);
+  const netValue = billNetAfterCommission(faceAmount, commissionPct);
+  const showBreakdown = faceAmount > 0 && commissionValue > 0;
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -76,11 +134,20 @@ export default function AddBillScreen() {
     });
   }
 
+  function addGem(gem: WorkspaceGem) {
+    setGemIds((prev) => (prev.includes(gem.id) ? prev : [...prev, gem.id]));
+    setGemSheetOpen(false);
+  }
+
+  function removeGem(id: string) {
+    setGemIds((prev) => prev.filter((g) => g !== id));
+  }
+
   async function handleSubmit() {
     if (!user) return;
     const result = parseForm(addBillSchema, {
       direction,
-      amount,
+      amount: money.amount,
       dueDays,
       contactId,
       commissionPercent,
@@ -99,10 +166,12 @@ export default function AddBillScreen() {
       const id = await createBill(user.uid, {
         direction: result.data.direction,
         amount: result.data.amount,
+        currency: money.currency,
         counterpartyContactId: result.data.contactId,
         dueDate,
         commissionPercent: result.data.commissionPercent,
         notes: result.data.notes,
+        gemIds,
       });
       await queryClient.invalidateQueries({ queryKey: ["bills"] });
       toast.success("Bill saved");
@@ -114,6 +183,9 @@ export default function AddBillScreen() {
     }
   }
 
+  const contactName =
+    contacts.find((c) => c.id === contactId)?.displayName ?? "them";
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -123,8 +195,8 @@ export default function AddBillScreen() {
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset>
           <Text style={[styles.lead, { color: colors.textMuted }]}>
-            Remind yourself about money to pay or collect, with optional
-            commission.
+            Track money to pay or collect. Commission is applied when you
+            record a payment.
           </Text>
         </ScreenInset>
 
@@ -136,17 +208,61 @@ export default function AddBillScreen() {
           />
         </FormSection>
 
+        <FormSection title="Gems">
+          {selectedGems.map((gem) => (
+            <View
+              key={gem.id}
+              style={[
+                styles.gemCard,
+                {
+                  backgroundColor: colors.surfaceContainerLow,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}
+            >
+              <View style={styles.gemHeader}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text
+                    style={[styles.gemTitle, { color: colors.onSurface }]}
+                    numberOfLines={1}
+                  >
+                    {gem.variety?.trim() ||
+                      formatGemType(gem.gemType) ||
+                      gem.sku}
+                  </Text>
+                  <Text
+                    style={[styles.gemSub, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {gem.sku} · {gem.currentWeight} ct
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => removeGem(gem.id)}
+                  accessibilityLabel="Remove gem"
+                  hitSlop={8}
+                >
+                  <Icon name="close" size={20} color={colors.textMuted} />
+                </Pressable>
+              </View>
+            </View>
+          ))}
+          <GemSelectField
+            label={gemIds.length ? "Add another gem" : "Link gems (optional)"}
+            gem={null}
+            placeholder="Select a gem"
+            onPress={() => setGemSheetOpen(true)}
+          />
+        </FormSection>
+
         <FormSection title="Details">
-          <Input
+          <CurrencyAmountField
             label="Amount"
-            value={amount}
-            onChangeText={(t) => {
-              setAmount(t);
+            value={money}
+            onChange={(next) => {
+              setMoney(next);
               clearField("amount");
             }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            leftIcon="payments"
             error={errors.amount}
           />
           <Input
@@ -173,10 +289,64 @@ export default function AddBillScreen() {
             placeholder="Optional"
             leftIcon="percent"
             error={errors.commissionPercent}
-            helperText="Applied when you record a payment"
+            helperText={
+              direction === "payable"
+                ? "From the amount — counted as your income when you record payment"
+                : "From the amount — counted as their cut on your books when you record payment"
+            }
           />
+
+          {showBreakdown ? (
+            <View
+              style={[
+                styles.breakdown,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}
+            >
+              <BreakdownRow
+                label="Amount"
+                value={formatCurrency(faceAmount, money.currency)}
+                colors={colors}
+              />
+              {direction === "payable" ? (
+                <>
+                  <BreakdownRow
+                    label="Your commission"
+                    value={formatCurrency(commissionValue, money.currency)}
+                    colors={colors}
+                    accent={colors.successEmerald}
+                  />
+                  <BreakdownRow
+                    label="Total to pay"
+                    value={formatCurrency(netValue, money.currency)}
+                    colors={colors}
+                    strong
+                  />
+                </>
+              ) : (
+                <>
+                  <BreakdownRow
+                    label={`Commission to ${contactName}`}
+                    value={`− ${formatCurrency(commissionValue, money.currency)}`}
+                    colors={colors}
+                    accent={colors.error}
+                  />
+                  <BreakdownRow
+                    label="You receive"
+                    value={formatCurrency(netValue, money.currency)}
+                    colors={colors}
+                    strong
+                  />
+                </>
+              )}
+            </View>
+          ) : null}
+
           <ContactPicker
-            label="For whom"
+            label={direction === "payable" ? "To" : "From"}
             value={contactId}
             onChange={(id) => {
               setContactId(id);
@@ -184,6 +354,7 @@ export default function AddBillScreen() {
             }}
             contacts={contacts}
             allowedBusinessKinds={["traders", "lapidaries"]}
+            emptyHint="Pick a contact or GemFort business."
             error={errors.contactId}
           />
           <Input
@@ -203,7 +374,59 @@ export default function AddBillScreen() {
         onPress={handleSubmit}
         icon="check"
       />
+
+      <GemPickerSheet
+        visible={gemSheetOpen}
+        onClose={() => setGemSheetOpen(false)}
+        gems={availableGems}
+        value=""
+        title="Select gem for bill"
+        emptyHint="No more gems available. Add gems in inventory first."
+        onSelect={addGem}
+      />
     </SafeAreaView>
+  );
+}
+
+function BreakdownRow({
+  label,
+  value,
+  colors,
+  accent,
+  strong,
+}: {
+  label: string;
+  value: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+  accent?: string;
+  strong?: boolean;
+}) {
+  return (
+    <View style={styles.breakdownRow}>
+      <Text
+        style={[
+          styles.breakdownLabel,
+          {
+            color: colors.onSurfaceVariant,
+            fontWeight: strong ? "700" : "500",
+          },
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.breakdownValue,
+          {
+            color: accent ?? (strong ? colors.onSurface : colors.onSurface),
+            fontWeight: strong ? "700" : "600",
+          },
+        ]}
+        selectable
+      >
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -213,5 +436,37 @@ const styles = StyleSheet.create({
   lead: {
     ...Typography.bodyMd,
     marginBottom: Spacing.sm,
+  },
+  gemCard: {
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  gemHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  gemTitle: { ...Typography.bodyMd, fontWeight: "600" },
+  gemSub: { ...Typography.caption },
+  breakdown: {
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  breakdownLabel: { ...Typography.bodySmall, flex: 1 },
+  breakdownValue: {
+    ...Typography.bodyMd,
+    fontVariant: ["tabular-nums"],
   },
 });

@@ -5,6 +5,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -15,6 +19,7 @@ import {
   GemPickerSheet,
   GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
+import { resolveCurrencyCode } from "@/constants/currencies";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { createApRequest } from "@/features/workspace/ap-lifecycle-service";
@@ -23,6 +28,7 @@ import {
   fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -31,17 +37,25 @@ import type { WorkspaceGem } from "@/types";
 
 type LineDraft = {
   gemId: string;
-  agreedPrice: string;
+  price: CurrencyAmountValue;
 };
 
-function defaultPrice(gem: WorkspaceGem): string {
+function defaultPrice(
+  gem: WorkspaceGem,
+  preferred: CurrencyAmountValue["currency"],
+): CurrencyAmountValue {
   const n = gem.askingPrice ?? gem.acquisitionCost ?? 0;
-  return n > 0 ? String(n) : "";
+  const currency = resolveCurrencyCode(
+    gem.askingPriceCurrency ?? gem.acquisitionCurrency ?? preferred,
+    preferred,
+  );
+  return { amount: n > 0 ? String(n) : "", currency };
 }
 
 export default function AddApScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const { gemId: preselected } = useLocalSearchParams<{ gemId?: string }>();
   const [lines, setLines] = useState<LineDraft[]>([]);
@@ -79,16 +93,16 @@ export default function AddApScreen() {
       if (prev.some((l) => l.gemId === preselected)) return prev;
       const gem = gems.find((g) => g.id === preselected);
       if (!gem) return prev;
-      return [{ gemId: gem.id, agreedPrice: defaultPrice(gem) }];
+      return [{ gemId: gem.id, price: defaultPrice(gem, preferred) }];
     });
-  }, [preselected, gems]);
+  }, [preselected, gems, preferred]);
 
   const holder = contacts.find((c) => c.id === holderId);
 
   function addGem(gem: WorkspaceGem) {
     setLines((prev) => [
       ...prev,
-      { gemId: gem.id, agreedPrice: defaultPrice(gem) },
+      { gemId: gem.id, price: defaultPrice(gem, preferred) },
     ]);
     setErrors((e) => {
       if (!e.gems) return e;
@@ -102,9 +116,9 @@ export default function AddApScreen() {
     setLines((prev) => prev.filter((l) => l.gemId !== gemId));
   }
 
-  function setPrice(gemId: string, agreedPrice: string) {
+  function setPrice(gemId: string, price: CurrencyAmountValue) {
     setLines((prev) =>
-      prev.map((l) => (l.gemId === gemId ? { ...l, agreedPrice } : l)),
+      prev.map((l) => (l.gemId === gemId ? { ...l, price } : l)),
     );
   }
 
@@ -118,8 +132,8 @@ export default function AddApScreen() {
         "Holder must be a GemFort trader linked by phone. Pick a trader from the directory.";
     }
     for (const line of lines) {
-      const price = parseFloat(line.agreedPrice);
-      if (!line.agreedPrice.trim() || Number.isNaN(price) || price <= 0) {
+      const price = parseFloat(line.price.amount);
+      if (!line.price.amount.trim() || Number.isNaN(price) || price <= 0) {
         next[`price-${line.gemId}`] = "Enter a valid AP price.";
       }
     }
@@ -137,8 +151,8 @@ export default function AddApScreen() {
         expectedDurationDays: parseInt(days, 10) || 30,
         items: lines.map((l) => ({
           gemId: l.gemId,
-          agreedPrice: parseFloat(l.agreedPrice),
-          currency: "LKR",
+          agreedPrice: parseFloat(l.price.amount),
+          currency: l.price.currency,
         })),
       });
       toast.success("AP request sent");
@@ -202,13 +216,10 @@ export default function AddApScreen() {
                     <Icon name="close" size={20} color={colors.textMuted} />
                   </Pressable>
                 </View>
-                <Input
-                  label="AP price (LKR)"
-                  value={line.agreedPrice}
-                  onChangeText={(v) => setPrice(line.gemId, v)}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  leftIcon="payments"
+                <CurrencyAmountField
+                  label="AP price"
+                  value={line.price}
+                  onChange={(next) => setPrice(line.gemId, next)}
                   error={errors[`price-${line.gemId}`]}
                 />
               </View>
