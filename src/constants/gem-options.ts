@@ -341,21 +341,25 @@ export const GEM_STATUS_FILTERS: { value: GemStatus | 'all'; label: string }[] =
   { value: 'sold', label: 'Sold' },
 ];
 
-export const MANUAL_STATUS_OPTIONS: { value: GemStatus; label: string }[] = [
-  { value: 'rough', label: 'Rough' },
-  { value: 'with_cutter', label: 'With Cutter' },
-  { value: 'cut', label: 'Cut' },
-  { value: 'with_heater', label: 'With Heater' },
-  { value: 'heated', label: 'Heated' },
-  { value: 'with_polisher', label: 'With Polisher' },
-  { value: 'polished', label: 'Polished' },
-  { value: 'certified', label: 'Certified' },
-  { value: 'ready_for_sale', label: 'Ready for Sale' },
-  { value: 'on_ap', label: 'On AP' },
-  { value: 'on_trip', label: 'On Trip' },
-  { value: 'listed', label: 'Listed' },
-  { value: 'sold', label: 'Sold' },
-  { value: 'returned', label: 'Returned' },
+export const MANUAL_STATUS_OPTIONS: {
+  value: GemStatus;
+  label: string;
+  icon: IconName;
+}[] = [
+  { value: 'rough', label: 'Rough', icon: 'spa' },
+  { value: 'with_cutter', label: 'With Cutter', icon: 'content-cut' },
+  { value: 'cut', label: 'Cut', icon: 'content-cut' },
+  { value: 'with_heater', label: 'With Heater', icon: 'local-fire-department' },
+  { value: 'heated', label: 'Heated', icon: 'local-fire-department' },
+  { value: 'with_polisher', label: 'With Polisher', icon: 'auto-awesome' },
+  { value: 'polished', label: 'Polished', icon: 'auto-awesome' },
+  { value: 'certified', label: 'Certified', icon: 'verified' },
+  { value: 'ready_for_sale', label: 'Ready for Sale', icon: 'sell' },
+  { value: 'on_ap', label: 'On AP', icon: 'handshake' },
+  { value: 'on_trip', label: 'On Trip', icon: 'flight' },
+  { value: 'listed', label: 'Listed', icon: 'storefront' },
+  { value: 'sold', label: 'Sold', icon: 'check-circle' },
+  { value: 'returned', label: 'Returned', icon: 'undo' },
 ];
 
 export function formatGemType(value: string): string {

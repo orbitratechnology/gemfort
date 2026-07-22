@@ -25,6 +25,7 @@ import {
     GEM_SHAPES,
     GEM_TREATMENTS,
     GEM_TYPES,
+    MANUAL_STATUS_OPTIONS,
     formatColorLabel,
     formatOptionLabel,
     formatOriginLabel,
@@ -786,6 +787,18 @@ export function TreatmentPickerSheet(
 ) {
   return (
     <OptionPickerSheet {...props} title="Treatment" options={GEM_TREATMENTS} />
+  );
+}
+
+export function StatusPickerSheet(
+  props: Omit<OptionPickerSheetProps, "title" | "options">,
+) {
+  return (
+    <OptionPickerSheet
+      {...props}
+      title="Status"
+      options={MANUAL_STATUS_OPTIONS}
+    />
   );
 }
 

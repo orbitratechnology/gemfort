@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { getCurrencyCountryCode } from "@/constants/currencies";
 import { flagUrl, resolveCountryCode } from "@/constants/gem-options";
 
 type FlagSize = "xs" | "sm" | "md" | "lg";
@@ -23,6 +24,9 @@ type CountryFlagProps = {
   /** Slug, ISO code, display name, or free-text containing a country. */
   country: string | null | undefined;
   size?: FlagSize;
+  /** Override preset size when you need an exact fit. */
+  width?: number;
+  height?: number;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -30,17 +34,52 @@ type CountryFlagProps = {
 export function CountryFlag({
   country,
   size = "sm",
+  width,
+  height,
   style,
 }: CountryFlagProps) {
   const code = resolveCountryCode(country);
   if (!code) return null;
-  const dims = FLAG_DIMS[size];
+  const dims =
+    width != null && height != null
+      ? { width, height }
+      : FLAG_DIMS[size];
   return (
     <Image
       source={{ uri: flagUrl(code, dims.width >= 24 ? 80 : 40) }}
       style={[styles.flag, dims, style as object]}
       contentFit="cover"
       accessibilityLabel={`Flag for ${country}`}
+    />
+  );
+}
+
+type CurrencyFlagProps = {
+  currency: string | null | undefined;
+  size?: FlagSize;
+  width?: number;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+};
+
+/** Flag for a currency code (LKR → LK, EUR → EU, etc.). */
+export function CurrencyFlag({
+  currency,
+  size = "sm",
+  width,
+  height,
+  style,
+}: CurrencyFlagProps) {
+  if (!currency) return null;
+  const country = getCurrencyCountryCode(currency);
+  if (!country) return null;
+  return (
+    <CountryFlag
+      country={country}
+      size={size}
+      width={width}
+      height={height}
+      style={style}
     />
   );
 }

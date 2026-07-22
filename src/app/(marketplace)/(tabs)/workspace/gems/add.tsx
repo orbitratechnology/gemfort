@@ -25,6 +25,7 @@ import {
     GemTypePickerSheet,
     OriginPickerSheet,
     ShapePickerSheet,
+    StatusPickerSheet,
     TreatmentPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import { Spacing, Typography } from "@/constants/design-tokens";
@@ -35,6 +36,7 @@ import {
     GEM_SHAPES,
     GEM_TREATMENTS,
     GEM_TYPES,
+    MANUAL_STATUS_OPTIONS,
     findColorShade,
     formatColorLabel,
     formatGemType,
@@ -55,6 +57,7 @@ import { formatCurrency } from "@/lib/utils";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
+import type { GemStatus } from "@/types";
 
 const STEPS = ["Details", "Photos", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
@@ -67,6 +70,7 @@ type SheetKey =
   | "shape"
   | "origin"
   | "treatment"
+  | "status"
   | null;
 
 export default function AddGemScreen() {
@@ -91,6 +95,7 @@ export default function AddGemScreen() {
     currency: preferred,
   });
   const [treatment, setTreatment] = useState<GemTreatmentValue>("natural");
+  const [status, setStatus] = useState<GemStatus | "">("");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -155,6 +160,7 @@ export default function AddGemScreen() {
       clarity,
       cutType,
       shape,
+      status,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -235,6 +241,7 @@ export default function AddGemScreen() {
         shape: formatOptionLabel(GEM_SHAPES, data.shape) || data.shape,
         isNatural: data.treatment === "natural",
         treatmentStatus: data.treatment,
+        status: data.status,
         photoUrls,
       });
       toast.success("Gem added to your inventory");
@@ -460,6 +467,33 @@ export default function AddGemScreen() {
                 }
               />
             </FormSection>
+
+            <FormSection title="Status">
+              <AttributePickerField
+                label="Status"
+                valueLabel={formatOptionLabel(MANUAL_STATUS_OPTIONS, status)}
+                placeholder="Select status"
+                onPress={() => setSheet("status")}
+                error={errors.status}
+                leading={
+                  <View
+                    style={[
+                      styles.placeholderIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name={
+                        MANUAL_STATUS_OPTIONS.find((s) => s.value === status)
+                          ?.icon ?? "flag"
+                      }
+                      size={18}
+                      color={colors.onPrimaryContainer}
+                    />
+                  </View>
+                }
+              />
+            </FormSection>
           </>
         ) : null}
 
@@ -518,6 +552,10 @@ export default function AddGemScreen() {
               <ReviewRow
                 label="Treatment"
                 value={formatOptionLabel(GEM_TREATMENTS, treatment) || "—"}
+              />
+              <ReviewRow
+                label="Status"
+                value={formatOptionLabel(MANUAL_STATUS_OPTIONS, status) || "—"}
               />
               <ReviewRow
                 label="Photos"
@@ -602,6 +640,15 @@ export default function AddGemScreen() {
         onSelect={(v) => {
           setTreatment(v as GemTreatmentValue);
           clearField("treatment");
+        }}
+      />
+      <StatusPickerSheet
+        visible={sheet === "status"}
+        onClose={() => setSheet(null)}
+        value={status}
+        onSelect={(v) => {
+          setStatus(v as GemStatus);
+          clearField("status");
         }}
       />
     </SafeAreaView>

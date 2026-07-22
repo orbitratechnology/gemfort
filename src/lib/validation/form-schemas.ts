@@ -69,6 +69,25 @@ export const addGemSchema = z.object({
   clarity: z.string().min(1, 'Choose clarity'),
   cutType: z.string().min(1, 'Choose a cut'),
   shape: z.string().min(1, 'Choose a shape'),
+  status: z.enum(
+    [
+      'rough',
+      'with_cutter',
+      'cut',
+      'with_heater',
+      'heated',
+      'with_polisher',
+      'polished',
+      'certified',
+      'ready_for_sale',
+      'on_ap',
+      'on_trip',
+      'listed',
+      'sold',
+      'returned',
+    ],
+    { errorMap: () => ({ message: 'Choose a status' }) },
+  ),
 });
 
 export type AddGemForm = z.infer<typeof addGemSchema>;
