@@ -3,20 +3,21 @@ export const BASE_CURRENCY = "LKR";
 /**
  * App currency catalog. `code` is what we store on documents.
  * China uses RMB (not ISO CNY) — open.er-api still keys rates as CNY; see API_CODE_ALIASES.
+ * `countryCode` is ISO 3166-1 alpha-2 (or `eu`) for flagcdn.
  */
 export const SUPPORTED_CURRENCIES = [
-  { code: "LKR", label: "Sri Lankan Rupee", symbol: "Rs" },
-  { code: "RMB", label: "Chinese Renminbi", symbol: "¥" },
-  { code: "AUD", label: "Australian Dollar", symbol: "A$" },
-  { code: "SGD", label: "Singapore Dollar", symbol: "S$" },
-  { code: "TZS", label: "Tanzanian Shilling", symbol: "TSh" },
-  { code: "MGA", label: "Malagasy Ariary", symbol: "Ar" },
-  { code: "IDR", label: "Indonesian Rupiah", symbol: "Rp" },
-  { code: "AED", label: "UAE Dirham", symbol: "د.إ" },
-  { code: "USD", label: "US Dollar", symbol: "$" },
-  { code: "EUR", label: "Euro", symbol: "€" },
-  { code: "GBP", label: "British Pound", symbol: "£" },
-  { code: "THB", label: "Thai Baht", symbol: "฿" },
+  { code: "LKR", label: "Sri Lankan Rupee", symbol: "Rs", countryCode: "lk" },
+  { code: "RMB", label: "Chinese Renminbi", symbol: "¥", countryCode: "cn" },
+  { code: "AUD", label: "Australian Dollar", symbol: "A$", countryCode: "au" },
+  { code: "SGD", label: "Singapore Dollar", symbol: "S$", countryCode: "sg" },
+  { code: "TZS", label: "Tanzanian Shilling", symbol: "TSh", countryCode: "tz" },
+  { code: "MGA", label: "Malagasy Ariary", symbol: "Ar", countryCode: "mg" },
+  { code: "IDR", label: "Indonesian Rupiah", symbol: "Rp", countryCode: "id" },
+  { code: "AED", label: "UAE Dirham", symbol: "د.إ", countryCode: "ae" },
+  { code: "USD", label: "US Dollar", symbol: "$", countryCode: "us" },
+  { code: "EUR", label: "Euro", symbol: "€", countryCode: "eu" },
+  { code: "GBP", label: "British Pound", symbol: "£", countryCode: "gb" },
+  { code: "THB", label: "Thai Baht", symbol: "฿", countryCode: "th" },
 ] as const;
 
 export type CurrencyCode = (typeof SUPPORTED_CURRENCIES)[number]["code"];
@@ -61,6 +62,14 @@ export function getCurrencyBadge(code: string): string {
   const resolved = resolveCurrencyCode(code, BASE_CURRENCY);
   const symbol = getCurrencySymbol(resolved);
   return `${symbol} ${resolved}`;
+}
+
+/** ISO country / region code for the currency's flag (flagcdn). */
+export function getCurrencyCountryCode(code: string): string | null {
+  const resolved = resolveCurrencyCode(code, BASE_CURRENCY);
+  return (
+    SUPPORTED_CURRENCIES.find((c) => c.code === resolved)?.countryCode ?? null
+  );
 }
 
 export function isCurrencyCode(value: string): value is CurrencyCode {

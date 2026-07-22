@@ -80,7 +80,8 @@ export async function createGem(
   const existing = await fetchGems(ownerUid);
   const sku = generateSku(existing.length + 1);
   const now = Timestamp.now();
-  const status: GemStatus = input.roughWeight > 0 ? "rough" : "ready_for_sale";
+  const status: GemStatus =
+    input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
   const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
   const acquisitionCostBase = await convertToBase(
     input.acquisitionCost,

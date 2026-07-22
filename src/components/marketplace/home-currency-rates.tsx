@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { useMemo } from "react";
 import {
     ActivityIndicator,
@@ -10,10 +11,12 @@ import {
 
 import {
     BASE_CURRENCY,
+    getCurrencyCountryCode,
     getCurrencySymbol,
     type CurrencyCode,
 } from "@/constants/currencies";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { flagUrl } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useExchangeRates } from "@/hooks/use-exchange-rates";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
@@ -30,6 +33,11 @@ const HOME_RATE_CODES: CurrencyCode[] = [
   "EUR",
   "GBP",
 ];
+
+/** Flag fits text block height; 3:2 so the full flag shows with contain. */
+const CHIP_FLAG_HEIGHT =
+  Typography.labelMd.lineHeight + 2 + Typography.bodyMd.lineHeight;
+const CHIP_FLAG_WIDTH = Math.round(CHIP_FLAG_HEIGHT * (3 / 2));
 
 type HomeCurrencyRatesProps = {
   onRefreshRequest?: () => void;
@@ -105,10 +113,18 @@ export function HomeCurrencyRates({
               >
                 <View
                   style={[
-                    styles.skel,
+                    styles.flag,
                     { backgroundColor: colors.surfaceContainerHighest },
                   ]}
                 />
+                <View style={styles.chipBody}>
+                  <View
+                    style={[
+                      styles.skel,
+                      { backgroundColor: colors.surfaceContainerHighest },
+                    ]}
+                  />
+                </View>
               </View>
             ))
           : codes.map((code) => {
@@ -118,6 +134,7 @@ export function HomeCurrencyRates({
               } catch {
                 return null;
               }
+              const country = getCurrencyCountryCode(code);
               return (
                 <View
                   key={code}
@@ -129,22 +146,32 @@ export function HomeCurrencyRates({
                     },
                   ]}
                 >
-                  <Text
-                    style={[styles.chipCode, { color: colors.primary }]}
-                    selectable
-                  >
-                    1 {getCurrencySymbol(code)} {code}
-                  </Text>
-                  <Text
-                    style={[styles.chipValue, { color: colors.onSurface }]}
-                    selectable
-                  >
-                    {getCurrencySymbol(BASE_CURRENCY)}{" "}
-                    {perUnit.toLocaleString("en-LK", {
-                      maximumFractionDigits: 2,
-                      minimumFractionDigits: 2,
-                    })}
-                  </Text>
+                  {country ? (
+                    <Image
+                      source={{ uri: flagUrl(country, 80) }}
+                      style={styles.flag}
+                      contentFit="contain"
+                      accessibilityLabel={`${code} flag`}
+                    />
+                  ) : null}
+                  <View style={styles.chipBody}>
+                    <Text
+                      style={[styles.chipCode, { color: colors.primary }]}
+                      selectable
+                    >
+                      1 {getCurrencySymbol(code)} {code}
+                    </Text>
+                    <Text
+                      style={[styles.chipValue, { color: colors.onSurface }]}
+                      selectable
+                    >
+                      {getCurrencySymbol(BASE_CURRENCY)}{" "}
+                      {perUnit.toLocaleString("en-LK", {
+                        maximumFractionDigits: 2,
+                        minimumFractionDigits: 2,
+                      })}
+                    </Text>
+                  </View>
                 </View>
               );
             })}
@@ -172,13 +199,25 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.containerMargin,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingLeft: Spacing.sm,
+    paddingRight: Spacing.md,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    minWidth: 128,
+  },
+  flag: {
+    width: CHIP_FLAG_WIDTH,
+    height: CHIP_FLAG_HEIGHT,
+    borderRadius: 3,
+  },
+  chipBody: {
     gap: 2,
-    minWidth: 110,
+    justifyContent: "center",
   },
   chipCode: { ...Typography.labelMd },
   chipValue: {
@@ -186,7 +225,7 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   skel: {
-    width: 88,
+    width: 72,
     height: 28,
     borderRadius: Radius.sm,
     borderCurve: "continuous",

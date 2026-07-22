@@ -1,24 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState } from "react";
 import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 
-import { BottomSheet } from '@/components/ui/bottom-sheet';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Icon } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { CurrencyFlag } from "@/components/ui/country-flag";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
 import {
-  POPULAR_CURRENCY_CODES,
-  SUPPORTED_CURRENCIES,
-  type CurrencyCode,
-} from '@/constants/currencies';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+    POPULAR_CURRENCY_CODES,
+    SUPPORTED_CURRENCIES,
+    type CurrencyCode,
+} from "@/constants/currencies";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 type CurrencyPickerSheetProps = {
   visible: boolean;
@@ -43,16 +44,16 @@ export function CurrencyPickerSheet({
   onClose,
   value,
   onSelect,
-  title = 'Currency',
+  title = "Currency",
 }: CurrencyPickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
   const [querySession, setQuerySession] = useState(openSession);
   if (querySession !== openSession) {
     setQuerySession(openSession);
-    setQuery('');
+    setQuery("");
   }
 
   const ordered = useMemo(() => {
@@ -77,7 +78,12 @@ export function CurrencyPickerSheet({
   }, [debouncedQuery, ordered]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title} scrollable={false}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={title}
+      scrollable={false}
+    >
       <View
         style={[
           styles.searchBox,
@@ -129,33 +135,11 @@ export function CurrencyPickerSheet({
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.codeBadge,
-                  {
-                    backgroundColor: active
-                      ? colors.primary
-                      : colors.surfaceContainerHighest,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.symbolText,
-                    { color: active ? colors.onPrimary : colors.onSurface },
-                  ]}
-                >
-                  {item.symbol}
-                </Text>
-                <Text
-                  style={[
-                    styles.codeText,
-                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}
-                >
-                  {item.code}
-                </Text>
-              </View>
+              <CurrencyFlag
+                currency={item.code}
+                size="lg"
+                style={styles.flag}
+              />
               <View style={styles.rowText}>
                 <Text
                   style={[
@@ -169,11 +153,19 @@ export function CurrencyPickerSheet({
                 >
                   {item.label}
                 </Text>
-                {isPopular && !debouncedQuery ? (
-                  <Text style={[styles.popularHint, { color: colors.outline }]}>
-                    Popular
-                  </Text>
-                ) : null}
+                <Text
+                  style={[
+                    styles.rowMeta,
+                    {
+                      color: active
+                        ? colors.onPrimaryContainer
+                        : colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
+                  {item.symbol} {item.code}
+                  {isPopular && !debouncedQuery ? " · Popular" : ""}
+                </Text>
               </View>
               {active ? (
                 <Icon name="check" size={20} color={colors.primary} />
@@ -188,15 +180,14 @@ export function CurrencyPickerSheet({
 
 const styles = StyleSheet.create({
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
-    marginHorizontal: Spacing.gutterMd,
     marginBottom: Spacing.sm,
     paddingHorizontal: Spacing.md,
     minHeight: 44,
     borderRadius: Radius.lg,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
   },
   searchInput: {
     flex: 1,
@@ -204,39 +195,26 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   listContent: {
-    paddingHorizontal: Spacing.gutterMd,
     paddingBottom: Spacing.xl,
     gap: Spacing.sm,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.lg,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     borderWidth: 1,
   },
-  codeBadge: {
-    minWidth: 56,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.md,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    gap: 1,
-  },
-  symbolText: {
-    ...Typography.labelMd,
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  codeText: {
-    ...Typography.caption,
-    fontVariant: ['tabular-nums'],
+  flag: {
+    borderRadius: 3,
   },
   rowText: { flex: 1, gap: 2 },
   rowLabel: { ...Typography.bodyMd },
-  popularHint: { ...Typography.caption },
+  rowMeta: {
+    ...Typography.caption,
+    fontVariant: ["tabular-nums"],
+  },
 });

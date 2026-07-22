@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { CurrencyFlag } from "@/components/ui/country-flag";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -340,11 +341,14 @@ export default function ProfileScreen() {
               subtitle={`${preferredCurrency} · ${getCurrencyLabel(preferredCurrency)}`}
               onPress={() => setCurrencyPickerOpen(true)}
               trailing={
-                <Text
-                  style={[styles.trailingValue, { color: colors.textMuted }]}
-                >
-                  {preferredCurrency}
-                </Text>
+                <View style={styles.currencyTrailing}>
+                  <CurrencyFlag currency={preferredCurrency} size="sm" />
+                  <Text
+                    style={[styles.trailingValue, { color: colors.textMuted }]}
+                  >
+                    {preferredCurrency}
+                  </Text>
+                </View>
               }
             />
           </FormSection>
@@ -497,6 +501,11 @@ const styles = StyleSheet.create({
   rowLabel: { ...Typography.bodyLg, fontWeight: "600" },
   rowSub: { ...Typography.bodyMd, marginTop: 1 },
   trailingValue: { ...Typography.labelMd, fontWeight: "700" },
+  currencyTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 64 },
 
   segment: {

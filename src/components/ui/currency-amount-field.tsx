@@ -8,6 +8,7 @@ import {
   type TextInputProps,
 } from 'react-native';
 
+import { CurrencyFlag } from '@/components/ui/country-flag';
 import { CurrencyPickerSheet } from '@/components/ui/currency-picker-sheet';
 import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -96,6 +97,7 @@ export function CurrencyAmountField({
             },
           ]}
         >
+          <CurrencyFlag currency={currency} size="sm" />
           <Text
             style={[styles.currencyCode, { color: colors.onSurface }]}
             selectable
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
   currencyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
     alignSelf: 'stretch',
     paddingLeft: Spacing.md,
     paddingRight: Spacing.xs,
