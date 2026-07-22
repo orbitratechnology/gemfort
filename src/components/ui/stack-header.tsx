@@ -14,6 +14,8 @@ type StackHeaderProps = {
   closeIcon?: boolean;
   /** Hide the back/close button (for top-level tab roots). Defaults to true. */
   showBack?: boolean;
+  /** Override icon/title color (e.g. white over an edge-to-edge cover). */
+  tintColor?: string;
 };
 
 /** Transparent, no-elevation stack header consistent across the app. */
@@ -23,14 +25,21 @@ export function StackHeader({
   right,
   closeIcon,
   showBack = true,
+  tintColor,
 }: StackHeaderProps) {
   const { colors } = useAppTheme();
+  const fg = tintColor ?? colors.onSurface;
+  const titleColor = tintColor ?? colors.primary;
+  const chipStyle = tintColor
+    ? [styles.side, styles.sideChip]
+    : styles.side;
+
   return (
     <View style={styles.header}>
       {showBack ? (
         <Pressable
           onPress={onBack ?? (() => router.back())}
-          style={styles.side}
+          style={chipStyle}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={closeIcon ? "Close" : "Go back"}
@@ -38,13 +47,13 @@ export function StackHeader({
           <Icon
             name={closeIcon ? "close" : "arrow-back"}
             size={24}
-            color={colors.onSurface}
+            color={fg}
           />
         </Pressable>
       ) : (
         <View style={styles.side} />
       )}
-      <Text style={[styles.title, { color: colors.primary }]} numberOfLines={1}>
+      <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>
         {title}
       </Text>
       <View style={[styles.side, styles.right]}>{right}</View>
@@ -65,6 +74,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sideChip: {
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
   right: {
     flexDirection: "row",

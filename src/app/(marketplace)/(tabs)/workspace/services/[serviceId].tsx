@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00162C',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 15 },
     shadowOpacity: 0.02,
     shadowRadius: 15,

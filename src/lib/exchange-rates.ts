@@ -1,4 +1,8 @@
-import { BASE_CURRENCY, SUPPORTED_CURRENCIES } from '@/constants/currencies';
+import {
+  BASE_CURRENCY,
+  SUPPORTED_CURRENCIES,
+  getApiCurrencyCode,
+} from '@/constants/currencies';
 
 export type ExchangeRatesSnapshot = {
   /** Foreign units per 1 LKR (API shape). LKR is always 1. */
@@ -22,10 +26,15 @@ const QUOTE_CODES = SUPPORTED_CURRENCIES.map((c) => c.code).filter(
 function normalizeRates(raw: Record<string, number>): Record<string, number> {
   const rates: Record<string, number> = { [BASE_CURRENCY]: 1 };
   for (const code of QUOTE_CODES) {
-    const value = raw[code];
+    const apiKey = getApiCurrencyCode(code);
+    const value = raw[code] ?? raw[apiKey];
     if (typeof value === 'number' && value > 0) {
       rates[code] = value;
     }
+  }
+  // Legacy CNY docs / cache → RMB
+  if (!rates.RMB && typeof raw.CNY === 'number' && raw.CNY > 0) {
+    rates.RMB = raw.CNY;
   }
   return rates;
 }
@@ -108,7 +117,9 @@ export function lkrPerUnit(
   base = BASE_CURRENCY,
 ): number {
   if (currency === base) return 1;
-  const foreignPerBase = rates[currency];
+  const code =
+    currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
+  const foreignPerBase = rates[code] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
     throw new Error(`Missing exchange rate for ${currency}.`);
   }
@@ -153,7 +164,9 @@ export function convertFromBaseSync(
   base = BASE_CURRENCY,
 ): number {
   if (currency === base) return amountBase;
-  const foreignPerBase = rates[currency];
+  const code =
+    currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
+  const foreignPerBase = rates[code] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
     throw new Error(`Missing exchange rate for ${currency}.`);
   }

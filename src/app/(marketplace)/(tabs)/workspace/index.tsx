@@ -788,8 +788,8 @@ export default function WorkspaceHub() {
                           : colors.surfaceContainerLowest,
                         transform: [{ scale: pressed ? 0.985 : 1 }],
                         boxShadow: pressed
-                          ? "0 1px 4px rgba(15, 118, 110, 0.04)"
-                          : "0 2px 12px rgba(15, 118, 110, 0.06)",
+                          ? "0 1px 4px rgba(0, 0, 0, 0.04)"
+                          : "0 2px 12px rgba(0, 0, 0, 0.06)",
                       },
                     ]}
                   >
@@ -1262,7 +1262,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   headerTripWrap: {
     paddingHorizontal: Spacing.containerMargin,
@@ -1341,7 +1341,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     paddingVertical: 14,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   actionItem: {
     flex: 1,
@@ -1370,7 +1370,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   alertIcon: {
     width: 40,
@@ -1394,7 +1394,7 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     padding: 16,
     gap: 10,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   overviewHeader: {
     flexDirection: "row",
@@ -1425,7 +1425,7 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     padding: 14,
     gap: 4,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   miniIcon: {
     width: 28,

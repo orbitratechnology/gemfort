@@ -22,8 +22,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   platforms: ["ios", "android"],
   orientation: "portrait",
   icon: "./assets/images/icon.png",
-  primaryColor: "#14b8a6",
-  backgroundColor: "#001618",
+  primaryColor: "#171717",
+  backgroundColor: "#000000",
   scheme: "gemfort",
   userInterfaceStyle: "automatic",
   buildCacheProvider: "eas",
@@ -50,8 +50,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: bundleId,
     adaptiveIcon: {
-      // Brand plate #001618 — matches opaque icon / splash
-      backgroundColor: "#001618",
+      // Brand plate #000000 — matches opaque icon / splash
+      backgroundColor: "#000000",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -96,12 +96,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           activationRule: {
             supportsImageWithMaxCount: 10,
             supportsFileWithMaxCount: 5,
-            supportsText: false,
+            supportsText: true,
+            supportsWebUrlWithMaxCount: 3,
           },
         },
         android: {
           enabled: true,
-          singleShareMimeTypes: ["image/*", "application/pdf"],
+          singleShareMimeTypes: ["image/*", "application/pdf", "text/plain", "text/*"],
           multipleShareMimeTypes: ["image/*"],
         },
       },
@@ -133,12 +134,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#001618",
+        backgroundColor: "#000000",
         image: "./assets/images/splash-icon.png",
         imageWidth: 200,
         resizeMode: "contain",
         dark: {
-          backgroundColor: "#001618",
+          backgroundColor: "#000000",
           image: "./assets/images/splash-icon.png",
         },
       },
@@ -148,7 +149,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         // Android status-bar small icon must be white alpha silhouette
         icon: "./assets/images/notification-icon.png",
-        color: "#14b8a6",
+        color: "#171717",
         defaultChannel: "default",
       },
     ],

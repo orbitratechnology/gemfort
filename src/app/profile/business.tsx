@@ -289,7 +289,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           onPress={() => void pickCover()}
           style={({ pressed }) => pressed && { opacity: 0.92 }}
         >
-          <CoverBanner uri={coverUri} height={BANNER_H}>
+          <CoverBanner
+            uri={coverUri}
+            height={BANNER_H}
+          >
             <View
               style={[
                 styles.bannerEdit,
@@ -562,7 +565,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="WeChat ID"
-          helperText="Visitors can copy your ID from the public profile"
         />
       </FormSection>
 

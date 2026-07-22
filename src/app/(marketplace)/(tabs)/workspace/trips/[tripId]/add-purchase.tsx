@@ -78,12 +78,6 @@ export default function AddTripPurchaseScreen() {
       <StackHeader title="Buy Gem on Trip" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Quick-add a rough purchase at the mine or market. Overhead can be distributed later.
-        </Text>
-        </ScreenInset>
-
         <FormSection title="Gem type" padded={false}>
           <View style={styles.typeGrid}>
             {GEM_TYPES.map((t) => {
@@ -146,7 +140,6 @@ export default function AddTripPurchaseScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingBottom: Spacing.section, gap: Spacing.lg },
-  subtitle: { ...Typography.bodyMd },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

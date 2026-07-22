@@ -23,18 +23,23 @@ export function GemThumb({
 
   if (uri) {
     return (
-      <Image
-        source={{ uri }}
+      <View
         style={{
           width: size,
           height: size,
           borderRadius: radius,
           borderCurve: "continuous",
+          overflow: "hidden",
         }}
-        contentFit="cover"
-        recyclingKey={uri}
-        accessibilityLabel={`${label} photo`}
-      />
+      >
+        <Image
+          source={{ uri }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          recyclingKey={uri}
+          accessibilityLabel={`${label} photo`}
+        />
+      </View>
     );
   }
 

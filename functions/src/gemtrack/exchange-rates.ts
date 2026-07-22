@@ -8,16 +8,20 @@ import { REGION } from '../config';
 const BASE_CURRENCY = 'LKR';
 const OPEN_ER_API = `https://open.er-api.com/v6/latest/${BASE_CURRENCY}`;
 
-const QUOTE_CODES = [
-  'USD',
-  'EUR',
-  'GBP',
-  'THB',
-  'AED',
-  'CNY',
-  'AUD',
-  'SGD',
-] as const;
+/** App quote codes → open.er-api ISO keys when they differ. */
+const QUOTE_CODES: { code: string; api: string }[] = [
+  { code: 'USD', api: 'USD' },
+  { code: 'EUR', api: 'EUR' },
+  { code: 'GBP', api: 'GBP' },
+  { code: 'THB', api: 'THB' },
+  { code: 'AED', api: 'AED' },
+  { code: 'RMB', api: 'CNY' },
+  { code: 'AUD', api: 'AUD' },
+  { code: 'SGD', api: 'SGD' },
+  { code: 'TZS', api: 'TZS' },
+  { code: 'MGA', api: 'MGA' },
+  { code: 'IDR', api: 'IDR' },
+];
 
 export type ServerRates = Record<string, number>;
 
@@ -40,8 +44,8 @@ export async function fetchOpenErRates(): Promise<{
   }
 
   const rates: ServerRates = { [BASE_CURRENCY]: 1 };
-  for (const code of QUOTE_CODES) {
-    const value = data.rates[code];
+  for (const { code, api } of QUOTE_CODES) {
+    const value = data.rates[api] ?? data.rates[code];
     if (typeof value === 'number' && value > 0) rates[code] = value;
   }
 
@@ -58,7 +62,8 @@ export function convertToBaseServer(
   base = BASE_CURRENCY,
 ): number {
   if (currency === base) return amount;
-  const foreignPerBase = rates[currency];
+  const normalized = currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
+  const foreignPerBase = rates[normalized] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
     throw new Error(`Missing exchange rate for ${currency}`);
   }
@@ -79,7 +84,11 @@ export async function loadServerRates(): Promise<ServerRates> {
       ? Date.now() - data.updatedAt.toMillis()
       : Number.POSITIVE_INFINITY;
     if (data.base === BASE_CURRENCY && data.rates && ageMs < 24 * 60 * 60 * 1000) {
-      return { [BASE_CURRENCY]: 1, ...data.rates };
+      const rates: ServerRates = { [BASE_CURRENCY]: 1, ...data.rates };
+      if (!rates.RMB && typeof data.rates.CNY === 'number') {
+        rates.RMB = data.rates.CNY;
+      }
+      return rates;
     }
   }
 

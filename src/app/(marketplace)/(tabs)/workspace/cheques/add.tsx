@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -11,7 +11,7 @@ import {
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -42,6 +42,7 @@ import {
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -51,13 +52,11 @@ const DIRECTIONS = [
   {
     value: "received" as const,
     label: "Received",
-    subtitle: "Payment coming to you",
     icon: "call-received" as const,
   },
   {
     value: "given" as const,
     label: "Given",
-    subtitle: "Cheque you issued",
     icon: "call-made" as const,
   },
 ];
@@ -86,6 +85,10 @@ export default function AddChequeScreen() {
     confirmApSent?: string;
     /** After save: confirm AP payment received (owner) */
     confirmApReceived?: string;
+    /** Inbound share: local image URI for cheque photo */
+    sharedImageUri?: string;
+    /** Inbound share: notes / OCR text */
+    notes?: string;
   }>();
 
   const paramAmount = firstParam(raw.amount);
@@ -97,6 +100,8 @@ export default function AddChequeScreen() {
   const settleAmount = firstParam(raw.settleAmount);
   const confirmApSent = firstParam(raw.confirmApSent) === "1";
   const confirmApReceived = firstParam(raw.confirmApReceived) === "1";
+  const sharedImageUri = firstParam(raw.sharedImageUri);
+  const sharedNotes = decodeShareParam(raw.notes);
 
   const initialDirection: ChequeDirection =
     paramDirection === "given" || paramDirection === "received"
@@ -114,12 +119,24 @@ export default function AddChequeScreen() {
   const [contactId, setContactId] = useState(paramContactId);
   const [issuedBy, setIssuedBy] = useState("");
   const [maturityDays, setMaturityDays] = useState("30");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(sharedNotes);
   const [photo, setPhoto] = useState<LocalMedia | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+  const [didApplySharedPhoto, setDidApplySharedPhoto] = useState(false);
+
+  useEffect(() => {
+    if (didApplySharedPhoto || !sharedImageUri) return;
+    setPhoto({
+      uri: sharedImageUri,
+      kind: "image",
+      mimeType: "image/jpeg",
+      fileName: "shared-cheque.jpg",
+    });
+    setDidApplySharedPhoto(true);
+  }, [sharedImageUri, didApplySharedPhoto]);
 
   const selectedBank = useMemo(
     () => getBankByCode(bankCode) ?? null,
@@ -294,18 +311,6 @@ export default function AddChequeScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <ScreenInset>
-          <Text style={[styles.lead, { color: colors.textMuted }]}>
-            {paramBillId
-              ? "Cheque linked to this bill — saving records the payment."
-              : confirmApReceived
-                ? "Cheque linked to this AP — saving confirms payment received."
-                : confirmApSent
-                  ? "Cheque linked to this AP — saving marks payment sent."
-                  : "Track post-dated cheques and maturity dates."}
-          </Text>
-        </ScreenInset>
-
         <FormSection title="Direction">
           <ChipSelect
             layout="split"
@@ -398,16 +403,12 @@ export default function AddChequeScreen() {
           />
         </FormSection>
 
-        <FormSection
-          title="Cheque photo"
-          hint="Optional. Upload happens when you save."
-        >
+        <FormSection title="Cheque photo">
           <MediaField
             variant="row"
             value={photo}
             onChange={setPhoto}
             emptyTitle="Add cheque photo"
-            emptySubtitle="Kept on device until you save"
           />
         </FormSection>
 
@@ -475,7 +476,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
-  lead: { ...Typography.bodyMd, lineHeight: 22 },
   hint: { ...Typography.bodySmall, marginTop: -4 },
   notes: { minHeight: 72, textAlignVertical: "top", paddingTop: 12 },
 });

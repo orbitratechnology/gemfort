@@ -382,13 +382,6 @@ export default function BillDetailScreen() {
                     onChange={setPayMethod}
                     layout="split"
                   />
-                  {commissionOnFace > 0 ? (
-                    <Text style={[styles.hint, { color: colors.textMuted }]}>
-                      {isPayable
-                        ? `On payment: net outflow + your ${bill.commissionPercent}% commission`
-                        : `On payment: net inflow after ${bill.commissionPercent}% for ${contactName}`}
-                    </Text>
-                  ) : null}
                   <Button
                     title={
                       payMethod === "cheque"
@@ -512,5 +505,4 @@ const styles = StyleSheet.create({
   payForm: { gap: Spacing.sm },
   payActions: { flexDirection: "row", gap: Spacing.sm },
   flex1: { flex: 1 },
-  hint: { ...Typography.caption },
 });

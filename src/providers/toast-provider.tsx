@@ -42,7 +42,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     paddingVertical: Spacing.md,
     boxShadow: isDark
       ? "0 8px 28px rgba(0, 0, 0, 0.45)"
-      : "0 8px 28px rgba(0, 22, 44, 0.12)",
+      : "0 8px 28px rgba(0, 0, 0, 0.12)",
   };
 
   return (

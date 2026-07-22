@@ -20,10 +20,10 @@ import { parseForm, registerSchema } from '@/lib/validation/form-schemas';
 import { useToast } from '@/providers/toast-provider';
 import type { UserRole } from '@/types';
 
-const ROLES: { value: UserRole; label: string; subtitle: string }[] = [
-  { value: 'trader', label: 'Trader', subtitle: 'Buy and sell gemstones' },
-  { value: 'lapidary', label: 'Lapidary', subtitle: 'Cutting, heating, polishing & more' },
-  { value: 'gem_lab', label: 'Gem Lab', subtitle: 'Issue and verify certificates' },
+const ROLES: { value: UserRole; label: string }[] = [
+  { value: 'trader', label: 'Trader' },
+  { value: 'lapidary', label: 'Lapidary' },
+  { value: 'gem_lab', label: 'Gem Lab' },
 ];
 
 export default function RegisterScreen() {

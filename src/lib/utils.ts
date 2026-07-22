@@ -8,6 +8,8 @@ import {
   startOfDay,
 } from 'date-fns';
 
+import { getCurrencySymbol, resolveCurrencyCode } from '@/constants/currencies';
+
 export function generateSku(sequence: number): string {
   const year = new Date().getFullYear();
   return `GF-${year}-${String(sequence).padStart(5, '0')}`;
@@ -17,8 +19,15 @@ export function generateListingSlug(sequence: number): string {
   return `GF-L-${String(sequence).padStart(5, '0')}`;
 }
 
+/** Face amount with currency symbol, e.g. "Rs 1,250.00" / "¥ 90.00". */
 export function formatCurrency(amount: number, currency = 'LKR'): string {
-  return `${currency} ${amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const code = resolveCurrencyCode(currency);
+  const symbol = getCurrencySymbol(code);
+  const formatted = amount.toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${symbol} ${formatted}`;
 }
 
 /** Resolve Firestore Timestamp / Date to a JS Date. */
