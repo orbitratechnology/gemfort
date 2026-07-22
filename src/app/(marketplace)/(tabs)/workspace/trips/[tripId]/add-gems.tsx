@@ -101,12 +101,6 @@ export default function AddGemsToTripScreen() {
       <StackHeader title="Add Gems to Parcel" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Select inventory gems to take on your selling trip. They will be marked as on trip.
-        </Text>
-        </ScreenInset>
-
         {available.length === 0 ? (
           <FormSection>
           <View style={styles.empty}>
@@ -167,7 +161,6 @@ export default function AddGemsToTripScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingBottom: Spacing.section, gap: Spacing.md },
-  subtitle: { ...Typography.bodyMd, marginBottom: Spacing.sm },
   empty: {
     alignItems: 'center',
     gap: Spacing.sm,

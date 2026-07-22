@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   slideShell: {
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
-    boxShadow: '0 10px 28px rgba(15, 118, 110, 0.22)',
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.14)',
   },
   slide: {
     height: BANNER_HEIGHT,

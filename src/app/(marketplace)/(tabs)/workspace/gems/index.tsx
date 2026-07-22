@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 8px 20px rgba(15, 118, 110, 0.28)',
+    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.28)',
     zIndex: 100,
   },
 });

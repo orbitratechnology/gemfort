@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useCallback } from "react";
 import {
     Linking,
@@ -10,7 +11,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
@@ -102,6 +103,7 @@ function Row({
 export default function ProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const { data: business } = useQuery({
     queryKey: ["my-business", user?.uid],
@@ -141,17 +143,19 @@ export default function ProfileScreen() {
   const avatarUri = business?.logoUrl ?? null;
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={coverUri ? "light" : "auto"} />
       <ScrollView
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
-        {/* Edge-to-edge cover + identity */}
+        {/* Edge-to-edge cover under the status bar */}
         <View style={styles.hero}>
-          <CoverBanner uri={coverUri} height={COVER_BANNER_HEIGHT} />
+          <CoverBanner
+            uri={coverUri}
+            height={COVER_BANNER_HEIGHT + insets.top}
+          />
           <View style={styles.identity}>
             <View style={styles.avatarWrap}>
               <View
@@ -351,7 +355,7 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

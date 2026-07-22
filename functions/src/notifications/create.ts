@@ -67,7 +67,28 @@ export async function createNotificationsBatch(inputs: NotificationInput[]): Pro
 }
 
 export function formatCurrency(amount: number, currency = 'LKR'): string {
-  return `${currency} ${amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const symbols: Record<string, string> = {
+    LKR: 'Rs',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    THB: '฿',
+    AED: 'د.إ',
+    RMB: '¥',
+    CNY: '¥',
+    AUD: 'A$',
+    SGD: 'S$',
+    TZS: 'TSh',
+    MGA: 'Ar',
+    IDR: 'Rp',
+  };
+  const code = currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
+  const symbol = symbols[code] ?? symbols[currency] ?? currency;
+  const formatted = amount.toLocaleString('en-LK', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${symbol} ${formatted}`;
 }
 
 export function toDate(value: Timestamp | Date | null | undefined): Date | null {

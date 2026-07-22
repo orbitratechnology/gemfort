@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,24 +21,48 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
+import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
+import { decodeShareParam } from '@/lib/incoming-share';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+
+function firstParam(v: string | string[] | undefined): string {
+  if (Array.isArray(v)) return v[0] ?? '';
+  return v ?? '';
+}
 
 export default function AddContactScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
-  const [displayName, setDisplayName] = useState('');
+  const raw = useLocalSearchParams<{
+    displayName?: string;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    sharedPhotoUri?: string;
+  }>();
+
+  const [displayName, setDisplayName] = useState(decodeShareParam(raw.displayName));
   const [companyName, setCompanyName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(firstParam(raw.phone));
+  const [whatsapp, setWhatsapp] = useState(firstParam(raw.phone));
+  const [email, setEmail] = useState(decodeShareParam(raw.email));
   const [contactTypes, setContactTypes] = useState<string[]>(['broker']);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(decodeShareParam(raw.notes));
   const [deviceContactId, setDeviceContactId] = useState<string | null>(null);
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [didApplySharedPhoto, setDidApplySharedPhoto] = useState(false);
+
+  const sharedPhotoUri = firstParam(raw.sharedPhotoUri);
+
+  useEffect(() => {
+    if (didApplySharedPhoto || !sharedPhotoUri) return;
+    setLocalPhotoUri(sharedPhotoUri);
+    setDidApplySharedPhoto(true);
+  }, [sharedPhotoUri, didApplySharedPhoto]);
 
   function toggleType(t: string) {
     setContactTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -131,6 +155,16 @@ export default function AddContactScreen() {
         linkedBusinessName: null,
         linkedBusinessType: null,
       });
+      if (localPhotoUri) {
+        const ext =
+          localPhotoUri.split('?')[0]?.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const safeExt = ext.length <= 5 ? ext : 'jpg';
+        const photoUrl = await uploadBlobToStorage(
+          localPhotoUri,
+          `users/${user.uid}/contacts/${id}.${safeExt}`,
+        );
+        await updateContact(id, { photoUrl });
+      }
       toast.success('Contact added');
       router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
@@ -162,9 +196,6 @@ export default function AddContactScreen() {
           </View>
           <View style={styles.phoneBody}>
             <Text style={[styles.phoneTitle, { color: colors.onSurface }]}>Pick from phone</Text>
-            <Text style={[styles.phoneSub, { color: colors.textMuted }]}>
-              Uses the system contact picker · includes photo
-            </Text>
           </View>
           <Icon name="chevron-right" size={22} color={colors.onSurfaceVariant} />
         </Pressable>
@@ -258,7 +289,6 @@ const styles = StyleSheet.create({
   },
   phoneBody: { flex: 1, minWidth: 0, gap: 2 },
   phoneTitle: { ...Typography.labelMd, fontWeight: '700' },
-  phoneSub: { ...Typography.caption },
   prefillLink: { ...Typography.labelMd, fontWeight: '600', textAlign: 'center' },
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   linked: { ...Typography.caption },

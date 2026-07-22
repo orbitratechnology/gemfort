@@ -174,10 +174,6 @@ export default function RecordSaleScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <ScreenInset style={styles.stack}>
-          <Text style={[styles.lead, { color: colors.textMuted }]}>
-            Log the sale price and update inventory.
-          </Text>
-
           <GemSelectField
             label="Stone"
             gem={gem}
@@ -330,7 +326,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   stack: { gap: Spacing.md },
-  lead: { ...Typography.bodyMd, lineHeight: 22 },
   gemMeta: { ...Typography.bodySmall },
   projection: {
     borderRadius: Radius.xl,

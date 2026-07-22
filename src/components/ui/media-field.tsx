@@ -53,7 +53,7 @@ export function MediaField({
   allows = 'images',
   error,
   emptyTitle,
-  emptySubtitle = 'Stored on device until you save',
+  emptySubtitle,
   variant = 'card',
 }: MediaFieldProps) {
   const { colors } = useAppTheme();
@@ -215,14 +215,16 @@ export function MediaField({
               ]}>
               {title}
             </Text>
-            <Text
-              style={[
-                styles.emptySub,
-                variant === 'row' && styles.emptySubRow,
-                { color: colors.textMuted },
-              ]}>
-              {emptySubtitle}
-            </Text>
+            {emptySubtitle ? (
+              <Text
+                style={[
+                  styles.emptySub,
+                  variant === 'row' && styles.emptySubRow,
+                  { color: colors.textMuted },
+                ]}>
+                {emptySubtitle}
+              </Text>
+            ) : null}
           </View>
           {variant === 'row' ? <Icon name="chevron-right" size={20} color={colors.outline} /> : null}
         </Pressable>

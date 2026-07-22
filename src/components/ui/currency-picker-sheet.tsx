@@ -141,8 +141,16 @@ export function CurrencyPickerSheet({
               >
                 <Text
                   style={[
-                    styles.codeText,
+                    styles.symbolText,
                     { color: active ? colors.onPrimary : colors.onSurface },
+                  ]}
+                >
+                  {item.symbol}
+                </Text>
+                <Text
+                  style={[
+                    styles.codeText,
+                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
                   ]}
                 >
                   {item.code}
@@ -169,11 +177,7 @@ export function CurrencyPickerSheet({
               </View>
               {active ? (
                 <Icon name="check" size={20} color={colors.primary} />
-              ) : (
-                <Text style={[styles.symbol, { color: colors.outline }]}>
-                  {item.symbol}
-                </Text>
-              )}
+              ) : null}
             </Pressable>
           );
         }}
@@ -215,19 +219,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   codeBadge: {
-    minWidth: 52,
+    minWidth: 56,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     borderRadius: Radius.md,
     borderCurve: 'continuous',
     alignItems: 'center',
+    gap: 1,
+  },
+  symbolText: {
+    ...Typography.labelMd,
+    fontSize: 16,
+    lineHeight: 20,
   },
   codeText: {
-    ...Typography.labelMd,
+    ...Typography.caption,
     fontVariant: ['tabular-nums'],
   },
   rowText: { flex: 1, gap: 2 },
   rowLabel: { ...Typography.bodyMd },
-  popularHint: { ...Typography.labelSm },
-  symbol: { ...Typography.labelMd },
+  popularHint: { ...Typography.caption },
 });

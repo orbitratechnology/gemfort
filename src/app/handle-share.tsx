@@ -11,17 +11,31 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Icon } from '@/components/ui/icon';
+import { Icon, type IconName } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
+import {
+  collectFileUris,
+  collectImageUris,
+  collectShareTexts,
+  encodeShareParam,
+  parseSharedText,
+} from '@/lib/incoming-share';
 import { useAuth } from '@/providers/auth-provider';
+
+type Destination = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: IconName;
+  enabled: boolean;
+  onPress: () => void;
+};
 
 /**
  * Handles content shared *into* GemFort (Photos, Files, WhatsApp, etc.).
@@ -38,63 +52,152 @@ export default function HandleShareScreen() {
     clearSharedPayloads,
   } = useIncomingShare();
 
-  const { data: gems = [] } = useQuery({
-    queryKey: ['gems', user?.uid],
-    queryFn: () => fetchGems(user!.uid),
-    enabled: !!user,
-  });
-
-  const images = useMemo(
-    () =>
-      resolvedSharedPayloads.filter(
-        (p) => p.contentType === 'image' && p.contentUri,
-      ),
+  const imageUris = useMemo(
+    () => collectImageUris(resolvedSharedPayloads),
     [resolvedSharedPayloads],
   );
-
   const files = useMemo(
-    () =>
-      resolvedSharedPayloads.filter(
-        (p) =>
-          (p.contentType === 'file' || p.contentMimeType?.includes('pdf')) &&
-          p.contentUri,
-      ),
+    () => collectFileUris(resolvedSharedPayloads),
     [resolvedSharedPayloads],
   );
+  const shareText = useMemo(
+    () => collectShareTexts(resolvedSharedPayloads, sharedPayloads),
+    [resolvedSharedPayloads, sharedPayloads],
+  );
+  const parsed = useMemo(() => parseSharedText(shareText), [shareText]);
 
-  const imageUris = images
-    .map((p) => p.contentUri)
-    .filter((uri): uri is string => !!uri);
+  const hasImages = imageUris.length > 0;
+  const hasFiles = files.length > 0;
+  const hasText = shareText.length > 0;
+  const hasContent = hasImages || hasFiles || hasText || sharedPayloads.length > 0;
 
   function finishAndClear() {
     clearSharedPayloads();
-    haptics.light();
+    haptics.selection();
   }
 
-  function goAddGem() {
+  function go(href: Href) {
     finishAndClear();
-    // Prefill via params when add-gem supports shared URIs; navigate for now.
-    router.replace({
-      pathname: '/(marketplace)/(tabs)/workspace/gems/add',
-      params: imageUris.length
-        ? { sharedImageUris: JSON.stringify(imageUris) }
-        : undefined,
-    } as Href);
+    router.replace(href);
   }
 
-  function goGem(gemId: string) {
-    finishAndClear();
-    router.replace(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as Href);
+  function gemParams() {
+    return imageUris.length
+      ? { sharedImageUris: JSON.stringify(imageUris) }
+      : undefined;
   }
+
+  function chequeParams() {
+    const params: Record<string, string> = {};
+    if (imageUris[0]) params.sharedImageUri = imageUris[0];
+    if (parsed.amount) params.amount = parsed.amount;
+    if (shareText) params.notes = encodeShareParam(shareText.slice(0, 500));
+    return Object.keys(params).length ? params : undefined;
+  }
+
+  function billParams() {
+    const params: Record<string, string> = {};
+    if (parsed.amount) params.amount = parsed.amount;
+    const noteParts = [
+      shareText.slice(0, 400),
+      hasImages ? `(${imageUris.length} shared photo${imageUris.length > 1 ? 's' : ''})` : '',
+      hasFiles ? files.map((f) => f.name ?? 'file').join(', ') : '',
+    ].filter(Boolean);
+    if (noteParts.length) params.notes = encodeShareParam(noteParts.join('\n'));
+    return Object.keys(params).length ? params : undefined;
+  }
+
+  function contactParams() {
+    const params: Record<string, string> = {};
+    if (parsed.displayName) params.displayName = encodeShareParam(parsed.displayName);
+    if (parsed.phone) params.phone = parsed.phone;
+    if (parsed.email) params.email = encodeShareParam(parsed.email);
+    if (shareText && !parsed.phone && !parsed.email) {
+      params.notes = encodeShareParam(shareText.slice(0, 500));
+    } else if (shareText && (parsed.phone || parsed.email)) {
+      // Keep leftover text as notes without duplicating phone/email lines heavily
+      params.notes = encodeShareParam(shareText.slice(0, 300));
+    }
+    if (imageUris[0]) params.sharedPhotoUri = imageUris[0];
+    return Object.keys(params).length ? params : undefined;
+  }
+
+  const destinations: Destination[] = [
+    {
+      id: 'gem',
+      title: 'Add gem',
+      subtitle: hasImages
+        ? `Use ${imageUris.length} photo${imageUris.length > 1 ? 's' : ''} in the album`
+        : 'Needs a shared photo',
+      icon: 'diamond',
+      enabled: !!user && hasImages,
+      onPress: () =>
+        go({
+          pathname: '/(marketplace)/(tabs)/workspace/gems/add',
+          params: gemParams(),
+        } as Href),
+    },
+    {
+      id: 'cheque',
+      title: 'Add cheque',
+      subtitle: hasImages
+        ? 'Attach shared photo of the cheque'
+        : parsed.amount
+          ? `Pre-fill amount ${parsed.amount}`
+          : hasText
+            ? 'Pre-fill notes from shared text'
+            : 'Share a cheque photo or amount',
+      icon: 'money-check-dollar',
+      enabled: !!user && (hasImages || hasText),
+      onPress: () =>
+        go({
+          pathname: '/(marketplace)/(tabs)/workspace/cheques/add',
+          params: chequeParams(),
+        } as Href),
+    },
+    {
+      id: 'bill',
+      title: 'Add bill',
+      subtitle: parsed.amount
+        ? `Pre-fill amount ${parsed.amount}`
+        : hasText || hasImages || hasFiles
+          ? 'Pre-fill notes from shared content'
+          : 'Share text with an amount or invoice details',
+      icon: 'receipt-long',
+      enabled: !!user && (hasText || hasImages || hasFiles),
+      onPress: () =>
+        go({
+          pathname: '/(marketplace)/(tabs)/workspace/bills/add',
+          params: billParams(),
+        } as Href),
+    },
+    {
+      id: 'contact',
+      title: 'Add contact',
+      subtitle: parsed.phone
+        ? `Phone ${parsed.phone}`
+        : parsed.displayName
+          ? parsed.displayName
+          : hasImages
+            ? 'Use shared photo as avatar'
+            : hasText
+              ? 'Pre-fill from shared text'
+              : 'Share a number, name, or photo',
+      icon: 'person-add',
+      enabled: !!user && (hasText || hasImages),
+      onPress: () =>
+        go({
+          pathname: '/(marketplace)/(tabs)/workspace/contacts/add',
+          params: contactParams(),
+        } as Href),
+    },
+  ];
 
   function dismiss() {
     finishAndClear();
     if (router.canGoBack()) router.back();
     else router.replace('/(marketplace)/(tabs)/workspace' as Href);
   }
-
-  const hasContent =
-    resolvedSharedPayloads.length > 0 || sharedPayloads.length > 0;
 
   return (
     <SafeAreaView
@@ -123,7 +226,7 @@ export default function HandleShareScreen() {
           <EmptyState
             icon="share"
             title="Nothing shared"
-            subtitle="Share photos or PDFs to GemFort from Photos, Files, or another app."
+            subtitle="Share photos, PDFs, or text to GemFort from Photos, Files, WhatsApp, or another app."
           />
           <Button title="Close" variant="secondary" onPress={dismiss} />
         </View>
@@ -131,19 +234,38 @@ export default function HandleShareScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           contentInsetAdjustmentBehavior="automatic">
-          {images.length > 0 ? (
+          {!user ? (
+            <View
+              style={[
+                styles.banner,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}>
+              <Text style={[styles.bannerText, { color: colors.onSurface }]} selectable>
+                Sign in to save shared content into your workspace.
+              </Text>
+              <Button
+                title="Sign in"
+                onPress={() => {
+                  finishAndClear();
+                  router.replace('/(auth)/login' as Href);
+                }}
+              />
+            </View>
+          ) : null}
+
+          {hasImages ? (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                Photos ({images.length})
+                Photos ({imageUris.length})
               </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.thumbs}>
-                {images.map((payload, index) => (
+                {imageUris.map((uri, index) => (
                   <Image
-                    key={`${payload.contentUri}-${index}`}
-                    source={{ uri: payload.contentUri! }}
+                    key={`${uri}-${index}`}
+                    source={{ uri }}
                     style={[
                       styles.thumb,
                       { backgroundColor: colors.surfaceContainerHigh },
@@ -152,22 +274,17 @@ export default function HandleShareScreen() {
                   />
                 ))}
               </ScrollView>
-              <Button
-                title="Add as new gem"
-                icon="diamond"
-                onPress={goAddGem}
-              />
             </View>
           ) : null}
 
-          {files.length > 0 ? (
+          {hasFiles ? (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
                 Documents ({files.length})
               </Text>
-              {files.map((payload, index) => (
+              {files.map((file, index) => (
                 <View
-                  key={`${payload.contentUri}-${index}`}
+                  key={`${file.uri}-${index}`}
                   style={[
                     styles.fileRow,
                     { backgroundColor: colors.surfaceContainerLow },
@@ -177,50 +294,81 @@ export default function HandleShareScreen() {
                     style={[styles.fileName, { color: colors.onSurface }]}
                     numberOfLines={2}
                     selectable>
-                    {payload.originalName ?? 'Shared file'}
+                    {file.name ?? 'Shared file'}
                   </Text>
                 </View>
               ))}
-              <Text style={[styles.hint, { color: colors.textMuted }]}>
-                Open a gem to attach certificates after sharing, or add a new gem
-                first.
-              </Text>
             </View>
           ) : null}
 
-          {user && gems.length > 0 && (images.length > 0 || files.length > 0) ? (
+          {hasText ? (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-                Attach to existing gem
+                Text
               </Text>
-              {gems.slice(0, 12).map((gem) => (
-                <Pressable
-                  key={gem.id}
-                  onPress={() => goGem(gem.id)}
-                  style={({ pressed }) => [
-                    styles.gemRow,
-                    {
-                      backgroundColor: colors.surfaceContainerLow,
-                      opacity: pressed ? 0.9 : 1,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open gem ${gem.sku}`}>
-                  <Text style={[styles.gemSku, { color: colors.onSurface }]}>
-                    {gem.sku}
-                  </Text>
-                  <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
-                    {gem.currentWeight} ct
-                  </Text>
-                  <Icon
-                    name="chevron-right"
-                    size={20}
-                    color={colors.onSurfaceVariant}
-                  />
-                </Pressable>
-              ))}
+              <View
+                style={[
+                  styles.textPreview,
+                  { backgroundColor: colors.surfaceContainerLow },
+                ]}>
+                <Text
+                  style={[styles.textBody, { color: colors.onSurface }]}
+                  selectable
+                  numberOfLines={6}>
+                  {shareText}
+                </Text>
+              </View>
             </View>
           ) : null}
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+              What do you want to create?
+            </Text>
+            {destinations.map((dest) => (
+              <Pressable
+                key={dest.id}
+                disabled={!dest.enabled}
+                onPress={dest.onPress}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !dest.enabled }}
+                accessibilityLabel={dest.title}
+                style={({ pressed }) => [
+                  styles.destRow,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    opacity: !dest.enabled ? 0.45 : pressed ? 0.9 : 1,
+                  },
+                ]}>
+                <View
+                  style={[
+                    styles.destIcon,
+                    { backgroundColor: colors.primaryContainer },
+                  ]}>
+                  <Icon
+                    name={dest.icon}
+                    size={22}
+                    color={colors.onPrimaryContainer}
+                  />
+                </View>
+                <View style={styles.destBody}>
+                  <Text style={[styles.destTitle, { color: colors.onSurface }]}>
+                    {dest.title}
+                  </Text>
+                  <Text
+                    style={[styles.destSub, { color: colors.textMuted }]}
+                    numberOfLines={2}>
+                    {dest.subtitle}
+                  </Text>
+                </View>
+                <Icon
+                  name="chevron-right"
+                  size={20}
+                  color={colors.onSurfaceVariant}
+                />
+              </Pressable>
+            ))}
+          </View>
 
           <Button title="Dismiss" variant="ghost" onPress={dismiss} />
         </ScrollView>
@@ -261,16 +409,38 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
   },
   fileName: { ...Typography.bodyMd, flex: 1 },
-  gemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
+  textPreview: {
+    padding: Spacing.md,
     borderRadius: Radius.md,
     borderCurve: 'continuous',
   },
-  gemSku: { ...Typography.bodyMd, fontWeight: '600', flex: 1 },
-  gemMeta: { ...Typography.bodySmall },
+  textBody: { ...Typography.bodyMd },
+  destRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    minHeight: 64,
+  },
+  destIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.md,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destBody: { flex: 1, gap: 2, minWidth: 0 },
+  destTitle: { ...Typography.bodyMd, fontWeight: '600' },
+  destSub: { ...Typography.bodySmall },
   hint: { ...Typography.bodySmall, textAlign: 'center' },
+  banner: {
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    gap: Spacing.sm,
+  },
+  bannerText: { ...Typography.bodyMd },
 });

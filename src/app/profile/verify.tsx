@@ -196,9 +196,6 @@ export default function VerifyApplicationScreen() {
         keyboardShouldPersistTaps="handled">
         <ScreenInset style={styles.intro}>
           <Text style={[styles.title, { color: colors.primary }]}>Apply for verification</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            Verifying as {ROLE_LABELS[role]}. Your registration role is locked for this application.
-          </Text>
 
           <View style={styles.steps}>
             {STEPS.map((label, i) => (
@@ -278,11 +275,7 @@ export default function VerifyApplicationScreen() {
                 <Text style={[styles.dobError, { color: colors.error }]}>
                   {applicantErrors.dateOfBirth}
                 </Text>
-              ) : (
-                <Text style={[styles.dobHelper, { color: colors.textMuted }]}>
-                  Required for verification.
-                </Text>
-              )}
+              ) : null}
             </View>
 
             {showDobPicker ? (
@@ -421,7 +414,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   title: { ...Typography.headlineSm, fontWeight: '700' },
-  subtitle: { ...Typography.bodyMd },
   steps: { flexDirection: 'row', gap: 8 },
   step: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full },
   stepText: { ...Typography.labelMd, fontWeight: '600' },
@@ -446,7 +438,6 @@ const styles = StyleSheet.create({
   },
   dobValue: { ...Typography.bodyLg, flex: 1 },
   dobError: { ...Typography.labelMd },
-  dobHelper: { ...Typography.bodyMd },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,

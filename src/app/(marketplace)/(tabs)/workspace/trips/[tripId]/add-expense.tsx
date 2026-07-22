@@ -92,12 +92,6 @@ export default function AddTripExpenseScreen() {
       <StackHeader title="Add Expense" />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Log travel costs so overhead can be allocated to gems later.
-        </Text>
-        </ScreenInset>
-
         <FormSection title="Category" padded={false}>
           <View style={styles.categoryGrid}>
             {TRIP_EXPENSE_CATEGORIES.map((c) => {
@@ -162,7 +156,6 @@ export default function AddTripExpenseScreen() {
           value={receipt}
           onChange={setReceipt}
           emptyTitle="Add receipt photo"
-          emptySubtitle="Kept on device until you save"
         />
 
         <Button title="Save expense" icon="shield" loading={loading} onPress={handleSubmit} />
@@ -178,7 +171,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
-  subtitle: { ...Typography.bodyMd },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

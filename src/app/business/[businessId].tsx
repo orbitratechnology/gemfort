@@ -2,9 +2,10 @@ import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
@@ -76,6 +77,7 @@ export default function BusinessProfileScreen() {
   const { colors } = useAppTheme();
   const { user, profile } = useAuth();
   const toast = useToast();
+  const insets = useSafeAreaInsets();
   const [reportOpen, setReportOpen] = useState(false);
   const [endorsing, setEndorsing] = useState(false);
 
@@ -204,9 +206,11 @@ export default function BusinessProfileScreen() {
 
   if (isLoading || !business) {
     return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
+      <View
+        style={[
+          styles.safe,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
       >
         <StackHeader title="Profile" />
         <View style={styles.center}>
@@ -214,7 +218,7 @@ export default function BusinessProfileScreen() {
             {isLoading ? "Loading profile…" : "Business not found"}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -240,56 +244,18 @@ export default function BusinessProfileScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader
-        title={business.businessName}
-        right={
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => void copyLink(profileUrl)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Copy profile link"
-              style={styles.headerAction}
-            >
-              <Icon name="link" size={20} color={colors.onSurfaceVariant} />
-            </Pressable>
-            <Pressable
-              onPress={handleShareProfile}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Share business profile"
-              style={styles.headerAction}
-            >
-              <Icon name="share" size={20} color={colors.onSurfaceVariant} />
-            </Pressable>
-            {user && !isOwnBusiness ? (
-              <Pressable
-                onPress={() => setReportOpen(true)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Report business"
-                style={styles.headerAction}
-              >
-                <Icon name="flag" size={20} color={colors.onSurfaceVariant} />
-              </Pressable>
-            ) : null}
-          </View>
-        }
-      />
-
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={business.coverPhotoUrl ? "light" : "auto"} />
       <ThemedScrollView
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero — centered like Edit Business */}
+        {/* Hero — cover bleeds under the status bar */}
         <View style={styles.hero}>
           <CoverBanner
             uri={business.coverPhotoUrl}
-            height={COVER_BANNER_HEIGHT}
+            height={COVER_BANNER_HEIGHT + insets.top}
           />
 
           <View style={styles.avatarBlock}>
@@ -887,7 +853,50 @@ export default function BusinessProfileScreen() {
           businessName={business.businessName}
         />
       ) : null}
-    </SafeAreaView>
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.headerOverlay, { paddingTop: insets.top }]}
+      >
+        <StackHeader
+          title=""
+          tintColor="#FFFFFF"
+          right={
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => void copyLink(profileUrl)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Copy profile link"
+                style={[styles.headerAction, styles.headerActionChip]}
+              >
+                <Icon name="link" size={20} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                onPress={handleShareProfile}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share business profile"
+                style={[styles.headerAction, styles.headerActionChip]}
+              >
+                <Icon name="share" size={20} color="#FFFFFF" />
+              </Pressable>
+              {user && !isOwnBusiness ? (
+                <Pressable
+                  onPress={() => setReportOpen(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report business"
+                  style={[styles.headerAction, styles.headerActionChip]}
+                >
+                  <Icon name="flag" size={20} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
+            </View>
+          }
+        />
+      </View>
+    </View>
   );
 }
 
@@ -927,15 +936,27 @@ function DetailRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
   },
   headerAction: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerActionChip: {
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
   content: {
     paddingBottom: 48,

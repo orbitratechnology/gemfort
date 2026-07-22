@@ -492,7 +492,7 @@ export default function GemDetailScreen() {
           )}
         </FormSection>
 
-        <FormSection title="Financials" hint="Visible only to you" icon="lock">
+        <FormSection title="Financials" icon="lock">
           {costs.length ? (
             costs.map((c) => (
               <View key={c.id} style={styles.financeRow}>
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     overflow: "hidden",
-    boxShadow: "0 4px 20px rgba(15, 118, 110, 0.1)",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
   },
   heroImage: { width: "100%", height: "100%" },
   heroPlaceholder: {
@@ -806,7 +806,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     gap: 8,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   specHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   specIconWrap: {

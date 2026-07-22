@@ -114,12 +114,6 @@ export default function LabCertificatesScreen() {
           />
         </ScreenInset>
 
-        <ScreenInset>
-          <Text style={{ color: colors.textMuted, ...Typography.bodyMd }}>
-            Upload certificates here. Traders verify them on GemFort — labs do not receive certification requests.
-          </Text>
-        </ScreenInset>
-
         {showAdd ? (
           <FormSection title="New certificate">
             <Input label="Certificate / report number" value={certNumber} onChangeText={setCertNumber} />

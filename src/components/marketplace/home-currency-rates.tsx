@@ -1,43 +1,53 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
-  BASE_CURRENCY,
-  POPULAR_CURRENCY_CODES,
-  type CurrencyCode,
-} from '@/constants/currencies';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { useExchangeRates } from '@/hooks/use-exchange-rates';
-import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
-import { lkrPerUnit } from '@/lib/exchange-rates';
-import { formatRelativeTime } from '@/lib/utils';
+    BASE_CURRENCY,
+    getCurrencySymbol,
+    type CurrencyCode,
+} from "@/constants/currencies";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useExchangeRates } from "@/hooks/use-exchange-rates";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import { lkrPerUnit } from "@/lib/exchange-rates";
+import { formatRelativeTime } from "@/lib/utils";
 
-const HOME_RATE_CODES: CurrencyCode[] = ['USD', 'EUR', 'GBP', 'THB'];
+const HOME_RATE_CODES: CurrencyCode[] = [
+  "USD",
+  "RMB",
+  "THB",
+  "TZS",
+  "MGA",
+  "IDR",
+  "EUR",
+  "GBP",
+];
 
 type HomeCurrencyRatesProps = {
   onRefreshRequest?: () => void;
 };
 
-export function HomeCurrencyRates({ onRefreshRequest }: HomeCurrencyRatesProps) {
+export function HomeCurrencyRates({
+  onRefreshRequest,
+}: HomeCurrencyRatesProps) {
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
   const { data, isLoading, isError, isFetching, refetch } = useExchangeRates();
 
   const codes = useMemo(() => {
-    const set = new Set<CurrencyCode>(HOME_RATE_CODES);
-    if (preferred !== BASE_CURRENCY) set.add(preferred);
-    // Keep popular order for display
-    return [...POPULAR_CURRENCY_CODES].filter(
-      (c) => c !== BASE_CURRENCY && set.has(c),
-    );
+    const list = [...HOME_RATE_CODES];
+    if (preferred !== BASE_CURRENCY && !list.includes(preferred)) {
+      list.push(preferred);
+    }
+    return list;
   }, [preferred]);
 
   const updatedLabel = useMemo(() => {
@@ -56,10 +66,7 @@ export function HomeCurrencyRates({ onRefreshRequest }: HomeCurrencyRatesProps) 
           void refetch();
           onRefreshRequest?.();
         }}
-        style={[
-          styles.wrap,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
+        style={[styles.wrap, { backgroundColor: colors.surfaceContainerLow }]}
       >
         <Text style={[styles.muted, { color: colors.textMuted }]} selectable>
           Rates unavailable — tap to retry
@@ -126,17 +133,17 @@ export function HomeCurrencyRates({ onRefreshRequest }: HomeCurrencyRatesProps) 
                     style={[styles.chipCode, { color: colors.primary }]}
                     selectable
                   >
-                    1 {code}
+                    1 {getCurrencySymbol(code)} {code}
                   </Text>
                   <Text
                     style={[styles.chipValue, { color: colors.onSurface }]}
                     selectable
                   >
-                    {perUnit.toLocaleString('en-LK', {
+                    {getCurrencySymbol(BASE_CURRENCY)}{" "}
+                    {perUnit.toLocaleString("en-LK", {
                       maximumFractionDigits: 2,
                       minimumFractionDigits: 2,
-                    })}{' '}
-                    {BASE_CURRENCY}
+                    })}
                   </Text>
                 </View>
               );
@@ -150,23 +157,23 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.sm },
   wrap: {
     borderRadius: Radius.lg,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     padding: Spacing.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   title: { ...Typography.headlineSmMobile },
-  muted: { ...Typography.labelSm },
+  muted: { ...Typography.label },
   row: {
     gap: Spacing.sm,
     paddingRight: Spacing.containerMargin,
   },
   chip: {
     borderRadius: Radius.lg,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -176,12 +183,12 @@ const styles = StyleSheet.create({
   chipCode: { ...Typography.labelMd },
   chipValue: {
     ...Typography.bodyMd,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   skel: {
     width: 88,
     height: 28,
     borderRadius: Radius.sm,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
   },
 });

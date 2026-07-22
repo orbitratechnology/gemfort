@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, height: 48 },
   searchInput: { flex: 1, paddingHorizontal: 12, ...Typography.bodyMd },
 
-  form: { margin: Spacing.containerMargin, marginTop: 0, padding: 16, borderRadius: Radius.lg, borderWidth: 1, gap: 12, shadowColor: '#00162C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 2 },
+  form: { margin: Spacing.containerMargin, marginTop: 0, padding: 16, borderRadius: Radius.lg, borderWidth: 1, gap: 12, shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 2 },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formTitle: { ...Typography.headlineSm },
   typeRow: { flexDirection: 'row', gap: 8 },
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   list: { padding: Spacing.containerMargin, paddingTop: 0, paddingBottom: 100 },
   sectionHeader: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.gutterMd, marginTop: Spacing.sectionGap },
   
-  txCard: { padding: 16, borderRadius: Radius.lg, borderWidth: 1, marginBottom: Spacing.stackMd, shadowColor: '#00162C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
+  txCard: { padding: 16, borderRadius: Radius.lg, borderWidth: 1, marginBottom: Spacing.stackMd, shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
   txLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   txIconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   txInfo: { flex: 1 },
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00162C',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 15,

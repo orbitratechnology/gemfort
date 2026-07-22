@@ -34,7 +34,7 @@ export function MediaAlbumField({
   error,
   max = DEFAULT_MAX,
   emptyTitle = 'Add photos',
-  emptySubtitle = 'At least 1 required · stored on device until you save',
+  emptySubtitle,
 }: MediaAlbumFieldProps) {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -99,9 +99,11 @@ export function MediaAlbumField({
           <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
             {emptyTitle}
           </Text>
-          <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-            {emptySubtitle}
-          </Text>
+          {emptySubtitle ? (
+            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+              {emptySubtitle}
+            </Text>
+          ) : null}
         </Pressable>
       ) : (
         <View style={styles.grid}>

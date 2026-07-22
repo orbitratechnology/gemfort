@@ -6,7 +6,7 @@ import { hasCompletedOnboarding } from '@/lib/onboarding';
 import { useAuth } from '@/providers/auth-provider';
 
 /** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
-const BOOT_BG = '#001618';
+const BOOT_BG = '#000000';
 
 export default function Index() {
   const { isLoading: authLoading } = useAuth();

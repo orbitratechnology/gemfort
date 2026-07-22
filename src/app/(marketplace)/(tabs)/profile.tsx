@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import {
     Linking,
@@ -10,7 +11,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
@@ -115,6 +116,7 @@ export default function ProfileScreen() {
   const { colors, preference, setPreference } = useAppTheme();
   const preferredCurrency = usePreferredCurrency();
   const toast = useToast();
+  const insets = useSafeAreaInsets();
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
 
@@ -170,18 +172,22 @@ export default function ProfileScreen() {
   const avatarUri = business?.logoUrl ?? null;
 
   return (
-    <SafeAreaView
+    <View
       collapsable={false}
       style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
     >
+      <StatusBar style={coverUri ? "light" : "auto"} />
       <ScrollView
         contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
-        {/* Edge-to-edge cover + identity */}
+        {/* Edge-to-edge cover under the status bar */}
         <View style={styles.hero}>
-          <CoverBanner uri={coverUri} height={COVER_BANNER_HEIGHT} />
+          <CoverBanner
+            uri={coverUri}
+            height={COVER_BANNER_HEIGHT + insets.top}
+          />
           <View style={styles.identity}>
             <View style={styles.avatarWrap}>
               <View
@@ -410,7 +416,7 @@ export default function ProfileScreen() {
         }}
         title="Preferred currency"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

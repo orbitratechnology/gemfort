@@ -311,7 +311,7 @@ export default function AddGemScreen() {
 
         {step === 0 ? (
           <>
-            <FormSection title="Stone" hint="Type, look, weight, and price.">
+            <FormSection title="Stone">
               <AttributePickerField
                 label="Gem type"
                 valueLabel={selectedType.label}
@@ -441,7 +441,7 @@ export default function AddGemScreen() {
               />
             </FormSection>
 
-            <FormSection title="Treatment" hint="Natural is the default.">
+            <FormSection title="Treatment">
               <AttributePickerField
                 label="Treatment"
                 valueLabel={formatOptionLabel(GEM_TREATMENTS, treatment)}
@@ -464,17 +464,13 @@ export default function AddGemScreen() {
         ) : null}
 
         {step === 1 ? (
-          <FormSection
-            title="Photos"
-            hint="At least one photo required. First is primary unless you pick another."
-          >
+          <FormSection title="Photos">
             <MediaAlbumField
               value={photos}
               onChange={handlePhotosChange}
               max={MAX_GEM_PHOTOS}
               error={errors.photos}
               emptyTitle="Add photos"
-              emptySubtitle="At least 1 required · kept on device until you save"
             />
           </FormSection>
         ) : null}

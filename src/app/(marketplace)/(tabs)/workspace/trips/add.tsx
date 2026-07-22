@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { addDays } from 'date-fns';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipSelect } from '@/components/ui/chip-select';
@@ -11,12 +11,12 @@ import {
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import { FormFooter } from '@/components/ui/form-footer';
-import { FormSection, ScreenInset } from '@/components/ui/form-section';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { TRIP_TYPES } from '@/constants/trip-options';
-import { Spacing, Typography } from '@/constants/design-tokens';
+import { Spacing } from '@/constants/design-tokens';
 import { resolveCountryCode } from '@/constants/gem-options';
 import { createTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -111,19 +111,12 @@ export default function AddTripScreen() {
       <ThemedScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
-        <ScreenInset>
-          <Text style={[styles.lead, { color: colors.textMuted }]}>
-            Set destination and budget before you travel.
-          </Text>
-        </ScreenInset>
-
         <FormSection title="Trip type">
           <ChipSelect
             layout="stack"
             options={TRIP_TYPES.map((t) => ({
               value: t.id,
               label: t.label,
-              subtitle: t.subtitle,
               icon: t.icon,
             }))}
             value={tripType}
@@ -187,7 +180,7 @@ export default function AddTripScreen() {
           />
         </FormSection>
 
-        <FormSection title="Money" hint="Optional. Helps track spend on the road.">
+        <FormSection title="Money">
           <CurrencyAmountField
             label="Budget"
             value={budget}
@@ -234,6 +227,5 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
-  lead: { ...Typography.bodyMd, lineHeight: 22 },
   notes: { minHeight: 72, textAlignVertical: 'top', paddingTop: 12 },
 });

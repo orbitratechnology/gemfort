@@ -149,9 +149,6 @@ export default function AccountSettingsScreen() {
             <Text style={[styles.email, { color: colors.textMain }]} selectable>
               {user.email}
             </Text>
-            <Text style={[styles.hint, { color: colors.textMuted }]}>
-              Manage your password or permanently delete your GemFort account.
-            </Text>
           </FormSection>
 
           <FormSectionLabel title="CHANGE PASSWORD" />
@@ -183,7 +180,6 @@ export default function AccountSettingsScreen() {
                 autoCapitalize="none"
                 autoComplete="new-password"
                 textContentType="newPassword"
-                helperText="At least 8 characters with letters and a number"
                 error={passwordErrors.newPassword}
               />
               <Input
@@ -212,9 +208,6 @@ export default function AccountSettingsScreen() {
           <FormSectionLabel title="RESET VIA EMAIL" />
           <FormSection>
             <View style={styles.fields}>
-              <Text style={[styles.hint, { color: colors.textMuted, marginTop: 0 }]}>
-                We will email a secure link to {user.email} so you can choose a new password.
-              </Text>
               <Button
                 title="Send reset link"
                 icon="send"
@@ -283,7 +276,6 @@ const styles = StyleSheet.create({
     gap: Spacing.stackMd,
   },
   email: { ...Typography.bodyLg, fontWeight: '600' },
-  hint: { ...Typography.bodyMd, marginTop: 6, lineHeight: 20 },
   fields: { gap: Spacing.lg },
   dangerBody: { ...Typography.bodyMd, lineHeight: 20 },
 });

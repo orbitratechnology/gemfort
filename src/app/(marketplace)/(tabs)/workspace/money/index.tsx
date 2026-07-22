@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 8px 20px rgba(15, 118, 110, 0.28)',
+    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.28)',
     zIndex: 100,
   },
 
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     padding: Spacing.containerMargin,
     gap: 6,
-    boxShadow: '0 10px 30px rgba(0, 22, 44, 0.12)',
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
   },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroLabel: { ...Typography.labelMd, letterSpacing: 1 },

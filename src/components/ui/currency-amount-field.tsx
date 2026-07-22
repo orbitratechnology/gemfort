@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   BASE_CURRENCY,
+  getCurrencyBadge,
   resolveCurrencyCode,
   type CurrencyCode,
 } from '@/constants/currencies';
@@ -99,7 +100,7 @@ export function CurrencyAmountField({
             style={[styles.currencyCode, { color: colors.onSurface }]}
             selectable
           >
-            {currency}
+            {getCurrencyBadge(currency)}
           </Text>
           <Icon name="expand-more" size={18} color={colors.outline} />
         </Pressable>
@@ -171,6 +172,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     paddingVertical: Spacing.sm,
   },
-  error: { ...Typography.labelSm },
-  helper: { ...Typography.labelSm },
+  error: { ...Typography.bodySmall },
+  helper: { ...Typography.bodySmall },
 });

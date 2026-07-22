@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   notifBadge: {
     position: "absolute",
@@ -959,7 +959,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     paddingVertical: 14,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   actionItem: {
     flex: 1,
@@ -988,7 +988,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
   upcomingIcon: {
     width: 40,
@@ -1015,6 +1015,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     padding: 14,
-    boxShadow: "0 2px 12px rgba(15, 118, 110, 0.06)",
+    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
 });

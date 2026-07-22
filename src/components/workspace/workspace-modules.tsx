@@ -139,8 +139,8 @@ function ModuleTile({
             transform: [{ scale: pressed ? 0.975 : 1 }],
             opacity: pressed ? 0.96 : 1,
             boxShadow: pressed
-              ? "0 1px 4px rgba(15, 118, 110, 0.05)"
-              : "0 4px 16px rgba(15, 118, 110, 0.08)",
+              ? "0 1px 4px rgba(0, 0, 0, 0.05)"
+              : "0 4px 16px rgba(0, 0, 0, 0.08)",
           },
         ]}
       >

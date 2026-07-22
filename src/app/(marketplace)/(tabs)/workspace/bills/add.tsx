@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,7 +11,7 @@ import {
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -36,6 +36,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { decodeShareParam } from "@/lib/incoming-share";
 import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
@@ -46,16 +47,19 @@ const DIRECTIONS = [
   {
     value: "payable" as const,
     label: "To pay",
-    subtitle: "You owe them · your commission cut",
     icon: "call-made" as const,
   },
   {
     value: "receivable" as const,
     label: "To receive",
-    subtitle: "They owe you · their commission cut",
     icon: "call-received" as const,
   },
 ];
+
+function firstParam(v: string | string[] | undefined): string {
+  if (Array.isArray(v)) return v[0] ?? "";
+  return v ?? "";
+}
 
 export default function AddBillScreen() {
   const { user } = useAuth();
@@ -63,16 +67,22 @@ export default function AddBillScreen() {
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const raw = useLocalSearchParams<{
+    amount?: string;
+    notes?: string;
+  }>();
+  const paramAmount = firstParam(raw.amount);
+  const paramNotes = decodeShareParam(raw.notes);
 
   const [direction, setDirection] = useState<BillDirection>("payable");
   const [money, setMoney] = useState<CurrencyAmountValue>({
-    amount: "",
+    amount: paramAmount,
     currency: preferred,
   });
   const [contactId, setContactId] = useState("");
   const [dueDays, setDueDays] = useState("7");
   const [commissionPercent, setCommissionPercent] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(paramNotes);
   const [gemIds, setGemIds] = useState<string[]>([]);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -193,13 +203,6 @@ export default function AddBillScreen() {
     >
       <StackHeader title="Add Bill" />
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset>
-          <Text style={[styles.lead, { color: colors.textMuted }]}>
-            Track money to pay or collect. Commission is applied when you
-            record a payment.
-          </Text>
-        </ScreenInset>
-
         <FormSection title="Direction">
           <ChipSelect
             options={DIRECTIONS}
@@ -289,11 +292,6 @@ export default function AddBillScreen() {
             placeholder="Optional"
             leftIcon="percent"
             error={errors.commissionPercent}
-            helperText={
-              direction === "payable"
-                ? "From the amount — counted as your income when you record payment"
-                : "From the amount — counted as their cut on your books when you record payment"
-            }
           />
 
           {showBreakdown ? (
@@ -433,10 +431,6 @@ function BreakdownRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingBottom: Spacing.xxl, gap: Spacing.md },
-  lead: {
-    ...Typography.bodyMd,
-    marginBottom: Spacing.sm,
-  },
   gemCard: {
     borderRadius: Radius.lg,
     borderCurve: "continuous",
