@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -16,18 +16,31 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+  ContextActionsLink,
+  type ContextMenuAction,
+} from "@/components/workspace/context-actions-link";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
+  canDeleteService,
+  canRequestServiceCancellation,
+} from "@/features/workspace/delete-gates";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
+import { requestServiceCancellation } from "@/features/workspace/service-lifecycle-service";
+import {
+  deleteService,
   fetchGems,
   fetchServices,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { ServiceRecord } from "@/types";
 
 type StatusFilter = "all" | "in_progress" | "given" | "completed" | "overdue";
@@ -61,6 +74,18 @@ function statusMeta(status: ServiceRecord["status"]) {
         icon: "error-outline" as IconName,
         tone: "error" as const,
       };
+    case "cancellation_requested":
+      return {
+        label: "Cancel requested",
+        icon: "hourglass-top" as IconName,
+        tone: "warning" as const,
+      };
+    case "cancelled":
+      return {
+        label: "Cancelled",
+        icon: "cancel" as IconName,
+        tone: "neutral" as const,
+      };
     default:
       return {
         label: "Pending",
@@ -73,6 +98,8 @@ function statusMeta(status: ServiceRecord["status"]) {
 export default function ServicesListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -135,6 +162,27 @@ export default function ServicesListScreen() {
         : tone === "error"
           ? colors.error
           : colors.onSurfaceVariant;
+
+  async function handleDelete(serviceId: string) {
+    if (!user) return;
+    try {
+      await deleteService(serviceId, user.uid);
+      await queryClient.invalidateQueries({ queryKey: ["services", user.uid] });
+      toast.success("Service deleted");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete service."));
+    }
+  }
+
+  async function handleRequestCancel(serviceId: string) {
+    try {
+      await requestServiceCancellation(serviceId);
+      await queryClient.invalidateQueries({ queryKey: ["services"] });
+      toast.success("Cancellation requested");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not request cancellation."));
+    }
+  }
 
   return (
     <SafeAreaView
@@ -225,17 +273,38 @@ export default function ServicesListScreen() {
         renderItem={({ item }) => {
           const meta = statusMeta(item.status);
           const tone = toneColor(meta.tone);
+          const actions: ContextMenuAction[] = canDeleteService(item)
+            ? [
+                {
+                  label: "Delete",
+                  icon: "trash",
+                  destructive: true,
+                  onPress: () =>
+                    confirmDelete(
+                      "Delete service",
+                      `Remove this ${item.serviceType.replace(/_/g, " ")} record? This cannot be undone.`,
+                      () => handleDelete(item.id),
+                    ),
+                },
+              ]
+            : canRequestServiceCancellation(item)
+              ? [
+                  {
+                    label: "Request cancellation",
+                    icon: "xmark.circle",
+                    onPress: () => handleRequestCancel(item.id),
+                  },
+                ]
+              : [];
           return (
-            <Pressable
+            <ContextActionsLink
+              href={`/(marketplace)/(tabs)/workspace/services/${item.id}` as never}
+              accessibilityLabel={`${item.serviceType.replace(/_/g, " ")}, ${meta.label}`}
+              actions={actions}
               style={[
                 styles.card,
                 { backgroundColor: colors.surfaceContainerLowest },
               ]}
-              onPress={() =>
-                router.push(
-                  `/(marketplace)/(tabs)/workspace/services/${item.id}`,
-                )
-              }
             >
               <GemThumb
                 uri={gemPhotoById.get(item.gemId) ?? null}
@@ -287,7 +356,7 @@ export default function ServicesListScreen() {
                   </Text>
                 </View>
               </View>
-            </Pressable>
+            </ContextActionsLink>
           );
         }}
       />

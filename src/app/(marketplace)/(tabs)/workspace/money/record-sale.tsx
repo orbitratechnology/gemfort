@@ -248,7 +248,6 @@ export default function RecordSaleScreen() {
                   </Text>
                   <Text
                     style={[styles.projValue, { color: colors.onPrimary }]}
-                    selectable
                   >
                     {formatCurrency(costBasis)}
                   </Text>
@@ -269,7 +268,6 @@ export default function RecordSaleScreen() {
                             : colors.errorContainer,
                       },
                     ]}
-                    selectable
                   >
                     {netProfit >= 0 ? "+" : ""}
                     {formatCurrency(netProfit, price.currency)}
@@ -283,7 +281,6 @@ export default function RecordSaleScreen() {
                   </Text>
                   <Text
                     style={[styles.projValue, { color: colors.onPrimary }]}
-                    selectable
                   >
                     {roi}%
                   </Text>

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
     Pressable,
@@ -14,6 +14,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+    ContextActionsLink,
+} from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
@@ -21,37 +24,57 @@ import {
     formatTripDates,
     getTripsByStatus,
 } from "@/features/workspace/trip-utils";
-import { fetchTrips } from "@/features/workspace/workspace-service";
+import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { Trip } from "@/types";
 
 function TripRow({
   trip,
   colors,
-  onPress,
+  onDelete,
 }: {
   trip: Trip;
   colors: ReturnType<typeof useAppTheme>["colors"];
-  onPress: () => void;
+  onDelete: () => void | Promise<void>;
 }) {
   const typeMeta =
     TRIP_TYPES.find((t) => t.id === trip.tripType) ?? TRIP_TYPES[0];
   const isActive = trip.status === "planning" || trip.status === "ongoing";
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
+    <ContextActionsLink
+      href={`/(marketplace)/(tabs)/workspace/trips/${trip.id}` as never}
+      accessibilityLabel={trip.tripName}
+      actions={[
         {
-          backgroundColor: colors.surfaceContainerLowest,
-          borderColor: colors.outlineVariant,
+          label: "Delete",
+          icon: "trash",
+          destructive: true,
+          onPress: () =>
+            confirmDelete(
+              "Delete trip",
+              `Remove ${trip.tripName}? This cannot be undone.`,
+              onDelete,
+            ),
         },
-        pressed && { opacity: 0.85 },
       ]}
     >
+      {({ pressed }) => (
+      <View
+        style={[
+          styles.row,
+          {
+            backgroundColor: colors.surfaceContainerLowest,
+            borderColor: colors.outlineVariant,
+          },
+          pressed && { opacity: 0.85 },
+        ]}
+      >
       <View
         style={[
           styles.rowIcon,
@@ -109,20 +132,23 @@ function TripRow({
                     : colors.error,
               },
             ]}
-            selectable
           >
             Net {formatCurrency(trip.summary.netResult)}
           </Text>
         ) : null}
       </View>
       <Icon name="chevron-right" size={20} color={colors.outline} />
-    </Pressable>
+      </View>
+      )}
+    </ContextActionsLink>
   );
 }
 
 export default function TripsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   const {
     data: trips = [],
@@ -135,6 +161,17 @@ export default function TripsScreen() {
   });
 
   const { active, completed } = getTripsByStatus(trips);
+
+  async function handleDelete(tripId: string) {
+    if (!user) return;
+    try {
+      await deleteTrip(tripId, user.uid);
+      await queryClient.invalidateQueries({ queryKey: ["trips", user.uid] });
+      toast.success("Trip deleted");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete trip."));
+    }
+  }
 
   return (
     <SafeAreaView
@@ -204,11 +241,7 @@ export default function TripsScreen() {
                     key={t.id}
                     trip={t}
                     colors={colors}
-                    onPress={() =>
-                      router.push(
-                        `/(marketplace)/(tabs)/workspace/trips/${t.id}` as never,
-                      )
-                    }
+                    onDelete={() => handleDelete(t.id)}
                   />
                 ))}
               </View>
@@ -226,11 +259,7 @@ export default function TripsScreen() {
                     key={t.id}
                     trip={t}
                     colors={colors}
-                    onPress={() =>
-                      router.push(
-                        `/(marketplace)/(tabs)/workspace/trips/${t.id}` as never,
-                      )
-                    }
+                    onDelete={() => handleDelete(t.id)}
                   />
                 ))}
               </View>

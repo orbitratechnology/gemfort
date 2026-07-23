@@ -50,15 +50,13 @@ export function NewsArticleCard({
       </View>
       <Text
         style={[styles.title, { color: colors.onSurface }]}
-        numberOfLines={compact ? 2 : 3}
-        selectable>
+        numberOfLines={compact ? 2 : 3}>
         {article.title}
       </Text>
       {!compact ? (
         <Text
           style={[styles.summary, { color: colors.textMuted }]}
-          numberOfLines={3}
-          selectable>
+          numberOfLines={3}>
           {article.summary}
         </Text>
       ) : null}

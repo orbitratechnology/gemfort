@@ -49,6 +49,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: bundleId,
+    // Keep focused inputs visible above the keyboard (esp. with bottom tabs).
+    softwareKeyboardLayoutMode: "pan",
     adaptiveIcon: {
       // Brand plate #000000 — matches opaque icon / splash
       backgroundColor: "#000000",

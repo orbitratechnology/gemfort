@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
@@ -226,12 +227,14 @@ export default function PayablesScreen() {
           </Pressable>
         }
       />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
       <FlatList
         data={payables}
         keyExtractor={(p) => p.id}
         onRefresh={refetch}
         refreshing={isRefetching}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={styles.listHeader}>
             <View style={[styles.summary, { backgroundColor: colors.primary }]}>
@@ -268,6 +271,7 @@ export default function PayablesScreen() {
         ListEmptyComponent={<EmptyState icon="money-off" title="No payables" subtitle="Track money you owe here." />}
         renderItem={renderRow}
       />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

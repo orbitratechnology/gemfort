@@ -652,3 +652,157 @@ export const apPaymentReceived = onCall(
     return { ok: true as const };
   },
 );
+
+/** Sender requests cancellation after accept — receiver must approve. */
+export const requestApCancellation = onCall(
+  { region: REGION, timeoutSeconds: 60 },
+  async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const { apId } = request.data as { apId?: string };
+    if (!apId) throw new HttpsError('invalid-argument', 'apId required.');
+
+    const ref = db.collection('gemtrack_ap_records').doc(apId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'AP not found.');
+    const ap = snap.data() as ApDoc;
+    if (ap.senderUid !== uid && ap.ownerUid !== uid) {
+      throw new HttpsError('permission-denied', 'Only the sender can request cancellation.');
+    }
+    const allowed = new Set([
+      'accepted',
+      'with_holder',
+      'payment_sent',
+      'sold',
+      'overdue',
+      'disputed',
+    ]);
+    if (!allowed.has(ap.status)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This AP cannot request cancellation in its current status.',
+      );
+    }
+
+    await ref.update({
+      status: 'cancellation_requested',
+      updatedAt: Timestamp.now(),
+    });
+
+    await createNotificationDoc({
+      recipientUid: ap.receiverUid,
+      type: 'ap_cancellation_requested',
+      title: 'AP cancellation requested',
+      message: `${ap.senderName} asked to cancel an AP. Accept to unlock the stones.`,
+      referenceType: 'ap',
+      referenceId: apId,
+    });
+
+    return { ok: true as const, status: 'cancellation_requested' as const };
+  },
+);
+
+/** Receiver accepts or declines a cancellation request. */
+export const respondApCancellation = onCall(
+  { region: REGION, timeoutSeconds: 60 },
+  async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const { apId, action } = request.data as {
+      apId?: string;
+      action?: 'accepted' | 'rejected';
+    };
+    if (!apId || (action !== 'accepted' && action !== 'rejected')) {
+      throw new HttpsError('invalid-argument', 'apId and action required.');
+    }
+
+    const ref = db.collection('gemtrack_ap_records').doc(apId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'AP not found.');
+    const ap = snap.data() as ApDoc;
+    if (ap.receiverUid !== uid) {
+      throw new HttpsError('permission-denied', 'Only the AP holder can respond.');
+    }
+    if (ap.status !== 'cancellation_requested') {
+      throw new HttpsError('failed-precondition', 'No cancellation request pending.');
+    }
+
+    const now = Timestamp.now();
+
+    if (action === 'rejected') {
+      await ref.update({
+        status: 'accepted',
+        updatedAt: now,
+      });
+      await createNotificationDoc({
+        recipientUid: ap.senderUid,
+        type: 'ap_cancellation_rejected',
+        title: 'AP cancellation declined',
+        message: `${ap.receiverName} kept the AP active.`,
+        referenceType: 'ap',
+        referenceId: apId,
+      });
+      return { ok: true as const, status: 'accepted' as const };
+    }
+
+    const batch = db.batch();
+    batch.update(ref, { status: 'cancelled', updatedAt: now });
+    for (const line of ap.items ?? []) {
+      if (line.lineStatus === 'held') {
+        batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
+          status: 'ready_for_sale',
+          currentHolderContactId: null,
+          updatedAt: now,
+        });
+      }
+    }
+    await batch.commit();
+
+    await createNotificationDoc({
+      recipientUid: ap.senderUid,
+      type: 'ap_cancellation_accepted',
+      title: 'AP cancelled',
+      message: `${ap.receiverName} accepted your cancellation request.`,
+      referenceType: 'ap',
+      referenceId: apId,
+    });
+
+    return { ok: true as const, status: 'cancelled' as const };
+  },
+);
+
+/** Hard-delete terminal APs (done / cancelled / rejected). Sender or receiver. */
+export const deleteApRecord = onCall(
+  { region: REGION, timeoutSeconds: 60 },
+  async (request) => {
+    const uid = requireAuth(request.auth?.uid);
+    const { apId } = request.data as { apId?: string };
+    if (!apId) throw new HttpsError('invalid-argument', 'apId required.');
+
+    const ref = db.collection('gemtrack_ap_records').doc(apId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'AP not found.');
+    const ap = snap.data() as ApDoc;
+    if (ap.senderUid !== uid && ap.ownerUid !== uid && ap.receiverUid !== uid) {
+      throw new HttpsError('permission-denied', 'Not a party to this AP.');
+    }
+    const terminal = new Set(['done', 'cancelled', 'rejected']);
+    if (!terminal.has(ap.status)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Only completed or cancelled APs can be deleted.',
+      );
+    }
+
+    const payments = await db
+      .collection('gemtrack_ap_payments')
+      .where('apId', '==', apId)
+      .get();
+    const batch = db.batch();
+    for (const docSnap of payments.docs) {
+      batch.delete(docSnap.ref);
+    }
+    batch.delete(ref);
+    await batch.commit();
+
+    return { ok: true as const };
+  },
+);

@@ -90,7 +90,6 @@ type CountryLabelProps = {
   textStyle?: StyleProp<TextStyle>;
   style?: StyleProp<ViewStyle>;
   numberOfLines?: number;
-  selectable?: boolean;
 };
 
 /** Flag + country name in a row. Falls back to text-only when code is unknown. */
@@ -100,7 +99,6 @@ export function CountryLabel({
   textStyle,
   style,
   numberOfLines = 1,
-  selectable,
 }: CountryLabelProps) {
   return (
     <View style={[styles.row, style]}>
@@ -108,7 +106,6 @@ export function CountryLabel({
       <Text
         style={[styles.text, textStyle]}
         numberOfLines={numberOfLines}
-        selectable={selectable}
       >
         {country}
       </Text>
@@ -124,7 +121,6 @@ type PlaceLabelProps = {
   textStyle?: StyleProp<TextStyle>;
   style?: StyleProp<ViewStyle>;
   numberOfLines?: number;
-  selectable?: boolean;
   /** Extra suffix after country (e.g. " · 12y"). */
   suffix?: string;
 };
@@ -140,7 +136,6 @@ export function PlaceLabel({
   textStyle,
   style,
   numberOfLines = 1,
-  selectable,
   suffix,
 }: PlaceLabelProps) {
   const line = [...parts, country]
@@ -155,7 +150,6 @@ export function PlaceLabel({
       <Text
         style={[styles.text, textStyle]}
         numberOfLines={numberOfLines}
-        selectable={selectable}
       >
         {display}
       </Text>

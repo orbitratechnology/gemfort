@@ -163,7 +163,6 @@ export function PhoneNumberField({
         <Text
           style={{ ...Typography.bodySmall, color: colors.error }}
           accessibilityLiveRegion="polite"
-          selectable
         >
           {error}
         </Text>

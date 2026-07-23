@@ -8,13 +8,17 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
+import {
+  ContextActionsLink,
+  type ContextMenuAction,
+} from "@/components/workspace/context-actions-link";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { formatCurrency } from "@/lib/utils";
+import { confirmDelete } from "@/providers/confirm-provider";
 import type { WorkspaceGem } from "@/types";
 
 /** Soft cap so tiles stay product-sized on tablets / wide layouts. */
@@ -25,14 +29,14 @@ type GemCardProps = {
   /** Prefer href for Apple Zoom shared-element transitions (iOS 18+). */
   href?: Href;
   onPress?: () => void;
+  onDelete?: () => void | Promise<void>;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Workspace inventory tile for 2-column ecommerce grids.
- * Uses ElevatedCard so chrome (border + shadow) works with Link asChild.
  */
-export function GemCard({ gem, href, onPress, style }: GemCardProps) {
+export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
   const { colors } = useAppTheme();
   const photo = gemPrimaryPhotoUrl(gem);
   const currency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? "LKR";
@@ -55,13 +59,8 @@ export function GemCard({ gem, href, onPress, style }: GemCardProps) {
     </View>
   );
 
-  return (
-    <ElevatedCard
-      href={href}
-      onPress={onPress}
-      accessibilityLabel={`${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`}
-      style={[styles.card, style]}
-    >
+  const body = (
+    <>
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
         <View style={[styles.statusPill, { backgroundColor: colors.primary }]}>
@@ -78,7 +77,6 @@ export function GemCard({ gem, href, onPress, style }: GemCardProps) {
         <Text
           style={[styles.sku, { color: colors.onSurfaceVariant }]}
           numberOfLines={1}
-          selectable
         >
           {gem.sku}
         </Text>
@@ -98,12 +96,66 @@ export function GemCard({ gem, href, onPress, style }: GemCardProps) {
         <Text
           style={[styles.price, { color: colors.primary }]}
           numberOfLines={1}
-          selectable
         >
           {price}
         </Text>
       </View>
-    </ElevatedCard>
+    </>
+  );
+
+  const chrome = StyleSheet.flatten([
+    styles.card,
+    {
+      backgroundColor: colors.surfaceContainerLowest,
+      boxShadow: `0 1px 2px ${colors.cardShadow}, 0 6px 16px ${colors.cardShadow}`,
+    },
+    style,
+  ]);
+
+  const label = `${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`;
+
+  const actions: ContextMenuAction[] = onDelete
+    ? [
+        {
+          label: "Delete",
+          icon: "trash",
+          destructive: true,
+          onPress: () =>
+            confirmDelete(
+              "Delete gem",
+              `Remove ${gem.sku} from inventory? This cannot be undone.`,
+              onDelete,
+            ),
+        },
+      ]
+    : [];
+
+  if (href) {
+    return (
+      <ContextActionsLink
+        href={href}
+        accessibilityLabel={label}
+        actions={actions}
+        style={chrome}
+      >
+        {({ pressed }) => (
+          <View
+            style={{
+              opacity: pressed ? 0.96 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            }}
+          >
+            {body}
+          </View>
+        )}
+      </ContextActionsLink>
+    );
+  }
+
+  return (
+    <View style={chrome} accessibilityLabel={label}>
+      {body}
+    </View>
   );
 }
 
@@ -112,14 +164,15 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: GEM_CARD_MAX_WIDTH,
     alignSelf: "center",
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    overflow: "hidden",
   },
   media: {
     width: "100%",
     aspectRatio: 1,
     position: "relative",
     overflow: "hidden",
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
   },
   image: {
     width: "100%",

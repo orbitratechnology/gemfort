@@ -135,24 +135,23 @@ export default function PublicListingScreen() {
       <ThemedScrollView contentContainerStyle={styles.content}>
         <Link.AppleZoomTarget>{hero}</Link.AppleZoomTarget>
 
-        <Text style={[styles.title, { color: colors.primary }]} selectable>
+        <Text style={[styles.title, { color: colors.primary }]}>
           {listing.title}
         </Text>
         <View style={styles.specsRow}>
-          <Text style={[styles.specs, { color: colors.textMuted }]} selectable>
+          <Text style={[styles.specs, { color: colors.textMuted }]}>
             {listing.caratWeight} ct · {listing.gemType.replace(/_/g, " ")} ·{" "}
           </Text>
           <CountryLabel
             country={listing.origin}
             size="xs"
             textStyle={[styles.specs, { color: colors.textMuted }]}
-            selectable
           />
         </View>
 
         <Card>
           {listing.showPrice && listing.priceMin ? (
-            <Text style={[styles.price, { color: colors.accent }]} selectable>
+            <Text style={[styles.price, { color: colors.accent }]}>
               {formatCurrency(listing.priceMin, listing.currency ?? "USD")}
               {listing.priceMax
                 ? ` – ${formatCurrency(listing.priceMax, listing.currency ?? "USD")}`

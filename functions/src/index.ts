@@ -5,11 +5,18 @@ export {
   createApRequest,
   respondApRequest,
   cancelApRequest,
+  requestApCancellation,
+  respondApCancellation,
+  deleteApRecord,
   recordApGemSale,
   returnApGem,
   apPaymentSent,
   apPaymentReceived,
 } from './gemtrack/ap-lifecycle';
+export {
+  requestServiceCancellation,
+  respondServiceCancellation,
+} from './gemtrack/service-lifecycle';
 
 export { onAnnouncementPublished } from './gemnet/announcement';
 export { onVerificationStatusChanged } from './gemnet/verification';

@@ -27,12 +27,20 @@ import {
   apPaymentReceived,
   apPaymentSent,
   cancelApRequest,
+  deleteApRecord,
   fetchApRecordsForUser,
   recordApGemSale,
+  requestApCancellation,
+  respondApCancellation,
   respondApRequest,
   returnApGem,
 } from "@/features/workspace/ap-lifecycle-service";
 import { isApOverdue } from "@/features/workspace/ap-utils";
+import {
+  canDeleteAp,
+  canRequestApCancellation,
+  canRespondApCancellation,
+} from "@/features/workspace/delete-gates";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -235,7 +243,7 @@ export default function ApDetailScreen() {
               </View>
             </View>
 
-            <Text style={[styles.heroAmount, { color: heroFg }]} selectable>
+            <Text style={[styles.heroAmount, { color: heroFg }]}>
               {formatCurrency(agreed, currency)}
             </Text>
             <Text style={[styles.heroParty, { color: heroMuted }]}>
@@ -332,7 +340,6 @@ export default function ApDetailScreen() {
                     </Text>
                     <Text
                       style={[styles.meta, { color: colors.textMuted }]}
-                      selectable
                     >
                       AP {formatCurrency(line.agreedPrice, line.currency)}
                       {line.soldPrice != null
@@ -415,7 +422,6 @@ export default function ApDetailScreen() {
                     {soldPrice.trim() ? (
                       <Text
                         style={{ color: colors.textMuted }}
-                        selectable
                       >
                         Commission{" "}
                         {formatCurrency(
@@ -515,11 +521,61 @@ export default function ApDetailScreen() {
           </>
         ) : null}
 
+        {isSender && canRequestApCancellation(ap, user!.uid) ? (
+          <ScreenInset>
+            <Button
+              title="Request cancellation"
+              variant="secondary"
+              icon="cancel"
+              loading={loading}
+              onPress={() =>
+                run(
+                  () => requestApCancellation(ap.id),
+                  "Cancellation requested",
+                )
+              }
+            />
+          </ScreenInset>
+        ) : null}
+
+        {isReceiver && canRespondApCancellation(ap, user!.uid) ? (
+          <>
+            <FormSectionLabel title="Cancellation requested" />
+            <ScreenInset style={styles.row}>
+              <Button
+                title="Accept"
+                icon="check"
+                loading={loading}
+                onPress={() =>
+                  run(
+                    () => respondApCancellation(ap.id, "accepted"),
+                    "AP cancelled",
+                  )
+                }
+                style={styles.flex}
+              />
+              <Button
+                title="Decline"
+                variant="secondary"
+                icon="close"
+                loading={loading}
+                onPress={() =>
+                  run(
+                    () => respondApCancellation(ap.id, "rejected"),
+                    "Cancellation declined",
+                  )
+                }
+                style={styles.flex}
+              />
+            </ScreenInset>
+          </>
+        ) : null}
+
         {isReceiver &&
         isApOngoing(ap.status) &&
         (ap.items ?? []).some((i) => i.lineStatus === "sold") ? (
           <FormSection title="Payment to owner">
-            <Text style={[styles.meta, { color: colors.textMuted }]} selectable>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>
               Owed {formatCurrency(owed, currency)}
             </Text>
             <ChipSelect
@@ -581,7 +637,6 @@ export default function ApDetailScreen() {
           <FormSection title="Confirm payment">
             <Text
               style={[styles.meta, { color: colors.onSurface }]}
-              selectable
             >
               {ap.paymentMethod
                 ? `Marked sent as ${ap.paymentMethod}`
@@ -658,6 +713,23 @@ export default function ApDetailScreen() {
             </View>
           </FormSection>
         ) : null}
+
+        {canDeleteAp(ap) ? (
+          <ScreenInset>
+            <Button
+              title="Delete AP"
+              variant="secondary"
+              icon="delete"
+              loading={loading}
+              onPress={() =>
+                run(async () => {
+                  await deleteApRecord(ap.id);
+                  router.back();
+                }, "AP deleted")
+              }
+            />
+          </ScreenInset>
+        ) : null}
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -684,7 +756,6 @@ function DetailRow({
           styles.detailValue,
           { color: danger ? colors.error : colors.onSurface },
         ]}
-        selectable
       >
         {value}
       </Text>

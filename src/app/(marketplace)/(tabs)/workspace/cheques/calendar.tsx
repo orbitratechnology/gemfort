@@ -148,7 +148,7 @@ export default function ChequeCalendarScreen() {
                 ]}>
                 <View style={styles.chequeItemTop}>
                   <Text style={[styles.chequeNum, { color: colors.onSurface }]}>{c.chequeNumber}</Text>
-                  <Text style={[styles.chequeAmt, { color: colors.primary }]} selectable>
+                  <Text style={[styles.chequeAmt, { color: colors.primary }]}>
                     {formatCurrency(c.amount, c.currency)}
                   </Text>
                 </View>

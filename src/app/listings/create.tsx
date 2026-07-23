@@ -12,11 +12,11 @@ import { resolveCountryCode } from '@/constants/gem-options';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import { createListing, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { alert } from '@/lib/alert';
 import { friendlyError } from '@/lib/errors';
 import { copyLink, listingShareUrl, shareLink } from '@/lib/share';
 import { openWhatsApp } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { confirm, showActions } from '@/providers/confirm-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function CreateListingScreen() {
@@ -63,14 +63,16 @@ export default function CreateListingScreen() {
     try {
       const business = await fetchBusinessByOwnerUid(user.uid);
       if (!business) {
-        alert(
-          'Business profile required',
-          'Set up your business profile before publishing listings.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Set Up', onPress: () => router.push('/profile/business' as Href) },
-          ],
-        );
+        await confirm({
+          title: 'Business profile required',
+          message: 'Set up your business profile before publishing listings.',
+          confirmLabel: 'Set Up',
+          cancelLabel: 'Cancel',
+          icon: 'storefront',
+          onConfirm: () => {
+            router.push('/profile/business' as Href);
+          },
+        });
         return;
       }
 
@@ -107,21 +109,24 @@ export default function CreateListingScreen() {
       const url = listingShareUrl(slug);
       await copyLink(url, { silent: true });
       const whatsapp = business.contacts?.whatsapp?.value;
-      alert(
-        'Published',
-        `Link copied:\n${url}`,
-        [
+      toast.success('Listing published — link copied.');
+      showActions({
+        title: 'Published',
+        message: `Link copied:\n${url}`,
+        actions: [
           ...(whatsapp
             ? [
                 {
-                  text: 'WhatsApp',
+                  label: 'WhatsApp',
                   onPress: () =>
-                    Linking.openURL(openWhatsApp(whatsapp, `Check out my gem listing: ${url}`)),
+                    void Linking.openURL(
+                      openWhatsApp(whatsapp, `Check out my gem listing: ${url}`),
+                    ),
                 },
               ]
             : []),
           {
-            text: 'Share',
+            label: 'Share',
             onPress: () => {
               void shareLink({
                 url,
@@ -130,10 +135,12 @@ export default function CreateListingScreen() {
               });
             },
           },
-          { text: 'View', onPress: () => router.push(`/listing/${slug}`) },
+          {
+            label: 'View',
+            onPress: () => router.push(`/listing/${slug}`),
+          },
         ],
-        { haptic: 'success' },
-      );
+      });
     } catch (e) {
       toast.error(friendlyError(e, 'Could not publish listing.'));
     } finally {

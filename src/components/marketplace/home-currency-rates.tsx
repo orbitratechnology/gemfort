@@ -1,19 +1,19 @@
 import { Image } from "expo-image";
 import { useMemo } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 import {
-    BASE_CURRENCY,
-    getCurrencyCountryCode,
-    getCurrencySymbol,
-    type CurrencyCode,
+  BASE_CURRENCY,
+  getCurrencyCountryCode,
+  getCurrencySymbol,
+  type CurrencyCode,
 } from "@/constants/currencies";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { flagUrl } from "@/constants/gem-options";
@@ -76,7 +76,7 @@ export function HomeCurrencyRates({
         }}
         style={[styles.wrap, { backgroundColor: colors.surfaceContainerLow }]}
       >
-        <Text style={[styles.muted, { color: colors.textMuted }]} selectable>
+        <Text style={[styles.muted, { color: colors.textMuted }]}>
           Rates unavailable — tap to retry
         </Text>
       </Pressable>
@@ -92,7 +92,7 @@ export function HomeCurrencyRates({
         {isLoading || isFetching ? (
           <ActivityIndicator size="small" color={colors.primary} />
         ) : updatedLabel ? (
-          <Text style={[styles.muted, { color: colors.textMuted }]} selectable>
+          <Text style={[styles.muted, { color: colors.textMuted }]}>
             Updated {updatedLabel}
           </Text>
         ) : null}
@@ -157,13 +157,11 @@ export function HomeCurrencyRates({
                   <View style={styles.chipBody}>
                     <Text
                       style={[styles.chipCode, { color: colors.primary }]}
-                      selectable
                     >
                       1 {getCurrencySymbol(code)} {code}
                     </Text>
                     <Text
                       style={[styles.chipValue, { color: colors.onSurface }]}
-                      selectable
                     >
                       {getCurrencySymbol(BASE_CURRENCY)}{" "}
                       {perUnit.toLocaleString("en-LK", {
@@ -186,16 +184,19 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     padding: Spacing.md,
+    marginHorizontal: Spacing.containerMargin,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: Spacing.containerMargin,
   },
   title: { ...Typography.headlineSmMobile },
   muted: { ...Typography.label },
   row: {
     gap: Spacing.sm,
+    paddingLeft: Spacing.containerMargin,
     paddingRight: Spacing.containerMargin,
   },
   chip: {

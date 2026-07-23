@@ -35,10 +35,10 @@ import {
   updateBillStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirm } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ApPaymentMethod } from "@/types";
 
@@ -157,25 +157,27 @@ export default function BillDetailScreen() {
 
   function handleCancel() {
     if (!bill) return;
-    alert("Cancel bill", "Mark this bill as cancelled?", [
-      { text: "No", style: "cancel" },
-      {
-        text: "Yes",
-        style: "destructive",
-        onPress: async () => {
-          setLoading(true);
-          try {
-            await updateBillStatus(bill.id, "cancelled");
-            await invalidate();
-            toast.success("Bill cancelled");
-          } catch (e) {
-            toast.error(friendlyError(e, "Could not cancel bill."));
-          } finally {
-            setLoading(false);
-          }
-        },
+    void confirm({
+      title: "Cancel bill",
+      message: "Mark this bill as cancelled?",
+      tone: "destructive",
+      confirmLabel: "Yes",
+      cancelLabel: "No",
+      icon: "cancel",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          await updateBillStatus(bill.id, "cancelled");
+          await invalidate();
+          toast.success("Bill cancelled");
+        } catch (e) {
+          toast.error(friendlyError(e, "Could not cancel bill."));
+          throw e;
+        } finally {
+          setLoading(false);
+        }
       },
-    ]);
+    });
   }
 
   if (isLoading || !bill) {
@@ -262,7 +264,6 @@ export default function BillDetailScreen() {
                 styles.heroAmount,
                 { color: isPayable ? colors.error : colors.onPrimary },
               ]}
-              selectable
             >
               {formatCurrency(remaining, bill.currency)}
             </Text>
@@ -452,7 +453,6 @@ function DetailRow({
       </Text>
       <Text
         style={[styles.detailValue, { color: colors.onSurface }]}
-        selectable
       >
         {value}
       </Text>

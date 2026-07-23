@@ -49,7 +49,6 @@ function LineField({
         {label}
       </Text>
       <Text
-        selectable={filled}
         style={[
           styles.lineValue,
           {
@@ -133,7 +132,6 @@ export function ChequePreviewCard({
               )}
               <View style={styles.bankText}>
                 <Text
-                  selectable={!!bankName.trim()}
                   style={[
                     styles.bankName,
                     {
@@ -148,7 +146,6 @@ export function ChequePreviewCard({
                   {bankName.trim() || bank?.name || "Bank"}
                 </Text>
                 <Text
-                  selectable={!!branchLine}
                   style={[styles.branch, { color: colors.textMuted }]}
                   numberOfLines={1}
                 >
@@ -170,7 +167,6 @@ export function ChequePreviewCard({
                 No.
               </Text>
               <Text
-                selectable={!!chequeNumber.trim()}
                 style={[
                   styles.chequeNo,
                   {
@@ -207,7 +203,6 @@ export function ChequePreviewCard({
                 Amount
               </Text>
               <Text
-                selectable={amountFilled}
                 style={[
                   styles.amountValue,
                   { color: amountFilled ? colors.onSurface : colors.outline },
@@ -222,7 +217,6 @@ export function ChequePreviewCard({
                 Matures
               </Text>
               <Text
-                selectable={!!maturityDateLabel}
                 style={[
                   styles.maturityValue,
                   {

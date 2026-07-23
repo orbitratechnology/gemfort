@@ -1,14 +1,17 @@
 import {
-  ScrollView,
   StyleSheet,
   View,
   type ScrollViewProps,
   type ViewProps,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+
+/** Matches KeyboardToolbar height so focused fields clear the accessory bar. */
+const KEYBOARD_TOOLBAR_OFFSET = 62;
 
 type ScreenProps = ScrollViewProps & {
   padded?: boolean;
@@ -29,7 +32,7 @@ export function Screen({
   const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={[styles.flex, { backgroundColor: colors.background }, style]}
       contentContainerStyle={[
         padded && styles.padded,
@@ -38,19 +41,23 @@ export function Screen({
       ]}
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
       {...props}>
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
 /** Themed ScrollView drop-in (replaces ScrollView + gray100 background) */
-export function ThemedScrollView({ style, ...props }: ScrollViewProps) {
+export function ThemedScrollView({ style, keyboardShouldPersistTaps, ...props }: ScrollViewProps) {
   const { colors } = useAppTheme();
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={[{ flex: 1, backgroundColor: colors.background }, style]}
       contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps ?? 'handled'}
+      bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
       {...props}
     />
   );

@@ -7,7 +7,11 @@ import type { Timestamp } from 'firebase/firestore';
 
 /** True when AP is actively out with the holder (ongoing). */
 export function isApOngoing(status: ApLifecycleStatus): boolean {
-  return status === 'accepted' || status === 'with_holder';
+  return (
+    status === 'accepted' ||
+    status === 'with_holder' ||
+    status === 'cancellation_requested'
+  );
 }
 
 export function isApPending(status: ApLifecycleStatus): boolean {
@@ -152,6 +156,8 @@ export function apStatusLabel(status: ApLifecycleStatus): string {
       return 'Rejected';
     case 'cancelled':
       return 'Cancelled';
+    case 'cancellation_requested':
+      return 'Cancel requested';
     case 'payment_sent':
       return 'Payment sent';
     case 'done':

@@ -100,7 +100,6 @@ export function CurrencyAmountField({
           <CurrencyFlag currency={currency} size="sm" />
           <Text
             style={[styles.currencyCode, { color: colors.onSurface }]}
-            selectable
           >
             {getCurrencyBadge(currency)}
           </Text>
@@ -122,7 +121,6 @@ export function CurrencyAmountField({
         <Text
           style={[styles.error, { color: colors.error }]}
           accessibilityLiveRegion="polite"
-          selectable
         >
           {error}
         </Text>

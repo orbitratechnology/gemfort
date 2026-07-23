@@ -37,10 +37,10 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
-import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 
 export default function ContactDetailScreen() {
@@ -133,23 +133,17 @@ export default function ContactDetailScreen() {
 
   function handleDelete() {
     if (!contact) return;
-    alert("Delete Contact", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteContact(contact.id);
-            await queryClient.invalidateQueries({ queryKey: ["contacts"] });
-            toast.success("Contact deleted");
-            router.back();
-          } catch (e) {
-            toast.error(friendlyError(e, "Could not delete contact."));
-          }
-        },
-      },
-    ]);
+    void confirmDelete("Delete Contact", "This cannot be undone.", async () => {
+      try {
+        await deleteContact(contact.id);
+        await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+        toast.success("Contact deleted");
+        router.back();
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not delete contact."));
+        throw e;
+      }
+    });
   }
 
   if (isLoading) {
@@ -328,14 +322,12 @@ export default function ContactDetailScreen() {
           </Link.AppleZoomTarget>
           <Text
             style={[styles.name, { color: colors.onSurface }]}
-            selectable
           >
             {contact.displayName}
           </Text>
           {contact.companyName ? (
             <Text
               style={[styles.company, { color: colors.textMuted }]}
-              selectable
             >
               {contact.companyName}
             </Text>
@@ -469,7 +461,6 @@ export default function ContactDetailScreen() {
                 <View style={styles.infoBody}>
                   <Text
                     style={[styles.infoValue, { color: colors.onSurface }]}
-                    selectable
                   >
                     {contact.phone}
                   </Text>
@@ -502,7 +493,6 @@ export default function ContactDetailScreen() {
                 <View style={styles.infoBody}>
                   <Text
                     style={[styles.infoValue, { color: colors.onSurface }]}
-                    selectable
                   >
                     {contact.whatsapp}
                   </Text>
@@ -521,7 +511,6 @@ export default function ContactDetailScreen() {
                 <View style={styles.infoBody}>
                   <Text
                     style={[styles.infoValue, { color: colors.onSurface }]}
-                    selectable
                   >
                     {contact.email}
                   </Text>
@@ -538,7 +527,6 @@ export default function ContactDetailScreen() {
           <FormSection title="Notes">
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
-              selectable
             >
               {contact.notes}
             </Text>

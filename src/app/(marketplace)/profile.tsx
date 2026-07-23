@@ -30,10 +30,10 @@ import {
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { alert } from "@/lib/alert";
 import { logoutUser } from "@/lib/firebase/auth-service";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
+import { confirm } from "@/providers/confirm-provider";
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
   { id: "system", label: "System", icon: "brightness-auto" },
@@ -334,14 +334,15 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Log Out"
             onPress={() =>
-              alert("Sign out?", "You can sign back in anytime.", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Log Out",
-                  style: "destructive",
-                  onPress: handleLogout,
-                },
-              ])
+              void confirm({
+                title: "Sign out?",
+                message: "You can sign back in anytime.",
+                tone: "destructive",
+                confirmLabel: "Log Out",
+                cancelLabel: "Cancel",
+                icon: "logout",
+                onConfirm: handleLogout,
+              })
             }
             style={({ pressed }) => [
               styles.logout,

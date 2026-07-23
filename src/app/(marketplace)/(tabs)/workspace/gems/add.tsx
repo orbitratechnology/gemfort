@@ -676,7 +676,6 @@ function ReviewRow({
         {leading}
         <Text
           style={[styles.reviewValue, { color: colors.onSurface }]}
-          selectable
         >
           {value}
         </Text>

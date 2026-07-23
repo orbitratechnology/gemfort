@@ -464,12 +464,17 @@ service cloud.firestore {
         && isOwner(request.resource.data.ownerUid);
       // Events are immutable once created
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (isOwner(resource.data.ownerUid) && isNotSuspended());
       allow read, write: if isAdmin();
     }
 
     match /gemtrack_services/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
+      allow read: if isNotSuspended()
+        && (isOwner(resource.data.ownerUid)
+            || (resource.data.providerUid is string
+                && resource.data.providerUid == uid()));
+      allow write: if isOwner(resource.data.ownerUid)
                          && isNotSuspended();
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.ownerUid);
