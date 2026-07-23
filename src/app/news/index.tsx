@@ -209,14 +209,14 @@ export default function GemNewsScreen() {
                 styles.showCard,
                 { backgroundColor: colors.surfaceContainerLowest },
               ]}>
-              <Text style={[styles.showTitle, { color: colors.onSurface }]} selectable>
+              <Text style={[styles.showTitle, { color: colors.onSurface }]}>
                 {item.title}
               </Text>
               <View style={styles.showMetaRow}>
                 {item.country ? (
                   <CountryFlag country={item.country} size="xs" />
                 ) : null}
-                <Text style={[styles.showMeta, { color: colors.textMuted }]} selectable>
+                <Text style={[styles.showMeta, { color: colors.textMuted }]}>
                   {item.venue}
                   {item.city ? ` · ${item.city}` : ''}
                   {item.country ? `, ${item.country}` : ''}

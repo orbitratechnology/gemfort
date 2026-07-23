@@ -21,8 +21,9 @@ import {
 } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
-import { alert } from "@/lib/alert";
 import { openPhone, openWhatsApp } from "@/lib/utils";
+import { confirmDelete } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 
 const ACTION_WIDTH = 74;
@@ -50,6 +51,7 @@ function ContactListRowInner({
   onSwipeableClose,
 }: ContactListRowProps) {
   const { colors } = useAppTheme();
+  const toast = useToast();
   const swipeRef = useRef<SwipeableMethods | null>(null);
 
   const close = useCallback(() => {
@@ -78,25 +80,19 @@ function ContactListRowInner({
 
   const handleDelete = useCallback(() => {
     close();
-    alert(
+    void confirmDelete(
       "Delete Contact",
       `Are you sure you want to delete ${contact.displayName}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void onDelete().catch((e) => {
-              alert("Couldn’t delete", friendlyError(e), undefined, {
-                haptic: "error",
-              });
-            });
-          },
-        },
-      ],
+      async () => {
+        try {
+          await onDelete();
+        } catch (e) {
+          toast.error(friendlyError(e, "Couldn’t delete"));
+          throw e;
+        }
+      },
     );
-  }, [close, contact.displayName, onDelete]);
+  }, [close, contact.displayName, onDelete, toast]);
 
   const renderLeftActions = useCallback(() => {
     return (
@@ -231,7 +227,6 @@ function ContactListRowInner({
             <Text
               style={[styles.name, { color: colors.onSurface }]}
               numberOfLines={1}
-              selectable
             >
               {contact.displayName}
             </Text>

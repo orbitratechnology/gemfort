@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
+import { Keyboard, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -100,74 +100,69 @@ export default function VerifyOtpScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}>
-        <ThemedScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled">
-          <ScreenInset style={styles.lead}>
-            <StoryChapter
-              title="Verify your phone"
-              body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
-            />
+      <ThemedScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <ScreenInset style={styles.lead}>
+          <StoryChapter
+            title="Verify your phone"
+            body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
+          />
 
-            <Button
-              title={verificationId ? 'Resend code' : 'Send code'}
-              icon="sms"
-              loading={sending}
-              disabled={cooldown > 0}
-              onPress={handleSendCode}
-            />
-            {cooldown > 0 ? (
-              <Text style={[styles.cooldown, { color: colors.textMuted }]}>
-                Resend available in {cooldown}s
-              </Text>
-            ) : null}
-          </ScreenInset>
+          <Button
+            title={verificationId ? 'Resend code' : 'Send code'}
+            icon="sms"
+            loading={sending}
+            disabled={cooldown > 0}
+            onPress={handleSendCode}
+          />
+          {cooldown > 0 ? (
+            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
+              Resend available in {cooldown}s
+            </Text>
+          ) : null}
+        </ScreenInset>
 
-          <FormSection title="Enter code">
-            <Input
-              label="6-digit code"
-              leftIcon="pin"
-              value={code}
-              onChangeText={(v) => {
-                setCode(v.replace(/\D/g, '').slice(0, 6));
-                setErrors({});
-              }}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="sms-otp"
-              maxLength={6}
-              placeholder="000000"
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={handleConfirm}
-              error={errors.code}
-            />
-          </FormSection>
+        <FormSection title="Enter code">
+          <Input
+            label="6-digit code"
+            leftIcon="pin"
+            value={code}
+            onChangeText={(v) => {
+              setCode(v.replace(/\D/g, '').slice(0, 6));
+              setErrors({});
+            }}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="sms-otp"
+            maxLength={6}
+            placeholder="000000"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={handleConfirm}
+            error={errors.code}
+          />
+        </FormSection>
 
-          <ScreenInset style={styles.cta}>
-            <Button
-              title="Verify & continue"
-              icon="verified"
-              loading={confirming}
-              onPress={handleConfirm}
-            />
+        <ScreenInset style={styles.cta}>
+          <Button
+            title="Verify & continue"
+            icon="verified"
+            loading={confirming}
+            onPress={handleConfirm}
+          />
 
-            {__DEV__ ? (
-              <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
-            ) : null}
-          </ScreenInset>
-        </ThemedScrollView>
-      </KeyboardAvoidingView>
+          {__DEV__ ? (
+            <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
+          ) : null}
+        </ScreenInset>
+      </ThemedScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  flex: { flex: 1 },
   container: {
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,

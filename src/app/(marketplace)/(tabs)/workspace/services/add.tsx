@@ -18,6 +18,7 @@ import {
 import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { createService, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
+import { fetchBusiness } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
@@ -82,6 +83,11 @@ export default function AddServiceScreen() {
 
     setLoading(true);
     try {
+      let providerUid: string | null = null;
+      if (provider.source === 'business') {
+        const biz = await fetchBusiness(provider.businessId);
+        providerUid = biz?.ownerUid ?? null;
+      }
       const expectedReturn = Timestamp.fromDate(
         new Date(Date.now() + parseInt(daysUntilReturn, 10) * 86400000),
       );
@@ -90,6 +96,7 @@ export default function AddServiceScreen() {
         serviceType,
         providerContactId: provider.source === 'contact' ? provider.contactId : '',
         providerBusinessId: provider.source === 'business' ? provider.businessId : null,
+        providerUid,
         providerName: provider.label,
         dateGiven: Timestamp.now(),
         expectedReturnDate: expectedReturn,

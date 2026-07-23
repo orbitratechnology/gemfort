@@ -182,7 +182,6 @@ function ModuleTile({
             <Text
               style={[styles.value, { color: colors.onSurface }]}
               numberOfLines={1}
-              selectable
             >
               {item.value}
             </Text>
@@ -231,15 +230,6 @@ export function WorkspaceModules({ groups, colors }: WorkspaceModulesProps) {
 
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-          Modules
-        </Text>
-        <Text style={[styles.sectionSub, { color: colors.textMuted }]}>
-          Jump into a workspace tool
-        </Text>
-      </View>
-
       {visible.map((group, groupIndex) => {
         const visual = groupVisual(group.id, colors);
         return (
@@ -266,11 +256,6 @@ export function WorkspaceModules({ groups, colors }: WorkspaceModulesProps) {
                 style={[styles.groupTitle, { color: colors.onSurfaceVariant }]}
               >
                 {group.title}
-              </Text>
-              <Text
-                style={[styles.groupCount, { color: colors.textMuted }]}
-              >
-                {group.items.length}
               </Text>
             </View>
 
@@ -299,15 +284,6 @@ const styles = StyleSheet.create({
   section: {
     gap: Spacing.md,
   },
-  sectionHeader: {
-    gap: 4,
-  },
-  sectionTitle: {
-    ...Typography.headlineSmMobile,
-  },
-  sectionSub: {
-    ...Typography.bodyMd,
-  },
   groupPanel: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",
@@ -332,11 +308,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     textTransform: "uppercase",
     flex: 1,
-  },
-  groupCount: {
-    ...Typography.caption,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
   },
   grid: {
     flexDirection: "row",

@@ -450,7 +450,6 @@ export default function BusinessProfileScreen() {
                     <Text
                       style={[styles.statValue, { color: colors.onSurface }]}
                       numberOfLines={1}
-                      selectable
                     >
                       {stat.value}
                     </Text>
@@ -686,7 +685,6 @@ export default function BusinessProfileScreen() {
                     <Text
                       style={[styles.serviceName, { color: colors.onSurface }]}
                       numberOfLines={1}
-                      selectable
                     >
                       {s.name}
                     </Text>
@@ -704,7 +702,6 @@ export default function BusinessProfileScreen() {
                     <View style={styles.serviceMetaRow}>
                       <Text
                         style={[styles.serviceMeta, { color: colors.primary }]}
-                        selectable
                       >
                         {formatCurrency(s.priceMin, s.currency)}
                         {s.priceMax > s.priceMin
@@ -750,7 +747,6 @@ export default function BusinessProfileScreen() {
                     <Text
                       style={[styles.serviceName, { color: colors.onSurface }]}
                       numberOfLines={2}
-                      selectable
                     >
                       {c.title}
                     </Text>
@@ -768,7 +764,6 @@ export default function BusinessProfileScreen() {
                     <View style={styles.serviceMetaRow}>
                       <Text
                         style={[styles.serviceMeta, { color: colors.primary }]}
-                        selectable
                       >
                         {c.price != null
                           ? formatCurrency(c.price, c.currency)
@@ -801,7 +796,6 @@ export default function BusinessProfileScreen() {
             <View style={styles.serviceBody}>
               <Text
                 style={[styles.serviceName, { color: colors.onSurface }]}
-                selectable
               >
                 {business.address || "Showroom / workshop"}
               </Text>
@@ -814,7 +808,6 @@ export default function BusinessProfileScreen() {
                     styles.serviceDesc,
                     { color: colors.onSurfaceVariant },
                   ]}
-                  selectable
                 />
               ) : null}
             </View>

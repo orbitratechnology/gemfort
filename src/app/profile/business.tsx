@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -19,6 +18,7 @@ import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
     Radius,
@@ -655,7 +655,7 @@ export default function MyBusinessProfileScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <ThemedScrollView
           contentContainerStyle={styles.content}
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
@@ -668,7 +668,7 @@ export default function MyBusinessProfileScreen() {
             profile={profile}
             colors={colors}
           />
-        </ScrollView>
+        </ThemedScrollView>
       )}
     </SafeAreaView>
   );

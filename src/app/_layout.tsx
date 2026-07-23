@@ -3,6 +3,7 @@ import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
 import { silkStackScreenOptions } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
+import { ConfirmProvider } from "@/providers/confirm-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -12,6 +13,10 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  KeyboardProvider,
+  KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 /** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
 const BOOT_BG = "#000000";
@@ -106,16 +111,21 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <ThemeProvider>
-        <ToastProvider>
-          <QueryProvider>
-            <AuthProvider>
-              <PushNotificationRegistrar />
-              <RootNavigator />
-            </AuthProvider>
-          </QueryProvider>
-        </ToastProvider>
-      </ThemeProvider>
+      <KeyboardProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <QueryProvider>
+                <AuthProvider>
+                  <PushNotificationRegistrar />
+                  <RootNavigator />
+                  <KeyboardToolbar />
+                </AuthProvider>
+              </QueryProvider>
+            </ConfirmProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

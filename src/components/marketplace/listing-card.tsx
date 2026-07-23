@@ -106,7 +106,6 @@ export function ListingCard({
         <Text
           style={[styles.price, { color: colors.primary }]}
           numberOfLines={1}
-          selectable
         >
           {price}
         </Text>

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "expo-router";
 import {
   Pressable,
@@ -14,6 +14,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+  ContextActionsLink,
+} from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -27,12 +30,16 @@ import {
 } from "@/features/workspace/bill-utils";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
+  deleteBill,
   fetchBills,
   fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { Bill } from "@/types";
 import { useMemo } from "react";
 
@@ -41,31 +48,47 @@ function BillRow({
   contactName,
   contactPhotoUrl,
   colors,
+  onDelete,
 }: {
   bill: Bill;
   contactName: string;
   contactPhotoUrl: string | null;
   colors: ReturnType<typeof useAppTheme>["colors"];
+  onDelete: () => void | Promise<void>;
 }) {
   const isPayable = bill.direction === "payable";
   const remaining = remainingAmount(bill);
   const partyLabel = contactName || "Contact";
 
   return (
-    <Link
+    <ContextActionsLink
       href={`/(marketplace)/(tabs)/workspace/bills/${bill.id}` as never}
-      asChild
+      accessibilityLabel={`${partyLabel}, ${formatCurrency(remaining, bill.currency)}`}
+      actions={[
+        {
+          label: "Delete",
+          icon: "trash",
+          destructive: true,
+          onPress: () =>
+            confirmDelete(
+              "Delete bill",
+              `Remove this bill with ${partyLabel}? This cannot be undone.`,
+              onDelete,
+            ),
+        },
+      ]}
     >
-      <Pressable
-        style={({ pressed }) => [
-          styles.row,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: colors.outlineVariant,
-            opacity: pressed ? 0.85 : 1,
-          },
-        ]}
-      >
+      {({ pressed }) => (
+        <View
+          style={[
+            styles.row,
+            {
+              backgroundColor: colors.surfaceContainerLowest,
+              borderColor: colors.outlineVariant,
+            },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
         {contactPhotoUrl ? (
           <ContactAvatar
             name={partyLabel}
@@ -102,7 +125,6 @@ function BillRow({
             </Text>
             <Text
               style={[styles.rowAmount, { color: colors.primary }]}
-              selectable
             >
               {formatCurrency(remaining, bill.currency)}
             </Text>
@@ -134,14 +156,17 @@ function BillRow({
             </View>
           </View>
         </View>
-      </Pressable>
-    </Link>
+        </View>
+      )}
+    </ContextActionsLink>
   );
 }
 
 export default function BillsIndexScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   const {
     data: bills = [],
@@ -176,6 +201,17 @@ export default function BillsIndexScreen() {
   const summary = getBillSummary(bills);
   const open = bills.filter(isOpenBill);
   const closed = bills.filter((b) => !isOpenBill(b));
+
+  async function handleDelete(billId: string) {
+    if (!user) return;
+    try {
+      await deleteBill(billId, user.uid);
+      await queryClient.invalidateQueries({ queryKey: ["bills", user.uid] });
+      toast.success("Bill deleted");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete bill."));
+    }
+  }
 
   return (
     <SafeAreaView
@@ -223,7 +259,6 @@ export default function BillsIndexScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {summary.payableCount} ·{" "}
                 {formatCurrency(summary.payableTotal)}
@@ -246,7 +281,6 @@ export default function BillsIndexScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {summary.receivableCount} ·{" "}
                 {formatCurrency(summary.receivableTotal)}
@@ -277,6 +311,7 @@ export default function BillsIndexScreen() {
                   contactPhotoMap.get(b.counterpartyContactId) ?? null
                 }
                 colors={colors}
+                onDelete={() => handleDelete(b.id)}
               />
             ))}
           </View>
@@ -296,6 +331,7 @@ export default function BillsIndexScreen() {
                   contactPhotoMap.get(b.counterpartyContactId) ?? null
                 }
                 colors={colors}
+                onDelete={() => handleDelete(b.id)}
               />
             ))}
           </View>

@@ -240,7 +240,7 @@ export default function HandleShareScreen() {
                 styles.banner,
                 { backgroundColor: colors.surfaceContainerHigh },
               ]}>
-              <Text style={[styles.bannerText, { color: colors.onSurface }]} selectable>
+              <Text style={[styles.bannerText, { color: colors.onSurface }]}>
                 Sign in to save shared content into your workspace.
               </Text>
               <Button
@@ -292,8 +292,7 @@ export default function HandleShareScreen() {
                   <Icon name="picture-as-pdf" size={22} color={colors.error} />
                   <Text
                     style={[styles.fileName, { color: colors.onSurface }]}
-                    numberOfLines={2}
-                    selectable>
+                    numberOfLines={2}>
                     {file.name ?? 'Shared file'}
                   </Text>
                 </View>
@@ -313,7 +312,6 @@ export default function HandleShareScreen() {
                 ]}>
                 <Text
                   style={[styles.textBody, { color: colors.onSurface }]}
-                  selectable
                   numberOfLines={6}>
                   {shareText}
                 </Text>

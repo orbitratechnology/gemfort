@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text } from 'react-native';
+import { Keyboard, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -48,66 +48,61 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Reset password" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}>
-        <ThemedScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled">
-          <ScreenInset>
-            <StoryChapter
-              title="Forgot password?"
-              body="Enter your email and we will send a link to choose a new password."
-              accent="primary"
-            />
-          </ScreenInset>
+      <ThemedScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <ScreenInset>
+          <StoryChapter
+            title="Forgot password?"
+            body="Enter your email and we will send a link to choose a new password."
+            accent="primary"
+          />
+        </ScreenInset>
 
-          <FormSection>
-            <Input
-              label="Email"
-              leftIcon="email"
-              value={email}
-              onChangeText={(v) => {
-                setEmail(v);
-                setErrors({});
-                setSent(false);
-              }}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              placeholder="you@example.com"
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={handleReset}
-              error={errors.email}
-            />
-          </FormSection>
+        <FormSection>
+          <Input
+            label="Email"
+            leftIcon="email"
+            value={email}
+            onChangeText={(v) => {
+              setEmail(v);
+              setErrors({});
+              setSent(false);
+            }}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            placeholder="you@example.com"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={handleReset}
+            error={errors.email}
+          />
+        </FormSection>
 
-          <ScreenInset style={styles.cta}>
-            {sent ? (
-              <Text style={[styles.success, { color: colors.successEmerald }]} selectable>
-                Reset link sent. Check your inbox (and spam folder).
-              </Text>
-            ) : null}
+        <ScreenInset style={styles.cta}>
+          {sent ? (
+            <Text style={[styles.success, { color: colors.successEmerald }]}>
+              Reset link sent. Check your inbox (and spam folder).
+            </Text>
+          ) : null}
 
-            <Button
-              title={sent ? 'Resend link' : 'Send reset link'}
-              icon="send"
-              loading={loading}
-              onPress={handleReset}
-            />
-            <Button title="Back to sign in" variant="ghost" onPress={() => router.back()} />
-          </ScreenInset>
-        </ThemedScrollView>
-      </KeyboardAvoidingView>
+          <Button
+            title={sent ? 'Resend link' : 'Send reset link'}
+            icon="send"
+            loading={loading}
+            onPress={handleReset}
+          />
+          <Button title="Back to sign in" variant="ghost" onPress={() => router.back()} />
+        </ScreenInset>
+      </ThemedScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  flex: { flex: 1 },
   container: {
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.section,

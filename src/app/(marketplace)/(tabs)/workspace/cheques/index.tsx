@@ -1,19 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { router } from "expo-router";
-import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+  ContextActionsLink,
+} from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -25,131 +16,167 @@ import {
 } from "@/features/workspace/cheque-utils";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
+    deleteCheque,
     fetchCheques,
     fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 import type { Cheque } from "@/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useMemo } from "react";
+import {
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChequeRow({
   cheque,
   contactName,
   contactPhotoUrl,
   colors,
-  onPress,
+  onDelete,
 }: {
   cheque: Cheque;
   contactName: string;
   contactPhotoUrl: string | null;
   colors: ReturnType<typeof useAppTheme>["colors"];
-  onPress: () => void;
+  onDelete: () => void | Promise<void>;
 }) {
   const isBounced = cheque.status === "bounced";
   const isReceived = cheque.direction === "received";
   const partyLabel = contactName || cheque.issuedBy || "Counterparty";
+  const label = `${cheque.chequeNumber} · ${cheque.bankName}`;
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
+    <ContextActionsLink
+      href={`/(marketplace)/(tabs)/workspace/cheques/${cheque.id}` as never}
+      accessibilityLabel={label}
+      actions={[
         {
-          backgroundColor: colors.surfaceContainerLowest,
-          borderColor: colors.outlineVariant,
+          label: "Delete",
+          icon: "trash",
+          destructive: true,
+          onPress: () =>
+            confirmDelete(
+              "Delete cheque",
+              `Remove cheque ${cheque.chequeNumber}? This cannot be undone.`,
+              onDelete,
+            ),
         },
-        isBounced && { borderColor: colors.error + "55" },
-        pressed && { opacity: 0.85 },
       ]}
     >
-      {contactPhotoUrl || cheque.photoUrl ? (
-        <ContactAvatar
-          name={partyLabel}
-          photoUrl={contactPhotoUrl || cheque.photoUrl}
-          size={44}
-        />
-      ) : (
+      {({ pressed }) => (
         <View
           style={[
-            styles.rowIcon,
+            styles.row,
             {
-              backgroundColor: isBounced
-                ? colors.errorContainer
-                : isReceived
-                  ? colors.secondaryContainer
-                  : colors.surfaceContainerHigh,
+              backgroundColor: colors.surfaceContainerLowest,
+              borderColor: colors.outlineVariant,
             },
+            isBounced && { borderColor: colors.error + "55" },
+            pressed && { opacity: 0.85 },
           ]}
         >
-          <Icon
-            name="money-check-dollar"
-            size={20}
-            color={
-              isBounced
-                ? colors.error
-                : isReceived
-                  ? colors.onSecondaryContainer
-                  : colors.onSurfaceVariant
-            }
-          />
-        </View>
-      )}
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text
-            style={[styles.rowTitle, { color: colors.onSurface }]}
-            numberOfLines={1}
-          >
-            {cheque.chequeNumber} · {cheque.bankName}
-          </Text>
-          <Text
-            style={[styles.rowAmount, { color: colors.primary }]}
-            selectable
-          >
-            {formatCurrency(cheque.amount, cheque.currency)}
-          </Text>
-        </View>
-        <Text
-          style={[styles.rowSub, { color: colors.textMuted }]}
-          numberOfLines={1}
-        >
-          {isReceived ? "From" : "To"} {partyLabel}
-        </Text>
-        <View style={styles.rowMeta}>
-          <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
-            {maturityLabel(cheque)}
-          </Text>
-          <View
-            style={[
-              styles.badge,
-              {
-                backgroundColor: isBounced
-                  ? colors.errorContainer
-                  : colors.surfaceContainerHighest,
-              },
-            ]}
-          >
-            <Text
+          {contactPhotoUrl || cheque.photoUrl ? (
+            <ContactAvatar
+              name={partyLabel}
+              photoUrl={contactPhotoUrl || cheque.photoUrl}
+              size={44}
+            />
+          ) : (
+            <View
               style={[
-                styles.badgeText,
-                { color: isBounced ? colors.error : colors.onSurfaceVariant },
+                styles.rowIcon,
+                {
+                  backgroundColor: isBounced
+                    ? colors.errorContainer
+                    : isReceived
+                      ? colors.secondaryContainer
+                      : colors.surfaceContainerHigh,
+                },
               ]}
             >
-              {CHEQUE_STATUS_LABELS[cheque.status]}
+              <Icon
+                name="money-check-dollar"
+                size={20}
+                color={
+                  isBounced
+                    ? colors.error
+                    : isReceived
+                      ? colors.onSecondaryContainer
+                      : colors.onSurfaceVariant
+                }
+              />
+            </View>
+          )}
+          <View style={styles.rowBody}>
+            <View style={styles.rowTop}>
+              <Text
+                style={[styles.rowTitle, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {cheque.chequeNumber} · {cheque.bankName}
+              </Text>
+              <Text
+                style={[styles.rowAmount, { color: colors.primary }]}
+              >
+                {formatCurrency(cheque.amount, cheque.currency)}
+              </Text>
+            </View>
+            <Text
+              style={[styles.rowSub, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {isReceived ? "From" : "To"} {partyLabel}
             </Text>
+            <View style={styles.rowMeta}>
+              <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
+                {maturityLabel(cheque)}
+              </Text>
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: isBounced
+                      ? colors.errorContainer
+                      : colors.surfaceContainerHighest,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.badgeText,
+                    { color: isBounced ? colors.error : colors.onSurfaceVariant },
+                  ]}
+                >
+                  {CHEQUE_STATUS_LABELS[cheque.status]}
+                </Text>
+              </View>
+            </View>
           </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
         </View>
-      </View>
-      <Icon name="chevron-right" size={20} color={colors.outline} />
-    </Pressable>
+      )}
+    </ContextActionsLink>
   );
 }
 
 export default function ChequesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   const {
     data: cheques = [],
@@ -184,6 +211,17 @@ export default function ChequesScreen() {
   const summary = getChequeSummary(cheques);
   const upcoming = getUpcomingCheques(cheques);
   const bounced = cheques.filter((c) => c.status === "bounced");
+
+  async function handleDelete(chequeId: string) {
+    if (!user) return;
+    try {
+      await deleteCheque(chequeId, user.uid);
+      await queryClient.invalidateQueries({ queryKey: ["cheques", user.uid] });
+      toast.success("Cheque deleted");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete cheque."));
+    }
+  }
 
   return (
     <SafeAreaView
@@ -237,7 +275,6 @@ export default function ChequesScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {summary.holdingCount} · {formatCurrency(summary.holdingTotal)}
               </Text>
@@ -259,7 +296,6 @@ export default function ChequesScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {formatCurrency(summary.clearingThisMonth)}
               </Text>
@@ -297,11 +333,7 @@ export default function ChequesScreen() {
                   contactPhotoMap.get(c.counterpartyContactId) ?? null
                 }
                 colors={colors}
-                onPress={() =>
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/cheques/${c.id}` as never,
-                  )
-                }
+                onDelete={() => handleDelete(c.id)}
               />
             ))}
           </View>
@@ -330,11 +362,7 @@ export default function ChequesScreen() {
                   contactPhotoMap.get(c.counterpartyContactId) ?? null
                 }
                 colors={colors}
-                onPress={() =>
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/cheques/${c.id}` as never,
-                  )
-                }
+                onDelete={() => handleDelete(c.id)}
               />
             ))
           )}

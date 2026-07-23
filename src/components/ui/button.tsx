@@ -14,7 +14,7 @@ import { Palette, Radius, TouchTarget, Typography } from '@/constants/design-tok
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics, type HapticKind } from '@/lib/haptics';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'whatsapp' | 'phone';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'whatsapp' | 'phone';
 
 type ButtonProps = PressableProps & {
   title: string;
@@ -58,6 +58,10 @@ export function Button({
     ghost: {
       container: { backgroundColor: 'transparent' },
       text: { color: colors.primary },
+    },
+    destructive: {
+      container: { backgroundColor: colors.error },
+      text: { color: colors.onError },
     },
     whatsapp: {
       container: { backgroundColor: Palette.whatsapp },

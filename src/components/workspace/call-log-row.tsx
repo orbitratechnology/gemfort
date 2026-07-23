@@ -91,7 +91,6 @@ function CallLogRowInner({
               { color: colors.onSurface },
             ]}
             numberOfLines={1}
-            selectable
           >
             {compact ? callTypeLabel(log.type) : log.partyName}
           </Text>
@@ -128,7 +127,6 @@ function CallLogRowInner({
               <Text
                 style={[styles.kind, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
-                selectable
               >
                 {log.number}
               </Text>

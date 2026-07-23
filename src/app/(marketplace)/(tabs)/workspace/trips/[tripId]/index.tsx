@@ -36,10 +36,10 @@ import {
     updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { alert } from "@/lib/alert";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirm } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { TripGem } from "@/types";
 
@@ -108,30 +108,27 @@ export default function TripDetailScreen() {
 
   async function handleDistributeOverhead() {
     if (!user || !trip) return;
-    alert(
-      "Distribute overhead",
-      "Split trip expenses across gems purchased on this trip by purchase cost?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Distribute",
-          onPress: async () => {
-            setLoading(true);
-            try {
-              const amount = await distributeTripOverhead(user.uid, trip.id);
-              await queryClient.invalidateQueries({ queryKey: ["gems"] });
-              toast.success(
-                `Distributed ${formatCurrency(amount)} across gems.`,
-              );
-            } catch (e) {
-              toast.error(friendlyError(e, "Could not distribute overhead."));
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ],
-    );
+    await confirm({
+      title: "Distribute overhead",
+      message:
+        "Split trip expenses across gems purchased on this trip by purchase cost?",
+      confirmLabel: "Distribute",
+      cancelLabel: "Cancel",
+      icon: "pie-chart",
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const amount = await distributeTripOverhead(user.uid, trip.id);
+          await queryClient.invalidateQueries({ queryKey: ["gems"] });
+          toast.success(`Distributed ${formatCurrency(amount)} across gems.`);
+        } catch (e) {
+          toast.error(friendlyError(e, "Could not distribute overhead."));
+          throw e;
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   }
 
   async function handleRecordSale() {
@@ -488,7 +485,6 @@ export default function TripDetailScreen() {
                 </View>
                 <Text
                   style={[styles.listAmt, { color: colors.onSurface }]}
-                  selectable
                 >
                   {formatCurrency(e.amount, e.currency)}
                 </Text>
@@ -560,7 +556,6 @@ export default function TripDetailScreen() {
                     </View>
                     <Text
                       style={[styles.listAmt, { color: colors.primary }]}
-                      selectable
                     >
                       {tg.salePrice != null
                         ? formatCurrency(tg.salePrice)
@@ -614,7 +609,6 @@ export default function TripDetailScreen() {
             </Text>
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
-              selectable
             >
               {trip.notes}
             </Text>
@@ -643,7 +637,6 @@ function Stat({
       </Text>
       <Text
         style={[styles.statValue, { color: accent ?? colors.onSurface }]}
-        selectable
       >
         {value}
       </Text>

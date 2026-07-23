@@ -10,7 +10,21 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { completeService, fetchServices } from '@/features/workspace/workspace-service';
+import {
+  canDeleteService,
+  canRequestServiceCancellation,
+  canRespondServiceCancellation,
+} from '@/features/workspace/delete-gates';
+import {
+  requestServiceCancellation,
+  respondServiceCancellation,
+} from '@/features/workspace/service-lifecycle-service';
+import {
+  completeService,
+  deleteService,
+  fetchService,
+  fetchServices,
+} from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
@@ -52,7 +66,16 @@ export default function ServiceDetailScreen() {
     enabled: !!user,
   });
 
-  const service = services.find((s) => s.id === serviceId);
+  const ownedService = services.find((s) => s.id === serviceId);
+
+  // Providers viewing their incoming service don't own it — fall back to a direct fetch.
+  const { data: fetchedService } = useQuery({
+    queryKey: ['service', serviceId],
+    queryFn: () => fetchService(serviceId!),
+    enabled: !!serviceId && !ownedService,
+  });
+
+  const service = ownedService ?? fetchedService ?? null;
 
   if (!service) {
     return (
@@ -62,8 +85,15 @@ export default function ServiceDetailScreen() {
     );
   }
 
+  const isOwner = service.ownerUid === user?.uid;
+  const isProvider = !!user && service.providerUid === user.uid;
   const actionable = service.status === 'given' || service.status === 'overdue' || service.status === 'in_progress';
   const statusLabel = service.status.replace(/_/g, ' ').toUpperCase();
+
+  async function invalidate() {
+    await queryClient.invalidateQueries({ queryKey: ['services'] });
+    await queryClient.invalidateQueries({ queryKey: ['service', serviceId] });
+  }
 
   async function handleComplete() {
     if (!user) return;
@@ -74,11 +104,53 @@ export default function ServiceDetailScreen() {
         finalCost: parseFloat(finalCost),
       });
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
-      await queryClient.invalidateQueries({ queryKey: ['services'] });
+      await invalidate();
       toast.success('Service marked complete');
       router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not update service.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRequestCancel() {
+    setLoading(true);
+    try {
+      await requestServiceCancellation(service!.id);
+      await invalidate();
+      toast.success('Cancellation requested');
+    } catch (e) {
+      toast.error(friendlyError(e, 'Could not request cancellation.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRespondCancel(action: 'accepted' | 'rejected') {
+    setLoading(true);
+    try {
+      await respondServiceCancellation(service!.id, action);
+      await invalidate();
+      toast.success(
+        action === 'accepted' ? 'Cancellation accepted' : 'Cancellation declined',
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, 'Could not respond to cancellation.'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!user) return;
+    setLoading(true);
+    try {
+      await deleteService(service!.id, user.uid);
+      toast.success('Service deleted');
+      router.back();
+    } catch (e) {
+      toast.error(friendlyError(e, 'Could not delete service.'));
     } finally {
       setLoading(false);
     }
@@ -230,6 +302,55 @@ export default function ServiceDetailScreen() {
             <Button title="Mark Received & Complete" icon="check-circle" loading={loading} onPress={handleComplete} />
           </FormSection>
         ) : null}
+
+        {isProvider && canRespondServiceCancellation(service, user!.uid) ? (
+          <FormSection title="Cancellation request">
+            <Text style={{ color: colors.textMuted }}>
+              The trader asked to cancel this service.
+            </Text>
+            <ScreenInset style={styles.row}>
+              <Button
+                title="Accept"
+                icon="check"
+                loading={loading}
+                onPress={() => handleRespondCancel('accepted')}
+                style={styles.flex}
+              />
+              <Button
+                title="Decline"
+                variant="secondary"
+                icon="close"
+                loading={loading}
+                onPress={() => handleRespondCancel('rejected')}
+                style={styles.flex}
+              />
+            </ScreenInset>
+          </FormSection>
+        ) : null}
+
+        {isOwner && canRequestServiceCancellation(service) ? (
+          <ScreenInset>
+            <Button
+              title="Request cancellation"
+              variant="secondary"
+              icon="cancel"
+              loading={loading}
+              onPress={handleRequestCancel}
+            />
+          </ScreenInset>
+        ) : null}
+
+        {isOwner && canDeleteService(service) ? (
+          <ScreenInset>
+            <Button
+              title="Delete service"
+              variant="secondary"
+              icon="delete"
+              loading={loading}
+              onPress={handleDelete}
+            />
+          </ScreenInset>
+        ) : null}
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -312,4 +433,7 @@ const styles = StyleSheet.create({
   costTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, marginTop: 2, borderTopWidth: 1 },
   costTotalLabel: { ...Typography.headlineSm },
   costTotalValue: { ...Typography.headlineSm },
+
+  row: { flexDirection: 'row', gap: Spacing.sm },
+  flex: { flex: 1 },
 });

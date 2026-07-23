@@ -16,6 +16,8 @@ import {
   respondServiceRequest,
   updateLapidaryJobStatus,
  createClientNotification } from '@/features/marketplace/request-service';
+import { respondServiceCancellation } from '@/features/workspace/service-lifecycle-service';
+import { fetchProviderServices } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
@@ -37,6 +39,12 @@ export default function LapidaryJobsScreen() {
   const { data: incoming = [] } = useQuery({
     queryKey: ['incoming-service-requests', user?.uid],
     queryFn: () => fetchIncomingServiceRequests(user!.uid),
+    enabled: !!user && canAccessModule(role, 'jobs'),
+  });
+
+  const { data: providerServices = [] } = useQuery({
+    queryKey: ['provider-services', user?.uid],
+    queryFn: () => fetchProviderServices(user!.uid),
     enabled: !!user && canAccessModule(role, 'jobs'),
   });
 
@@ -91,6 +99,19 @@ export default function LapidaryJobsScreen() {
   }
 
   const pending = incoming.filter((r) => r.status === 'pending');
+  const cancellationRequests = providerServices.filter(
+    (s) => s.status === 'cancellation_requested',
+  );
+
+  async function onRespondCancellation(serviceId: string, action: 'accepted' | 'rejected') {
+    try {
+      await respondServiceCancellation(serviceId, action);
+      await queryClient.invalidateQueries({ queryKey: ['provider-services'] });
+      toast.success(action === 'accepted' ? 'Service cancelled.' : 'Cancellation declined.');
+    } catch (e) {
+      toast.error(friendlyError(e, 'Could not respond to cancellation.'));
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -114,6 +135,32 @@ export default function LapidaryJobsScreen() {
           ))
         )}
         </ScreenInset>
+
+        {cancellationRequests.length > 0 ? (
+          <>
+            <FormSectionLabel title="Cancellation requests" />
+            <ScreenInset style={styles.sectionBody}>
+              {cancellationRequests.map((s) => (
+                <View key={s.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+                  <Text style={[styles.title, { color: colors.primary }]}>
+                    {s.serviceType.replace(/_/g, ' ')}
+                  </Text>
+                  <Text style={{ color: colors.textMuted }}>
+                    A trader asked to cancel this service.
+                  </Text>
+                  <View style={styles.row}>
+                    <Button title="Accept" onPress={() => onRespondCancellation(s.id, 'accepted')} />
+                    <Button
+                      title="Decline"
+                      variant="secondary"
+                      onPress={() => onRespondCancellation(s.id, 'rejected')}
+                    />
+                  </View>
+                </View>
+              ))}
+            </ScreenInset>
+          </>
+        ) : null}
 
         <FormSectionLabel title="Active jobs" />
         <ScreenInset style={styles.sectionBody}>

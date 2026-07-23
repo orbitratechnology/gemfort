@@ -99,6 +99,21 @@ export async function cancelApRequest(apId: string) {
   return callFunction('cancelApRequest', { apId });
 }
 
+export async function requestApCancellation(apId: string) {
+  return callFunction('requestApCancellation', { apId });
+}
+
+export async function respondApCancellation(
+  apId: string,
+  action: 'accepted' | 'rejected',
+) {
+  return callFunction('respondApCancellation', { apId, action });
+}
+
+export async function deleteApRecord(apId: string) {
+  return callFunction('deleteApRecord', { apId });
+}
+
 export async function recordApGemSale(input: {
   apId: string;
   gemId: string;

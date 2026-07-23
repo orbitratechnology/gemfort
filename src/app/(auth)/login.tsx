@@ -1,6 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/brand/brand-mark';
@@ -68,83 +68,78 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}>
-        <ThemedScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled">
-          <ScreenInset style={styles.brandBlock}>
-            <BrandMark size="md" showWordmark />
-            <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
-          </ScreenInset>
+      <ThemedScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
+        <ScreenInset style={styles.brandBlock}>
+          <BrandMark size="md" showWordmark />
+          <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
+        </ScreenInset>
 
-          <ScreenInset>
-            <StoryChapter
-              title="Welcome back"
-              body="Sign in to continue your gem business journey."
-              accent="primary"
-            />
-          </ScreenInset>
+        <ScreenInset>
+          <StoryChapter
+            title="Welcome back"
+            body="Sign in to continue your gem business journey."
+            accent="primary"
+          />
+        </ScreenInset>
 
-          <FormSection>
-            <Input
-              label="Email"
-              leftIcon="email"
-              value={email}
-              onChangeText={(v) => {
-                setEmail(v);
-                clearField('email');
-              }}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              placeholder="you@example.com"
-              returnKeyType="next"
-              blurOnSubmit={false}
-              error={errors.email}
-            />
-            <Input
-              label="Password"
-              leftIcon="lock"
-              value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                clearField('password');
-              }}
-              secureTextEntry
-              autoComplete="password"
-              textContentType="password"
-              placeholder="Enter password"
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={handleLogin}
-              error={errors.password}
-            />
-          </FormSection>
+        <FormSection>
+          <Input
+            label="Email"
+            leftIcon="email"
+            value={email}
+            onChangeText={(v) => {
+              setEmail(v);
+              clearField('email');
+            }}
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            placeholder="you@example.com"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            error={errors.email}
+          />
+          <Input
+            label="Password"
+            leftIcon="lock"
+            value={password}
+            onChangeText={(v) => {
+              setPassword(v);
+              clearField('password');
+            }}
+            secureTextEntry
+            autoComplete="password"
+            textContentType="password"
+            placeholder="Enter password"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={handleLogin}
+            error={errors.password}
+          />
+        </FormSection>
 
-          <ScreenInset style={styles.cta}>
-            <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
+        <ScreenInset style={styles.cta}>
+          <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
 
-            <View style={styles.links}>
-              <Link href="/(auth)/forgot-password">
-                <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
-              </Link>
-              <Link href="/(auth)/register">
-                <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
-              </Link>
-            </View>
-          </ScreenInset>
-        </ThemedScrollView>
-      </KeyboardAvoidingView>
+          <View style={styles.links}>
+            <Link href="/(auth)/forgot-password">
+              <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
+            </Link>
+            <Link href="/(auth)/register">
+              <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
+            </Link>
+          </View>
+        </ScreenInset>
+      </ThemedScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  flex: { flex: 1 },
   container: {
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,

@@ -54,6 +54,7 @@ const OPEN_SERVICE_STATUSES = new Set([
   "given",
   "in_progress",
   "overdue",
+  "cancellation_requested",
 ]);
 
 /** Ongoing trips + open APs + pending cheques + open bills + active services. */

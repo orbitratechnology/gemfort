@@ -260,6 +260,15 @@ export type GemCost = {
   createdAt: Timestamp;
 };
 
+export type ServiceRecordStatus =
+  | "given"
+  | "in_progress"
+  | "completed"
+  | "received_back"
+  | "overdue"
+  | "cancellation_requested"
+  | "cancelled";
+
 export type ServiceRecord = {
   id: string;
   ownerUid: string;
@@ -269,6 +278,8 @@ export type ServiceRecord = {
   providerContactId: string;
   /** Verified GemFort lapidary / gem lab business, when selected from Providers tab. */
   providerBusinessId?: string | null;
+  /** Firebase Auth uid of the GemFort provider (business owner), when linked. */
+  providerUid?: string | null;
   /** Denormalized display name for list/detail screens. */
   providerName?: string | null;
   dateGiven: Timestamp;
@@ -284,7 +295,7 @@ export type ServiceRecord = {
   weightLossPercent: number | null;
   photoAfterUrls: string[];
   resultNotes: string | null;
-  status: "given" | "in_progress" | "completed" | "received_back" | "overdue";
+  status: ServiceRecordStatus;
   finalCost: number | null;
   finalCostCurrency: string | null;
   paymentStatus: "unpaid" | "partial" | "paid";
@@ -297,6 +308,7 @@ export type ApLifecycleStatus =
   | "accepted"
   | "rejected"
   | "cancelled"
+  | "cancellation_requested"
   | "payment_sent"
   | "done"
   /** @deprecated Legacy single-gem statuses — normalized on read */

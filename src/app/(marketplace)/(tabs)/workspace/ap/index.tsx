@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Pressable,
@@ -18,6 +18,10 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+  ContextActionsLink,
+  type ContextMenuAction,
+} from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinessByOwnerUid, fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -27,11 +31,19 @@ import {
   isApOngoing,
 } from "@/features/workspace/ap-normalize";
 import {
+  deleteApRecord,
   fetchGivenApRecords,
   fetchTakenApRecords,
+  requestApCancellation,
+  respondApCancellation,
   respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
 import { getApSummary, isApOverdue } from "@/features/workspace/ap-utils";
+import {
+  canDeleteAp,
+  canRequestApCancellation,
+  canRespondApCancellation,
+} from "@/features/workspace/delete-gates";
 import {
   gemPrimaryPhotoUrl,
   resolvePartyPhotoUrl,
@@ -45,6 +57,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency, formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
   ApLifecycleStatus,
@@ -113,6 +126,14 @@ function statusTone(
       fg: colors.onPrimaryContainer,
       accent: colors.primary,
       icon: "payments",
+    };
+  }
+  if (record.status === "cancellation_requested") {
+    return {
+      bg: colors.errorContainer,
+      fg: colors.error,
+      accent: colors.error,
+      icon: "hourglass-top",
     };
   }
   if (record.status === "done") {
@@ -227,6 +248,10 @@ function ApRow({
   partyPhotoUrl,
   onRespond,
   responding,
+  uid,
+  onDelete,
+  onRequestCancellation,
+  onRespondCancellation,
 }: {
   record: ApRecord;
   side: ApSide;
@@ -235,6 +260,13 @@ function ApRow({
   partyPhotoUrl: string | null;
   onRespond?: (action: "accepted" | "rejected") => void;
   responding?: boolean;
+  uid?: string | null;
+  onDelete: (apId: string) => void | Promise<void>;
+  onRequestCancellation: (apId: string) => void | Promise<void>;
+  onRespondCancellation: (
+    apId: string,
+    action: "accepted" | "rejected",
+  ) => void | Promise<void>;
 }) {
   const overdue = isApOverdue(record);
   const party =
@@ -246,6 +278,28 @@ function ApRow({
   const tone = statusTone(record, colors);
   const showActions =
     side === "taken" && record.status === "pending" && !!onRespond;
+  const showCancelActions = !!uid && canRespondApCancellation(record, uid);
+  const menuActions: ContextMenuAction[] = [];
+  if (canDeleteAp(record)) {
+    menuActions.push({
+      label: "Delete",
+      icon: "trash",
+      destructive: true,
+      onPress: () =>
+        confirmDelete(
+          "Delete AP",
+          "Remove this AP record? This cannot be undone.",
+          () => onDelete(record.id),
+        ),
+    });
+  }
+  if (uid && canRequestApCancellation(record, uid)) {
+    menuActions.push({
+      label: "Request cancellation",
+      icon: "xmark.circle",
+      onPress: () => onRequestCancellation(record.id),
+    });
+  }
   const dueLabel =
     isApOngoing(record.status) || record.status === "pending"
       ? formatRelativeDue(record.expectedReturnDate)
@@ -263,14 +317,14 @@ function ApRow({
 
   return (
     <View style={styles.rowWrap}>
-      <Link
+      <ContextActionsLink
         href={`/(marketplace)/(tabs)/workspace/ap/${record.id}` as never}
-        asChild
+        accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatCurrency(total, currency)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
+        actions={menuActions}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatCurrency(total, currency)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
-          style={({ pressed }) => [
+        {({ pressed }) => (
+        <View
+          style={[
             styles.row,
             {
               backgroundColor: cardBg,
@@ -311,7 +365,6 @@ function ApRow({
               </Text>
               <Text
                 style={[styles.rowAmount, { color: amountColor }]}
-                selectable
               >
                 {formatCurrency(total, currency)}
               </Text>
@@ -346,8 +399,9 @@ function ApRow({
             </View>
           </View>
           <Icon name="chevron-right" size={20} color={colors.outline} />
-        </Pressable>
-      </Link>
+        </View>
+        )}
+      </ContextActionsLink>
 
       {showActions ? (
         <View style={styles.actions}>
@@ -363,6 +417,25 @@ function ApRow({
             variant="secondary"
             loading={responding}
             onPress={() => onRespond!("rejected")}
+            style={styles.actionBtn}
+          />
+        </View>
+      ) : null}
+
+      {showCancelActions ? (
+        <View style={styles.actions}>
+          <Button
+            title="Accept cancellation"
+            icon="check"
+            loading={responding}
+            onPress={() => onRespondCancellation(record.id, "accepted")}
+            style={styles.actionBtn}
+          />
+          <Button
+            title="Decline"
+            variant="secondary"
+            loading={responding}
+            onPress={() => onRespondCancellation(record.id, "rejected")}
             style={styles.actionBtn}
           />
         </View>
@@ -528,6 +601,45 @@ export default function ApListScreen() {
     }
   }
 
+  async function onDelete(apId: string) {
+    try {
+      await deleteApRecord(apId);
+      toast.success("AP deleted");
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete AP."));
+    }
+  }
+
+  async function onRequestCancellation(apId: string) {
+    try {
+      await requestApCancellation(apId);
+      toast.success("Cancellation requested");
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not request cancellation."));
+    }
+  }
+
+  async function onRespondCancellation(
+    apId: string,
+    action: "accepted" | "rejected",
+  ) {
+    setRespondingId(apId);
+    try {
+      await respondApCancellation(apId, action);
+      toast.success(
+        action === "accepted" ? "AP cancelled" : "Cancellation declined",
+      );
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not respond to cancellation."));
+    } finally {
+      setRespondingId(null);
+    }
+  }
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -569,7 +681,6 @@ export default function ApListScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {summary.totalOut}
                 {summary.pendingRequests > 0
@@ -594,7 +705,6 @@ export default function ApListScreen() {
               </Text>
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {formatCurrency(summary.totalValue)}
               </Text>
@@ -665,6 +775,10 @@ export default function ApListScreen() {
                           ? (action) => onRespond(r.id, action)
                           : undefined
                       }
+                      uid={user?.uid}
+                      onDelete={onDelete}
+                      onRequestCancellation={onRequestCancellation}
+                      onRespondCancellation={onRespondCancellation}
                     />
                   );
                 })}

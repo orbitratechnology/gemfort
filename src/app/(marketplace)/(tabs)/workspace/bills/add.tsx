@@ -420,7 +420,6 @@ function BreakdownRow({
             fontWeight: strong ? "700" : "600",
           },
         ]}
-        selectable
       >
         {value}
       </Text>

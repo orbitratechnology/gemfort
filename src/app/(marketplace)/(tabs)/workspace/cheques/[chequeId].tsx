@@ -18,9 +18,9 @@ import {
   updateChequeStatus,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { alert } from '@/lib/alert';
 import { friendlyError } from '@/lib/errors';
 import { formatCurrency, formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
+import { confirm } from '@/providers/confirm-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { ChequeStatus } from '@/types';
 
@@ -64,10 +64,15 @@ export default function ChequeDetailScreen() {
     }
 
     if (status === 'cancelled') {
-      alert('Cancel cheque', 'Mark this cheque as cancelled?', [
-        { text: 'No', style: 'cancel' },
-        { text: 'Yes', style: 'destructive', onPress: () => applyStatus('cancelled') },
-      ]);
+      void confirm({
+        title: 'Cancel cheque',
+        message: 'Mark this cheque as cancelled?',
+        tone: 'destructive',
+        confirmLabel: 'Yes',
+        cancelLabel: 'No',
+        icon: 'cancel',
+        onConfirm: () => applyStatus('cancelled'),
+      });
       return;
     }
 
@@ -145,7 +150,7 @@ export default function ChequeDetailScreen() {
               </Text>
             </View>
           </View>
-          <Text style={[styles.heroAmount, { color: isBounced ? colors.error : colors.onPrimary }]} selectable>
+          <Text style={[styles.heroAmount, { color: isBounced ? colors.error : colors.onPrimary }]}>
             {formatCurrency(cheque.amount, cheque.currency)}
           </Text>
           <Text style={[styles.heroBank, { color: isBounced ? colors.onErrorContainer : colors.onPrimary + 'CC' }]}>
@@ -299,7 +304,7 @@ function DetailRow({
   return (
     <View style={styles.detailRow}>
       <Text style={[styles.detailLabel, { color: colors.textMuted }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: danger ? colors.error : colors.onSurface }]} selectable>
+      <Text style={[styles.detailValue, { color: danger ? colors.error : colors.onSurface }]}>
         {value}
       </Text>
     </View>

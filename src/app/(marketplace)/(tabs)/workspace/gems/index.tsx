@@ -1,5 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -23,12 +22,16 @@ import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen
 import { GEM_CARD_MAX_WIDTH, GemCard } from '@/components/workspace/gem-card';
 import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
-import { fetchGems } from '@/features/workspace/workspace-service';
+import { deleteGem, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
+import { useToast } from '@/providers/toast-provider';
 import type { GemStatus } from '@/types';
+import { router, useLocalSearchParams } from 'expo-router';
 
 const GRID_GAP = Spacing.stackMd;
 const CHIP_HEIGHT = 36;
@@ -37,6 +40,8 @@ const LIST_H_PAD = Spacing.containerMargin;
 export default function GemsListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const { width: windowWidth } = useWindowDimensions();
   const params = useLocalSearchParams<{ status?: string }>();
   const initialStatus = (params.status as GemStatus | undefined) ?? 'all';
@@ -79,6 +84,17 @@ export default function GemsListScreen() {
     setStatusFilter(draft.status);
     setTypeFilter(draft.type);
     setFilterOpen(false);
+  }
+
+  async function handleDeleteGem(gemId: string) {
+    if (!user) return;
+    try {
+      await deleteGem(gemId, user.uid);
+      await queryClient.invalidateQueries({ queryKey: ['gems', user.uid] });
+      toast.success('Gem deleted');
+    } catch (e) {
+      toast.error(friendlyError(e, 'Could not delete gem.'));
+    }
   }
 
   return (
@@ -198,6 +214,11 @@ export default function GemsListScreen() {
             <GemCard
               gem={item}
               href={`/(marketplace)/(tabs)/workspace/gems/${item.id}`}
+              onDelete={
+                canDeleteGem(item)
+                  ? () => handleDeleteGem(item.id)
+                  : undefined
+              }
             />
           </View>
         )}

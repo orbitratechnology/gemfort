@@ -4,12 +4,12 @@ import {
   Dimensions,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
@@ -196,13 +196,14 @@ export function BottomSheet({
             </View>
           ) : null}
           {scrollable ? (
-            <ScrollView
+            <KeyboardAwareScrollView
               style={styles.body}
               contentContainerStyle={styles.bodyContent}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled">
+              keyboardShouldPersistTaps="handled"
+              bottomOffset={62}>
               {children}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           ) : (
             <View style={styles.bodyFlex}>{children}</View>
           )}
@@ -213,7 +214,7 @@ export function BottomSheet({
   );
 }
 
-/** Labeled row of selectable chips for filter sheets. */
+/** Labeled row of chips for filter sheets. */
 export function FilterChipGroup<T extends string>({
   label,
   options,

@@ -332,7 +332,7 @@ export default function WorkspaceHub() {
       value: apRecords.length,
       icon: "hourglass-empty",
       route: `${WORKSPACE}/ap`,
-      group: "money",
+      group: "inventory",
       hint:
         takenPendingAp.length > 0
           ? `${takenPendingAp.length} to accept`
@@ -553,7 +553,7 @@ export default function WorkspaceHub() {
         ? "workspace-premium"
         : "account-balance-wallet";
 
-  // Estimate until onLayout (header ~56 + optional strip).
+  // Estimate until onLayout (header ~56).
   const topPad =
     (chromeHeight > 0 ? chromeHeight : insets.top + 56) + Spacing.stackSm;
 
@@ -567,6 +567,25 @@ export default function WorkspaceHub() {
         contentContainerStyle={[styles.content, { paddingTop: topPad }]}
         showsVerticalScrollIndicator={false}
       >
+        <ActiveProgressStrip
+          trips={trips}
+          apRecords={apRecords}
+          cheques={cheques}
+          bills={bills}
+          services={services}
+          currentUid={userId}
+          contactName={(id) =>
+            contacts.find((c) => c.id === id)?.displayName ?? "Contact"
+          }
+          contactPhoto={contactPhoto}
+          businessPhoto={businessPhoto}
+          ownerBusinessPhoto={ownerBusinessPhoto}
+          apImage={apImage}
+          limit={4}
+          compact
+          style={styles.progressStrip}
+        />
+
         {/* Hero */}
         <Pressable
           onPress={() => router.push(heroRoute as never)}
@@ -584,7 +603,6 @@ export default function WorkspaceHub() {
               </Text>
               <Text
                 style={[styles.heroValue, { color: colors.onPrimary }]}
-                selectable
               >
                 {heroValue}
               </Text>
@@ -861,7 +879,6 @@ export default function WorkspaceHub() {
                     color: monthNet >= 0 ? colors.successEmerald : colors.error,
                   },
                 ]}
-                selectable
               >
                 {monthNet >= 0 ? "+" : "-"}
                 {formatCurrency(Math.abs(monthNet))}
@@ -1223,24 +1240,6 @@ export default function WorkspaceHub() {
               ) : null
             }
           />
-          <ActiveProgressStrip
-            trips={trips}
-            apRecords={apRecords}
-            cheques={cheques}
-            bills={bills}
-            services={services}
-            currentUid={userId}
-            contactName={(id) =>
-              contacts.find((c) => c.id === id)?.displayName ?? "Contact"
-            }
-            contactPhoto={contactPhoto}
-            businessPhoto={businessPhoto}
-            ownerBusinessPhoto={ownerBusinessPhoto}
-            apImage={apImage}
-            limit={4}
-            compact
-            style={styles.headerTripWrap}
-          />
         </SafeAreaView>
       </View>
     </View>
@@ -1264,9 +1263,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
   },
-  headerTripWrap: {
-    paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: Spacing.stackMd,
+  progressStrip: {
+    paddingBottom: Spacing.stackSm,
   },
   content: {
     paddingHorizontal: Spacing.containerMargin,

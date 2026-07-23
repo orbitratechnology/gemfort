@@ -168,6 +168,29 @@ export async function createGem(
   return ref.id;
 }
 
+export async function deleteGem(gemId: string, ownerUid: string) {
+  const gem = await fetchGem(gemId);
+  if (!gem || gem.ownerUid !== ownerUid) throw new Error("Gem not found");
+  if (["on_ap", "on_trip", "listed", "sold"].includes(gem.status)) {
+    throw new Error("This gem cannot be deleted while locked or sold.");
+  }
+
+  const db = getFirebaseDb();
+  const [costsSnap, eventsSnap] = await Promise.all([
+    getDocs(
+      query(collection(db, "gemtrack_gem_costs"), where("gemId", "==", gemId)),
+    ),
+    getDocs(
+      query(collection(db, "gemtrack_gem_events"), where("gemId", "==", gemId)),
+    ),
+  ]);
+  await Promise.all([
+    ...costsSnap.docs.map((d) => deleteDoc(d.ref)),
+    ...eventsSnap.docs.map((d) => deleteDoc(d.ref)),
+  ]);
+  await deleteDoc(doc(db, "gemtrack_gems", gemId));
+}
+
 export async function updateGemStatus(
   gemId: string,
   ownerUid: string,
@@ -263,6 +286,7 @@ export async function createService(
   const now = Timestamp.now();
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_services"), {
     ...input,
+    providerUid: input.providerUid ?? null,
     ownerUid,
     status: "given",
     dateReturned: null,
@@ -350,6 +374,36 @@ export async function completeService(
       createdAt: now,
     });
   }
+}
+
+export async function deleteService(serviceId: string, ownerUid: string) {
+  const service = await fetchService(serviceId);
+  if (!service || service.ownerUid !== ownerUid) {
+    throw new Error("Service not found");
+  }
+  if (
+    service.status !== "completed" &&
+    service.status !== "received_back" &&
+    service.status !== "cancelled"
+  ) {
+    throw new Error(
+      "Only completed or cancelled services can be deleted. Request cancellation first.",
+    );
+  }
+  await deleteDoc(doc(getFirebaseDb(), "gemtrack_services", serviceId));
+}
+
+export async function fetchProviderServices(
+  providerUid: string,
+): Promise<ServiceRecord[]> {
+  const q = query(
+    collection(getFirebaseDb(), "gemtrack_services"),
+    where("providerUid", "==", providerUid),
+    orderBy("updatedAt", "desc"),
+    limit(50),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord);
 }
 
 // ─── AP ─────────────────────────────────────────────
@@ -1115,6 +1169,17 @@ export async function updateBillStatus(billId: string, status: BillStatus) {
   });
 }
 
+export async function deleteBill(billId: string, ownerUid: string) {
+  const bill = await fetchBill(billId);
+  if (!bill || bill.ownerUid !== ownerUid) throw new Error("Bill not found");
+  const db = getFirebaseDb();
+  const paymentsSnap = await getDocs(
+    query(collection(db, "gemtrack_payments"), where("billId", "==", billId)),
+  );
+  await Promise.all(paymentsSnap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, "gemtrack_bills", billId));
+}
+
 export async function recordBillPayment(
   ownerUid: string,
   billId: string,
@@ -1383,6 +1448,14 @@ export async function updateChequeStatus(
   await updateDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId), updates);
 }
 
+export async function deleteCheque(chequeId: string, ownerUid: string) {
+  const cheque = await fetchCheque(chequeId);
+  if (!cheque || cheque.ownerUid !== ownerUid) {
+    throw new Error("Cheque not found");
+  }
+  await deleteDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId));
+}
+
 // ─── Trips ────────────────────────────────────────
 
 const EMPTY_TRIP_SUMMARY = {
@@ -1456,6 +1529,35 @@ export async function updateTripStatus(tripId: string, status: TripStatus) {
   };
   if (status === "completed") updates.actualEndDate = Timestamp.now();
   await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), updates);
+}
+
+export async function deleteTrip(tripId: string, ownerUid: string) {
+  const trip = await fetchTrip(tripId);
+  if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");
+
+  const [expenses, tripGems] = await Promise.all([
+    fetchTripExpenses(tripId),
+    fetchTripGems(tripId),
+  ]);
+
+  await Promise.all([
+    ...expenses.map((e) =>
+      deleteDoc(doc(getFirebaseDb(), "gemtrack_trip_expenses", e.id)),
+    ),
+    ...tripGems.map(async (tg) => {
+      await deleteDoc(doc(getFirebaseDb(), "gemtrack_trip_gems", tg.id));
+      if (tg.status === "on_trip") {
+        const gem = await fetchGem(tg.gemId);
+        if (gem && gem.ownerUid === ownerUid && gem.status === "on_trip") {
+          await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", tg.gemId), {
+            status: "ready_for_sale",
+            updatedAt: Timestamp.now(),
+          });
+        }
+      }
+    }),
+  ]);
+  await deleteDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId));
 }
 
 export async function fetchTripExpenses(

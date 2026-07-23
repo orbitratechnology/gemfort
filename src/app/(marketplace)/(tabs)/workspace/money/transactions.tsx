@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
 
@@ -100,7 +101,7 @@ export default function TransactionsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Transactions" />
 
-      <View style={styles.container}>
+      <KeyboardAvoidingView style={styles.container} behavior="padding" automaticOffset>
         {/* Search & Quick Filters */}
         <View style={styles.searchSection}>
           <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outline + '1A' }]}>
@@ -152,6 +153,7 @@ export default function TransactionsScreen() {
           refreshing={isRefetching}
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState icon="receipt-long" title="No transactions yet" subtitle="Tap + to record one." />
           }
@@ -204,7 +206,7 @@ export default function TransactionsScreen() {
             <Icon name="add" size={28} color={colors.onPrimary} />
           </Pressable>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

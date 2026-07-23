@@ -3,15 +3,15 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carousel";
@@ -29,40 +29,40 @@ import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-    ROLE_LABELS,
-    canAccessModule,
-    resolveProfileRole,
+  ROLE_LABELS,
+  canAccessModule,
+  resolveProfileRole,
 } from "@/constants/roles";
 import {
-    buildHomeUpcoming,
-    popularByRole,
+  buildHomeUpcoming,
+  popularByRole,
 } from "@/features/marketplace/home-feed";
 import {
-    demoBusinesses,
-    demoListings,
-    fetchBusinessByOwnerUid,
-    fetchBusinesses,
-    fetchPublicListings,
-    filterListings,
+  demoBusinesses,
+  demoListings,
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+  fetchPublicListings,
+  filterListings,
 } from "@/features/marketplace/marketplace-service";
 import {
-    fetchGemNewsTeaser,
-    fetchUpcomingExhibitions,
+  fetchGemNewsTeaser,
+  fetchUpcomingExhibitions,
 } from "@/features/news/news-service";
 import {
-    gemPrimaryPhotoUrl,
-    resolveBusinessPhotoById,
-    resolveBusinessPhotoByOwnerUid,
-    resolvePartyPhotoUrl,
+  gemPrimaryPhotoUrl,
+  resolveBusinessPhotoById,
+  resolveBusinessPhotoByOwnerUid,
+  resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
 import {
-    fetchApRecords,
-    fetchBills,
-    fetchCheques,
-    fetchContacts,
-    fetchGems,
-    fetchServices,
-    fetchTrips,
+  fetchApRecords,
+  fetchBills,
+  fetchCheques,
+  fetchContacts,
+  fetchGems,
+  fetchServices,
+  fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useInvalidateExchangeRates } from "@/hooks/use-exchange-rates";
@@ -401,7 +401,7 @@ export default function HomeScreen() {
       >
         <HomeBannerCarousel />
 
-        <View style={styles.section}>
+        <View style={styles.sectionBleed}>
           <HomeCurrencyRates />
         </View>
 
