@@ -102,12 +102,12 @@ export const addTripSchema = z.object({
   destinationCity: z
     .string()
     .trim()
-    .min(2, "Enter destination city")
+    .min(2, "Select destination city")
     .max(60, "City name is too long"),
   destinationCountry: z
     .string()
     .trim()
-    .min(2, "Enter country")
+    .min(2, "Select country")
     .max(60, "Country name is too long"),
   durationDays: z
     .string()

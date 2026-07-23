@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
     Linking,
     Pressable,
@@ -15,8 +15,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { CurrencyFlag } from "@/components/ui/country-flag";
+import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { StackHeader } from "@/components/ui/stack-header";
+import {
+    getCurrencyLabel,
+    type CurrencyCode,
+} from "@/constants/currencies";
 import {
     Radius,
     Spacing,
@@ -30,10 +37,16 @@ import {
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { logoutUser } from "@/lib/firebase/auth-service";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import {
+    logoutUser,
+    updatePreferredCurrency,
+} from "@/lib/firebase/auth-service";
+import { friendlyError } from "@/lib/errors";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
+import { useToast } from "@/providers/toast-provider";
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
   { id: "system", label: "System", icon: "brightness-auto" },
@@ -103,7 +116,11 @@ function Row({
 export default function ProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors, preference, setPreference } = useAppTheme();
+  const preferredCurrency = usePreferredCurrency();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
 
   const { data: business } = useQuery({
     queryKey: ["my-business", user?.uid],
@@ -131,6 +148,20 @@ export default function ProfileScreen() {
     router.replace("/(marketplace)/(tabs)/home");
   }
 
+  async function handleCurrencySelect(code: CurrencyCode) {
+    if (!user || code === preferredCurrency || savingCurrency) return;
+    setSavingCurrency(true);
+    try {
+      await updatePreferredCurrency(user.uid, code);
+      await refreshProfile();
+      toast.success(`Display currency set to ${code}`);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not update currency."));
+    } finally {
+      setSavingCurrency(false);
+    }
+  }
+
   const effectiveRole = resolveProfileRole(profile);
   const isVerified = profile?.verificationStatus === "verified";
   const isVerifiedTrader = isVerifiedRole(profile, "trader");
@@ -143,7 +174,10 @@ export default function ProfileScreen() {
   const avatarUri = business?.logoUrl ?? null;
 
   return (
-    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+    <View
+      collapsable={false}
+      style={[styles.safe, { backgroundColor: colors.background }]}
+    >
       <StatusBar style={coverUri ? "light" : "auto"} />
       <ScrollView
         contentContainerStyle={styles.content}
@@ -299,6 +333,27 @@ export default function ProfileScreen() {
             </View>
           </FormSection>
 
+          <FormSectionLabel title="PREFERENCES" />
+          <FormSection padded={false}>
+            <Row
+              colors={colors}
+              icon="payments"
+              label="Preferred currency"
+              subtitle={`${preferredCurrency} · ${getCurrencyLabel(preferredCurrency)}`}
+              onPress={() => setCurrencyPickerOpen(true)}
+              trailing={
+                <View style={styles.currencyTrailing}>
+                  <CurrencyFlag currency={preferredCurrency} size="sm" />
+                  <Text
+                    style={[styles.trailingValue, { color: colors.textMuted }]}
+                  >
+                    {preferredCurrency}
+                  </Text>
+                </View>
+              }
+            />
+          </FormSection>
+
           <FormSectionLabel title="ACCOUNT & APP" />
           <FormSection padded={false}>
             <Row
@@ -356,12 +411,37 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <CurrencyPickerSheet
+        visible={currencyPickerOpen}
+        onClose={() => setCurrencyPickerOpen(false)}
+        value={preferredCurrency}
+        onSelect={(code) => {
+          setCurrencyPickerOpen(false);
+          void handleCurrencySelect(code);
+        }}
+        title="Preferred currency"
+      />
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.headerOverlay, { paddingTop: insets.top }]}
+      >
+        <StackHeader title="" tintColor={coverUri ? "#FFFFFF" : undefined} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -437,6 +517,11 @@ const styles = StyleSheet.create({
   rowLabel: { ...Typography.bodyLg, fontWeight: "600" },
   rowSub: { ...Typography.bodyMd, marginTop: 1 },
   trailingValue: { ...Typography.labelMd, fontWeight: "700" },
+  currencyTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 64 },
 
   segment: {

@@ -13,6 +13,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
+import { CityField } from "@/components/ui/city-field";
+import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
@@ -20,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { cityBelongsToCountry } from "@/constants/cities";
 import {
     Radius,
     Spacing,
@@ -118,6 +121,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     business?.shortDescription ?? "",
   );
   const [city, setCity] = useState(business?.city ?? "Beruwala");
+  const [country, setCountry] = useState(business?.country ?? "Sri Lanka");
   const [address, setAddress] = useState(business?.address ?? "");
   const [whatsapp, setWhatsapp] = useState(
     business?.contacts?.whatsapp?.value ?? "",
@@ -164,6 +168,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const canSave =
     businessName.trim().length > 0 &&
     city.trim().length > 0 &&
+    country.trim().length > 0 &&
     (!!business || !!derivedBusinessType);
 
   async function pickCover() {
@@ -217,6 +222,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           businessName,
           shortDescription,
           city,
+          country,
           address,
           whatsapp,
           phone,
@@ -241,6 +247,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             businessName,
             businessType: derivedBusinessType,
             city,
+            country,
             address,
             shortDescription: shortDescription || "Gem business in Beruwala.",
             whatsapp: whatsapp || profile?.phone || undefined,
@@ -400,12 +407,23 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
       <FormSectionLabel title="LOCATION" />
       <FormSection>
-        <Input
+        <CountryField
+          label="Country"
+          value={country}
+          onChange={(name) => {
+            setCountry(name);
+            if (city && !cityBelongsToCountry(city, name)) {
+              setCity("");
+            }
+          }}
+          placeholder="Select country"
+        />
+        <CityField
           label="City"
           value={city}
-          onChangeText={setCity}
-          placeholder="Beruwala"
-          leftIcon="place"
+          country={country}
+          onChange={setCity}
+          placeholder="Select city"
         />
         <Input
           label="Address"

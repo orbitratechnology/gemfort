@@ -1,3 +1,4 @@
+import { Link, type Href } from "expo-router";
 import { memo, useCallback, useRef } from "react";
 import {
   Linking,
@@ -10,7 +11,6 @@ import { RectButton } from "react-native-gesture-handler";
 import Swipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
-import { Link, type Href } from "expo-router";
 
 import { Icon } from "@/components/ui/icon";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -195,62 +195,70 @@ function ContactListRowInner({
       onSwipeableClose={() => onSwipeableClose(contact.id)}
       childrenContainerStyle={styles.swipeChild}
     >
+      {/* Link asChild/Slot rejects style arrays — styles live on the inner View. */}
       <Link href={href} asChild>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={contact.displayName}
-        style={({ pressed }) => [
-          styles.row,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            opacity: pressed ? 0.72 : 1,
-          },
-        ]}
-      >
-        <Link.AppleZoom>
-          <ContactAvatar
-            name={contact.displayName}
-            photoUrl={photoUrl ?? contact.photoUrl}
-            size={40}
-          />
-        </Link.AppleZoom>
-        <View
-          style={[
-            styles.body,
-            !isLastInSection && {
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: colors.outlineVariant,
-            },
-          ]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={contact.displayName}
         >
-          <View style={styles.nameRow}>
-            <Text
-              style={[styles.name, { color: colors.onSurface }]}
-              numberOfLines={1}
+          {({ pressed }) => (
+            <View
+              style={StyleSheet.flatten([
+                styles.row,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  opacity: pressed ? 0.72 : 1,
+                },
+              ])}
             >
-              {contact.displayName}
-            </Text>
-            {contact.isFavourite ? (
-              <Icon name="star" size={14} color={colors.warningAmber} />
-            ) : null}
-          </View>
-          {contact.companyName ? (
-            <Text
-              style={[styles.subtitle, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {contact.companyName}
-            </Text>
-          ) : contact.contactTypes[0] ? (
-            <Text
-              style={[styles.subtitle, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {contact.contactTypes[0]}
-            </Text>
-          ) : null}
-        </View>
-      </Pressable>
+              <Link.AppleZoom>
+                <ContactAvatar
+                  name={contact.displayName}
+                  photoUrl={photoUrl ?? contact.photoUrl}
+                  size={40}
+                />
+              </Link.AppleZoom>
+              <View
+                style={StyleSheet.flatten([
+                  styles.body,
+                  !isLastInSection
+                    ? {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.outlineVariant,
+                      }
+                    : null,
+                ])}
+              >
+                <View style={styles.nameRow}>
+                  <Text
+                    style={[styles.name, { color: colors.onSurface }]}
+                    numberOfLines={1}
+                  >
+                    {contact.displayName}
+                  </Text>
+                  {contact.isFavourite ? (
+                    <Icon name="star" size={14} color={colors.warningAmber} />
+                  ) : null}
+                </View>
+                {contact.companyName ? (
+                  <Text
+                    style={[styles.subtitle, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {contact.companyName}
+                  </Text>
+                ) : contact.contactTypes[0] ? (
+                  <Text
+                    style={[styles.subtitle, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {contact.contactTypes[0]}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </Pressable>
       </Link>
     </Swipeable>
   );
@@ -259,8 +267,9 @@ function ContactListRowInner({
 export const ContactListRow = memo(ContactListRowInner);
 
 const styles = StyleSheet.create({
-  swipeChild: { flex: 1 },
+  swipeChild: { width: "100%" },
   row: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     minHeight: 60,

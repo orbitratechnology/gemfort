@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CountryField } from "@/components/ui/country-field";
 import { CountryFlag } from "@/components/ui/country-flag";
 import {
   CurrencyAmountField,
@@ -23,7 +24,6 @@ import {
     ColorSwatch,
     CutPickerSheet,
     GemTypePickerSheet,
-    OriginPickerSheet,
     ShapePickerSheet,
     StatusPickerSheet,
     TreatmentPickerSheet,
@@ -32,7 +32,6 @@ import { Spacing, Typography } from "@/constants/design-tokens";
 import {
     GEM_CLARITIES,
     GEM_CUTS,
-    GEM_ORIGINS,
     GEM_SHAPES,
     GEM_TREATMENTS,
     GEM_TYPES,
@@ -41,7 +40,6 @@ import {
     formatColorLabel,
     formatGemType,
     formatOptionLabel,
-    formatOriginLabel,
     type GemTreatmentValue,
 } from "@/constants/gem-options";
 import { createGem } from "@/features/workspace/workspace-service";
@@ -68,7 +66,6 @@ type SheetKey =
   | "clarity"
   | "cut"
   | "shape"
-  | "origin"
   | "treatment"
   | "status"
   | null;
@@ -84,7 +81,7 @@ export default function AddGemScreen() {
 
   const [step, setStep] = useState(0);
   const [gemType, setGemType] = useState("blue_sapphire");
-  const [originValue, setOriginValue] = useState("sri_lanka");
+  const [originCountry, setOriginCountry] = useState("Sri Lanka");
   const [colorShade, setColorShade] = useState("");
   const [clarity, setClarity] = useState("");
   const [cutType, setCutType] = useState("");
@@ -130,10 +127,6 @@ export default function AddGemScreen() {
     () => GEM_TYPES.find((t) => t.value === gemType) ?? GEM_TYPES[0],
     [gemType],
   );
-  const selectedOrigin = useMemo(
-    () => GEM_ORIGINS.find((o) => o.value === originValue),
-    [originValue],
-  );
   const colorHit = useMemo(
     () => (colorShade ? findColorShade(colorShade) : null),
     [colorShade],
@@ -149,7 +142,6 @@ export default function AddGemScreen() {
   }
 
   function validateDetails() {
-    const originCountry = formatOriginLabel(originValue) || originValue;
     const result = parseForm(addGemSchema, {
       gemType,
       originCountry,
@@ -409,20 +401,16 @@ export default function AddGemScreen() {
                 }
               />
 
-              <AttributePickerField
+              <CountryField
                 label="Origin"
-                valueLabel={formatOriginLabel(originValue)}
+                value={originCountry}
+                onChange={(name) => {
+                  setOriginCountry(name);
+                  clearField("originCountry");
+                }}
                 placeholder="Select origin"
-                onPress={() => setSheet("origin")}
+                sheetTitle="Origin"
                 error={errors.originCountry}
-                leading={
-                  selectedOrigin ? (
-                    <CountryFlag
-                      country={selectedOrigin.countryCode}
-                      size="lg"
-                    />
-                  ) : undefined
-                }
               />
 
               <Input
@@ -539,13 +527,10 @@ export default function AddGemScreen() {
               />
               <ReviewRow
                 label="Origin"
-                value={formatOriginLabel(originValue) || "—"}
+                value={originCountry || "—"}
                 leading={
-                  selectedOrigin ? (
-                    <CountryFlag
-                      country={selectedOrigin.countryCode}
-                      size="sm"
-                    />
+                  originCountry ? (
+                    <CountryFlag country={originCountry} size="sm" />
                   ) : undefined
                 }
               />
@@ -622,15 +607,6 @@ export default function AddGemScreen() {
         onSelect={(v) => {
           setShape(v);
           clearField("shape");
-        }}
-      />
-      <OriginPickerSheet
-        visible={sheet === "origin"}
-        onClose={() => setSheet(null)}
-        value={originValue}
-        onSelect={(v) => {
-          setOriginValue(v);
-          clearField("originCountry");
         }}
       />
       <TreatmentPickerSheet

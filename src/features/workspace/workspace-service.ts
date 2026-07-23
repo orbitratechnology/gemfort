@@ -1818,10 +1818,27 @@ export async function distributeTripOverhead(
 // ─── Listings ─────────────────────────────────────
 
 export async function fetchListingBySlug(slug: string) {
+  const normalized = (Array.isArray(slug) ? slug[0] : slug)?.trim?.() ?? "";
+  if (!normalized) return null;
+
+  // Constrain visibility so the query only matches docs the client may read.
+  const visibilities: Array<
+    "public" | "contacts" | "private" | "members_only"
+  > = ["public", "private", "members_only"];
+  try {
+    const { getFirebaseAuth } = await import("@/lib/firebase/config");
+    if (getFirebaseAuth().currentUser) {
+      visibilities.push("contacts");
+    }
+  } catch {
+    // Auth unavailable — public + legacy link visibilities only.
+  }
+
   const q = query(
     collection(getFirebaseDb(), "gems"),
-    where("shareableSlug", "==", slug),
+    where("shareableSlug", "==", normalized),
     where("status", "==", "active"),
+    where("visibility", "in", visibilities),
     limit(1),
   );
   const snap = await getDocs(q);
@@ -1843,8 +1860,31 @@ export async function createListing(
     ),
   );
   const slug = `GF-L-${String(countSnap.size + 1).padStart(5, "0")}`;
+
+  let photoUrls = Array.isArray(input.photoUrls)
+    ? (input.photoUrls as string[])
+    : [];
+  const workspaceGemId =
+    typeof input.workspaceGemId === "string" ? input.workspaceGemId : null;
+
+  if (workspaceGemId && photoUrls.length === 0) {
+    const gemSnap = await getDoc(
+      doc(getFirebaseDb(), "gemtrack_gems", workspaceGemId),
+    );
+    if (gemSnap.exists()) {
+      const gem = gemSnap.data();
+      if (Array.isArray(gem.photoUrls)) {
+        photoUrls = gem.photoUrls.filter(
+          (u): u is string => typeof u === "string" && u.length > 0,
+        );
+      }
+    }
+  }
+
   const ref = await addDoc(collection(getFirebaseDb(), "gems"), {
     ...input,
+    workspaceGemId,
+    photoUrls,
     sellerUid,
     businessId,
     shareableSlug: slug,

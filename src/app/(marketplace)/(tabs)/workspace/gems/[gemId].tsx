@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
@@ -16,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { CountryLabel } from "@/components/ui/country-flag";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -186,7 +186,10 @@ export default function GemDetailScreen() {
     { label: "Origin", value: gem.originCountry || "Unknown" },
   ];
 
-  const photo = gem.photoUrls?.[0]?.trim() || null;
+  const photos = (gem.photoUrls ?? []).filter(
+    (u): u is string => typeof u === "string" && u.trim().length > 0,
+  );
+  const photo = photos[0] ?? null;
   const gemSummary = `${formatGemType(gem.gemType)} ${gem.currentWeight}ct · ${gem.sku}`;
   const gemSku = gem.sku;
   const gemIdForShare = gem.id;
@@ -230,36 +233,22 @@ export default function GemDetailScreen() {
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.lead}>
-        <View
-          style={[
-            styles.hero,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Link.AppleZoomTarget>
-            {gem.photoUrls?.[0] ? (
-              <Image
-                source={{ uri: gem.photoUrls[0] }}
-                style={styles.heroImage}
-                contentFit="cover"
-              />
-            ) : (
-              <View
-                style={StyleSheet.flatten([
-                  styles.heroPlaceholder,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ])}
-              >
-                <Icon name="diamond" size={48} color={colors.outlineVariant} />
-              </View>
+        <View style={styles.heroWrap}>
+          <ImagePager
+            urls={photos}
+            aspectRatio={1}
+            accessibilityLabel={`${formatGemType(gem.gemType)} photos`}
+            wrapFirstPage={(node) => (
+              <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
             )}
-          </Link.AppleZoomTarget>
+          />
           {isCertified ? (
             <View
               style={[
                 styles.certPill,
                 { backgroundColor: colors.surfaceContainerLowest },
               ]}
+              pointerEvents="none"
             >
               <Icon name="verified" size={14} color={colors.primary} />
               <Text style={[styles.certPillText, { color: colors.primary }]}>
@@ -716,32 +705,18 @@ const styles = StyleSheet.create({
     gap: Spacing.sectionGap,
   },
   lead: { gap: Spacing.sectionGap },
-
-  hero: {
-    width: "100%",
-    aspectRatio: 1,
-    maxHeight: 360,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
-  },
-  heroImage: { width: "100%", height: "100%" },
-  heroPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  heroWrap: { position: "relative", width: "100%" },
   certPill: {
     position: "absolute",
     top: Spacing.md,
-    right: Spacing.md,
+    left: Spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Radius.full,
+    zIndex: 2,
   },
   certPillText: { ...Typography.labelMd, fontWeight: "600" },
 

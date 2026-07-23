@@ -1,6 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
 import type { IconName } from '@/components/ui/icon';
+import { countryToFlagCode } from '@/constants/countries';
 import type { GemStatus } from '@/types';
 
 import {
@@ -475,7 +476,7 @@ export function resolveCountryCode(
     if (name.length >= 4 && lower.includes(name)) return code;
   }
 
-  return null;
+  return countryToFlagCode(raw);
 }
 
 export function findColorShade(shadeValue: string): {

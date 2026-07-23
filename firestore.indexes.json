@@ -172,6 +172,15 @@
       ]
     },
     {
+      "collectionGroup": "gems",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shareableSlug", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "service_requests",
       "queryScope": "COLLECTION",
       "fields": [

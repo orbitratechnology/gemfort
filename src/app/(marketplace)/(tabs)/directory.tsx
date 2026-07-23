@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -23,14 +23,14 @@ import { SkeletonList } from "@/components/ui/skeleton-list";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { GEM_TYPES } from "@/constants/gem-options";
 import {
-    demoBusinesses,
-    demoListings,
-    fetchBusinesses,
-    fetchPublicListings,
-    filterListings,
-    searchBusinesses,
-    searchListings,
-    type ListingFilters,
+  demoBusinesses,
+  demoListings,
+  fetchBusinesses,
+  fetchPublicListings,
+  filterListings,
+  searchBusinesses,
+  searchListings,
+  type ListingFilters,
 } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";

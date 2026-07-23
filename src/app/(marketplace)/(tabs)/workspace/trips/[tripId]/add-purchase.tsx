@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
-import { CountryFlag } from '@/components/ui/country-flag';
+import { CountryField } from '@/components/ui/country-field';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -14,7 +14,7 @@ import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
-import { GEM_TYPES, resolveCountryCode } from '@/constants/gem-options';
+import { GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { createGemOnSourcingTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -104,16 +104,11 @@ export default function AddTripPurchaseScreen() {
         </FormSection>
 
         <ScreenInset style={styles.fields}>
-        <Input
+        <CountryField
           label="Origin country"
           value={originCountry}
-          onChangeText={setOriginCountry}
-          leftIcon={resolveCountryCode(originCountry) ? undefined : 'public'}
-          leftElement={
-            resolveCountryCode(originCountry) ? (
-              <CountryFlag country={originCountry} size="lg" />
-            ) : undefined
-          }
+          onChange={(name) => setOriginCountry(name)}
+          sheetTitle="Origin"
         />
         <Input
           label="Rough weight (ct)"
