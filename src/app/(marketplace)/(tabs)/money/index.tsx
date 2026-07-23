@@ -32,6 +32,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 
+const MONEY = '/(marketplace)/(tabs)/money';
 const WORKSPACE = '/(marketplace)/(tabs)/workspace';
 
 export default function MoneyDashboard() {
@@ -99,7 +100,7 @@ export default function MoneyDashboard() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <WorkspaceScreenBackdrop kind="money" />
-      <StackHeader title="Money" />
+      <StackHeader title="Money" showBack={false} />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
@@ -171,7 +172,7 @@ export default function MoneyDashboard() {
         {/* Outstanding */}
         <View style={styles.outRow}>
           <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money/receivables` as never)}
+            onPress={() => router.push(`${MONEY}/receivables` as never)}
             style={({ pressed }) => [
               styles.outCard,
               { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
@@ -185,7 +186,7 @@ export default function MoneyDashboard() {
           </Pressable>
 
           <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money/payables` as never)}
+            onPress={() => router.push(`${MONEY}/payables` as never)}
             style={({ pressed }) => [
               styles.outCard,
               { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
@@ -224,7 +225,7 @@ export default function MoneyDashboard() {
         {/* Reports & payments */}
         <View style={styles.toolsRow}>
           <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money/reports` as never)}
+            onPress={() => router.push(`${MONEY}/reports` as never)}
             style={({ pressed }) => [
               styles.toolCard,
               { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
@@ -234,7 +235,7 @@ export default function MoneyDashboard() {
             <Text style={[styles.toolLabel, { color: colors.onSurface }]}>PDF Reports</Text>
           </Pressable>
           <Pressable
-            onPress={() => router.push(`${WORKSPACE}/money/payments` as never)}
+            onPress={() => router.push(`${MONEY}/payments` as never)}
             style={({ pressed }) => [
               styles.toolCard,
               { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant },
@@ -329,7 +330,7 @@ export default function MoneyDashboard() {
         <FormSectionLabel title="Recent activity" />
         <ScreenInset style={styles.sectionHeader}>
             {transactions.length > 0 ? (
-              <Pressable onPress={() => router.push(`${WORKSPACE}/money/transactions` as never)} hitSlop={8} style={styles.viewAllBtn}>
+              <Pressable onPress={() => router.push(`${MONEY}/transactions` as never)} hitSlop={8} style={styles.viewAllBtn}>
                 <Text style={[styles.viewAll, { color: colors.primary }]}>View all</Text>
               </Pressable>
             ) : null}
@@ -368,7 +369,7 @@ export default function MoneyDashboard() {
                 <Icon name="receipt-long" size={26} color={colors.outline} />
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>No transactions yet</Text>
                 <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/money/record-sale` as never)}
+                  onPress={() => router.push(`${MONEY}/record-sale` as never)}
                   style={[styles.emptyBtn, { backgroundColor: colors.primary }]}>
                   <Text style={[styles.emptyBtnText, { color: colors.onPrimary }]}>Record a sale</Text>
                 </Pressable>
@@ -385,7 +386,7 @@ export default function MoneyDashboard() {
           { backgroundColor: colors.primary },
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
-        onPress={() => router.push(`${WORKSPACE}/money/record-sale` as never)}>
+        onPress={() => router.push(`${MONEY}/record-sale` as never)}>
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
     </SafeAreaView>

@@ -19,8 +19,6 @@ export type WorkspaceModuleItem = {
   icon: IconName;
   route: string;
   group: ModuleGroupId;
-  hint?: string;
-  badgeCount?: number;
 };
 
 export type WorkspaceModuleGroup = {
@@ -40,33 +38,14 @@ type GroupVisual = {
   iconBg: string;
   panelWash: string;
   tileWash: string;
-  hintBg: string;
   orb: string;
 };
 
-function groupVisual(
-  id: ModuleGroupId,
-  colors: ThemeColors,
-): GroupVisual {
-  if (id === "money") {
-    const accent = colors.successEmerald;
-    return {
-      accent,
-      iconFg: "#ffffff",
-      iconBg: accent,
-      panelWash: `
-        linear-gradient(165deg, ${accent}12 0%, ${colors.surfaceContainerLow} 42%, ${colors.surfaceContainerLowest} 100%),
-        radial-gradient(ellipse 80% 60% at 100% 0%, ${accent}22 0%, transparent 60%)
-      `,
-      tileWash: `
-        linear-gradient(145deg, ${colors.surfaceContainerLowest} 0%, ${accent}10 100%),
-        radial-gradient(circle at 100% 0%, ${accent}18 0%, transparent 55%)
-      `,
-      hintBg: accent + "18",
-      orb: accent + "1A",
-    };
-  }
+function formatModuleCount(value: number): string {
+  return value > 99 ? "99+" : String(value);
+}
 
+function groupVisual(id: ModuleGroupId, colors: ThemeColors): GroupVisual {
   if (id === "people") {
     const accent = colors.primary;
     return {
@@ -81,7 +60,6 @@ function groupVisual(
         linear-gradient(155deg, ${colors.surfaceContainerLowest} 0%, ${colors.primary}0F 100%),
         radial-gradient(circle at 0% 100%, ${colors.primary}16 0%, transparent 50%)
       `,
-      hintBg: colors.primary + "18",
       orb: colors.primary + "1A",
     };
   }
@@ -99,7 +77,6 @@ function groupVisual(
       linear-gradient(140deg, ${colors.surfaceContainerLowest} 0%, ${colors.primary}0D 100%),
       radial-gradient(circle at 100% 0%, ${colors.primary}14 0%, transparent 52%)
     `,
-    hintBg: colors.primary + "16",
     orb: colors.primary + "1A",
   };
 }
@@ -115,8 +92,7 @@ function ModuleTile({
   colors: ThemeColors;
   index: number;
 }) {
-  const hasHint = !!item.hint;
-  const hasBadge = !!item.badgeCount && item.badgeCount > 0;
+  const countLabel = formatModuleCount(item.value);
 
   return (
     <Animated.View
@@ -128,7 +104,7 @@ function ModuleTile({
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${item.label}, ${item.value}${item.hint ? `, ${item.hint}` : ""}`}
+        accessibilityLabel={`${item.label}, ${countLabel}`}
         onPress={() => router.push(item.route as never)}
         style={({ pressed }) => [
           styles.tile,
@@ -151,31 +127,9 @@ function ModuleTile({
 
         <View style={styles.tileTop}>
           <View style={styles.iconWrap}>
-            <View
-              style={[
-                styles.iconDisc,
-                { backgroundColor: visual.iconBg },
-              ]}
-            >
-              <Icon name={item.icon} size={22} color={visual.iconFg} />
+            <View style={[styles.iconDisc]}>
+              <Icon name={item.icon} size={32} color={visual.iconFg} />
             </View>
-            {hasBadge ? (
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: colors.error,
-                    borderColor: colors.surfaceContainerLowest,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.badgeText, { color: colors.onError }]}
-                >
-                  {item.badgeCount! > 99 ? "99+" : item.badgeCount}
-                </Text>
-              </View>
-            ) : null}
           </View>
 
           <View style={styles.valueCol}>
@@ -183,13 +137,9 @@ function ModuleTile({
               style={[styles.value, { color: colors.onSurface }]}
               numberOfLines={1}
             >
-              {item.value}
+              {countLabel}
             </Text>
-            <Icon
-              name="chevron-right"
-              size={18}
-              color={colors.outline}
-            />
+            <Icon name="chevron-right" size={18} color={colors.outline} />
           </View>
         </View>
 
@@ -200,21 +150,6 @@ function ModuleTile({
           >
             {item.label}
           </Text>
-          {hasHint ? (
-            <View
-              style={[styles.hintPill, { backgroundColor: visual.hintBg }]}
-            >
-              <View
-                style={[styles.hintDot, { backgroundColor: visual.accent }]}
-              />
-              <Text
-                style={[styles.hintText, { color: visual.accent }]}
-                numberOfLines={1}
-              >
-                {item.hint}
-              </Text>
-            </View>
-          ) : null}
         </View>
       </Pressable>
     </Animated.View>
@@ -355,24 +290,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -6,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    lineHeight: 13,
-  },
   valueCol: {
     flexDirection: "row",
     alignItems: "center",
@@ -392,25 +309,5 @@ const styles = StyleSheet.create({
   label: {
     ...Typography.bodyLg,
     fontWeight: "700",
-  },
-  hintPill: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    maxWidth: "100%",
-  },
-  hintDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  hintText: {
-    ...Typography.caption,
-    fontWeight: "700",
-    flexShrink: 1,
   },
 });

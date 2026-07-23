@@ -27,18 +27,17 @@ import {
     detectBillsDueToday,
     getBillSummary,
 } from "@/features/workspace/bill-utils";
-import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
 } from "@/features/workspace/cheque-utils";
+import { isApOngoing } from "@/features/workspace/ap-normalize";
 import { getMonthTotals } from "@/features/workspace/money-utils";
 import {
     resolveBusinessPhotoById,
     resolveBusinessPhotoByOwnerUid,
     resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
-import { getTripsByStatus } from "@/features/workspace/trip-utils";
 import {
     detectOverdueAp,
     detectOverdueServices,
@@ -57,6 +56,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 
 const WORKSPACE = "/(marketplace)/(tabs)/workspace";
+const MONEY = "/(marketplace)/(tabs)/money";
 
 type ModuleGroupId = "inventory" | "money" | "people";
 
@@ -66,14 +66,11 @@ type ModuleItem = {
   icon: IconName;
   route: string;
   group: ModuleGroupId;
-  hint?: string;
-  /** Red badge count on the module icon (e.g. missed calls). */
-  badgeCount?: number;
 };
 
 const MODULE_GROUPS: { id: ModuleGroupId; title: string }[] = [
   { id: "inventory", title: "Inventory & work" },
-  { id: "money", title: "Money" },
+  { id: "money", title: "Finance" },
   { id: "people", title: "People" },
 ];
 
@@ -222,7 +219,6 @@ export default function WorkspaceHub() {
     enabled: !!userId && showContacts,
   });
   const recentCallPreview = recentCalls.slice(0, 5);
-  const missedCallCount = countMissedCalls(recentCalls);
 
   if (!user) {
     return (
@@ -255,7 +251,6 @@ export default function WorkspaceHub() {
   const chequeSummary = getChequeSummary(cheques);
   const billsDueToday = detectBillsDueToday(bills);
   const billSummary = getBillSummary(bills);
-  const { active: activeTrips } = getTripsByStatus(trips);
   const ongoingTrips = trips.filter((t) => t.status === "ongoing");
   const takenPendingAp = apRecords.filter(
     (a) => a.status === "pending" && a.receiverUid === userId,
@@ -271,11 +266,6 @@ export default function WorkspaceHub() {
     (sum, g) => sum + (g.acquisitionCost || 0),
     0,
   );
-  const flowTotal = monthIncome + monthExpense;
-  const incomePct =
-    flowTotal > 0 ? Math.max(6, (monthIncome / flowTotal) * 100) : 0;
-  const expensePct =
-    flowTotal > 0 ? Math.max(6, (monthExpense / flowTotal) * 100) : 0;
 
   const readyGems = gems.filter((g) =>
     ["ready_for_sale", "certified", "polished", "listed"].includes(g.status),
@@ -283,15 +273,21 @@ export default function WorkspaceHub() {
   const inService = gems.filter((g) =>
     ["with_cutter", "with_heater", "with_polisher"].includes(g.status),
   ).length;
+  const listedGems = gems.filter((g) => g.status === "listed").length;
+  const ongoingServices = services.filter((s) =>
+    ["given", "in_progress", "overdue", "cancellation_requested"].includes(
+      s.status,
+    ),
+  ).length;
+  const ongoingAp = apRecords.filter((a) => isApOngoing(a.status)).length;
 
   const allModules: ModuleItem[] = [
     {
       label: "Gems",
-      value: gems.length,
+      value: listedGems,
       icon: "diamond",
       route: `${WORKSPACE}/gems`,
       group: "inventory",
-      hint: readyGems > 0 ? `${readyGems} ready` : undefined,
     },
     {
       label: "Jobs",
@@ -299,18 +295,13 @@ export default function WorkspaceHub() {
       icon: "construction",
       route: `${WORKSPACE}/jobs`,
       group: "inventory",
-      hint:
-        incomingServiceRequests.filter((r) => r.status === "pending").length > 0
-          ? `${incomingServiceRequests.filter((r) => r.status === "pending").length} new`
-          : undefined,
     },
     {
       label: "Services",
-      value: services.length,
+      value: ongoingServices,
       icon: "handyman",
       route: `${WORKSPACE}/services`,
       group: "inventory",
-      hint: inService > 0 ? `${inService} out` : undefined,
     },
     {
       label: "Certificates",
@@ -321,37 +312,24 @@ export default function WorkspaceHub() {
     },
     {
       label: "Trips",
-      value: activeTrips.length,
+      value: ongoingTrips.length,
       icon: "flight",
       route: `${WORKSPACE}/trips`,
       group: "inventory",
-      hint: ongoingTrips.length > 0 ? `${ongoingTrips.length} live` : undefined,
     },
     {
       label: "AP",
-      value: apRecords.length,
+      value: ongoingAp,
       icon: "hourglass-empty",
       route: `${WORKSPACE}/ap`,
       group: "inventory",
-      hint:
-        takenPendingAp.length > 0
-          ? `${takenPendingAp.length} to accept`
-          : givenPaymentSentAp.length > 0
-            ? `${givenPaymentSentAp.length} to confirm`
-            : overdueAp.length > 0
-              ? `${overdueAp.length} overdue`
-              : undefined,
     },
     {
       label: "Cheques",
-      value: chequeSummary.holdingCount,
+      value: chequeSummary.pendingCount,
       icon: "money-check-dollar",
       route: `${WORKSPACE}/cheques`,
       group: "money",
-      hint:
-        maturingCheques.length > 0
-          ? `${maturingCheques.length} due`
-          : undefined,
     },
     {
       label: "Bills",
@@ -359,10 +337,6 @@ export default function WorkspaceHub() {
       icon: "receipt-long",
       route: `${WORKSPACE}/bills`,
       group: "money",
-      hint:
-        billsDueToday.length > 0
-          ? `${billsDueToday.length} due today`
-          : undefined,
     },
     {
       label: "Contacts",
@@ -370,8 +344,6 @@ export default function WorkspaceHub() {
       icon: "group",
       route: `${WORKSPACE}/contacts`,
       group: "people",
-      hint: missedCallCount > 0 ? `${missedCallCount} missed` : undefined,
-      badgeCount: missedCallCount > 0 ? missedCallCount : undefined,
     },
   ];
 
@@ -454,7 +426,7 @@ export default function WorkspaceHub() {
             {
               label: "Sale",
               icon: "sell",
-              route: `${WORKSPACE}/money/record-sale`,
+              route: `${MONEY}/record-sale`,
             },
           ];
 
@@ -514,8 +486,6 @@ export default function WorkspaceHub() {
   const showGemsHero = canAccessModule(role, "gems");
   const showJobsHero = canAccessModule(role, "jobs");
   const showCertsHero = canAccessModule(role, "certificates");
-  const showTripsOverview = canAccessModule(role, "trips");
-  const showChequesOverview = canAccessModule(role, "cheques");
 
   const heroTitle = showGemsHero
     ? "Inventory value"
@@ -537,7 +507,7 @@ export default function WorkspaceHub() {
       ? `${WORKSPACE}/jobs`
       : showCertsHero
         ? `${WORKSPACE}/certificates`
-        : `${WORKSPACE}/money`;
+        : `${MONEY}`;
   const heroLink = showGemsHero
     ? "Open inventory"
     : showJobsHero
@@ -844,326 +814,6 @@ export default function WorkspaceHub() {
         {/* Modules — gradient group panels + tiles */}
         <WorkspaceModules groups={moduleGroups} colors={colors} />
 
-        {/* Operations overview */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Overview
-          </Text>
-          <View style={styles.overviewGrid}>
-            <Pressable
-              onPress={() => router.push(`${WORKSPACE}/money` as never)}
-              style={({ pressed }) => [
-                styles.overviewWide,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  opacity: pressed ? 0.94 : 1,
-                },
-              ]}
-            >
-              <View style={styles.overviewHeader}>
-                <Text
-                  style={[styles.overviewCaption, { color: colors.textMuted }]}
-                >
-                  This month
-                </Text>
-                <Icon
-                  name="account-balance-wallet"
-                  size={18}
-                  color={colors.primary}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.overviewNet,
-                  {
-                    color: monthNet >= 0 ? colors.successEmerald : colors.error,
-                  },
-                ]}
-              >
-                {monthNet >= 0 ? "+" : "-"}
-                {formatCurrency(Math.abs(monthNet))}
-              </Text>
-              <Text
-                style={[styles.overviewSub, { color: colors.onSurfaceVariant }]}
-              >
-                Net cashflow
-              </Text>
-
-              <View style={styles.flowBlock}>
-                <View style={styles.flowRow}>
-                  <Text
-                    style={[
-                      styles.flowLabel,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Income
-                  </Text>
-                  <Text
-                    style={[
-                      styles.flowAmount,
-                      { color: colors.successEmerald },
-                    ]}
-                  >
-                    {formatCurrency(monthIncome)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.track,
-                    { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.fill,
-                      {
-                        backgroundColor: colors.successEmerald,
-                        width: `${incomePct}%`,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.flowBlock}>
-                <View style={styles.flowRow}>
-                  <Text
-                    style={[
-                      styles.flowLabel,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Expenses
-                  </Text>
-                  <Text style={[styles.flowAmount, { color: colors.error }]}>
-                    {formatCurrency(monthExpense)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.track,
-                    { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.fill,
-                      {
-                        backgroundColor: colors.error,
-                        width: `${expensePct}%`,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-            </Pressable>
-
-            <View style={styles.overviewSide}>
-              {showTripsOverview ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/trips` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.miniIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="flight"
-                      size={16}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {activeTrips.length}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
-                    Active trips
-                  </Text>
-                  <Text
-                    style={[
-                      styles.miniHint,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {ongoingTrips[0]?.tripName ?? "No live trips"}
-                  </Text>
-                </Pressable>
-              ) : showJobsHero ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.miniIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="construction"
-                      size={16}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {jobs.length}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
-                    Active jobs
-                  </Text>
-                  <Text
-                    style={[
-                      styles.miniHint,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Workshop queue
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() =>
-                    router.push(`${WORKSPACE}/certificates` as never)
-                  }
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.miniIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="workspace-premium"
-                      size={16}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {certificates.length}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
-                    Certificates
-                  </Text>
-                  <Text
-                    style={[
-                      styles.miniHint,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Published reports
-                  </Text>
-                </Pressable>
-              )}
-
-              {showChequesOverview ? (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/cheques` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.miniIcon,
-                      { backgroundColor: colors.secondaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="money-check-dollar"
-                      size={16}
-                      color={colors.onSecondaryContainer}
-                    />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {chequeSummary.holdingCount}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
-                    Cheques held
-                  </Text>
-                  <Text
-                    style={[
-                      styles.miniHint,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {formatCurrency(chequeSummary.clearingThisMonth)} clearing
-                  </Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => router.push(`${WORKSPACE}/money` as never)}
-                  style={({ pressed }) => [
-                    styles.overviewHalf,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.miniIcon,
-                      { backgroundColor: colors.secondaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="account-balance-wallet"
-                      size={16}
-                      color={colors.onSecondaryContainer}
-                    />
-                  </View>
-                  <Text style={[styles.miniValue, { color: colors.onSurface }]}>
-                    {formatCurrency(monthNet)}
-                  </Text>
-                  <Text style={[styles.miniLabel, { color: colors.textMuted }]}>
-                    This month
-                  </Text>
-                  <Text
-                    style={[
-                      styles.miniHint,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Money overview
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </View>
-
         {/* Recent calls (matched to contacts / businesses) */}
         {showContacts && recentCallPreview.length > 0 ? (
           <View style={styles.section}>
@@ -1380,63 +1030,4 @@ const styles = StyleSheet.create({
   alertText: { flex: 1, gap: 2, minWidth: 0 },
   alertTitle: { ...Typography.bodyLg, fontWeight: "600" },
   alertSub: { ...Typography.bodyMd },
-
-  overviewGrid: {
-    flexDirection: "row",
-    gap: Spacing.stackMd,
-    alignItems: "stretch",
-  },
-  overviewWide: {
-    flex: 1.35,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: 16,
-    gap: 10,
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
-  },
-  overviewHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  overviewCaption: { ...Typography.labelMd },
-  overviewNet: {
-    ...Typography.headlineMd,
-    fontVariant: ["tabular-nums"],
-  },
-  overviewSub: { ...Typography.caption, marginTop: -4 },
-  flowBlock: { gap: 6, marginTop: 4 },
-  flowRow: { flexDirection: "row", justifyContent: "space-between" },
-  flowLabel: { ...Typography.caption, fontWeight: "600" },
-  flowAmount: {
-    ...Typography.caption,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  track: { height: 6, borderRadius: 3, overflow: "hidden", width: "100%" },
-  fill: { height: "100%", borderRadius: 3 },
-
-  overviewSide: { flex: 1, gap: Spacing.stackMd },
-  overviewHalf: {
-    flex: 1,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: 14,
-    gap: 4,
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
-  },
-  miniIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  miniValue: {
-    ...Typography.headlineSm,
-    fontVariant: ["tabular-nums"],
-  },
-  miniLabel: { ...Typography.caption, fontWeight: "600" },
-  miniHint: { ...Typography.caption },
 });

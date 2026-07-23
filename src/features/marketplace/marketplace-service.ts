@@ -165,6 +165,7 @@ export async function createBusinessProfile(
     businessName: string;
     businessType: BusinessType;
     city: string;
+    country?: string;
     shortDescription: string;
     whatsapp?: string;
     phone?: string;
@@ -186,6 +187,7 @@ export async function createBusinessProfile(
       businessName: input.businessName,
       shortDescription: input.shortDescription,
       city: input.city,
+      country: input.country,
       address: input.address,
       whatsapp: input.whatsapp,
       phone: input.phone,
@@ -216,7 +218,7 @@ export async function createBusinessProfile(
     city: input.city.trim(),
     district: 'Kalutara',
     province: 'Western',
-    country: 'Sri Lanka',
+    country: (input.country?.trim() || 'Sri Lanka'),
     verificationStatus: 'none',
     verificationTier: 'none',
     badges: {
@@ -295,6 +297,7 @@ export async function updateBusinessProfile(
     businessName?: string;
     shortDescription?: string;
     city?: string;
+    country?: string;
     address?: string;
     whatsapp?: string;
     phone?: string;
@@ -315,6 +318,7 @@ export async function updateBusinessProfile(
   if (data.businessName !== undefined) updates.businessName = data.businessName.trim();
   if (data.shortDescription !== undefined) updates.shortDescription = data.shortDescription.trim();
   if (data.city !== undefined) updates.city = data.city.trim();
+  if (data.country !== undefined) updates.country = data.country.trim();
   if (data.address !== undefined) updates.address = data.address.trim();
   if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
   if (data.coverPhotoUrl !== undefined) updates.coverPhotoUrl = data.coverPhotoUrl;

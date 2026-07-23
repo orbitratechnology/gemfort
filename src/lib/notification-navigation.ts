@@ -45,7 +45,7 @@ export function navigateFromNotificationRef(
   }
   if (type === 'receivable') {
     go(
-      '/(marketplace)/(tabs)/workspace/money/receivables' as Href,
+      '/(marketplace)/(tabs)/money/receivables' as Href,
       options,
     );
     return;
@@ -63,7 +63,7 @@ export function navigateFromNotificationRef(
     return;
   }
   if (type === 'account') {
-    go('/(marketplace)/(tabs)/profile' as Href, options);
+    go('/(marketplace)/profile' as Href, options);
     return;
   }
 

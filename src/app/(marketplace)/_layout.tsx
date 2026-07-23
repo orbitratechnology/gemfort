@@ -15,6 +15,7 @@ export default function MarketplaceLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="profile" />
       <Stack.Screen
         name="notifications"
         options={{

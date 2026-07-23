@@ -5,7 +5,8 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChipSelect } from '@/components/ui/chip-select';
-import { CountryFlag } from '@/components/ui/country-flag';
+import { CityField } from '@/components/ui/city-field';
+import { CountryField } from '@/components/ui/country-field';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -17,7 +18,7 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { TRIP_TYPES } from '@/constants/trip-options';
 import { Spacing } from '@/constants/design-tokens';
-import { resolveCountryCode } from '@/constants/gem-options';
+import { cityBelongsToCountry } from '@/constants/cities';
 import { createTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
@@ -140,32 +141,34 @@ export default function AddTripScreen() {
             leftIcon="flight"
             error={errors.tripName}
           />
-          <Input
-            label="Destination city"
-            value={destinationCity}
-            onChangeText={(v) => {
-              setDestinationCity(v);
-              clearField('destinationCity');
-            }}
-            placeholder="Ratnapura"
-            leftIcon="place"
-            error={errors.destinationCity}
-          />
-          <Input
+          <CountryField
             label="Country"
             value={destinationCountry}
-            onChangeText={(v) => {
-              setDestinationCountry(v);
+            onChange={(name) => {
+              setDestinationCountry(name);
               clearField('destinationCountry');
+              if (
+                destinationCity &&
+                !cityBelongsToCountry(destinationCity, name)
+              ) {
+                setDestinationCity('');
+                clearField('destinationCity');
+              }
             }}
-            placeholder="Sri Lanka"
-            leftIcon={resolveCountryCode(destinationCountry) ? undefined : 'public'}
-            leftElement={
-              resolveCountryCode(destinationCountry) ? (
-                <CountryFlag country={destinationCountry} size="lg" />
-              ) : undefined
-            }
+            placeholder="Select country"
             error={errors.destinationCountry}
+          />
+          <CityField
+            label="Destination city"
+            value={destinationCity}
+            country={destinationCountry}
+            onChange={(name) => {
+              setDestinationCity(name);
+              clearField('destinationCity');
+            }}
+            placeholder="Select city"
+            sheetTitle="Destination city"
+            error={errors.destinationCity}
           />
           <Input
             label="Duration (days)"

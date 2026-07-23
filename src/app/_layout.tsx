@@ -59,9 +59,7 @@ function RootNavigator() {
       <Stack.Screen
         name="listings/create"
         options={{
-          headerShown: true,
-          title: "Create Listing",
-          headerBackTitle: "Back",
+          headerShown: false,
         }}
       />
       <Stack.Screen name="profile/verify" options={{ headerShown: false }} />

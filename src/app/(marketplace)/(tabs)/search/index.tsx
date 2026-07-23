@@ -245,7 +245,7 @@ export default function SearchScreen() {
                     key={listing.id}
                     listing={listing}
                     href={
-                      `/(marketplace)/listing/${listing.shareableSlug}` as never
+                      `/listing/${listing.shareableSlug}` as never
                     }
                   />
                 ))}

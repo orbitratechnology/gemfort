@@ -623,7 +623,7 @@ export type MarketplaceListing = {
   workspaceGemId: string | null;
   title: string;
   description: string | null;
-  visibility: "private" | "members_only" | "public";
+  visibility: "private" | "members_only" | "public" | "contacts";
   gemType: string;
   caratWeight: number;
   color: string;

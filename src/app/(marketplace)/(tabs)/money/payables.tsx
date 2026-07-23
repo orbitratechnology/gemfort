@@ -222,7 +222,7 @@ export default function PayablesScreen() {
       <StackHeader
         title="Payables"
         right={
-          <Pressable onPress={() => router.push('/(marketplace)/(tabs)/workspace/money/payments' as never)} hitSlop={8}>
+          <Pressable onPress={() => router.push('/(marketplace)/(tabs)/money/payments' as never)} hitSlop={8}>
             <Text style={[styles.historyLink, { color: colors.primary }]}>History</Text>
           </Pressable>
         }

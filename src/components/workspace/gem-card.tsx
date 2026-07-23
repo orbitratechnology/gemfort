@@ -162,8 +162,7 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    maxWidth: GEM_CARD_MAX_WIDTH,
-    alignSelf: "center",
+    alignSelf: "stretch",
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     overflow: "hidden",

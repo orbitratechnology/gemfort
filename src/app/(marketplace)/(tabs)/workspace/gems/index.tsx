@@ -19,7 +19,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
-import { GEM_CARD_MAX_WIDTH, GemCard } from '@/components/workspace/gem-card';
+import { GemCard } from '@/components/workspace/gem-card';
 import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
@@ -33,7 +33,7 @@ import { useToast } from '@/providers/toast-provider';
 import type { GemStatus } from '@/types';
 import { router, useLocalSearchParams } from 'expo-router';
 
-const GRID_GAP = Spacing.stackMd;
+const GRID_GAP = Spacing.gutterMd; // 16 — clear air between tiles
 const CHIP_HEIGHT = 36;
 const LIST_H_PAD = Spacing.containerMargin;
 
@@ -67,10 +67,9 @@ export default function GemsListScreen() {
     [gems, debouncedSearch, statusFilter, typeFilter],
   );
 
-  const cellMaxWidth = useMemo(() => {
+  const cellWidth = useMemo(() => {
     const contentWidth = windowWidth - LIST_H_PAD * 2;
-    const half = (contentWidth - GRID_GAP) / 2;
-    return Math.min(half, GEM_CARD_MAX_WIDTH);
+    return Math.floor((contentWidth - GRID_GAP) / 2);
   }, [windowWidth]);
 
   const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all';
@@ -210,7 +209,7 @@ export default function GemsListScreen() {
           />
         }
         renderItem={({ item }) => (
-          <View style={[styles.cell, { maxWidth: cellMaxWidth }]}>
+          <View style={{ width: cellWidth }}>
             <GemCard
               gem={item}
               href={`/(marketplace)/(tabs)/workspace/gems/${item.id}`}
@@ -331,19 +330,13 @@ const styles = StyleSheet.create({
 
   list: {
     paddingHorizontal: LIST_H_PAD,
+    paddingTop: Spacing.stackSm,
     paddingBottom: 100,
     flexGrow: 1,
   },
   columnWrapper: {
-    gap: GRID_GAP,
+    justifyContent: 'space-between',
     marginBottom: GRID_GAP,
-    justifyContent: 'flex-start',
-  },
-  cell: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: GEM_CARD_MAX_WIDTH,
-    alignItems: 'center',
   },
 
   fab: {

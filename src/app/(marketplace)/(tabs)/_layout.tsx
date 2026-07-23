@@ -46,22 +46,12 @@ export default function MarketplaceTabLayout() {
         <NativeTabs.Trigger.Label>Workspace</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
+      <NativeTabs.Trigger name="money">
         <NativeTabs.Trigger.Icon
-          sf={{ default: "person", selected: "person.fill" }}
-          md="person"
+          sf={{ default: "banknote", selected: "banknote.fill" }}
+          md="payments"
         />
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      {/* iOS 26 search tab — hidden on Android (system search is iOS-only). */}
-      <NativeTabs.Trigger
-        name="search"
-        role="search"
-        hidden={process.env.EXPO_OS !== "ios"}
-      >
-        <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
-        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Money</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

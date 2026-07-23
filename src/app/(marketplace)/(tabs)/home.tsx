@@ -744,7 +744,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${displayName}, ${roleLabel}`}
               style={styles.headerLeft}
-              onPress={() => router.push("/(marketplace)/(tabs)/profile")}
+              onPress={() => router.push("/(marketplace)/profile")}
             >
               {showAvatarImage ? (
                 <Image
