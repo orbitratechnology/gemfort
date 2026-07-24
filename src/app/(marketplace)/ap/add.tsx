@@ -169,7 +169,7 @@ export default function AddApScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Give on AP" />
+      <StackHeader title="Give on AP" closeIcon />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Gems">
           {lines.map((line) => {

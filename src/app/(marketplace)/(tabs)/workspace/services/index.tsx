@@ -365,7 +365,7 @@ export default function ServicesListScreen() {
       <Pressable
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() =>
-          router.push("/(marketplace)/(tabs)/workspace/services/add")
+          router.push("/(marketplace)/services/add")
         }
       >
         <Icon name="add" size={28} color={colors.onPrimary} />

@@ -608,7 +608,7 @@ export default function ApDetailScreen() {
                 }
                 if (payMethod === "cheque") {
                   router.push({
-                    pathname: "/(marketplace)/(tabs)/workspace/cheques/add",
+                    pathname: "/(marketplace)/cheques/add",
                     params: {
                       amount: String(amount),
                       apRecordId: ap.id,
@@ -665,7 +665,7 @@ export default function ApDetailScreen() {
               onPress={() => {
                 if (receiveMethod === "cheque") {
                   router.push({
-                    pathname: "/(marketplace)/(tabs)/workspace/cheques/add",
+                    pathname: "/(marketplace)/cheques/add",
                     params: {
                       amount: String(ap.paymentAmount ?? owed),
                       contactId: ap.receiverContactId,

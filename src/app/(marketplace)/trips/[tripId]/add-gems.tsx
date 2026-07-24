@@ -98,7 +98,7 @@ export default function AddGemsToTripScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Gems to Parcel" />
+      <StackHeader title="Add Gems to Parcel" closeIcon />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         {available.length === 0 ? (

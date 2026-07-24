@@ -81,21 +81,21 @@ const TRADER_ACTIONS: RouterAction[] = [
   action(
     "add-gem",
     "Add gem",
-    "/(marketplace)/(tabs)/workspace/gems/add",
+    "/(marketplace)/gems/add",
     icon("add", AndroidIcon.add),
     "Log a stone in GemTrack",
   ),
   action(
     "ap",
     "Give AP",
-    "/(marketplace)/(tabs)/workspace/ap/add",
+    "/(marketplace)/ap/add",
     icon("symbol:handshake", AndroidIcon.ap),
     "Hand over on approval",
   ),
   action(
     "service",
     "Request service",
-    "/(marketplace)/(tabs)/workspace/services/add",
+    "/(marketplace)/services/add",
     icon("symbol:wrench.and.screwdriver", AndroidIcon.service),
     "Cutting, heating & more",
   ),
@@ -126,7 +126,7 @@ const LAPIDARY_ACTIONS: RouterAction[] = [
   action(
     "bill",
     "Add bill",
-    "/(marketplace)/(tabs)/workspace/bills/add",
+    "/(marketplace)/bills/add",
     icon("compose", AndroidIcon.bill),
     "Record a workshop bill",
   ),

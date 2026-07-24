@@ -133,7 +133,7 @@ export default function HandleShareScreen() {
       enabled: !!user && hasImages,
       onPress: () =>
         go({
-          pathname: '/(marketplace)/(tabs)/workspace/gems/add',
+          pathname: '/(marketplace)/gems/add',
           params: gemParams(),
         } as Href),
     },
@@ -151,7 +151,7 @@ export default function HandleShareScreen() {
       enabled: !!user && (hasImages || hasText),
       onPress: () =>
         go({
-          pathname: '/(marketplace)/(tabs)/workspace/cheques/add',
+          pathname: '/(marketplace)/cheques/add',
           params: chequeParams(),
         } as Href),
     },
@@ -167,7 +167,7 @@ export default function HandleShareScreen() {
       enabled: !!user && (hasText || hasImages || hasFiles),
       onPress: () =>
         go({
-          pathname: '/(marketplace)/(tabs)/workspace/bills/add',
+          pathname: '/(marketplace)/bills/add',
           params: billParams(),
         } as Href),
     },
@@ -187,7 +187,7 @@ export default function HandleShareScreen() {
       enabled: !!user && (hasText || hasImages),
       onPress: () =>
         go({
-          pathname: '/(marketplace)/(tabs)/workspace/contacts/add',
+          pathname: '/(marketplace)/contacts/add',
           params: contactParams(),
         } as Href),
     },

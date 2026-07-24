@@ -107,7 +107,7 @@ export default function AddTripScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Plan trip" />
+      <StackHeader title="Plan trip" closeIcon />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}

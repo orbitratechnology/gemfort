@@ -223,7 +223,7 @@ export default function GemsListScreen() {
           { backgroundColor: colors.primary },
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
-        onPress={() => router.push('/(marketplace)/(tabs)/workspace/gems/add')}>
+        onPress={() => router.push('/(marketplace)/gems/add')}>
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
 

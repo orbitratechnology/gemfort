@@ -734,7 +734,7 @@ export default function ApListScreen() {
                   title="Give on AP"
                   icon="add"
                   onPress={() =>
-                    router.push("/(marketplace)/(tabs)/workspace/ap/add")
+                    router.push("/(marketplace)/ap/add")
                   }
                 />
               ) : undefined
@@ -798,7 +798,7 @@ export default function ApListScreen() {
             pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
           ]}
           onPress={() =>
-            router.push("/(marketplace)/(tabs)/workspace/ap/add" as never)
+            router.push("/(marketplace)/ap/add" as never)
           }
         >
           <Icon name="add" size={28} color={colors.onPrimary} />

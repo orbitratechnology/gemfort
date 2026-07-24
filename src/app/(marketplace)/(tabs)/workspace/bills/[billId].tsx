@@ -113,7 +113,7 @@ export default function BillDetailScreen() {
     if (!bill) return;
     const gemIds = billGemIds(bill);
     router.push({
-      pathname: "/(marketplace)/(tabs)/workspace/cheques/add",
+      pathname: "/(marketplace)/cheques/add",
       params: {
         amount: String(amount),
         settleAmount: String(amount),

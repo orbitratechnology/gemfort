@@ -250,7 +250,7 @@ export default function AddGemScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Add gem" />
+      <StackHeader title="Add gem" closeIcon />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}

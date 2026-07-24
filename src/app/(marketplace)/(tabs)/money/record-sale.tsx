@@ -148,7 +148,7 @@ export default function RecordSaleScreen() {
       if (data.method === "cheque") {
         toast.success(`${gem.sku} sold. Add the cheque next.`);
         router.replace({
-          pathname: "/(marketplace)/(tabs)/workspace/cheques/add",
+          pathname: "/(marketplace)/cheques/add",
           params: { amount: String(data.price), gemId: gem.id },
         });
         return;

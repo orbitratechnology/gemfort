@@ -89,7 +89,7 @@ export default function AddTripExpenseScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Expense" />
+      <StackHeader title="Add Expense" closeIcon />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Category" padded={false}>

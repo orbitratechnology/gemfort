@@ -87,7 +87,11 @@ export default function TripDetailScreen() {
   const isSourcing = trip?.tripType === "sourcing" || trip?.tripType === "both";
   const isSelling = trip?.tripType === "selling" || trip?.tripType === "both";
   const canRecordSales = isSelling && trip?.status === "ongoing";
-  const base = `/(marketplace)/(tabs)/workspace/trips/${tripId}`;
+  const sheets = {
+    addExpense: `/(marketplace)/trips/${tripId}/add-expense`,
+    addPurchase: `/(marketplace)/trips/${tripId}/add-purchase`,
+    addGems: `/(marketplace)/trips/${tripId}/add-gems`,
+  };
 
   async function handleStatus(next: "ongoing" | "completed" | "cancelled") {
     if (!trip) return;
@@ -318,7 +322,7 @@ export default function TripDetailScreen() {
 
         <View style={styles.linkRow}>
           <Pressable
-            onPress={() => router.push(`${base}/add-expense` as never)}
+            onPress={() => router.push(sheets.addExpense as never)}
             style={({ pressed }) => [
               styles.linkBtn,
               { backgroundColor: colors.surfaceContainerLow },
@@ -332,7 +336,7 @@ export default function TripDetailScreen() {
           </Pressable>
           {isSourcing ? (
             <Pressable
-              onPress={() => router.push(`${base}/add-purchase` as never)}
+              onPress={() => router.push(sheets.addPurchase as never)}
               style={({ pressed }) => [
                 styles.linkBtn,
                 { backgroundColor: colors.secondaryContainer },
@@ -356,7 +360,7 @@ export default function TripDetailScreen() {
           ) : null}
           {isSelling ? (
             <Pressable
-              onPress={() => router.push(`${base}/add-gems` as never)}
+              onPress={() => router.push(sheets.addGems as never)}
               style={({ pressed }) => [
                 styles.linkBtn,
                 { backgroundColor: colors.primaryContainer },

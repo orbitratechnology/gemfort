@@ -341,7 +341,7 @@ export default function ContactsListScreen() {
       <Pressable
         style={[styles.fab, { backgroundColor: colors.accent }]}
         onPress={() =>
-          router.push("/(marketplace)/(tabs)/workspace/contacts/add")
+          router.push("/(marketplace)/contacts/add")
         }
         accessibilityRole="button"
         accessibilityLabel="Add contact"

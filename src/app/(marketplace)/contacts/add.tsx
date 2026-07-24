@@ -176,7 +176,7 @@ export default function AddContactScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Contact" />
+      <StackHeader title="Add Contact" closeIcon />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.lead}>
         <Pressable

@@ -112,7 +112,7 @@ function quickActionsForRole(
         id: "bill",
         label: "Bill",
         icon: "receipt-long",
-        href: "/(marketplace)/(tabs)/workspace/bills/add",
+        href: "/(marketplace)/bills/add",
       },
     ];
   }
@@ -136,19 +136,19 @@ function quickActionsForRole(
       id: "add-gem",
       label: "Add gem",
       icon: "diamond",
-      href: "/(marketplace)/(tabs)/workspace/gems/add",
+      href: "/(marketplace)/gems/add",
     },
     {
       id: "ap",
       label: "Give AP",
       icon: "handshake",
-      href: "/(marketplace)/(tabs)/workspace/ap/add",
+      href: "/(marketplace)/ap/add",
     },
     {
       id: "service",
       label: "Service",
       icon: "handyman",
-      href: "/(marketplace)/(tabs)/workspace/services/add",
+      href: "/(marketplace)/services/add",
     },
   ];
 }
