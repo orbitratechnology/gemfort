@@ -238,7 +238,7 @@ export default function AddBillScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Add Bill" />
+      <StackHeader title="Add Bill" closeIcon />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Direction">
           <ChipSelect

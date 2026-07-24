@@ -378,7 +378,7 @@ export default function ChequesScreen() {
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
         onPress={() =>
-          router.push("/(marketplace)/(tabs)/workspace/cheques/add" as never)
+          router.push("/(marketplace)/cheques/add" as never)
         }
       >
         <Icon name="add" size={28} color={colors.onPrimary} />

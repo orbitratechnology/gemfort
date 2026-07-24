@@ -48,7 +48,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     case "rough":
       actions.push({
         title: "Record Cutting",
-        href: `${base}/services/add?gemId=${gem.id}`,
+        href: `/(marketplace)/services/add?gemId=${gem.id}`,
       });
       break;
     case "cut":
@@ -58,7 +58,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     case "ready_for_sale":
       actions.push({
         title: "Give on AP",
-        href: `${base}/ap/add?gemId=${gem.id}`,
+        href: `/(marketplace)/ap/add?gemId=${gem.id}`,
       });
       break;
     case "on_ap":
@@ -94,7 +94,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
   if (gem.status !== "rough") {
     actions.push({
       title: "Record Service",
-      href: `${base}/services/add?gemId=${gem.id}`,
+      href: `/(marketplace)/services/add?gemId=${gem.id}`,
       variant: "secondary",
     });
   }

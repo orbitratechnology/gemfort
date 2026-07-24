@@ -222,7 +222,7 @@ export default function BillsIndexScreen() {
       <StackHeader
         title="Bills"
         right={
-          <Link href="/(marketplace)/(tabs)/workspace/bills/add" asChild>
+          <Link href="/(marketplace)/bills/add" asChild>
             <Pressable
               hitSlop={8}
               accessibilityRole="button"

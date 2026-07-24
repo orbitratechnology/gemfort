@@ -398,7 +398,7 @@ export default function WorkspaceHub() {
             {
               label: "Bill",
               icon: "receipt-long",
-              route: `${WORKSPACE}/bills/add`,
+              route: '/(marketplace)/bills/add',
             },
             {
               label: "Contacts",
@@ -415,23 +415,23 @@ export default function WorkspaceHub() {
             {
               label: "Add gem",
               icon: "add",
-              route: `${WORKSPACE}/gems/add`,
+              route: '/(marketplace)/gems/add',
               primary: true,
             },
             {
               label: "Plan trip",
               icon: "flight-takeoff",
-              route: `${WORKSPACE}/trips/add`,
+              route: '/(marketplace)/trips/add',
             },
             {
               label: "Cheque",
               icon: "money-check-dollar",
-              route: `${WORKSPACE}/cheques/add`,
+              route: '/(marketplace)/cheques/add',
             },
             {
               label: "Bill",
               icon: "receipt-long",
-              route: `${WORKSPACE}/bills/add`,
+              route: '/(marketplace)/bills/add',
             },
             {
               label: "Sale",

@@ -1,7 +1,11 @@
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
-import { silkStackScreenOptions } from "@/navigation/silk-stack-options";
+import {
+  formSheetFitContentOptions,
+  formSheetScreenOptions,
+  silkStackScreenOptions,
+} from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
@@ -63,8 +67,20 @@ function RootNavigator() {
           headerShown: false,
         }}
       />
-      <Stack.Screen name="profile/verify" options={{ headerShown: false }} />
-      <Stack.Screen name="profile/business" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="profile/verify"
+        options={{
+          ...formSheetScreenOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="profile/business"
+        options={{
+          ...formSheetScreenOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
       <Stack.Screen name="profile/account" options={{ headerShown: false }} />
       <Stack.Screen
         name="request/[businessId]"
@@ -73,7 +89,10 @@ function RootNavigator() {
       <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen
         name="verify-certificate"
-        options={{ headerShown: false }}
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
       />
       <Stack.Screen name="news/index" options={{ headerShown: false }} />
     </Stack>

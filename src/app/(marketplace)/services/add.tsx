@@ -118,7 +118,7 @@ export default function AddServiceScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Service" />
+      <StackHeader title="Add Service" closeIcon />
       <ThemedScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <ScreenInset>
         <GemSelectField

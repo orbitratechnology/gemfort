@@ -70,7 +70,7 @@ const BANNERS: BannerSlide[] = [
     subtitle: 'Hand over inventory with clear return dates.',
     cta: 'Give AP',
     icon: 'handshake',
-    href: '/(marketplace)/(tabs)/workspace/ap/add',
+    href: '/(marketplace)/ap/add',
     tone: 'primary',
   },
 ];

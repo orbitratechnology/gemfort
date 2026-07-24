@@ -98,7 +98,7 @@ export default function ChequeDetailScreen() {
   function handleReplace() {
     if (!cheque) return;
     router.push({
-      pathname: '/(marketplace)/(tabs)/workspace/cheques/add',
+      pathname: '/(marketplace)/cheques/add',
       params: {
         amount: String(cheque.amount),
         contactId: cheque.counterpartyContactId,

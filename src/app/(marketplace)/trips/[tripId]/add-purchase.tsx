@@ -75,7 +75,7 @@ export default function AddTripPurchaseScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Buy Gem on Trip" />
+      <StackHeader title="Buy Gem on Trip" closeIcon />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Gem type" padded={false}>

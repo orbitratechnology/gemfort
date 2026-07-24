@@ -14,3 +14,26 @@ export const silkStackScreenOptions = {
   fullScreenGestureEnabled: true,
   animationMatchesGesture: true,
 };
+
+/**
+ * Bottom-sheet presentation for action/create/verify flows.
+ * Present from a stack ABOVE NativeTabs (not inside a tab stack).
+ * @see https://docs.expo.dev/router/advanced/modals/#form-sheet-presentation
+ */
+export const formSheetScreenOptions = {
+  presentation: "formSheet" as const,
+  headerShown: false,
+  sheetAllowedDetents: [0.55, 1] as number[],
+  sheetInitialDetentIndex: "last" as const,
+  sheetGrabberVisible: true,
+  sheetCornerRadius: 24,
+  gestureEnabled: true,
+  fullScreenGestureEnabled: false,
+};
+
+/** Compact sheet that sizes to its content (no flex:1 in screen content). */
+export const formSheetFitContentOptions = {
+  ...formSheetScreenOptions,
+  sheetAllowedDetents: "fitToContents" as const,
+  sheetInitialDetentIndex: 0 as const,
+};

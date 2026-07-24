@@ -651,6 +651,7 @@ export default function MyBusinessProfileScreen() {
     >
       <StackHeader
         title={screenTitle}
+        closeIcon
         right={
           canPreviewPublic ? (
             <Pressable

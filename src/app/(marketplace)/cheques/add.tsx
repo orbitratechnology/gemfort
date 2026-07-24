@@ -305,7 +305,7 @@ export default function AddChequeScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Add cheque" />
+      <StackHeader title="Add cheque" closeIcon />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
