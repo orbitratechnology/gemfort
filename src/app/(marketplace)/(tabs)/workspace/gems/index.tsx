@@ -1,15 +1,14 @@
+import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  ScrollView,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,7 +41,6 @@ export default function GemsListScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { width: windowWidth } = useWindowDimensions();
   const params = useLocalSearchParams<{ status?: string }>();
   const initialStatus = (params.status as GemStatus | undefined) ?? 'all';
 
@@ -66,11 +64,6 @@ export default function GemsListScreen() {
     () => filterGems(gems, { search: debouncedSearch, status: statusFilter, gemType: typeFilter }),
     [gems, debouncedSearch, statusFilter, typeFilter],
   );
-
-  const cellWidth = useMemo(() => {
-    const contentWidth = windowWidth - LIST_H_PAD * 2;
-    return Math.floor((contentWidth - GRID_GAP) / 2);
-  }, [windowWidth]);
 
   const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all';
 
@@ -192,11 +185,10 @@ export default function GemsListScreen() {
         </View>
       ) : null}
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListEmptyComponent={
@@ -209,7 +201,7 @@ export default function GemsListScreen() {
           />
         }
         renderItem={({ item }) => (
-          <View style={{ width: cellWidth }}>
+          <View style={styles.cell}>
             <GemCard
               gem={item}
               href={`/(marketplace)/(tabs)/workspace/gems/${item.id}`}
@@ -329,13 +321,14 @@ const styles = StyleSheet.create({
   clearFilters: { ...Typography.labelMd, fontWeight: '600' },
 
   list: {
-    paddingHorizontal: LIST_H_PAD,
+    paddingHorizontal: LIST_H_PAD - GRID_GAP / 2,
     paddingTop: Spacing.stackSm,
     paddingBottom: 100,
     flexGrow: 1,
   },
-  columnWrapper: {
-    justifyContent: 'space-between',
+  cell: {
+    flex: 1,
+    paddingHorizontal: GRID_GAP / 2,
     marginBottom: GRID_GAP,
   },
 

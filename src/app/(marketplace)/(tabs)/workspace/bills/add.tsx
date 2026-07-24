@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -21,8 +21,14 @@ import {
   GemPickerSheet,
   GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
+import {
+  JobPickerSheet,
+  JobSelectField,
+} from "@/components/workspace/job-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { resolveProfileRole } from "@/constants/roles";
+import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import {
   billCommissionAmount,
   billNetAfterCommission,
@@ -41,7 +47,7 @@ import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { BillDirection, WorkspaceGem } from "@/types";
+import type { BillDirection, LapidaryJob, WorkspaceGem } from "@/types";
 
 const DIRECTIONS = [
   {
@@ -62,19 +68,26 @@ function firstParam(v: string | string[] | undefined): string {
 }
 
 export default function AddBillScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const isLapidary = resolveProfileRole(profile) === "lapidary";
   const raw = useLocalSearchParams<{
     amount?: string;
     notes?: string;
+    jobId?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
   const paramNotes = decodeShareParam(raw.notes);
+  const paramJobId = firstParam(raw.jobId);
 
   const [direction, setDirection] = useState<BillDirection>("payable");
+
+  useEffect(() => {
+    if (isLapidary) setDirection("receivable");
+  }, [isLapidary]);
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
     currency: preferred,
@@ -84,7 +97,9 @@ export default function AddBillScreen() {
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
   const [gemIds, setGemIds] = useState<string[]>([]);
+  const [jobId, setJobId] = useState(paramJobId);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
+  const [jobSheetOpen, setJobSheetOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -97,7 +112,13 @@ export default function AddBillScreen() {
   const { data: gems = [] } = useQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
-    enabled: !!user,
+    enabled: !!user && !isLapidary,
+  });
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["lapidary-jobs", user?.uid],
+    queryFn: () => fetchLapidaryJobs(user!.uid),
+    enabled: !!user && isLapidary,
   });
 
   const availableGems = useMemo(
@@ -113,6 +134,11 @@ export default function AddBillScreen() {
     [gemIds, gems],
   );
 
+  const selectedJob = useMemo(
+    () => jobs.find((j) => j.id === jobId) ?? null,
+    [jobs, jobId],
+  );
+
   const duePreview = useMemo(() => {
     const days = parseInt(dueDays, 10);
     if (Number.isNaN(days) || days < 0) return null;
@@ -125,15 +151,16 @@ export default function AddBillScreen() {
   }, [money.amount]);
 
   const commissionPct = useMemo(() => {
-    const raw = commissionPercent.trim();
-    if (!raw) return null;
-    const n = Number(raw.replace(/,/g, ""));
+    if (isLapidary) return null;
+    const rawPct = commissionPercent.trim();
+    if (!rawPct) return null;
+    const n = Number(rawPct.replace(/,/g, ""));
     return Number.isFinite(n) ? n : null;
-  }, [commissionPercent]);
+  }, [commissionPercent, isLapidary]);
 
   const commissionValue = billCommissionAmount(faceAmount, commissionPct);
   const netValue = billNetAfterCommission(faceAmount, commissionPct);
-  const showBreakdown = faceAmount > 0 && commissionValue > 0;
+  const showBreakdown = !isLapidary && faceAmount > 0 && commissionValue > 0;
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -153,6 +180,12 @@ export default function AddBillScreen() {
     setGemIds((prev) => prev.filter((g) => g !== id));
   }
 
+  function selectJob(job: LapidaryJob) {
+    setJobId(job.id);
+    clearField("jobId");
+    setJobSheetOpen(false);
+  }
+
   async function handleSubmit() {
     if (!user) return;
     const result = parseForm(addBillSchema, {
@@ -160,7 +193,7 @@ export default function AddBillScreen() {
       amount: money.amount,
       dueDays,
       contactId,
-      commissionPercent,
+      commissionPercent: isLapidary ? "" : commissionPercent,
       notes: notes || undefined,
     });
     if (!result.success) {
@@ -179,12 +212,16 @@ export default function AddBillScreen() {
         currency: money.currency,
         counterpartyContactId: result.data.contactId,
         dueDate,
-        commissionPercent: result.data.commissionPercent,
+        commissionPercent: isLapidary ? null : result.data.commissionPercent,
         notes: result.data.notes,
-        gemIds,
+        gemIds: isLapidary ? [] : gemIds,
+        jobId: isLapidary ? jobId || null : null,
+        status: isLapidary ? "ongoing" : "open",
       });
       await queryClient.invalidateQueries({ queryKey: ["bills"] });
-      toast.success("Bill saved");
+      toast.success(
+        isLapidary ? "Bill started — ongoing until due date" : "Bill saved",
+      );
       router.replace(`/(marketplace)/(tabs)/workspace/bills/${id}` as never);
     } catch (e) {
       toast.error(friendlyError(e, "Could not save bill."));
@@ -211,52 +248,69 @@ export default function AddBillScreen() {
           />
         </FormSection>
 
-        <FormSection title="Gems">
-          {selectedGems.map((gem) => (
-            <View
-              key={gem.id}
-              style={[
-                styles.gemCard,
-                {
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderColor: colors.outlineVariant,
-                },
-              ]}
-            >
-              <View style={styles.gemHeader}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text
-                    style={[styles.gemTitle, { color: colors.onSurface }]}
-                    numberOfLines={1}
+        {isLapidary ? (
+          <FormSection title="Job">
+            <JobSelectField
+              label="Link job"
+              job={selectedJob}
+              placeholder="Select a workshop job"
+              onPress={() => setJobSheetOpen(true)}
+              onClear={jobId ? () => setJobId("") : undefined}
+              error={errors.jobId}
+            />
+            <Text style={[styles.helper, { color: colors.textMuted }]}>
+              Tracks payment for a received gem service request until the due
+              date.
+            </Text>
+          </FormSection>
+        ) : (
+          <FormSection title="Gems">
+            {selectedGems.map((gem) => (
+              <View
+                key={gem.id}
+                style={[
+                  styles.gemCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    borderColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <View style={styles.gemHeader}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={[styles.gemTitle, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {gem.variety?.trim() ||
+                        formatGemType(gem.gemType) ||
+                        gem.sku}
+                    </Text>
+                    <Text
+                      style={[styles.gemSub, { color: colors.textMuted }]}
+                      numberOfLines={1}
+                    >
+                      {gem.sku} · {gem.currentWeight} ct
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => removeGem(gem.id)}
+                    accessibilityLabel="Remove gem"
+                    hitSlop={8}
                   >
-                    {gem.variety?.trim() ||
-                      formatGemType(gem.gemType) ||
-                      gem.sku}
-                  </Text>
-                  <Text
-                    style={[styles.gemSub, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {gem.sku} · {gem.currentWeight} ct
-                  </Text>
+                    <Icon name="close" size={20} color={colors.textMuted} />
+                  </Pressable>
                 </View>
-                <Pressable
-                  onPress={() => removeGem(gem.id)}
-                  accessibilityLabel="Remove gem"
-                  hitSlop={8}
-                >
-                  <Icon name="close" size={20} color={colors.textMuted} />
-                </Pressable>
               </View>
-            </View>
-          ))}
-          <GemSelectField
-            label={gemIds.length ? "Add another gem" : "Link gems (optional)"}
-            gem={null}
-            placeholder="Select a gem"
-            onPress={() => setGemSheetOpen(true)}
-          />
-        </FormSection>
+            ))}
+            <GemSelectField
+              label={gemIds.length ? "Add another gem" : "Link gems (optional)"}
+              gem={null}
+              placeholder="Select a gem"
+              onPress={() => setGemSheetOpen(true)}
+            />
+          </FormSection>
+        )}
 
         <FormSection title="Details">
           <CurrencyAmountField
@@ -279,20 +333,28 @@ export default function AddBillScreen() {
             placeholder="7"
             leftIcon="event"
             error={errors.dueDays}
-            helperText={duePreview ? `Due ${duePreview}` : undefined}
+            helperText={
+              duePreview
+                ? isLapidary
+                  ? `Ongoing until ${duePreview}`
+                  : `Due ${duePreview}`
+                : undefined
+            }
           />
-          <Input
-            label="Commission %"
-            value={commissionPercent}
-            onChangeText={(t) => {
-              setCommissionPercent(t);
-              clearField("commissionPercent");
-            }}
-            keyboardType="decimal-pad"
-            placeholder="Optional"
-            leftIcon="percent"
-            error={errors.commissionPercent}
-          />
+          {!isLapidary ? (
+            <Input
+              label="Commission %"
+              value={commissionPercent}
+              onChangeText={(t) => {
+                setCommissionPercent(t);
+                clearField("commissionPercent");
+              }}
+              keyboardType="decimal-pad"
+              placeholder="Optional"
+              leftIcon="percent"
+              error={errors.commissionPercent}
+            />
+          ) : null}
 
           {showBreakdown ? (
             <View
@@ -373,15 +435,27 @@ export default function AddBillScreen() {
         icon="check"
       />
 
-      <GemPickerSheet
-        visible={gemSheetOpen}
-        onClose={() => setGemSheetOpen(false)}
-        gems={availableGems}
-        value=""
-        title="Select gem for bill"
-        emptyHint="No more gems available. Add gems in inventory first."
-        onSelect={addGem}
-      />
+      {!isLapidary ? (
+        <GemPickerSheet
+          visible={gemSheetOpen}
+          onClose={() => setGemSheetOpen(false)}
+          gems={availableGems}
+          value=""
+          title="Select gem for bill"
+          emptyHint="No more gems available. Add gems in inventory first."
+          onSelect={addGem}
+        />
+      ) : (
+        <JobPickerSheet
+          visible={jobSheetOpen}
+          onClose={() => setJobSheetOpen(false)}
+          jobs={jobs}
+          value={jobId}
+          title="Select job for bill"
+          emptyHint="Accept a service request in Jobs first."
+          onSelect={selectJob}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -430,6 +504,7 @@ function BreakdownRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingBottom: Spacing.xxl, gap: Spacing.md },
+  helper: { ...Typography.caption, marginTop: Spacing.xs },
   gemCard: {
     borderRadius: Radius.lg,
     borderCurve: "continuous",

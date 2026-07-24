@@ -67,11 +67,13 @@ export type WorkspaceModule =
   | 'money'
   | 'cheques'
   | 'bills'
+  | 'contacts'
   | 'requests';
 
 const MODULES_BY_ROLE: Record<Exclude<UserRole, 'admin'>, WorkspaceModule[]> = {
-  trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'requests'],
-  lapidary: ['services', 'jobs', 'money'],
+  trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'contacts', 'requests'],
+  // Lapidaries run jobs/services and need contacts + bills — not AP or inventory trips.
+  lapidary: ['services', 'jobs', 'money', 'bills', 'contacts'],
   gem_lab: ['certificates', 'money'],
 };
 
@@ -109,7 +111,19 @@ export function canAccessModule(role: UserRole, module: WorkspaceModule): boolea
 
 export function modulesForRole(role: UserRole): WorkspaceModule[] {
   if (role === 'admin') {
-    return ['gems', 'trips', 'ap', 'services', 'jobs', 'certificates', 'money', 'cheques', 'bills', 'requests'];
+    return [
+      'gems',
+      'trips',
+      'ap',
+      'services',
+      'jobs',
+      'certificates',
+      'money',
+      'cheques',
+      'bills',
+      'contacts',
+      'requests',
+    ];
   }
   return MODULES_BY_ROLE[role] ?? [];
 }

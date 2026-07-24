@@ -1,14 +1,14 @@
+import { FlashList } from '@shopify/flash-list';
 import { Redirect, Stack } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, type ReactNode } from "react";
 import {
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
-} from "react-native";
+} from 'react-native';
 
 import { NotificationRow } from "@/components/notifications/notification-row";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -214,7 +214,7 @@ export default function NotificationsScreen() {
         }}
       />
 
-      <FlatList
+      <FlashList
         data={notifications}
         keyExtractor={(n) => n.id}
         style={{ flex: 1, backgroundColor: colors.background }}

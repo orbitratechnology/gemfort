@@ -15,8 +15,10 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { JOB_STATUS_LABELS } from "@/components/workspace/job-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import {
   BILL_DIRECTION_LABELS,
   BILL_STATUS_LABELS,
@@ -79,12 +81,21 @@ export default function BillDetailScreen() {
   const { data: gems = [] } = useQuery({
     queryKey: ["gems", bill?.ownerUid],
     queryFn: () => fetchGems(bill!.ownerUid),
-    enabled: !!bill?.ownerUid,
+    enabled: !!bill?.ownerUid && !bill?.jobId,
+  });
+
+  const { data: jobs = [] } = useQuery({
+    queryKey: ["lapidary-jobs", bill?.ownerUid],
+    queryFn: () => fetchLapidaryJobs(bill!.ownerUid),
+    enabled: !!bill?.ownerUid && !!bill?.jobId,
   });
 
   const contactName =
     contacts.find((c) => c.id === bill?.counterpartyContactId)?.displayName ??
     "—";
+  const linkedJob = bill?.jobId
+    ? (jobs.find((j) => j.id === bill.jobId) ?? null)
+    : null;
 
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ["bills"] });
@@ -338,7 +349,31 @@ export default function BillDetailScreen() {
           ) : null}
         </FormSection>
 
-        {linkedGemIds.length > 0 ? (
+        {bill.jobId ? (
+          <FormSection title="Job">
+            <DetailRow
+              label="Gem"
+              value={linkedJob?.gemName ?? bill.jobId.slice(0, 8)}
+              colors={colors}
+            />
+            {linkedJob ? (
+              <>
+                <DetailRow
+                  label="Status"
+                  value={JOB_STATUS_LABELS[linkedJob.status]}
+                  colors={colors}
+                />
+                {linkedJob.serviceTypes?.length ? (
+                  <DetailRow
+                    label="Services"
+                    value={linkedJob.serviceTypes.join(", ")}
+                    colors={colors}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </FormSection>
+        ) : linkedGemIds.length > 0 ? (
           <FormSection title="Gems">
             {linkedGemIds.map((id) => {
               const gem = gems.find((g) => g.id === id);

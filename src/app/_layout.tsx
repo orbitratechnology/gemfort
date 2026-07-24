@@ -5,6 +5,7 @@ import { silkStackScreenOptions } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
+import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ToastProvider } from "@/providers/toast-provider";
@@ -116,6 +117,7 @@ export default function RootLayout() {
               <QueryProvider>
                 <AuthProvider>
                   <PushNotificationRegistrar />
+                  <QuickActionsRegistrar />
                   <RootNavigator />
                   <KeyboardToolbar />
                 </AuthProvider>

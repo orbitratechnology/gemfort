@@ -26,7 +26,7 @@ type BottomSheetProps = {
   /** Optional sticky footer (e.g. Apply/Reset buttons). */
   footer?: ReactNode;
   /**
-   * When false, children are not wrapped in ScrollView (use FlatList inside).
+   * When false, children are not wrapped in ScrollView (use FlashList inside).
    * Defaults to true.
    */
   scrollable?: boolean;

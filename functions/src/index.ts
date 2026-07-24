@@ -1,3 +1,5 @@
+import './config';
+
 export { dailyGemTrackNotifications } from './gemtrack/daily';
 export { syncExchangeRates } from './gemtrack/exchange-rates';
 export { onChequeBounced } from './gemtrack/cheque-bounced';

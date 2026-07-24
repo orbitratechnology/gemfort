@@ -46,24 +46,6 @@ function formatModuleCount(value: number): string {
 }
 
 function groupVisual(id: ModuleGroupId, colors: ThemeColors): GroupVisual {
-  if (id === "people") {
-    const accent = colors.primary;
-    return {
-      accent,
-      iconFg: colors.onPrimary,
-      iconBg: colors.primary,
-      panelWash: `
-        linear-gradient(195deg, ${colors.primary}10 0%, ${colors.surfaceContainerLow} 40%, ${colors.surfaceContainerLowest} 100%),
-        radial-gradient(ellipse 70% 55% at 0% 0%, ${colors.primaryContainer}99 0%, transparent 58%)
-      `,
-      tileWash: `
-        linear-gradient(155deg, ${colors.surfaceContainerLowest} 0%, ${colors.primary}0F 100%),
-        radial-gradient(circle at 0% 100%, ${colors.primary}16 0%, transparent 50%)
-      `,
-      orb: colors.primary + "1A",
-    };
-  }
-
   const accent = colors.primary;
   return {
     accent,

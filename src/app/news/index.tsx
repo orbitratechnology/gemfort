@@ -1,9 +1,9 @@
+import { FlashList } from '@shopify/flash-list';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -117,7 +117,7 @@ export default function GemNewsScreen() {
         </View>
 
         {mainTab === 'news' ? (
-          <FlatList
+          <FlashList
             horizontal
             data={NEWS_TOPICS}
             keyExtractor={(item) => item.id}
@@ -151,7 +151,7 @@ export default function GemNewsScreen() {
       </View>
 
       {mainTab === 'news' ? (
-        <FlatList
+        <FlashList
           data={articles}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -184,7 +184,7 @@ export default function GemNewsScreen() {
           renderItem={({ item }) => <NewsArticleCard article={item} />}
         />
       ) : (
-        <FlatList
+        <FlashList
           data={showsQuery.data ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}

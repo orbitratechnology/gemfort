@@ -125,7 +125,7 @@ export default function WorkspaceHub() {
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts", userId],
     queryFn: () => fetchContacts(userId!),
-    enabled: !!userId,
+    enabled: !!userId && canAccessModule(role, "contacts"),
   });
 
   const { data: businesses = [] } = useQuery({
@@ -214,7 +214,7 @@ export default function WorkspaceHub() {
     enabled: !!userId && role === "lapidary",
   });
 
-  const showContacts = role === "trader" || role === "admin";
+  const showContacts = canAccessModule(role, "contacts");
   const { logs: recentCalls } = useMatchedCallLogs({
     enabled: !!userId && showContacts,
   });
@@ -358,7 +358,7 @@ export default function WorkspaceHub() {
     if (m.label === "AP") return canAccessModule(role, "ap");
     if (m.label === "Cheques") return canAccessModule(role, "cheques");
     if (m.label === "Bills") return canAccessModule(role, "bills");
-    if (m.label === "Contacts") return role === "trader" || role === "admin";
+    if (m.label === "Contacts") return canAccessModule(role, "contacts");
     return true;
   });
 
@@ -394,6 +394,16 @@ export default function WorkspaceHub() {
               icon: "construction",
               route: `${WORKSPACE}/jobs`,
               primary: true,
+            },
+            {
+              label: "Bill",
+              icon: "receipt-long",
+              route: `${WORKSPACE}/bills/add`,
+            },
+            {
+              label: "Contacts",
+              icon: "group",
+              route: `${WORKSPACE}/contacts`,
             },
             {
               label: "Services",

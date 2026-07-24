@@ -477,6 +477,7 @@ export type BillDirection = "payable" | "receivable";
 
 export type BillStatus =
   | "open"
+  | "ongoing"
   | "partial"
   | "paid"
   | "cancelled"
@@ -505,6 +506,8 @@ export type Bill = {
   gemId: string | null;
   /** Linked stones for this bill (optional). */
   gemIds: string[];
+  /** Linked lapidary workshop job (optional; used by lapidary bills). */
+  jobId: string | null;
   notes: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;

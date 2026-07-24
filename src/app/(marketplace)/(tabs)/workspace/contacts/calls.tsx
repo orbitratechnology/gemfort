@@ -1,13 +1,13 @@
+import { FlashList } from '@shopify/flash-list';
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import {
-  FlatList,
   Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
-} from "react-native";
+} from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -98,7 +98,7 @@ export default function ContactCallsScreen() {
           />
         </ScreenInset>
       ) : (
-        <FlatList
+        <FlashList
           data={logs}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}

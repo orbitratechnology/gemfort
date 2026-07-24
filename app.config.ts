@@ -52,7 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Keep focused inputs visible above the keyboard (esp. with bottom tabs).
     softwareKeyboardLayoutMode: "pan",
     adaptiveIcon: {
-      // Brand plate #000000 — matches opaque icon / splash
+      // Black plate; foreground mark is inset (~52%) for circular / squircle masks
       backgroundColor: "#000000",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
@@ -104,7 +104,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
         android: {
           enabled: true,
-          singleShareMimeTypes: ["image/*", "application/pdf", "text/plain", "text/*"],
+          singleShareMimeTypes: [
+            "image/*",
+            "application/pdf",
+            "text/plain",
+            "text/*",
+          ],
           multipleShareMimeTypes: ["image/*"],
         },
       },
@@ -138,6 +143,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         backgroundColor: "#000000",
         image: "./assets/images/splash-icon.png",
+        // dp width of the splash icon box; mark itself is inset for Android's circular mask
         imageWidth: 200,
         resizeMode: "contain",
         dark: {
@@ -151,8 +157,88 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         // Android status-bar small icon must be white alpha silhouette
         icon: "./assets/images/notification-icon.png",
-        color: "#171717",
+        color: "#64A0F7",
         defaultChannel: "default",
+      },
+    ],
+    [
+      "expo-quick-actions",
+      {
+        // Android shortcuts can be pinned — adaptive icons act as alt entry points.
+        // Foreground: white silhouette with ~30% padding (Material shortcut guidance).
+        androidIcons: {
+          shortcut_verify: {
+            foregroundImage: "./assets/images/notification-icon.png",
+            backgroundColor: "#64A0F7",
+          },
+          shortcut_add: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#171717",
+          },
+          shortcut_ap: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#0F766E",
+          },
+          shortcut_service: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#B45309",
+          },
+          shortcut_jobs: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#B45309",
+          },
+          shortcut_contacts: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#1D4ED8",
+          },
+          shortcut_bill: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#171717",
+          },
+          shortcut_certificates: {
+            foregroundImage: "./assets/images/notification-icon.png",
+            backgroundColor: "#7C3AED",
+          },
+          shortcut_money: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#15803D",
+          },
+          shortcut_directory: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#1D4ED8",
+          },
+          shortcut_search: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#171717",
+          },
+          shortcut_news: {
+            foregroundImage: "./assets/images/android-icon-monochrome.png",
+            backgroundColor: "#334155",
+          },
+        },
+        // Static iOS actions available before JS loads; replaced dynamically by role.
+        iosActions: [
+          {
+            id: "verify",
+            title: "Verify certificate",
+            subtitle: "Check a lab certificate",
+            icon: "symbol:checkmark.seal",
+            params: { href: "/verify-certificate" },
+          },
+          {
+            id: "directory",
+            title: "Directory",
+            subtitle: "Find traders, lapidaries & labs",
+            icon: "symbol:person.2",
+            params: { href: "/(marketplace)/(tabs)/directory" },
+          },
+          {
+            id: "search",
+            title: "Search",
+            icon: "search",
+            params: { href: "/(marketplace)/(tabs)/search" },
+          },
+        ],
       },
     ],
     [

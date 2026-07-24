@@ -1,6 +1,6 @@
+import { FlashList } from '@shopify/flash-list';
 import { useMemo, useState } from "react";
 import {
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -102,15 +102,13 @@ export function CityPickerSheet({
           autoCapitalize="words"
         />
       </View>
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item, index) =>
           `${item.countryCode}-${item.stateCode}-${item.name}-${index}`
         }
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
-        initialNumToRender={24}
-        windowSize={11}
         ListEmptyComponent={
           <EmptyState
             icon="place"

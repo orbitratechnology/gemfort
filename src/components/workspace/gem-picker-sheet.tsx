@@ -1,7 +1,7 @@
+import { FlashList } from '@shopify/flash-list';
 import { Image } from "expo-image";
 import { useMemo, useState } from "react";
 import {
-    FlatList,
     Pressable,
     StyleSheet,
     Text,
@@ -179,7 +179,7 @@ export function GemPickerSheet({
         />
       </View>
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"

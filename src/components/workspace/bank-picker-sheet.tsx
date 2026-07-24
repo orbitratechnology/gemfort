@@ -1,7 +1,7 @@
+import { FlashList } from '@shopify/flash-list';
 import { Image } from "expo-image";
 import { useMemo, useState } from "react";
 import {
-    FlatList,
     Pressable,
     StyleSheet,
     Text,
@@ -156,7 +156,7 @@ export function BankPickerSheet({
         />
       </View>
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => item.code}
         keyboardShouldPersistTaps="handled"
@@ -379,7 +379,7 @@ export function BranchPickerSheet({
         />
       </View>
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => `${item.bankID}-${item.ID}`}
         keyboardShouldPersistTaps="handled"

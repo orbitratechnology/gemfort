@@ -1,7 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
@@ -228,7 +229,7 @@ export default function PayablesScreen() {
         }
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
-      <FlatList
+      <FlashList
         data={payables}
         keyExtractor={(p) => p.id}
         onRefresh={refetch}
