@@ -1,7 +1,7 @@
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -109,7 +109,7 @@ const START_LOOP_INDEX = COUNT < 2 ? 0 : 1;
 export function HomeBannerCarousel() {
   const { colors, isDark } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
-  const listRef = useRef<FlatList<LoopSlide>>(null);
+  const listRef = useRef<FlashListRef<LoopSlide>>(null);
   const loopIndexRef = useRef(START_LOOP_INDEX);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -196,7 +196,7 @@ export function HomeBannerCarousel() {
   const contentStyle = useMemo(
     () => ({
       paddingHorizontal: edge,
-      // Room for card shadows (FlatList otherwise clips them)
+      // Room for card shadows (FlashList otherwise clips them)
       paddingVertical: SHADOW_PAD,
     }),
     [edge],
@@ -204,7 +204,7 @@ export function HomeBannerCarousel() {
 
   return (
     <Animated.View entering={FadeIn.duration(280)} style={styles.wrap}>
-      <FlatList
+      <FlashList
         ref={listRef}
         data={LOOP_DATA}
         keyExtractor={(item) => item.key}
@@ -218,11 +218,6 @@ export function HomeBannerCarousel() {
         initialScrollIndex={START_LOOP_INDEX}
         contentContainerStyle={contentStyle}
         style={styles.list}
-        getItemLayout={(_, i) => ({
-          length: stride,
-          offset: stride * i,
-          index: i,
-        })}
         onScrollBeginDrag={() => setPaused(true)}
         onScrollEndDrag={() => setPaused(false)}
         onMomentumScrollEnd={onScrollEnd}

@@ -14,7 +14,7 @@ type BrandMarkProps = {
 
 const sizes = { sm: 32, md: 44, lg: 64 } as const;
 
-/** GemFort brand mark — faceted G from assets/images */
+/** GemFort brand mark — fort + gem from assets/images */
 export function BrandMark({
   size = 'md',
   showWordmark = false,

@@ -1,8 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
     Animated,
-    FlatList,
     Pressable,
     StyleSheet,
     Text,
@@ -213,7 +213,7 @@ export function OptionPickerSheet({
           />
         </View>
       ) : null}
-      <FlatList
+      <FlashList
         data={filtered as SearchableOption[]}
         keyExtractor={(item) => item.value}
         keyboardShouldPersistTaps="handled"
@@ -339,7 +339,7 @@ export function GemTypePickerSheet({
           autoCorrect={false}
         />
       </View>
-      <FlatList
+      <FlashList
         data={[...filtered]}
         keyExtractor={(item) => item.value}
         contentContainerStyle={styles.listContent}
@@ -513,7 +513,7 @@ export function ColorPickerSheet({
                 autoCorrect={false}
               />
             </View>
-            <FlatList
+            <FlashList
               data={filteredFamilies}
               keyExtractor={(item) => item.value}
               style={styles.colorList}
@@ -569,7 +569,7 @@ export function ColorPickerSheet({
                 autoCorrect={false}
               />
             </View>
-            <FlatList
+            <FlashList
               data={filteredShades}
               keyExtractor={(item) => item.value}
               style={styles.colorList}
@@ -697,7 +697,7 @@ export function OriginPickerSheet({
           autoCorrect={false}
         />
       </View>
-      <FlatList
+      <FlashList
         data={filtered as GemOrigin[]}
         keyExtractor={(item) => item.value}
         contentContainerStyle={styles.listContent}

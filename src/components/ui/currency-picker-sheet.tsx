@@ -1,6 +1,6 @@
+import { FlashList } from '@shopify/flash-list';
 import { useMemo, useState } from "react";
 import {
-    FlatList,
     Pressable,
     StyleSheet,
     Text,
@@ -101,7 +101,7 @@ export function CurrencyPickerSheet({
           autoCapitalize="characters"
         />
       </View>
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => item.code}
         keyboardShouldPersistTaps="handled"

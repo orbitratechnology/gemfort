@@ -1,8 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -235,7 +235,7 @@ export function PhoneContactsImportSheet({
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : (
-            <FlatList
+            <FlashList
               data={filtered}
               keyExtractor={(item) => item.id}
               style={styles.list}

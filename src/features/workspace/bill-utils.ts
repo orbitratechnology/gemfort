@@ -10,6 +10,7 @@ import type { Bill, BillDirection, BillStatus } from "@/types";
 
 export const BILL_STATUS_LABELS: Record<BillStatus, string> = {
   open: "Open",
+  ongoing: "Ongoing",
   partial: "Partial",
   paid: "Paid",
   cancelled: "Cancelled",
@@ -21,7 +22,12 @@ export const BILL_DIRECTION_LABELS: Record<BillDirection, string> = {
   receivable: "To receive",
 };
 
-export const OPEN_BILL_STATUSES: BillStatus[] = ["open", "partial", "overdue"];
+export const OPEN_BILL_STATUSES: BillStatus[] = [
+  "open",
+  "ongoing",
+  "partial",
+  "overdue",
+];
 
 export function toDate(
   ts: { toDate?: () => Date } | Date | null | undefined,

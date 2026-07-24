@@ -1,13 +1,13 @@
+import { FlashList } from '@shopify/flash-list';
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  FlatList,
   Pressable,
   RefreshControl,
   Text,
   View,
-} from "react-native";
+} from 'react-native';
 
 import { BusinessCard } from "@/components/marketplace/business-card";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -133,7 +133,7 @@ export default function SearchScreen() {
         onCancelButtonPress={() => setQuery("")}
       />
 
-      <FlatList
+      <FlashList
         data={rows}
         keyExtractor={(item) => item.id}
         style={{ flex: 1, backgroundColor: colors.background }}

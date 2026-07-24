@@ -2,14 +2,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    SectionList,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,15 +26,15 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import { countMissedCalls } from "@/features/workspace/call-logs-service";
 import {
-    filterContacts,
-    groupContactsByLetter,
+  filterContacts,
+  groupContactsByLetter,
 } from "@/features/workspace/contact-utils";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
-    deleteContact,
-    fetchContacts,
-    syncContactBusinessLinks,
-    updateContact,
+  deleteContact,
+  fetchContacts,
+  syncContactBusinessLinks,
+  updateContact,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";

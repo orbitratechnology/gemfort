@@ -1,10 +1,10 @@
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   Dimensions,
-  FlatList,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -25,7 +25,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function OnboardingScreen() {
   const { colors } = useAppTheme();
   const [page, setPage] = useState(0);
-  const listRef = useRef<FlatList>(null);
+  const listRef = useRef<FlashListRef<(typeof OnboardingChapters)[number]>>(null);
   const isLast = page === OnboardingChapters.length - 1;
 
   function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -59,7 +59,7 @@ export default function OnboardingScreen() {
         <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
       </View>
 
-      <FlatList
+      <FlashList
         ref={listRef}
         data={OnboardingChapters}
         horizontal

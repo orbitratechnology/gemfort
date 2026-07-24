@@ -80,32 +80,78 @@ type QuickAction = {
   href: string;
 };
 
-const QUICK_ACTIONS: QuickAction[] = [
-  {
-    id: "verify",
-    label: "Verify",
-    icon: "verified",
-    href: "/verify-certificate",
-  },
-  {
-    id: "add-gem",
-    label: "Add gem",
-    icon: "diamond",
-    href: "/(marketplace)/(tabs)/workspace/gems/add",
-  },
-  {
-    id: "ap",
-    label: "Give AP",
-    icon: "handshake",
-    href: "/(marketplace)/(tabs)/workspace/ap/add",
-  },
-  {
-    id: "service",
-    label: "Service",
-    icon: "handyman",
-    href: "/(marketplace)/(tabs)/workspace/services/add",
-  },
-];
+const VERIFY_ACTION: QuickAction = {
+  id: "verify",
+  label: "Verify",
+  icon: "verified",
+  href: "/verify-certificate",
+};
+
+function quickActionsForRole(
+  role: ReturnType<typeof resolveProfileRole>,
+  signedIn: boolean,
+): QuickAction[] {
+  if (!signedIn) return [VERIFY_ACTION];
+
+  if (role === "lapidary") {
+    return [
+      VERIFY_ACTION,
+      {
+        id: "jobs",
+        label: "Jobs",
+        icon: "construction",
+        href: "/(marketplace)/(tabs)/workspace/jobs",
+      },
+      {
+        id: "contacts",
+        label: "Contacts",
+        icon: "group",
+        href: "/(marketplace)/(tabs)/workspace/contacts",
+      },
+      {
+        id: "bill",
+        label: "Bill",
+        icon: "receipt-long",
+        href: "/(marketplace)/(tabs)/workspace/bills/add",
+      },
+    ];
+  }
+
+  if (role === "gem_lab") {
+    return [
+      VERIFY_ACTION,
+      {
+        id: "certificates",
+        label: "Certificates",
+        icon: "workspace-premium",
+        href: "/(marketplace)/(tabs)/workspace/certificates",
+      },
+    ];
+  }
+
+  // Trader (and admin treated as full trader tools on home)
+  return [
+    VERIFY_ACTION,
+    {
+      id: "add-gem",
+      label: "Add gem",
+      icon: "diamond",
+      href: "/(marketplace)/(tabs)/workspace/gems/add",
+    },
+    {
+      id: "ap",
+      label: "Give AP",
+      icon: "handshake",
+      href: "/(marketplace)/(tabs)/workspace/ap/add",
+    },
+    {
+      id: "service",
+      label: "Service",
+      icon: "handyman",
+      href: "/(marketplace)/(tabs)/workspace/services/add",
+    },
+  ];
+}
 
 const KIND_ICON: Record<string, IconName> = {
   ap: "handshake",
@@ -135,6 +181,10 @@ export default function HomeScreen() {
   const [chromeHeight, setChromeHeight] = useState(0);
 
   const role = resolveProfileRole(profile);
+  const quickActions = useMemo(
+    () => quickActionsForRole(role, !!user),
+    [role, user],
+  );
   const displayName =
     profile?.displayName?.trim() || user?.displayName?.trim() || "Guest";
   const roleLabel = profile
@@ -186,7 +236,7 @@ export default function HomeScreen() {
   const { data: contacts = [], refetch: refetchContacts } = useQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    enabled: workspaceEnabled,
+    enabled: workspaceEnabled && canAccessModule(role, "contacts"),
   });
 
   const { data: gems = [] } = useQuery({
@@ -228,7 +278,7 @@ export default function HomeScreen() {
   const { data: apRecords = [], refetch: refetchAp } = useQuery({
     queryKey: ["ap", user?.uid],
     queryFn: () => fetchApRecords(user!.uid),
-    enabled: workspaceEnabled,
+    enabled: workspaceEnabled && canAccessModule(role, "ap"),
   });
 
   const apImage = useMemo(
@@ -439,7 +489,7 @@ export default function HomeScreen() {
               { backgroundColor: colors.surfaceContainerLowest },
             ]}
           >
-            {QUICK_ACTIONS.map((a, index) => (
+            {quickActions.map((a, index) => (
               <Pressable
                 key={a.id}
                 accessibilityRole="button"
@@ -447,7 +497,7 @@ export default function HomeScreen() {
                 onPress={() => router.push(a.href as never)}
                 style={({ pressed }) => [
                   styles.actionItem,
-                  index < QUICK_ACTIONS.length - 1 && {
+                  index < quickActions.length - 1 && {
                     borderRightWidth: StyleSheet.hairlineWidth,
                     borderRightColor: colors.outlineVariant,
                   },

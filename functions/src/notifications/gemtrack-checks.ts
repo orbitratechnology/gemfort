@@ -128,7 +128,13 @@ export function buildGemTrackCandidatesForOwner(
     const b = doc.data() as BillDoc;
     // Personal tracking only: never notify counterparties or linked users.
     if (b.ownerUid !== ownerUid) continue;
-    if (b.status !== 'open' && b.status !== 'partial' && b.status !== 'overdue') continue;
+    if (
+      b.status !== 'open' &&
+      b.status !== 'ongoing' &&
+      b.status !== 'partial' &&
+      b.status !== 'overdue'
+    )
+      continue;
     const due = toDate(b.dueDate);
     if (!due || !isSameDay(startOfDay(due), now)) continue;
     const remaining = Math.max(0, b.amount - (b.amountSettled ?? 0));

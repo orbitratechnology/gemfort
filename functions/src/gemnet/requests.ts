@@ -1,11 +1,12 @@
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
+import { REGION } from '../config';
 import { createNotificationDoc } from '../notifications/create';
 
 export const onServiceRequestCreated = onDocumentCreated(
   {
     document: 'service_requests/{requestId}',
-    region: 'asia-south1',
+    region: REGION,
   },
   async (event) => {
     const data = event.data?.data();
@@ -25,7 +26,7 @@ export const onServiceRequestCreated = onDocumentCreated(
 export const onServiceRequestUpdated = onDocumentUpdated(
   {
     document: 'service_requests/{requestId}',
-    region: 'asia-south1',
+    region: REGION,
   },
   async (event) => {
     const before = event.data?.before.data();
@@ -50,7 +51,7 @@ export const onServiceRequestUpdated = onDocumentUpdated(
 export const onCertRequestCreated = onDocumentCreated(
   {
     document: 'certification_requests/{requestId}',
-    region: 'asia-south1',
+    region: REGION,
   },
   async (event) => {
     const data = event.data?.data();
@@ -69,7 +70,7 @@ export const onCertRequestCreated = onDocumentCreated(
 export const onCertRequestUpdated = onDocumentUpdated(
   {
     document: 'certification_requests/{requestId}',
-    region: 'asia-south1',
+    region: REGION,
   },
   async (event) => {
     const before = event.data?.before.data();

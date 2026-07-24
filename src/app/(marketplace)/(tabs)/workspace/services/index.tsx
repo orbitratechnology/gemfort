@@ -1,8 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-    FlatList,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -192,7 +192,7 @@ export default function ServicesListScreen() {
       <WorkspaceScreenBackdrop kind="services" />
       <StackHeader title="Service Records" />
 
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(s) => s.id}
         refreshControl={

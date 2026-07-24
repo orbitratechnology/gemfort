@@ -1,8 +1,8 @@
+import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -342,7 +342,7 @@ export function ContactPickerSheet({
           )}
         </Pressable>
       ) : null}
-      <FlatList
+      <FlashList
         data={filtered}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
@@ -521,7 +521,7 @@ export function PartyPickerSheet({
       />
 
       {tab === 'directory' && showDirectory ? (
-        <FlatList
+        <FlashList
           data={filteredBusinesses}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
@@ -567,7 +567,7 @@ export function PartyPickerSheet({
           }}
         />
       ) : (
-        <FlatList
+        <FlashList
           data={filteredContacts}
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"

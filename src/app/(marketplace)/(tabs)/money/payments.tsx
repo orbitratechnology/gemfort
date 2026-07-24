@@ -1,5 +1,6 @@
+import { FlashList } from '@shopify/flash-list';
 import { useQuery } from '@tanstack/react-query';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
@@ -62,7 +63,7 @@ export default function PaymentsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Payment History" />
-      <FlatList
+      <FlashList
         data={payments}
         keyExtractor={(p) => p.id}
         onRefresh={refetch}

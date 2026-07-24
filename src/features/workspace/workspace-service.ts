@@ -1051,6 +1051,7 @@ export async function fetchBills(ownerUid: string): Promise<Bill[]> {
     return {
       id: d.id,
       ...raw,
+      jobId: (raw.jobId as string | null | undefined) ?? null,
       gemIds:
         Array.isArray(raw.gemIds) && raw.gemIds.length > 0
           ? raw.gemIds
@@ -1068,6 +1069,7 @@ export async function fetchBill(billId: string): Promise<Bill | null> {
   return {
     id: snap.id,
     ...raw,
+    jobId: (raw.jobId as string | null | undefined) ?? null,
     gemIds:
       Array.isArray(raw.gemIds) && raw.gemIds.length > 0
         ? raw.gemIds
@@ -1088,6 +1090,9 @@ export async function createBill(
     dueDate: Timestamp;
     gemId?: string | null;
     gemIds?: string[];
+    jobId?: string | null;
+    /** Defaults to `open`; lapidary job bills use `ongoing`. */
+    status?: BillStatus;
     notes?: string | null;
   },
 ): Promise<string> {
@@ -1105,6 +1110,9 @@ export async function createBill(
     ),
   ];
   const gemId = gemIds[0] ?? input.gemId ?? null;
+  const jobId = input.jobId?.trim() || null;
+  const status: BillStatus =
+    input.status ?? (jobId ? "ongoing" : "open");
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_bills"), {
     ownerUid,
     direction: input.direction,
@@ -1118,9 +1126,10 @@ export async function createBill(
         : null,
     counterpartyContactId: input.counterpartyContactId,
     dueDate: input.dueDate,
-    status: "open" as BillStatus,
+    status,
     gemId,
     gemIds,
+    jobId,
     notes: input.notes?.trim() ?? null,
     createdAt: now,
     updatedAt: now,
@@ -1209,7 +1218,9 @@ export async function recordBillPayment(
       ? "paid"
       : newSettled > 0
         ? "partial"
-        : "open";
+        : data.jobId
+          ? "ongoing"
+          : "open";
   const now = Timestamp.now();
   const currency = options?.currency ?? data.currency ?? "LKR";
   const commission =
