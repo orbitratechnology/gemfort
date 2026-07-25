@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -20,8 +21,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { SkeletonList } from "@/components/ui/skeleton-list";
+import {
+  AttributePickerField,
+  GemTypePickerSheet,
+} from "@/components/workspace/gem-attribute-pickers";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { GEM_TYPES } from "@/constants/gem-options";
+import { GEM_TYPES, formatGemType } from "@/constants/gem-options";
 import {
   demoBusinesses,
   demoListings,
@@ -81,6 +86,7 @@ export default function DirectoryScreen() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [gemTypeSheetOpen, setGemTypeSheetOpen] = useState(false);
 
   // Gem filters
   const [gemType, setGemType] = useState("all");
@@ -89,6 +95,11 @@ export default function DirectoryScreen() {
   const [draftGemType, setDraftGemType] = useState("all");
   const [draftGemSort, setDraftGemSort] =
     useState<NonNullable<ListingFilters["sort"]>>("recent");
+
+  const draftGemTypeOption = useMemo(
+    () => GEM_TYPES.find((t) => t.value === draftGemType),
+    [draftGemType],
+  );
 
   // Business filters
   const [verifiedOnly, setVerifiedOnly] = useState(false);
@@ -581,14 +592,36 @@ export default function DirectoryScreen() {
       >
         {tab === "gems" ? (
           <>
-            <FilterChipGroup
-              label="Gem Type"
-              value={draftGemType}
-              onChange={setDraftGemType}
-              options={[
-                { id: "all", label: "All" },
-                ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label })),
-              ]}
+            <AttributePickerField
+              label="Gem type"
+              valueLabel={
+                draftGemType === "all"
+                  ? "All types"
+                  : formatGemType(draftGemType)
+              }
+              onPress={() => setGemTypeSheetOpen(true)}
+              leading={
+                draftGemTypeOption ? (
+                  <Image
+                    source={draftGemTypeOption.image}
+                    style={styles.gemTypeThumb}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.gemTypeThumb,
+                      {
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.surfaceContainerHigh,
+                      },
+                    ]}
+                  >
+                    <Icon name="diamond" size={18} color={colors.outline} />
+                  </View>
+                )
+              }
             />
             <FilterChipGroup
               label="Sort By"
@@ -626,6 +659,14 @@ export default function DirectoryScreen() {
           </>
         )}
       </BottomSheet>
+
+      <GemTypePickerSheet
+        visible={gemTypeSheetOpen}
+        onClose={() => setGemTypeSheetOpen(false)}
+        value={draftGemType}
+        includeAll
+        onSelect={setDraftGemType}
+      />
     </SafeAreaView>
   );
 }
@@ -691,4 +732,9 @@ const styles = StyleSheet.create({
   },
   filterText: { ...Typography.labelMd },
   grid: { gap: Spacing.gutterMd, marginTop: Spacing.stackSm },
+  gemTypeThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+  },
 });
