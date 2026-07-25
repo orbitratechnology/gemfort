@@ -1,12 +1,18 @@
-import { PermissionsAndroid } from "react-native";
-import type { LogData } from "react-native-calllogs-android";
-
+import {
+  ensureCallLogPermission,
+  getCallLogsAccessState,
+  loadDeviceCallLogs,
+  type CallLogsAccessState,
+} from "@/features/workspace/call-logs-device";
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
 import {
   businessLogoUrl,
   resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
 import type { Business, Contact } from "@/types";
+
+export type { CallLogsAccessState };
+export { ensureCallLogPermission, getCallLogsAccessState };
 
 export type CallPartyKind = "contact" | "business";
 
@@ -24,60 +30,7 @@ export type MatchedCallLog = {
   href: string;
 };
 
-export type CallLogsAccessState =
-  | { status: "unsupported" }
-  | { status: "denied" }
-  | { status: "granted" };
-
 const WORKSPACE = "/(marketplace)/(tabs)/workspace";
-const LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
-const FETCH_LIMIT = 400;
-
-function isAndroid() {
-  return process.env.EXPO_OS === "android";
-}
-
-export async function getCallLogsAccessState(): Promise<CallLogsAccessState> {
-  if (!isAndroid()) return { status: "unsupported" };
-  const granted = await PermissionsAndroid.check(
-    PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-  );
-  return { status: granted ? "granted" : "denied" };
-}
-
-export async function ensureCallLogPermission(): Promise<CallLogsAccessState> {
-  if (!isAndroid()) return { status: "unsupported" };
-
-  const current = await getCallLogsAccessState();
-  if (current.status === "granted") return current;
-
-  const result = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-    {
-      title: "Call history access",
-      message:
-        "GemFort matches your phone call history with workspace contacts and business profiles so you can see recent calls in one place.",
-      buttonNeutral: "Ask later",
-      buttonNegative: "Cancel",
-      buttonPositive: "Allow",
-    },
-  );
-
-  return {
-    status:
-      result === PermissionsAndroid.RESULTS.GRANTED ? "granted" : "denied",
-  };
-}
-
-async function loadDeviceCallLogs(): Promise<LogData[]> {
-  const CalllogsAndroid = (
-    await import("react-native-calllogs-android")
-  ).default;
-  return CalllogsAndroid.getAllLogs({
-    fromEpoch: Date.now() - LOOKBACK_MS,
-    limit: FETCH_LIMIT,
-  });
-}
 
 type PhoneParty = {
   key: string;
@@ -138,6 +91,11 @@ function normalizeCallType(type: string): string {
   if (t.includes("BLOCK")) return "BLOCKED";
   if (t.includes("VOICE")) return "VOICEMAIL";
   return t || "UNKNOWN";
+}
+
+/** True when the OS can expose call history (Android only). */
+export function isCallLogsSupported(): boolean {
+  return process.env.EXPO_OS === "android";
 }
 
 /**

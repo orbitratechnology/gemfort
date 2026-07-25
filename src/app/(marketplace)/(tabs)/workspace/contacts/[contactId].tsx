@@ -28,6 +28,7 @@ import {
   Typography,
 } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import {
   deleteContact,
@@ -76,7 +77,10 @@ export default function ContactDetailScreen() {
     enabled: !!user && !!contactId,
   });
 
-  const { logs: allCallLogs } = useMatchedCallLogs({ enabled: !!user });
+  const callLogsSupported = isCallLogsSupported();
+  const { logs: allCallLogs } = useMatchedCallLogs({
+    enabled: !!user && callLogsSupported,
+  });
 
   const contact = contacts.find((c) => c.id === contactId);
   const avatarUrl = resolvePartyPhotoUrl(contact, businesses);
@@ -533,44 +537,46 @@ export default function ContactDetailScreen() {
           </FormSection>
         ) : null}
 
-        <FormSection
-          title="Calls"
-          hint={
-            contactCalls.length
-              ? `${contactCalls.length} matched`
-              : undefined
-          }
-          padded={false}
-        >
-          {contactCalls.length ? (
-            contactCalls.slice(0, 20).map((log, index) => (
-              <CallLogRow
-                key={log.id}
-                log={log}
-                compact
-                isLast={index === Math.min(contactCalls.length, 20) - 1}
-                onPress={() => {
-                  if (contact.phone) {
-                    void Linking.openURL(openPhone(contact.phone));
-                  }
-                }}
-              />
-            ))
-          ) : (
-            <Text
-              style={[
-                styles.emptyHistory,
-                {
-                  color: colors.textMuted,
-                  paddingHorizontal: Spacing.containerMargin,
-                  paddingVertical: Spacing.md,
-                },
-              ]}
-            >
-              No matched calls with this contact yet.
-            </Text>
-          )}
-        </FormSection>
+        {callLogsSupported ? (
+          <FormSection
+            title="Calls"
+            hint={
+              contactCalls.length
+                ? `${contactCalls.length} matched`
+                : undefined
+            }
+            padded={false}
+          >
+            {contactCalls.length ? (
+              contactCalls.slice(0, 20).map((log, index) => (
+                <CallLogRow
+                  key={log.id}
+                  log={log}
+                  compact
+                  isLast={index === Math.min(contactCalls.length, 20) - 1}
+                  onPress={() => {
+                    if (contact.phone) {
+                      void Linking.openURL(openPhone(contact.phone));
+                    }
+                  }}
+                />
+              ))
+            ) : (
+              <Text
+                style={[
+                  styles.emptyHistory,
+                  {
+                    color: colors.textMuted,
+                    paddingHorizontal: Spacing.containerMargin,
+                    paddingVertical: Spacing.md,
+                  },
+                ]}
+              >
+                No matched calls with this contact yet.
+              </Text>
+            )}
+          </FormSection>
+        ) : null}
 
         <FormSection title="Service history" padded={false}>
           {history?.services.length ? (

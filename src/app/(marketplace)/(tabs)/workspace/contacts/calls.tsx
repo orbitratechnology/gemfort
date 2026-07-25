@@ -1,5 +1,5 @@
-import { FlashList } from '@shopify/flash-list';
-import { router, useFocusEffect } from "expo-router";
+import { FlashList } from "@shopify/flash-list";
+import { Redirect, router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import {
   Linking,
@@ -7,7 +7,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-} from 'react-native';
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,12 +18,22 @@ import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
   countMissedCalls,
+  isCallLogsSupported,
   type MatchedCallLog,
 } from "@/features/workspace/call-logs-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 
 export default function ContactCallsScreen() {
+  // Call logs are Android-only — keep the route out of the iOS product surface.
+  if (!isCallLogsSupported()) {
+    return <Redirect href="/(marketplace)/(tabs)/workspace/contacts" />;
+  }
+
+  return <AndroidContactCallsScreen />;
+}
+
+function AndroidContactCallsScreen() {
   const { colors } = useAppTheme();
   const { logs, access, isLoading, isRefetching, refresh, requestAccess } =
     useMatchedCallLogs({ requestPermissionOnMount: true });
@@ -35,7 +45,6 @@ export default function ContactCallsScreen() {
     }, [refresh]),
   );
 
-  const unsupported = access?.status === "unsupported";
   const denied = access?.status === "denied";
 
   const renderItem = useCallback(
@@ -57,15 +66,7 @@ export default function ContactCallsScreen() {
       <StackHeader title="Contacts" />
       <ContactsHubTabs active="calls" missedCount={missedCount} />
 
-      {unsupported ? (
-        <ScreenInset style={styles.empty}>
-          <EmptyState
-            icon="smartphone"
-            title="Calls on Android only"
-            subtitle="Phone call history sync is available on Android. On iOS, Apple does not allow apps to read the call log."
-          />
-        </ScreenInset>
-      ) : denied ? (
+      {denied ? (
         <ScreenInset style={styles.empty}>
           <EmptyState
             icon="phone"

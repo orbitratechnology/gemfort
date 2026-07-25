@@ -6,13 +6,14 @@ import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   ensureCallLogPermission,
   fetchMatchedCallLogs,
+  isCallLogsSupported,
 } from "@/features/workspace/call-logs-service";
 import { fetchContacts } from "@/features/workspace/workspace-service";
 import { useAuth } from "@/providers/auth-provider";
 
 /**
  * Auto-syncs Android call logs with workspace contacts + verified businesses.
- * Refetches when the app returns to foreground (if permission already granted).
+ * No-op on iOS (Apple does not allow call-log access).
  */
 export function useMatchedCallLogs(options?: {
   enabled?: boolean;
@@ -21,7 +22,8 @@ export function useMatchedCallLogs(options?: {
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const enabled = (options?.enabled ?? true) && !!user;
+  const supported = isCallLogsSupported();
+  const enabled = (options?.enabled ?? true) && !!user && supported;
   const requestPermissionOnMount = options?.requestPermissionOnMount ?? false;
   const askedRef = useRef(false);
 
@@ -54,20 +56,25 @@ export function useMatchedCallLogs(options?: {
     return () => sub.remove();
   }, [enabled, refetch]);
 
-  const refresh = useCallback(() => refetch(), [refetch]);
+  const refresh = useCallback(() => {
+    if (!supported) return Promise.resolve();
+    return refetch();
+  }, [refetch, supported]);
 
   const requestAccess = useCallback(async () => {
+    if (!supported) return;
     askedRef.current = true;
     await ensureCallLogPermission();
     await queryClient.invalidateQueries({
       queryKey: ["matched-call-logs", user?.uid],
     });
-  }, [queryClient, user?.uid]);
+  }, [queryClient, supported, user?.uid]);
 
   return {
     ...query,
     logs: query.data?.logs ?? [],
-    access: query.data?.access ?? null,
+    access: query.data?.access ?? (supported ? null : { status: "unsupported" as const }),
+    supported,
     refresh,
     requestAccess,
   };

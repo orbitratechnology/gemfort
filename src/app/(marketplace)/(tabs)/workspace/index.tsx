@@ -50,6 +50,7 @@ import {
     fetchTransactions,
     fetchTrips,
 } from "@/features/workspace/workspace-service";
+import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { formatCurrency } from "@/lib/utils";
@@ -215,8 +216,9 @@ export default function WorkspaceHub() {
   });
 
   const showContacts = canAccessModule(role, "contacts");
+  const callLogsSupported = isCallLogsSupported();
   const { logs: recentCalls } = useMatchedCallLogs({
-    enabled: !!userId && showContacts,
+    enabled: !!userId && showContacts && callLogsSupported,
   });
   const recentCallPreview = recentCalls.slice(0, 5);
 
@@ -824,8 +826,8 @@ export default function WorkspaceHub() {
         {/* Modules — gradient group panels + tiles */}
         <WorkspaceModules groups={moduleGroups} colors={colors} />
 
-        {/* Recent calls (matched to contacts / businesses) */}
-        {showContacts && recentCallPreview.length > 0 ? (
+        {/* Recent calls — Android only (matched to contacts / businesses) */}
+        {showContacts && callLogsSupported && recentCallPreview.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text
