@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
@@ -348,6 +348,7 @@ export function ContactPickerSheet({
         keyboardShouldPersistTaps="handled"
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
@@ -527,6 +528,7 @@ export function PartyPickerSheet({
           keyboardShouldPersistTaps="handled"
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={SheetListSeparator}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -573,6 +575,7 @@ export function PartyPickerSheet({
           keyboardShouldPersistTaps="handled"
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={SheetListSeparator}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -724,7 +727,7 @@ const styles = StyleSheet.create({
   },
   tabText: { ...Typography.labelMd, fontWeight: '600' },
   list: { flex: 1 },
-  listContent: { gap: Spacing.sm, paddingBottom: Spacing.md, flexGrow: 1 },
+  listContent: { paddingBottom: Spacing.md, flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

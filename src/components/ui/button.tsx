@@ -21,6 +21,8 @@ type ButtonProps = PressableProps & {
   variant?: Variant;
   loading?: boolean;
   icon?: IconName;
+  /** Override icon color (defaults to the variant text color). */
+  iconColor?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   /** Press-down haptic. Default `light`; set `false` to disable. */
@@ -32,6 +34,7 @@ export function Button({
   variant = 'primary',
   loading,
   icon,
+  iconColor: iconColorProp,
   disabled,
   style,
   textStyle,
@@ -74,7 +77,7 @@ export function Button({
   };
 
   const v = variantStyles[variant];
-  const iconColor = (v.text.color as string) ?? colors.onPrimary;
+  const iconColor = iconColorProp ?? (v.text.color as string) ?? colors.onPrimary;
   const isDisabled = disabled || loading;
 
   return (

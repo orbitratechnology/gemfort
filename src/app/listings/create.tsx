@@ -40,6 +40,7 @@ import { friendlyError } from "@/lib/errors";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { openWhatsApp } from "@/lib/utils";
 import { parseForm } from "@/lib/validation/form-schemas";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm, showActions } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -175,7 +176,7 @@ export default function CreateListingScreen() {
             title="Back to gems"
             icon="arrow-back"
             onPress={() =>
-              router.replace("/(marketplace)/(tabs)/workspace/gems" as Href)
+              replaceWithAnchor("/(marketplace)/(tabs)/workspace/gems" as Href)
             }
           />
         </ThemedScrollView>

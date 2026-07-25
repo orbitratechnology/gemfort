@@ -4,7 +4,6 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import {
-    Linking,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -32,7 +31,6 @@ import {
 } from "@/constants/design-tokens";
 import {
     ROLE_LABELS,
-    isVerifiedRole,
     resolveProfileRole,
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
@@ -164,7 +162,6 @@ export default function ProfileScreen() {
 
   const effectiveRole = resolveProfileRole(profile);
   const isVerified = profile?.verificationStatus === "verified";
-  const isVerifiedTrader = isVerifiedRole(profile, "trader");
   const initial = (profile?.displayName ?? "?").charAt(0).toUpperCase();
   const roleLabel = ROLE_LABELS[effectiveRole] ?? "Member";
   const memberYear = user.metadata?.creationTime
@@ -275,18 +272,6 @@ export default function ProfileScreen() {
               subtitle="Update contact & info"
               onPress={() => router.push("/profile/business" as Href)}
             />
-            {isVerifiedTrader ? (
-              <>
-                <Divider colors={colors} />
-                <Row
-                  colors={colors}
-                  icon="visibility"
-                  label="View Public Shop"
-                  subtitle="See customer preview"
-                  onPress={() => router.push("/profile/business" as Href)}
-                />
-              </>
-            ) : null}
           </FormSection>
 
           <FormSectionLabel title="APPEARANCE" />
@@ -358,17 +343,10 @@ export default function ProfileScreen() {
           <FormSection padded={false}>
             <Row
               colors={colors}
-              icon="manage-accounts"
-              label="Account settings"
-              subtitle="Password & delete account"
-              onPress={() => router.push("/profile/account" as Href)}
-            />
-            <Divider colors={colors} />
-            <Row
-              colors={colors}
-              icon="help-outline"
-              label="Help Center"
-              onPress={() => Linking.openURL("mailto:support@gemfort.app")}
+              icon="settings"
+              label="Settings"
+              subtitle="Notifications, account & legal"
+              onPress={() => router.push("/profile/settings" as Href)}
             />
             <Divider colors={colors} />
             <Row

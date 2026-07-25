@@ -53,6 +53,7 @@ describe('registerSchema', () => {
 describe('addGemSchema', () => {
   it('parses numeric strings', () => {
     const r = parseForm(addGemSchema, {
+      title: 'Lot A blue',
       gemType: 'sapphire',
       originCountry: 'Sri Lanka',
       roughWeight: '3.2',
@@ -60,18 +61,20 @@ describe('addGemSchema', () => {
       treatment: 'natural',
       colorPrimary: 'royal_blue',
       clarity: 'eye_clean',
-      cutType: 'round',
       shape: 'oval',
+      status: 'rough',
     });
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r.data.roughWeight).toBe(3.2);
       expect(r.data.acquisitionCost).toBe(150000);
+      expect(r.data.title).toBe('Lot A blue');
     }
   });
 
   it('rejects zero weight', () => {
     const r = parseForm(addGemSchema, {
+      title: 'Lot A blue',
       gemType: 'sapphire',
       originCountry: 'Sri Lanka',
       roughWeight: '0',
@@ -79,8 +82,8 @@ describe('addGemSchema', () => {
       treatment: 'natural',
       colorPrimary: 'royal_blue',
       clarity: 'eye_clean',
-      cutType: 'round',
       shape: 'oval',
+      status: 'rough',
     });
     expect(r.success).toBe(false);
   });

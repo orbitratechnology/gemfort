@@ -23,6 +23,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
 import { decodeShareParam } from '@/lib/incoming-share';
+import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 
@@ -80,7 +81,7 @@ export default function AddContactScreen() {
         contactTypes,
       });
       toast.success('Contact imported from phone.');
-      router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not pick a phone contact.'));
     } finally {
@@ -136,7 +137,7 @@ export default function AddContactScreen() {
           companyName: companyName || null,
         });
         toast.success('Contact saved');
-        router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
         return;
       }
 
@@ -166,7 +167,7 @@ export default function AddContactScreen() {
         await updateContact(id, { photoUrl });
       }
       toast.success('Contact added');
-      router.replace(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not add contact.'));
     } finally {

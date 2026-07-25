@@ -10,6 +10,7 @@ import PhoneInput, {
 
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
 
 const DEFAULT_COUNTRY: ICountryCca2 = "LK";
 const POPULAR: ICountryCca2[] = ["LK", "IN", "AE", "TH", "HK", "US", "GB"];
@@ -32,11 +33,16 @@ function toE164(
   national: string,
   country: ICountry | null | undefined,
 ): string {
-  const digits = national.replace(/\D/g, "");
+  let digits = national.replace(/\D/g, "");
+  if (!digits) return "";
+  // Drop national trunk prefix (e.g. Sri Lanka leading 0) before dial code.
+  if (digits.startsWith("0")) digits = digits.replace(/^0+/, "");
   if (!digits) return "";
   const root = country?.idd?.root?.trim();
-  if (!root) return digits.startsWith("+") ? digits : `+${digits}`;
-  return `${root}${digits}`;
+  if (!root) {
+    return normalizePhoneNumber(digits.startsWith("+") ? digits : `+${digits}`);
+  }
+  return normalizePhoneNumber(`${root}${digits}`);
 }
 
 function splitE164(

@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { listCitiesForCountry, type AppCity } from "@/constants/cities";
@@ -109,6 +109,7 @@ export function CityPickerSheet({
         }
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         ListEmptyComponent={
           <EmptyState
             icon="place"
@@ -212,7 +213,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing.xl,
-    gap: Spacing.sm,
   },
   row: {
     flexDirection: "row",

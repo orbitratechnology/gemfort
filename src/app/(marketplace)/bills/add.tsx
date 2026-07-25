@@ -45,6 +45,7 @@ import { Timestamp } from "@/lib/firebase/db";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { BillDirection, LapidaryJob, WorkspaceGem } from "@/types";
@@ -222,7 +223,7 @@ export default function AddBillScreen() {
       toast.success(
         isLapidary ? "Bill started — ongoing until due date" : "Bill saved",
       );
-      router.replace(`/(marketplace)/(tabs)/workspace/bills/${id}` as never);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/bills/${id}` as never);
     } catch (e) {
       toast.error(friendlyError(e, "Could not save bill."));
     } finally {

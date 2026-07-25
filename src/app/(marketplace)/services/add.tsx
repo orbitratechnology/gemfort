@@ -1,9 +1,8 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
@@ -17,10 +16,12 @@ import {
 } from '@/components/workspace/contact-picker-sheet';
 import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { createService, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
 import { fetchBusiness } from '@/features/marketplace/marketplace-service';
+import { createService, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
+import { Timestamp } from '@/lib/firebase/db';
+import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 
@@ -108,7 +109,7 @@ export default function AddServiceScreen() {
         advancePaid: 0,
       });
       toast.success('Service record created');
-      router.replace(`/(marketplace)/(tabs)/workspace/services/${id}`);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not create service.'));
     } finally {

@@ -21,8 +21,10 @@ function prefAllowsPush(type: NotificationType, prefs: UserNotificationPreferenc
 export function shouldSendPush(type: NotificationType, user: UserDoc | undefined): boolean {
   if (!user?.fcmToken) return false;
   if (user.isActive === false) return false;
-  if (PUSH_MANDATORY_TYPES.has(type)) return true;
   const prefs = user.notificationPreferences ?? {};
+  // Master off blocks all push, including mandatory types.
+  if (prefs.pushEnabled === false) return false;
+  if (PUSH_MANDATORY_TYPES.has(type)) return true;
   return prefAllowsPush(type, prefs);
 }
 

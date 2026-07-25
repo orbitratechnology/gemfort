@@ -1,10 +1,10 @@
-import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router, type Href } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -15,6 +15,10 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import {
+  isNestedWorkspaceHref,
+  pushWithAnchor,
+} from '@/navigation/tab-stack-nav';
 
 type BannerSlide = {
   id: string;
@@ -75,13 +79,14 @@ const BANNERS: BannerSlide[] = [
   },
 ];
 
-const AUTO_MS = 5200;
+const AUTO_MS = 4200;
+/** Match ScrollView animated scroll duration before unwrapping clones */
+const SCROLL_MS = 300;
 const BANNER_HEIGHT = 156;
-/** How much of the next/prev slide stays visible */
-const PEEK = 36;
+/** Equal inset on both sides so the active slide is centered (with peek) */
+const SIDE_INSET = 32;
 const GAP = 12;
-/** Vertical inset so card shadows are not clipped by the list */
-const SHADOW_PAD = 12;
+const SHADOW_PAD = 6;
 const COUNT = BANNERS.length;
 
 /** [lastClone, ...items, firstClone] — seamless forward/back loop */
@@ -99,68 +104,76 @@ function buildLoopData(): LoopSlide[] {
 }
 
 const LOOP_DATA = buildLoopData();
-/** First real slide in loop data (after leading clone) */
 const START_LOOP_INDEX = COUNT < 2 ? 0 : 1;
+
+function toneFor(
+  tone: BannerSlide['tone'],
+  colors: ReturnType<typeof useAppTheme>['colors'],
+  isDark: boolean,
+) {
+  switch (tone) {
+    case 'deep':
+      return {
+        bg: colors.tertiary,
+        on: colors.onTertiary,
+        muted: colors.onTertiary + 'B8',
+        chip: colors.onTertiary + '22',
+      };
+    case 'soft':
+      return {
+        bg: isDark ? colors.surfaceContainerHigh : colors.primaryContainer,
+        on: isDark ? colors.onSurface : colors.onPrimaryContainer,
+        muted: isDark ? colors.onSurfaceVariant : colors.onPrimaryContainer + 'CC',
+        chip: isDark ? colors.primary + '28' : colors.primary + '18',
+      };
+    default:
+      return {
+        bg: colors.primary,
+        on: colors.onPrimary,
+        muted: colors.onPrimary + 'B8',
+        chip: colors.onPrimary + '22',
+      };
+  }
+}
 
 /**
  * Full-bleed home carousel with adjacent-slide peek and infinite loop.
- * Clones bookend the list; after snapping onto a clone we jump to the real slide.
+ * ScrollView (not FlashList) — few slides, snap is smoother nested in home scroll.
  */
 export function HomeBannerCarousel() {
   const { colors, isDark } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
-  const listRef = useRef<FlashListRef<LoopSlide>>(null);
-  const loopIndexRef = useRef(START_LOOP_INDEX);
+  const scrollRef = useRef<ScrollView>(null);
+  const loopRef = useRef(START_LOOP_INDEX);
+  const pausedRef = useRef(false);
+  const programmaticRef = useRef(false);
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
 
-  const edge = Spacing.containerMargin;
-  const slideWidth = windowWidth - edge - PEEK;
+  const slideWidth = windowWidth - SIDE_INSET * 2;
   const stride = slideWidth + GAP;
+  const strideRef = useRef(stride);
+  strideRef.current = stride;
 
-  const toneStyles = useCallback(
-    (tone: BannerSlide['tone']) => {
-      switch (tone) {
-        case 'deep':
-          return {
-            bg: colors.tertiary,
-            on: colors.onTertiary,
-            muted: colors.onTertiary + 'B8',
-            chip: colors.onTertiary + '22',
-          };
-        case 'soft':
-          return {
-            bg: isDark ? colors.surfaceContainerHigh : colors.primaryContainer,
-            on: isDark ? colors.onSurface : colors.onPrimaryContainer,
-            muted: isDark ? colors.onSurfaceVariant : colors.onPrimaryContainer + 'CC',
-            chip: isDark ? colors.primary + '28' : colors.primary + '18',
-          };
-        default:
-          return {
-            bg: colors.primary,
-            on: colors.onPrimary,
-            muted: colors.onPrimary + 'B8',
-            chip: colors.onPrimary + '22',
-          };
-      }
-    },
-    [colors, isDark],
-  );
+  function clearTimers() {
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    autoTimer.current = null;
+    settleTimer.current = null;
+  }
 
-  const scrollToLoopIndex = useCallback(
-    (loopIndex: number, animated: boolean) => {
-      listRef.current?.scrollToOffset({
-        offset: loopIndex * stride,
-        animated,
-      });
-    },
-    [stride],
-  );
+  function scrollToLoop(loopIndex: number, animated: boolean) {
+    scrollRef.current?.scrollTo({
+      x: loopIndex * strideRef.current,
+      animated,
+    });
+  }
 
-  /** Snap landed on a clone → teleport to the matching real slide */
-  function settleLoop(rawIndex: number) {
+  /** Landed on a clone → jump to the matching real slide */
+  function settle(rawIndex: number) {
     if (COUNT < 2) {
-      loopIndexRef.current = rawIndex;
+      loopRef.current = rawIndex;
       setIndex(rawIndex);
       return;
     }
@@ -168,75 +181,90 @@ export function HomeBannerCarousel() {
     let loopIndex = rawIndex;
     if (rawIndex <= 0) {
       loopIndex = COUNT;
-      scrollToLoopIndex(loopIndex, false);
+      scrollToLoop(loopIndex, false);
     } else if (rawIndex >= COUNT + 1) {
       loopIndex = 1;
-      scrollToLoopIndex(loopIndex, false);
+      scrollToLoop(loopIndex, false);
     }
 
-    loopIndexRef.current = loopIndex;
+    loopRef.current = loopIndex;
     setIndex(LOOP_DATA[loopIndex]?.realIndex ?? 0);
   }
 
-  useEffect(() => {
-    if (paused || COUNT < 2) return;
-    const id = setInterval(() => {
-      const next = loopIndexRef.current + 1;
-      scrollToLoopIndex(next, true);
+  function scheduleAuto() {
+    clearTimers();
+    if (pausedRef.current || COUNT < 2) return;
+    autoTimer.current = setTimeout(() => {
+      const next = loopRef.current + 1;
+      programmaticRef.current = true;
+      scrollToLoop(next, true);
+      // Unwrap as soon as the animated scroll finishes — don't wait on momentum events
+      settleTimer.current = setTimeout(() => {
+        settle(next);
+        programmaticRef.current = false;
+        scheduleAuto();
+      }, SCROLL_MS);
     }, AUTO_MS);
-    return () => clearInterval(id);
-  }, [paused, scrollToLoopIndex]);
-
-  function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const x = e.nativeEvent.contentOffset.x;
-    const raw = Math.round(x / stride);
-    settleLoop(raw);
   }
 
-  const contentStyle = useMemo(
-    () => ({
-      paddingHorizontal: edge,
-      // Room for card shadows (FlashList otherwise clips them)
-      paddingVertical: SHADOW_PAD,
-    }),
-    [edge],
-  );
+  // Position + auto-play when width (stride) changes
+  useEffect(() => {
+    loopRef.current = START_LOOP_INDEX;
+    scrollToLoop(START_LOOP_INDEX, false);
+    scheduleAuto();
+    return clearTimers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-init on stride
+  }, [stride]);
+
+  function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (programmaticRef.current) return;
+    const raw = Math.round(e.nativeEvent.contentOffset.x / strideRef.current);
+    settle(raw);
+    pausedRef.current = false;
+    scheduleAuto();
+  }
 
   return (
     <Animated.View entering={FadeIn.duration(280)} style={styles.wrap}>
-      <FlashList
-        ref={listRef}
-        data={LOOP_DATA}
-        keyExtractor={(item) => item.key}
+      <ScrollView
+        ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         decelerationRate="fast"
         snapToInterval={stride}
         snapToAlignment="start"
         disableIntervalMomentum
-        removeClippedSubviews={false}
-        initialScrollIndex={START_LOOP_INDEX}
-        contentContainerStyle={contentStyle}
+        nestedScrollEnabled
+        contentOffset={{ x: START_LOOP_INDEX * stride, y: 0 }}
+        contentContainerStyle={{
+          paddingHorizontal: SIDE_INSET,
+          paddingVertical: SHADOW_PAD,
+        }}
         style={styles.list}
-        onScrollBeginDrag={() => setPaused(true)}
-        onScrollEndDrag={() => setPaused(false)}
+        onScrollBeginDrag={() => {
+          pausedRef.current = true;
+          clearTimers();
+        }}
         onMomentumScrollEnd={onScrollEnd}
-        renderItem={({ item }) => {
-          const tone = toneStyles(item.tone);
+      >
+        {LOOP_DATA.map((item) => {
+          const tone = toneFor(item.tone, colors, isDark);
           return (
             <View
-              style={[
-                styles.slideShell,
-                {
-                  width: slideWidth,
-                  marginRight: GAP,
-                },
-              ]}
+              key={item.key}
+              style={[styles.slideShell, { width: slideWidth, marginRight: GAP }]}
             >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${item.title}. ${item.subtitle}. ${item.cta}`}
-                onPress={() => router.push(item.href)}
+                onPress={() => {
+                  const href = String(item.href);
+                  if (isNestedWorkspaceHref(href)) {
+                    pushWithAnchor(item.href);
+                    return;
+                  }
+                  router.push(item.href);
+                }}
                 style={({ pressed }) => [
                   styles.slide,
                   {
@@ -281,8 +309,8 @@ export function HomeBannerCarousel() {
               </Pressable>
             </View>
           );
-        }}
-      />
+        })}
+      </ScrollView>
 
       <View style={styles.dots} accessibilityRole="tablist">
         {BANNERS.map((b, i) => {
@@ -296,9 +324,15 @@ export function HomeBannerCarousel() {
               hitSlop={8}
               onPress={() => {
                 const loopIndex = COUNT < 2 ? i : i + 1;
-                scrollToLoopIndex(loopIndex, true);
-                loopIndexRef.current = loopIndex;
+                clearTimers();
+                programmaticRef.current = true;
+                scrollToLoop(loopIndex, true);
+                loopRef.current = loopIndex;
                 setIndex(i);
+                settleTimer.current = setTimeout(() => {
+                  programmaticRef.current = false;
+                  scheduleAuto();
+                }, SCROLL_MS);
               }}
               style={[
                 styles.dot,
@@ -320,11 +354,10 @@ const styles = StyleSheet.create({
   list: {
     overflow: 'visible',
   },
-  /** Outer shell holds the shadow; inner slide clips the glow art. */
   slideShell: {
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
-    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.14)',
+    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
   },
   slide: {
     height: BANNER_HEIGHT,

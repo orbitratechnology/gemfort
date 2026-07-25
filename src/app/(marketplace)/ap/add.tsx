@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,6 +31,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
@@ -156,7 +157,7 @@ export default function AddApScreen() {
         })),
       });
       toast.success("AP request sent");
-      router.replace(`/(marketplace)/(tabs)/workspace/ap/${id}`);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not send AP request."));
     } finally {

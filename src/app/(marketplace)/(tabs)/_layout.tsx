@@ -1,8 +1,10 @@
+import { router } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Platform } from "react-native";
 
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
+import { MONEY_HUB, WORKSPACE_HUB } from "@/navigation/tab-stack-nav";
 
 export default function MarketplaceTabLayout() {
   const { colors } = useAppTheme();
@@ -38,7 +40,19 @@ export default function MarketplaceTabLayout() {
         <NativeTabs.Trigger.Label>Directory</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="workspace">
+      <NativeTabs.Trigger
+        name="workspace"
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            // Re-tap while focused: always return to the Workspace hub.
+            // Native popToTop is a no-op when a nested screen was opened as
+            // the stack root (cross-tab push without withAnchor).
+            if (navigation.isFocused()) {
+              router.navigate(WORKSPACE_HUB);
+            }
+          },
+        })}
+      >
         <NativeTabs.Trigger.Icon
           sf={{ default: "diamond", selected: "diamond.fill" }}
           md="diamond"
@@ -46,7 +60,16 @@ export default function MarketplaceTabLayout() {
         <NativeTabs.Trigger.Label>Workspace</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="money">
+      <NativeTabs.Trigger
+        name="money"
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            if (navigation.isFocused()) {
+              router.navigate(MONEY_HUB);
+            }
+          },
+        })}
+      >
         <NativeTabs.Trigger.Icon
           sf={{ default: "banknote", selected: "banknote.fill" }}
           md="payments"

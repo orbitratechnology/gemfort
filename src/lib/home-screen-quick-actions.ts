@@ -7,6 +7,7 @@ import type { UserProfile, UserRole } from "@/types";
 /** Android adaptive icons registered in the expo-quick-actions config plugin. */
 const AndroidIcon = {
   verify: "shortcut_verify",
+  gem: "shortcut_gem",
   add: "shortcut_add",
   ap: "shortcut_ap",
   service: "shortcut_service",
@@ -20,6 +21,7 @@ const AndroidIcon = {
   news: "shortcut_news",
 } as const;
 
+/** iOS: SF Symbols (`symbol:`) or built-in shortcut types (`search`, `add`, …). */
 function icon(ios: string, android: string): string {
   return Platform.OS === "ios" ? ios : android;
 }
@@ -46,21 +48,21 @@ const GUEST_ACTIONS: RouterAction[] = [
     "verify",
     "Verify certificate",
     "/verify-certificate",
-    icon("symbol:checkmark.seal", AndroidIcon.verify),
+    icon("symbol:checkmark.seal.fill", AndroidIcon.verify),
     "Check a lab certificate",
   ),
   action(
     "directory",
     "Directory",
     "/(marketplace)/(tabs)/directory",
-    icon("symbol:person.2", AndroidIcon.directory),
+    icon("symbol:person.2.fill", AndroidIcon.directory),
     "Find traders, lapidaries & labs",
   ),
   action(
     "news",
     "Gem news",
     "/news",
-    icon("symbol:newspaper", AndroidIcon.news),
+    icon("symbol:newspaper.fill", AndroidIcon.news),
   ),
   action(
     "search",
@@ -75,14 +77,14 @@ const TRADER_ACTIONS: RouterAction[] = [
     "verify",
     "Verify certificate",
     "/verify-certificate",
-    icon("symbol:checkmark.seal", AndroidIcon.verify),
+    icon("symbol:checkmark.seal.fill", AndroidIcon.verify),
     "Check a lab certificate",
   ),
   action(
     "add-gem",
     "Add gem",
     "/(marketplace)/gems/add",
-    icon("add", AndroidIcon.add),
+    icon("symbol:diamond.fill", AndroidIcon.gem),
     "Log a stone in GemTrack",
   ),
   action(
@@ -96,7 +98,7 @@ const TRADER_ACTIONS: RouterAction[] = [
     "service",
     "Request service",
     "/(marketplace)/services/add",
-    icon("symbol:wrench.and.screwdriver", AndroidIcon.service),
+    icon("symbol:wrench.and.screwdriver.fill", AndroidIcon.service),
     "Cutting, heating & more",
   ),
 ];
@@ -106,28 +108,28 @@ const LAPIDARY_ACTIONS: RouterAction[] = [
     "verify",
     "Verify certificate",
     "/verify-certificate",
-    icon("symbol:checkmark.seal", AndroidIcon.verify),
+    icon("symbol:checkmark.seal.fill", AndroidIcon.verify),
     "Check a lab certificate",
   ),
   action(
     "jobs",
     "Jobs",
     "/(marketplace)/(tabs)/workspace/jobs",
-    icon("task", AndroidIcon.jobs),
+    icon("symbol:wrench.and.screwdriver.fill", AndroidIcon.jobs),
     "Inbound cutting & treatment work",
   ),
   action(
     "contacts",
     "Contacts",
     "/(marketplace)/(tabs)/workspace/contacts",
-    icon("contact", AndroidIcon.contacts),
+    icon("symbol:person.crop.circle.fill", AndroidIcon.contacts),
     "Brokers, buyers & partners",
   ),
   action(
     "bill",
     "Add bill",
     "/(marketplace)/bills/add",
-    icon("compose", AndroidIcon.bill),
+    icon("symbol:doc.text.fill", AndroidIcon.bill),
     "Record a workshop bill",
   ),
 ];
@@ -137,7 +139,7 @@ const GEM_LAB_ACTIONS: RouterAction[] = [
     "verify",
     "Verify certificate",
     "/verify-certificate",
-    icon("symbol:checkmark.seal", AndroidIcon.verify),
+    icon("symbol:checkmark.seal.fill", AndroidIcon.verify),
     "Public certificate check",
   ),
   action(
@@ -151,14 +153,14 @@ const GEM_LAB_ACTIONS: RouterAction[] = [
     "add-certificate",
     "Issue certificate",
     "/(marketplace)/(tabs)/workspace/certificates/add",
-    icon("add", AndroidIcon.add),
+    icon("symbol:plus.rectangle.on.folder.fill", AndroidIcon.add),
     "Create a new report",
   ),
   action(
     "money",
     "Money",
     "/(marketplace)/(tabs)/money",
-    icon("symbol:banknote", AndroidIcon.money),
+    icon("symbol:banknote.fill", AndroidIcon.money),
     "Receivables & payments",
   ),
 ];

@@ -44,6 +44,7 @@ import {
 } from "@/lib/firebase/storage-service";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
@@ -281,15 +282,15 @@ export default function AddChequeScreen() {
       );
 
       if (paramBillId) {
-        router.replace(
+        replaceWithAnchor(
           `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
         );
       } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
-        router.replace(
+        replaceWithAnchor(
           `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
         );
       } else {
-        router.replace(
+        replaceWithAnchor(
           `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
         );
       }

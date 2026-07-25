@@ -47,6 +47,11 @@ const optionalPositiveNumber = (label: string, max = 99_999_999) =>
     );
 
 export const addGemSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Enter a title')
+    .max(80, 'Title must be 80 characters or less'),
   gemType: z.string().min(1, 'Choose a gem type'),
   originCountry: z.string().min(1, 'Choose origin'),
   roughWeight: positiveNumber('Weight', 10_000),
@@ -67,7 +72,6 @@ export const addGemSchema = z.object({
   ]),
   colorPrimary: z.string().min(1, 'Choose a color'),
   clarity: z.string().min(1, 'Choose clarity'),
-  cutType: z.string().min(1, 'Choose a cut'),
   shape: z.string().min(1, 'Choose a shape'),
   status: z.enum(
     [

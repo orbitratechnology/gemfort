@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -108,6 +108,7 @@ export function JobPickerSheet({
           keyboardShouldPersistTaps="handled"
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={SheetListSeparator}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const selected = item.id === value;
@@ -270,7 +271,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,

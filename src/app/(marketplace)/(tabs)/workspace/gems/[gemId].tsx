@@ -274,13 +274,17 @@ export default function GemDetailScreen() {
             </View>
             <View style={styles.identityText}>
               <Text style={[styles.gemName, { color: colors.onSurface }]}>
-                {formatGemType(gem.gemType)}
+                {gem.title?.trim() || formatGemType(gem.gemType)}
               </Text>
               <Text
                 style={[styles.skuLine, { color: colors.onSurfaceVariant }]}
               >
                 {gem.sku}
-                {gem.variety ? ` · ${gem.variety}` : ""}
+                {gem.title?.trim()
+                  ? ` · ${formatGemType(gem.gemType)}`
+                  : gem.variety
+                    ? ` · ${gem.variety}`
+                    : ""}
               </Text>
             </View>
           </View>
