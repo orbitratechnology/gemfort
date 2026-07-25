@@ -1,20 +1,17 @@
 import { Stack } from 'expo-router';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
-import {
-  formSheetScreenOptions,
-  silkStackScreenOptions,
-} from '@/navigation/silk-stack-options';
+import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 
 /**
- * Action sheets are siblings of `(tabs)` so formSheet presents above NativeTabs.
- * Nesting formSheet inside a tab stack breaks dismiss / history on Android.
+ * Action screens are siblings of `(tabs)` so they push above NativeTabs.
+ * Nesting them inside a tab stack breaks dismiss / history on Android.
  */
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-const ACTION_SHEETS = [
+const ACTION_SCREENS = [
   'gems/add',
   'bills/add',
   'cheques/add',
@@ -29,10 +26,6 @@ const ACTION_SHEETS = [
 
 export default function MarketplaceLayout() {
   const { colors } = useAppTheme();
-  const sheetOptions = {
-    ...formSheetScreenOptions,
-    contentStyle: { backgroundColor: colors.background },
-  };
 
   return (
     <Stack
@@ -56,8 +49,8 @@ export default function MarketplaceLayout() {
           headerShadowVisible: false,
         }}
       />
-      {ACTION_SHEETS.map((name) => (
-        <Stack.Screen key={name} name={name} options={sheetOptions} />
+      {ACTION_SCREENS.map((name) => (
+        <Stack.Screen key={name} name={name} />
       ))}
     </Stack>
   );

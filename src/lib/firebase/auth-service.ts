@@ -209,3 +209,19 @@ export async function updatePreferredCurrency(
     updatedAt: serverTimestamp(),
   });
 }
+
+export async function updateNotificationPreferences(
+  uid: string,
+  prefs: NonNullable<UserProfile['notificationPreferences']>,
+) {
+  const auth = getFirebaseAuth();
+  const current = auth.currentUser;
+  if (!current || current.uid !== uid) {
+    throw new Error('Not signed in as the target user');
+  }
+  await getIdToken(current);
+  await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+    notificationPreferences: prefs,
+    updatedAt: serverTimestamp(),
+  });
+}

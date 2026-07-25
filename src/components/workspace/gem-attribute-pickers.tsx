@@ -11,7 +11,7 @@ import {
     type LayoutChangeEvent,
 } from "react-native";
 
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -218,6 +218,7 @@ export function OptionPickerSheet({
         keyExtractor={(item) => item.value}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         ListEmptyComponent={
           <EmptyState
             icon="search"
@@ -343,6 +344,7 @@ export function GemTypePickerSheet({
         data={[...filtered]}
         keyExtractor={(item) => item.value}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const active = item.value === value;
@@ -518,6 +520,7 @@ export function ColorPickerSheet({
               keyExtractor={(item) => item.value}
               style={styles.colorList}
               contentContainerStyle={styles.listContent}
+              ItemSeparatorComponent={SheetListSeparator}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <Pressable
@@ -574,6 +577,7 @@ export function ColorPickerSheet({
               keyExtractor={(item) => item.value}
               style={styles.colorList}
               contentContainerStyle={styles.listContent}
+              ItemSeparatorComponent={SheetListSeparator}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <EmptyState
@@ -701,6 +705,7 @@ export function OriginPickerSheet({
         data={filtered as GemOrigin[]}
         keyExtractor={(item) => item.value}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <EmptyState
@@ -876,7 +881,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.stackMd,
   },
   searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
-  listContent: { gap: Spacing.stackSm, paddingBottom: Spacing.lg },
+  listContent: { paddingBottom: Spacing.lg },
   colorTrack: { flex: 1, minHeight: 0, overflow: "hidden" },
   colorPanels: { flexDirection: "row", height: "100%" },
   colorPanel: { height: "100%" },

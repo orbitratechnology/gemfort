@@ -22,6 +22,7 @@ import {
     updateDoc,
     where,
 } from "@/lib/firebase/db";
+import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { calcWeightLossPercent, generateSku } from "@/lib/utils";
 import type {
@@ -92,6 +93,7 @@ export async function createGem(
     ownerUid,
     companyId: null,
     sku,
+    title: input.title?.trim() || null,
     gemType: input.gemType,
     variety: input.variety ?? null,
     originCountry: input.originCountry,
@@ -507,8 +509,8 @@ export async function createContact(
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_contacts"), {
     displayName: input.displayName,
     companyName: input.companyName ?? null,
-    phone: input.phone ?? null,
-    whatsapp: input.whatsapp ?? null,
+    phone: normalizePhoneForStorage(input.phone),
+    whatsapp: normalizePhoneForStorage(input.whatsapp),
     email: input.email ?? null,
     contactTypes: input.contactTypes ?? [],
     notes: input.notes ?? null,
@@ -573,11 +575,12 @@ export async function importDeviceContactToWorkspace(
     photoUrl = await uploadContactPhoto(ownerUid, device.id, device.imageUri);
   }
 
+  const e164 = normalizePhoneForStorage(device.phone);
   const id = await createContact(ownerUid, {
     displayName: device.displayName,
     companyName: device.companyName,
-    phone: device.phone,
-    whatsapp: device.phone,
+    phone: e164,
+    whatsapp: e164,
     email: device.email,
     contactTypes: options?.contactTypes?.length
       ? options.contactTypes
@@ -615,6 +618,7 @@ export async function importDeviceContactsBatch(
     });
     if (result.created) {
       created += 1;
+      const e164 = normalizePhoneForStorage(device.phone);
       // Keep local list fresh for subsequent duplicate checks
       existing = [
         ...existing,
@@ -623,8 +627,8 @@ export async function importDeviceContactsBatch(
           ownerUid,
           displayName: device.displayName,
           companyName: device.companyName,
-          phone: device.phone,
-          whatsapp: device.phone,
+          phone: e164,
+          whatsapp: e164,
           email: device.email,
           contactTypes: contactTypes?.length ? contactTypes : ["broker"],
           notes: null,
@@ -659,8 +663,15 @@ async function uploadContactPhoto(
 }
 
 export async function updateContact(contactId: string, data: Partial<Contact>) {
+  const payload: Partial<Contact> = { ...data };
+  if (data.phone !== undefined) {
+    payload.phone = normalizePhoneForStorage(data.phone);
+  }
+  if (data.whatsapp !== undefined) {
+    payload.whatsapp = normalizePhoneForStorage(data.whatsapp);
+  }
   await updateDoc(doc(getFirebaseDb(), "gemtrack_contacts", contactId), {
-    ...data,
+    ...payload,
     updatedAt: serverTimestamp(),
   });
 }

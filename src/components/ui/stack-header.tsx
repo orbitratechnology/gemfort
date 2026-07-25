@@ -1,10 +1,11 @@
-import { router } from "expo-router";
+import { router, useNavigation, usePathname } from "expo-router";
 import { type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { nestedTabHubForPathname } from "@/navigation/tab-stack-nav";
 
 type StackHeaderProps = {
   title: string;
@@ -18,6 +19,17 @@ type StackHeaderProps = {
   tintColor?: string;
 };
 
+function goBackInCurrentStack(
+  navigation: { getState: () => unknown; goBack: () => void },
+): boolean {
+  const state = navigation.getState() as { index?: number } | undefined;
+  if (typeof state?.index === "number" && state.index > 0) {
+    navigation.goBack();
+    return true;
+  }
+  return false;
+}
+
 /** Transparent, no-elevation stack header consistent across the app. */
 export function StackHeader({
   title,
@@ -28,17 +40,42 @@ export function StackHeader({
   tintColor,
 }: StackHeaderProps) {
   const { colors } = useAppTheme();
+  const navigation = useNavigation();
+  const pathname = usePathname();
   const fg = tintColor ?? colors.onSurface;
   const titleColor = tintColor ?? colors.primary;
   const chipStyle = tintColor
     ? [styles.side, styles.sideChip]
     : styles.side;
 
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+      return;
+    }
+
+    // Prefer popping within this stack so we never jump to another tab
+    // (router.back() follows global history and often lands on Home).
+    if (goBackInCurrentStack(navigation)) {
+      return;
+    }
+
+    const hub = nestedTabHubForPathname(pathname);
+    if (hub) {
+      router.navigate(hub);
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+    }
+  };
+
   return (
     <View style={styles.header}>
       {showBack ? (
         <Pressable
-          onPress={onBack ?? (() => router.back())}
+          onPress={handleBack}
           style={chipStyle}
           hitSlop={8}
           accessibilityRole="button"

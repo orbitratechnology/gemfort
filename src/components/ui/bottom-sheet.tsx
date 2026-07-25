@@ -214,6 +214,11 @@ export function BottomSheet({
   );
 }
 
+/** Vertical gap between FlashList rows in bottom sheets (FlashList ignores `gap`). */
+export function SheetListSeparator() {
+  return <View style={styles.listSeparator} />;
+}
+
 /** Labeled row of chips for filter sheets. */
 export function FilterChipGroup<T extends string>({
   label,
@@ -272,6 +277,7 @@ const styles = StyleSheet.create({
   body: { flexGrow: 0 },
   bodyFlex: { flex: 1, minHeight: 0 },
   bodyContent: { gap: Spacing.lg, paddingBottom: Spacing.sm },
+  listSeparator: { height: Spacing.stackSm },
   footer: { paddingTop: Spacing.md, gap: Spacing.sm },
   group: { gap: Spacing.sm },
   groupLabel: { ...Typography.labelMd, letterSpacing: 0.5, textTransform: 'uppercase' },

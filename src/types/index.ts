@@ -29,6 +29,8 @@ export type UserProfile = {
   companyId: string | null;
   fcmToken: string | null;
   notificationPreferences?: {
+    /** Master push switch; unset means enabled. */
+    pushEnabled?: boolean;
     pushAnnouncements?: boolean;
     pushChequeAlerts?: boolean;
     pushApAlerts?: boolean;
@@ -190,6 +192,8 @@ export type WorkspaceGem = {
   ownerUid: string;
   companyId: string | null;
   sku: string;
+  /** User-facing name for the stone (absent on older docs). */
+  title?: string | null;
   gemType: string;
   variety: string | null;
   originCountry: string;

@@ -1,5 +1,7 @@
 import { router, type Href } from 'expo-router';
 
+import { pushWithAnchor } from '@/navigation/tab-stack-nav';
+
 type NavigateOptions = {
   /**
    * True when opening from the Notifications inbox screen (covers the tabs).
@@ -12,11 +14,11 @@ function go(href: Href, options?: NavigateOptions) {
   if (options?.fromInbox && router.canDismiss()) {
     router.dismiss();
     requestAnimationFrame(() => {
-      router.push(href);
+      pushWithAnchor(href);
     });
     return;
   }
-  router.push(href);
+  pushWithAnchor(href);
 }
 
 export function navigateFromNotificationRef(

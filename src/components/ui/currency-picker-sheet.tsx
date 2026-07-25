@@ -8,7 +8,7 @@ import {
     View,
 } from "react-native";
 
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CurrencyFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
@@ -106,6 +106,7 @@ export function CurrencyPickerSheet({
         keyExtractor={(item) => item.code}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         ListEmptyComponent={
           <EmptyState
             icon="search"
@@ -196,7 +197,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: Spacing.xl,
-    gap: Spacing.sm,
   },
   row: {
     flexDirection: "row",

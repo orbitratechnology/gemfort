@@ -34,6 +34,10 @@ import {
 } from "@/features/workspace/active-progress";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
+import {
+  isNestedWorkspaceHref,
+  pushWithAnchor,
+} from "@/navigation/tab-stack-nav";
 import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
 
 /** High enough to list every ongoing item in the long-press sheet. */
@@ -371,18 +375,29 @@ export function ActiveProgressStrip({
   }, []);
   const closeList = useCallback(() => setListOpen(false), []);
 
+  const openHref = useCallback((href: string) => {
+    if (isNestedWorkspaceHref(href)) {
+      pushWithAnchor(href as never);
+      return;
+    }
+    router.push(href as never);
+  }, []);
+
   const openFront = useCallback(() => {
     const item = items[deckIndex];
     if (!item) return;
     haptics.light();
-    router.push(item.href as never);
-  }, [items, deckIndex]);
+    openHref(item.href);
+  }, [items, deckIndex, openHref]);
 
-  const openListed = useCallback((href: string) => {
-    haptics.selection();
-    setListOpen(false);
-    router.push(href as never);
-  }, []);
+  const openListed = useCallback(
+    (href: string) => {
+      haptics.selection();
+      setListOpen(false);
+      openHref(href);
+    },
+    [openHref],
+  );
 
   const pan = Gesture.Pan()
     .enabled(count > 1)

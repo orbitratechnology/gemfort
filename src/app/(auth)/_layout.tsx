@@ -18,7 +18,10 @@ export default function AuthLayout() {
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: 'transparent' },
       }}>
-      <Stack.Screen name="onboarding" />
+      <Stack.Screen
+        name="onboarding"
+        options={{ contentStyle: { backgroundColor: '#000000' } }}
+      />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="forgot-password" />

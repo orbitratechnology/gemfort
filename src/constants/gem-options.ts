@@ -20,6 +20,12 @@ export { GEM_CUTS } from '@/constants/gem-cuts';
  */
 export const GEM_TYPES = [
   {
+    value: 'sapphire',
+    label: 'Sapphire',
+    icon: 'diamond' as IconName,
+    image: require('@/assets/images/gems/sapphire.png') as ImageSourcePropType,
+  },
+  {
     value: 'blue_sapphire',
     label: 'Blue Sapphire',
     icon: 'diamond' as IconName,
@@ -42,12 +48,6 @@ export const GEM_TYPES = [
     label: 'Emerald',
     icon: 'eco' as IconName,
     image: require('@/assets/images/gems/emerald.png') as ImageSourcePropType,
-  },
-  {
-    value: 'sapphire',
-    label: 'Sapphire',
-    icon: 'diamond' as IconName,
-    image: require('@/assets/images/gems/sapphire.png') as ImageSourcePropType,
   },
   {
     value: 'star_sapphire',

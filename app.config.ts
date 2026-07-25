@@ -165,71 +165,68 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-quick-actions",
       {
         // Android shortcuts can be pinned — adaptive icons act as alt entry points.
-        // Foreground: white silhouette with ~30% padding (Material shortcut guidance).
+        // Foreground: white silhouettes in assets/images/shortcuts (~30% padding).
+        // Regenerate: python scripts/generate-shortcut-icons.py
         androidIcons: {
           shortcut_verify: {
-            foregroundImage: "./assets/images/notification-icon.png",
-            backgroundColor: "#64A0F7",
+            foregroundImage: "./assets/images/shortcuts/shortcut_verify.png",
+          },
+          shortcut_gem: {
+            foregroundImage: "./assets/images/shortcuts/shortcut_gem.png",
           },
           shortcut_add: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#171717",
+            foregroundImage: "./assets/images/shortcuts/shortcut_gem.png",
           },
           shortcut_ap: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#0F766E",
+            foregroundImage: "./assets/images/shortcuts/shortcut_ap.png",
+          },
+          shortcut_cheque: {
+            foregroundImage: "./assets/images/shortcuts/shortcut_cheque.png",
           },
           shortcut_service: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#B45309",
+            foregroundImage: "./assets/images/shortcuts/shortcut_service.png",
           },
           shortcut_jobs: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#B45309",
+            foregroundImage: "./assets/images/shortcuts/shortcut_jobs.png",
           },
           shortcut_contacts: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#1D4ED8",
+            foregroundImage: "./assets/images/shortcuts/shortcut_contacts.png",
           },
           shortcut_bill: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#171717",
+            foregroundImage: "./assets/images/shortcuts/shortcut_bill.png",
           },
           shortcut_certificates: {
-            foregroundImage: "./assets/images/notification-icon.png",
-            backgroundColor: "#7C3AED",
+            foregroundImage:
+              "./assets/images/shortcuts/shortcut_certificates.png",
           },
           shortcut_money: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#15803D",
+            foregroundImage: "./assets/images/shortcuts/shortcut_money.png",
           },
           shortcut_directory: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#1D4ED8",
+            foregroundImage: "./assets/images/shortcuts/shortcut_directory.png",
           },
           shortcut_search: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#171717",
+            foregroundImage: "./assets/images/shortcuts/shortcut_search.png",
           },
           shortcut_news: {
-            foregroundImage: "./assets/images/android-icon-monochrome.png",
-            backgroundColor: "#334155",
+            foregroundImage: "./assets/images/shortcuts/shortcut_news.png",
           },
         },
         // Static iOS actions available before JS loads; replaced dynamically by role.
+        // Prefer SF Symbols so they match system “Edit Home Screen / Share / Remove” icons.
         iosActions: [
           {
             id: "verify",
             title: "Verify certificate",
             subtitle: "Check a lab certificate",
-            icon: "symbol:checkmark.seal",
+            icon: "symbol:checkmark.seal.fill",
             params: { href: "/verify-certificate" },
           },
           {
             id: "directory",
             title: "Directory",
             subtitle: "Find traders, lapidaries & labs",
-            icon: "symbol:person.2",
+            icon: "symbol:person.2.fill",
             params: { href: "/(marketplace)/(tabs)/directory" },
           },
           {

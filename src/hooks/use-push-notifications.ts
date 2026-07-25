@@ -33,6 +33,9 @@ export function usePushNotifications() {
     // Auth restores before/without a users/{uid} document.
     if (isLoading || !user || !profile || !canRegisterForPushNotifications()) return;
 
+    const pushEnabled = profile.notificationPreferences?.pushEnabled !== false;
+    if (!pushEnabled) return;
+
     let pushTokenSubscription: Notifications.EventSubscription | undefined;
     let cancelled = false;
 

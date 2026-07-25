@@ -9,7 +9,7 @@ import {
     View,
 } from "react-native";
 
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
@@ -41,6 +41,7 @@ function isOnSaleGem(gem: WorkspaceGem): boolean {
 function matchesQuery(gem: WorkspaceGem, q: string) {
   if (!q) return true;
   const hay = [
+    gem.title,
     gem.sku,
     gem.gemType,
     formatGemType(gem.gemType),
@@ -185,6 +186,7 @@ export function GemPickerSheet({
         keyboardShouldPersistTaps="handled"
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={SheetListSeparator}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
@@ -445,7 +447,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
   list: { flex: 1 },
-  listContent: { gap: Spacing.sm, paddingBottom: Spacing.md, flexGrow: 1 },
+  listContent: { paddingBottom: Spacing.md, flexGrow: 1 },
   row: {
     flexDirection: "row",
     alignItems: "center",

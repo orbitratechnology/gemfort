@@ -84,14 +84,18 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
           style={[styles.type, { color: colors.onSurface }]}
           numberOfLines={2}
         >
-          {formatGemType(gem.gemType)}
+          {gem.title?.trim() || formatGemType(gem.gemType)}
         </Text>
         <Text
           style={[styles.meta, { color: colors.onSurfaceVariant }]}
           numberOfLines={1}
         >
           {gem.currentWeight} ct
-          {gem.cutType ? ` · ${gem.cutType}` : ""}
+          {gem.title?.trim()
+            ? ` · ${formatGemType(gem.gemType)}`
+            : gem.shape
+              ? ` · ${gem.shape}`
+              : ""}
         </Text>
         <Text
           style={[styles.price, { color: colors.primary }]}
@@ -112,7 +116,7 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
     style,
   ]);
 
-  const label = `${gem.sku}, ${formatGemType(gem.gemType)}, ${price}`;
+  const label = `${gem.sku}, ${gem.title?.trim() || formatGemType(gem.gemType)}, ${price}`;
 
   const actions: ContextMenuAction[] = onDelete
     ? [

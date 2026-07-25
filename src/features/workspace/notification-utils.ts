@@ -57,7 +57,11 @@ function gemLabel(gems: WorkspaceGem[], gemId: string): string {
   const gem = gems.find((g) => g.id === gemId);
   if (!gem) return "Gem";
   return (
-    gem.variety?.trim() || gem.gemType?.replace(/_/g, " ") || gem.sku || "Gem"
+    gem.title?.trim() ||
+    gem.variety?.trim() ||
+    gem.gemType?.replace(/_/g, " ") ||
+    gem.sku ||
+    "Gem"
   );
 }
 

@@ -1,5 +1,7 @@
 import type { ResolvedSharePayload, SharePayload } from 'expo-sharing';
 
+import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
+
 /**
  * Helpers for inbound share-to-app (expo-sharing → handle-share → add forms).
  * Collections already exist: gemtrack_cheques, gemtrack_bills, gemtrack_contacts.
@@ -22,11 +24,7 @@ const AMOUNT_RE =
   /(?:(?:lkr|rs\.?|usd|\$|€)\s*)?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)/i;
 
 function cleanPhone(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '');
-  if (digits.startsWith('+')) return digits;
-  if (digits.startsWith('94') && digits.length >= 11) return `+${digits}`;
-  if (digits.startsWith('0') && digits.length >= 10) return digits;
-  return digits;
+  return normalizePhoneNumber(raw);
 }
 
 function looksLikeName(line: string): boolean {

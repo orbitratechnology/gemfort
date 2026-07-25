@@ -15,6 +15,7 @@ import {
   Timestamp,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
+import { normalizePhoneForStorage } from '@/lib/firebase/phone-utils';
 import { businessTypeFromRole, directoryTabFromBusinessType, normalizeUserRole, ROLE_LABELS } from '@/constants/roles';
 import {
   defaultLabCertificateOfferings,
@@ -201,8 +202,8 @@ export async function createBusinessProfile(
   const isTrader = type === 'trader';
   const isLapidary = type === 'lapidary';
   const isLab = type === 'gem_lab';
-  const wa = input.whatsapp?.trim() ?? '';
-  const ph = input.phone?.trim() ?? '';
+  const wa = normalizePhoneForStorage(input.whatsapp) ?? '';
+  const ph = normalizePhoneForStorage(input.phone) ?? '';
   const ref = await addDoc(collection(getFirebaseDb(), 'businesses'), {
     ownerUid,
     businessType: type,
@@ -323,11 +324,11 @@ export async function updateBusinessProfile(
   if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
   if (data.coverPhotoUrl !== undefined) updates.coverPhotoUrl = data.coverPhotoUrl;
   if (data.whatsapp !== undefined) {
-    const value = data.whatsapp.trim();
+    const value = normalizePhoneForStorage(data.whatsapp) ?? '';
     updates['contacts.whatsapp'] = { value, isVisible: !!value };
   }
   if (data.phone !== undefined) {
-    const value = data.phone.trim();
+    const value = normalizePhoneForStorage(data.phone) ?? '';
     updates['contacts.phone'] = { value, isVisible: !!value };
   }
   if (data.socialLinks !== undefined) {

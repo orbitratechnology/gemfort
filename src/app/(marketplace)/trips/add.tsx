@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
 import { addDays } from 'date-fns';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,15 +16,16 @@ import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
-import { TRIP_TYPES } from '@/constants/trip-options';
-import { Spacing } from '@/constants/design-tokens';
 import { cityBelongsToCountry } from '@/constants/cities';
+import { Spacing } from '@/constants/design-tokens';
+import { TRIP_TYPES } from '@/constants/trip-options';
 import { createTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
-import { Timestamp } from '@/lib/firebase/db';
 import { friendlyError } from '@/lib/errors';
+import { Timestamp } from '@/lib/firebase/db';
 import { addTripSchema, parseForm } from '@/lib/validation/form-schemas';
+import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { TripType } from '@/types';
@@ -97,7 +98,7 @@ export default function AddTripScreen() {
         notes: data.notes || null,
       });
       toast.success('Trip created.');
-      router.replace(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not create trip.'));
     } finally {

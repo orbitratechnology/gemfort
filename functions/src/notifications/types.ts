@@ -106,6 +106,8 @@ export const PUSH_MANDATORY_TYPES = new Set<NotificationType>([
 ]);
 
 export type UserNotificationPreferences = {
+  /** Master push switch; unset means enabled. */
+  pushEnabled?: boolean;
   pushAnnouncements?: boolean;
   pushChequeAlerts?: boolean;
   pushApAlerts?: boolean;

@@ -9,6 +9,7 @@ import {
 } from 'date-fns';
 
 import { getCurrencySymbol, resolveCurrencyCode } from '@/constants/currencies';
+import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 
 export function generateSku(sequence: number): string {
   const year = new Date().getFullYear();
@@ -108,11 +109,12 @@ export function calcWeightLossPercent(before: number, after: number): number {
 }
 
 export function openWhatsApp(phone: string, message?: string) {
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = normalizePhoneNumber(phone).replace(/\D/g, '');
   const url = `https://wa.me/${cleaned}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
   return url;
 }
 
 export function openPhone(phone: string) {
-  return `tel:${phone}`;
+  const normalized = normalizePhoneNumber(phone) || phone;
+  return `tel:${normalized}`;
 }

@@ -56,6 +56,7 @@ const SERVICE_HINTS: Record<LapidaryServiceId, string> = {
 
 function gemDisplayName(gem: WorkspaceGem): string {
   return (
+    gem.title?.trim() ||
     gem.variety?.trim() ||
     formatGemType(gem.gemType) ||
     gem.sku ||

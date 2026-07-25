@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -240,6 +240,7 @@ export function PhoneContactsImportSheet({
               keyExtractor={(item) => item.id}
               style={styles.list}
               contentContainerStyle={styles.listContent}
+              ItemSeparatorComponent={SheetListSeparator}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <EmptyState
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
   count: { ...Typography.caption },
   linkText: { ...Typography.labelMd, fontWeight: '600' },
   list: { flex: 1 },
-  listContent: { gap: Spacing.sm, paddingBottom: Spacing.md, flexGrow: 1 },
+  listContent: { paddingBottom: Spacing.md, flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,8 +8,12 @@ import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
  * (SafeAreaView + StackHeader), so the native stack header is hidden globally.
  */
 export const unstable_settings = {
-  /** Deep links (notifications) keep a back target to the workspace hub. */
+  /**
+   * Keep the hub under nested screens for deep links and `withAnchor` navigations.
+   * @see https://docs.expo.dev/router/basics/navigation/#initial-routes
+   */
   anchor: 'index',
+  initialRouteName: 'index',
 };
 
 export default function WorkspaceLayout() {

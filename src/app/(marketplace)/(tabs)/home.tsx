@@ -18,7 +18,6 @@ import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carouse
 import { HomeBusinessRail } from "@/components/marketplace/home-business-rail";
 import { HomeCurrencyRates } from "@/components/marketplace/home-currency-rates";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { HomeNewsTeaser } from "@/components/news/home-news-teaser";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
@@ -46,10 +45,6 @@ import {
   filterListings,
 } from "@/features/marketplace/marketplace-service";
 import {
-  fetchGemNewsTeaser,
-  fetchUpcomingExhibitions,
-} from "@/features/news/news-service";
-import {
   gemPrimaryPhotoUrl,
   resolveBusinessPhotoById,
   resolveBusinessPhotoByOwnerUid,
@@ -68,7 +63,19 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useInvalidateExchangeRates } from "@/hooks/use-exchange-rates";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
+import {
+  isNestedWorkspaceHref,
+  pushWithAnchor,
+} from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
+
+function pushFromHome(href: string) {
+  if (isNestedWorkspaceHref(href) || href.includes("/money/")) {
+    pushWithAnchor(href as never);
+    return;
+  }
+  router.push(href as never);
+}
 
 const FEATURED_LIMIT = 6;
 const UPCOMING_LIMIT = 8;
@@ -322,24 +329,6 @@ export default function HomeScreen() {
     enabled: workspaceEnabled && canAccessModule(role, "bills"),
   });
 
-  const { data: localNews = [], refetch: refetchLocalNews } = useQuery({
-    queryKey: ["gem-news-teaser", "local"],
-    queryFn: () => fetchGemNewsTeaser("local", 3),
-    enabled: isFirebaseConfigured,
-  });
-
-  const { data: globalNews = [], refetch: refetchGlobalNews } = useQuery({
-    queryKey: ["gem-news-teaser", "global"],
-    queryFn: () => fetchGemNewsTeaser("global", 3),
-    enabled: isFirebaseConfigured,
-  });
-
-  const { data: newsShows = [], refetch: refetchNewsShows } = useQuery({
-    queryKey: ["exhibitions-teaser"],
-    queryFn: () => fetchUpcomingExhibitions("all", 6),
-    enabled: isFirebaseConfigured,
-  });
-
   const featured = useMemo(
     () => filterListings(listings, { sort: "recent" }).slice(0, FEATURED_LIMIT),
     [listings],
@@ -402,11 +391,6 @@ export default function HomeScreen() {
     refetchListings();
     refetchBusinesses();
     void invalidateRates();
-    if (isFirebaseConfigured) {
-      void refetchLocalNews();
-      void refetchGlobalNews();
-      void refetchNewsShows();
-    }
     if (workspaceEnabled) {
       refetchContacts();
       refetchAp();
@@ -473,14 +457,6 @@ export default function HomeScreen() {
           />
         ) : null}
 
-        {isFirebaseConfigured ? (
-          <HomeNewsTeaser
-            local={localNews}
-            global={globalNews}
-            exhibitions={newsShows}
-          />
-        ) : null}
-
         {/* Quick actions */}
         <View style={styles.section}>
           <View
@@ -494,7 +470,7 @@ export default function HomeScreen() {
                 key={a.id}
                 accessibilityRole="button"
                 accessibilityLabel={a.label}
-                onPress={() => router.push(a.href as never)}
+                onPress={() => pushFromHome(a.href)}
                 style={({ pressed }) => [
                   styles.actionItem,
                   index < quickActions.length - 1 && {
@@ -592,7 +568,7 @@ export default function HomeScreen() {
                   key={item.id}
                   accessibilityRole="button"
                   accessibilityLabel={`${item.title}. ${item.subtitle}. ${item.when}`}
-                  onPress={() => router.push(item.href as never)}
+                  onPress={() => pushFromHome(item.href)}
                   style={({ pressed }) => [
                     styles.upcomingRow,
                     {
@@ -846,7 +822,7 @@ export default function HomeScreen() {
                     { backgroundColor: colors.surfaceContainerLowest },
                   ]}
                   onPress={() =>
-                    router.push(
+                    pushWithAnchor(
                       "/(marketplace)/(tabs)/workspace/requests" as never,
                     )
                   }

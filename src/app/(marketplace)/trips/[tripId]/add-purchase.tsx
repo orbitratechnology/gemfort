@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,12 +14,13 @@ import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
-import { GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { GEM_TYPES } from '@/constants/gem-options';
 import { createGemOnSourcingTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
+import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 
@@ -65,7 +66,7 @@ export default function AddTripPurchaseScreen() {
       await queryClient.invalidateQueries({ queryKey: ['trips'] });
       await queryClient.invalidateQueries({ queryKey: ['gems'] });
       toast.success('Gem purchased and linked to trip.');
-      router.replace(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never);
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not record purchase.'));
     } finally {

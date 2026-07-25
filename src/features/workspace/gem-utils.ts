@@ -16,6 +16,7 @@ export function filterGems(
   if (term) {
     result = result.filter(
       (g) =>
+        g.title?.toLowerCase().includes(term) ||
         g.sku.toLowerCase().includes(term) ||
         g.gemType.toLowerCase().includes(term) ||
         g.originCountry.toLowerCase().includes(term) ||
