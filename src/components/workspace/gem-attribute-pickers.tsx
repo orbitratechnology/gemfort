@@ -291,6 +291,8 @@ type GemTypePickerSheetProps = {
   onClose: () => void;
   value: string;
   onSelect: (value: string) => void;
+  /** When true, includes an "All types" option (value `"all"`) for filters. */
+  includeAll?: boolean;
 };
 
 export function GemTypePickerSheet({
@@ -298,6 +300,7 @@ export function GemTypePickerSheet({
   onClose,
   value,
   onSelect,
+  includeAll = false,
 }: GemTypePickerSheetProps) {
   const { colors } = useAppTheme();
   const openSession = useOpenSession(visible);
@@ -316,6 +319,13 @@ export function GemTypePickerSheet({
       (t) => t.label.toLowerCase().includes(q) || t.value.includes(q),
     );
   }, [debouncedQuery]);
+
+  const allQuery = debouncedQuery.trim().toLowerCase();
+  const showAllOption =
+    includeAll &&
+    (!allQuery ||
+      "all types".includes(allQuery) ||
+      "all".startsWith(allQuery));
 
   return (
     <BottomSheet
@@ -346,6 +356,70 @@ export function GemTypePickerSheet({
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={SheetListSeparator}
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          showAllOption ? (
+            <>
+              <Pressable
+                onPress={() => {
+                  onSelect("all");
+                  onClose();
+                }}
+                style={({ pressed }) => [
+                  styles.typeRow,
+                  {
+                    backgroundColor:
+                      value === "all"
+                        ? colors.primaryContainer
+                        : colors.surfaceContainerLow,
+                    borderColor:
+                      value === "all" ? colors.primary : colors.outlineVariant,
+                    opacity: pressed ? 0.9 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.optionIcon,
+                    {
+                      width: 48,
+                      height: 48,
+                      borderRadius: Radius.md,
+                      backgroundColor:
+                        value === "all"
+                          ? colors.primary
+                          : colors.surfaceContainerHighest,
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="diamond"
+                    size={22}
+                    color={
+                      value === "all" ? colors.onPrimary : colors.onSurfaceVariant
+                    }
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.rowLabel,
+                    {
+                      color:
+                        value === "all"
+                          ? colors.onPrimaryContainer
+                          : colors.onSurface,
+                    },
+                  ]}
+                >
+                  All types
+                </Text>
+                {value === "all" ? (
+                  <Icon name="check" size={20} color={colors.primary} />
+                ) : null}
+              </Pressable>
+              <SheetListSeparator />
+            </>
+          ) : null
+        }
         renderItem={({ item }) => {
           const active = item.value === value;
           return (
