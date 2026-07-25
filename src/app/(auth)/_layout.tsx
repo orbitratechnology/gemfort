@@ -10,18 +10,22 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         ...silkStackScreenOptions,
-        headerShown: true,
+        headerShown: false,
         headerTintColor: colors.primary,
         headerStyle: { backgroundColor: colors.background },
         headerTitleStyle: { color: colors.text, fontWeight: '600' },
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: colors.background },
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: 'transparent' },
       }}>
-      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ title: 'Sign In', headerShown: false }} />
-      <Stack.Screen name="register" options={{ title: 'Create Account' }} />
-      <Stack.Screen name="verify-otp" options={{ title: 'Verify Phone' }} />
-      <Stack.Screen name="forgot-password" options={{ title: 'Reset Password' }} />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="forgot-password" />
+      <Stack.Screen
+        name="verify-otp"
+        options={{ title: 'Verify Phone', headerShown: true }}
+      />
     </Stack>
   );
 }

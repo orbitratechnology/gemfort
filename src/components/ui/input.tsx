@@ -53,7 +53,7 @@ export function Input({
           accessibilityLabel={label}
           {...props}
         />
-        {rightElement}
+        {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
       </View>
       {error ? (
         <Text style={[styles.error, { color: colors.error }]} accessibilityLiveRegion="polite">
@@ -83,6 +83,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     minHeight: 52,
     fontSize: 16,
+  },
+  right: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
   },
   error: { ...Typography.bodySmall },
   helper: { ...Typography.bodySmall },

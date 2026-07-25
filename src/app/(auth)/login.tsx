@@ -1,19 +1,23 @@
 import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { BrandMark } from '@/components/brand/brand-mark';
-import { StoryChapter } from '@/components/brand/story-chapter';
+import { AuthField } from '@/components/auth/auth-field';
+import { AuthIllustration } from '@/components/auth/auth-illustration';
+import {
+  AuthFooterLink,
+  AuthHeading,
+  AuthScreen,
+  authGreeting,
+} from '@/components/auth/auth-screen';
+import { PasswordVisibilityToggle } from '@/components/auth/password-visibility-toggle';
 import { Button } from '@/components/ui/button';
-import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { Brand } from '@/constants/brand-story';
-import { Spacing, Typography } from '@/constants/design-tokens';
+import { Spacing, TouchTarget, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { loadRememberedEmail, saveRememberedEmail } from '@/lib/auth/remember-email';
 import { getUserProfile, loginUser, needsPhoneVerification } from '@/lib/firebase/auth-service';
 import { friendlyError } from '@/lib/errors';
+import { haptics } from '@/lib/haptics';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { loginSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useToast } from '@/providers/toast-provider';
@@ -23,8 +27,19 @@ export default function LoginScreen() {
   const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    void loadRememberedEmail().then((saved) => {
+      if (saved) {
+        setEmail(saved);
+        setRememberMe(true);
+      }
+    });
+  }, []);
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -47,6 +62,7 @@ export default function LoginScreen() {
     setErrors({});
     try {
       const loggedInUser = await loginUser(result.data.email, result.data.password);
+      await saveRememberedEmail(rememberMe ? result.data.email : null);
       await markOnboardingComplete();
       const profile = await getUserProfile(loggedInUser.uid);
       if (needsPhoneVerification(profile)) {
@@ -67,87 +83,126 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <ThemedScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled">
-        <ScreenInset style={styles.brandBlock}>
-          <BrandMark size="md" showWordmark />
-          <Text style={[styles.tagline, { color: colors.textMuted }]}>{Brand.tagline}</Text>
-        </ScreenInset>
+    <AuthScreen safeTop>
+      <AuthIllustration />
+      <AuthHeading
+        greeting={authGreeting()}
+        title="Welcome back"
+        subtitle="Please sign in to continue."
+      />
 
-        <ScreenInset>
-          <StoryChapter
-            title="Welcome back"
-            body="Sign in to continue your gem business journey."
-            accent="primary"
-          />
-        </ScreenInset>
+      <View style={styles.form}>
+        <AuthField
+          label="Email"
+          leftIcon="email"
+          value={email}
+          onChangeText={(v) => {
+            setEmail(v);
+            clearField('email');
+          }}
+          autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          error={errors.email}
+        />
+        <AuthField
+          label="Password"
+          leftIcon="lock"
+          value={password}
+          onChangeText={(v) => {
+            setPassword(v);
+            clearField('password');
+          }}
+          secureTextEntry={!showPassword}
+          autoComplete="password"
+          textContentType="password"
+          placeholder="Password"
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={handleLogin}
+          error={errors.password}
+          rightElement={
+            <PasswordVisibilityToggle
+              visible={showPassword}
+              onToggle={() => setShowPassword((v) => !v)}
+            />
+          }
+        />
 
-        <FormSection>
-          <Input
-            label="Email"
-            leftIcon="email"
-            value={email}
-            onChangeText={(v) => {
-              setEmail(v);
-              clearField('email');
+        <View style={styles.metaRow}>
+          <Link href="/(auth)/forgot-password" asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Forgot password"
+              style={({ pressed }) => [styles.forgotHit, pressed && { opacity: 0.7 }]}>
+              <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <View style={styles.rememberRow}>
+          <Text style={[styles.rememberLabel, { color: colors.textSecondary }]}>
+            Remember me next time
+          </Text>
+          <Switch
+            value={rememberMe}
+            onValueChange={(v) => {
+              haptics.selection();
+              setRememberMe(v);
             }}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            placeholder="you@example.com"
-            returnKeyType="next"
-            blurOnSubmit={false}
-            error={errors.email}
+            trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary }}
+            thumbColor={colors.background}
+            accessibilityLabel="Remember me next time"
           />
-          <Input
-            label="Password"
-            leftIcon="lock"
-            value={password}
-            onChangeText={(v) => {
-              setPassword(v);
-              clearField('password');
-            }}
-            secureTextEntry
-            autoComplete="password"
-            textContentType="password"
-            placeholder="Enter password"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={handleLogin}
-            error={errors.password}
-          />
-        </FormSection>
+        </View>
 
-        <ScreenInset style={styles.cta}>
-          <Button title="Sign in" icon="login" loading={loading} onPress={handleLogin} />
+        <Button title="Sign In" loading={loading} onPress={handleLogin} style={styles.cta} />
+      </View>
 
-          <View style={styles.links}>
-            <Link href="/(auth)/forgot-password">
-              <Text style={[styles.linkText, { color: colors.primary }]}>Forgot password?</Text>
-            </Link>
-            <Link href="/(auth)/register">
-              <Text style={[styles.linkText, { color: colors.primary }]}>Create an account</Text>
-            </Link>
-          </View>
-        </ScreenInset>
-      </ThemedScrollView>
-    </SafeAreaView>
+      <AuthFooterLink
+        href="/(auth)/register"
+        prompt="Don't have an account?"
+        action="Sign Up"
+      />
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  container: {
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.section,
-    gap: Spacing.lg,
+  form: {
+    width: '100%',
+    maxWidth: 400,
+    gap: Spacing.md,
   },
-  brandBlock: { gap: Spacing.sm },
-  cta: { gap: Spacing.lg },
-  tagline: { ...Typography.bodySmall },
-  links: { alignItems: 'center', gap: Spacing.md, paddingTop: Spacing.sm },
-  linkText: { ...Typography.bodyMd, fontWeight: '600' },
+  metaRow: {
+    alignItems: 'flex-end',
+    marginTop: -Spacing.xs,
+  },
+  forgotHit: {
+    minHeight: TouchTarget.minHeight,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xs,
+  },
+  forgotText: {
+    ...Typography.bodyMd,
+    fontWeight: '600',
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: TouchTarget.minHeight,
+    gap: Spacing.md,
+  },
+  rememberLabel: {
+    ...Typography.bodyMd,
+    flex: 1,
+  },
+  cta: {
+    marginTop: Spacing.sm,
+    minHeight: 52,
+  },
 });
