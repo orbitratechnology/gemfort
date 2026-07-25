@@ -15,7 +15,8 @@ export type ChipOption<T extends string = string> = {
 type ChipSelectProps<T extends string> = {
   label?: string;
   options: ChipOption<T>[];
-  value: T;
+  /** Active value; `null` means nothing selected yet. */
+  value: T | null;
   onChange: (value: T) => void;
   error?: string;
   /** wrap = chip grid, stack = full-width rows, split = equal columns */
@@ -115,7 +116,12 @@ export function ChipSelect<T extends string>({
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
   label: { ...Typography.labelMd },
-  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.stackSm },
+  wrapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.stackSm,
+    justifyContent: 'center',
+  },
   stackCol: { gap: Spacing.stackSm },
   splitRow: { flexDirection: 'row', gap: Spacing.stackMd },
   chip: {

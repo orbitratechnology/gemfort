@@ -24,6 +24,8 @@ type PhoneNumberFieldProps = {
   defaultCountry?: ICountryCca2;
   disabled?: boolean;
   placeholder?: string;
+  /** Pill fill (auth screens) vs bordered default. */
+  appearance?: 'default' | 'pill';
 };
 
 function toE164(
@@ -68,6 +70,7 @@ export function PhoneNumberField({
   defaultCountry = DEFAULT_COUNTRY,
   disabled,
   placeholder,
+  appearance = 'default',
 }: PhoneNumberFieldProps) {
   const { colors, isDark } = useAppTheme();
   const [national, setNational] = useState(
@@ -77,6 +80,8 @@ export function PhoneNumberField({
     () => splitE164(value, defaultCountry).country,
   );
   const lastEmitted = useRef(value);
+  const pill = appearance === 'pill';
+  const radius = pill ? Radius.full : Radius.lg;
 
   useEffect(() => {
     if (value === lastEmitted.current) return;
@@ -92,11 +97,11 @@ export function PhoneNumberField({
     onChangeText(e164);
   }
 
-  const borderColor = error ? colors.error : colors.border;
+  const borderColor = error ? colors.error : pill ? 'transparent' : colors.border;
 
   return (
-    <View style={{ gap: 6 }}>
-      {label ? (
+    <View style={{ gap: 6, width: pill ? '100%' : undefined }}>
+      {label && !pill ? (
         <Text style={{ ...Typography.labelMd, color: colors.textSecondary }}>
           {label}
         </Text>
@@ -116,25 +121,25 @@ export function PhoneNumberField({
           emit(national, next);
         }}
         disabled={disabled}
-        placeholder={placeholder}
-        placeholderType={placeholder ? "text" : "number"}
+        placeholder={placeholder ?? (pill ? label : undefined)}
+        placeholderType={placeholder || pill ? "text" : "number"}
         phoneInputPlaceholderTextColor={colors.textMuted}
         phoneInputSelectionColor={colors.primary}
         modalType="popup"
         phoneInputStyles={{
           container: {
-            backgroundColor: colors.surfaceMuted,
+            backgroundColor: pill ? colors.surfaceContainerHigh : colors.surfaceMuted,
             borderWidth: 1.5,
             borderColor,
-            borderRadius: Radius.lg,
+            borderRadius: radius,
             borderCurve: "continuous",
-            minHeight: 52,
-            paddingHorizontal: Spacing.sm,
+            minHeight: pill ? 56 : 52,
+            paddingHorizontal: pill ? Spacing.md : Spacing.sm,
           },
           flagContainer: {
             backgroundColor: "transparent",
-            borderTopLeftRadius: Radius.lg,
-            borderBottomLeftRadius: Radius.lg,
+            borderTopLeftRadius: radius,
+            borderBottomLeftRadius: radius,
             paddingHorizontal: Spacing.sm,
           },
           flag: { fontSize: 22 },
@@ -146,7 +151,7 @@ export function PhoneNumberField({
             fontWeight: "600",
           },
           input: {
-            ...Typography.bodyMd,
+            ...(pill ? Typography.bodyLarge : Typography.bodyMd),
             color: colors.onSurface,
             fontSize: 16,
           },
@@ -161,7 +166,11 @@ export function PhoneNumberField({
       />
       {error ? (
         <Text
-          style={{ ...Typography.bodySmall, color: colors.error }}
+          style={{
+            ...Typography.bodySmall,
+            color: colors.error,
+            textAlign: pill ? 'center' : 'left',
+          }}
           accessibilityLiveRegion="polite"
         >
           {error}
