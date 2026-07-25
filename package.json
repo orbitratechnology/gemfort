@@ -97,5 +97,12 @@
     "update:preview": "eas update --channel preview --environment preview",
     "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": ["react-native-calllogs-android"]
+      }
+    }
+  }
 }

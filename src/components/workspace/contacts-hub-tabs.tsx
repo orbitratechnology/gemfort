@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ScreenInset } from "@/components/ui/form-section";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
 
@@ -23,6 +24,8 @@ const TABS: {
   label: string;
   icon: IconName;
   href: string;
+  /** Android-only (device call history). */
+  androidOnly?: boolean;
 }[] = [
   {
     id: "contacts",
@@ -35,6 +38,7 @@ const TABS: {
     label: "Calls",
     icon: "phone",
     href: CALLS_HREF,
+    androidOnly: true,
   },
 ];
 
@@ -44,6 +48,12 @@ export function ContactsHubTabs({
   missedCount = 0,
 }: ContactsHubTabsProps) {
   const { colors } = useAppTheme();
+  const tabs = TABS.filter(
+    (tab) => !tab.androidOnly || isCallLogsSupported(),
+  );
+
+  // Calls tab does not exist on iOS — no segment to show.
+  if (tabs.length < 2) return null;
 
   return (
     <ScreenInset style={styles.wrap}>
@@ -53,7 +63,7 @@ export function ContactsHubTabs({
           { backgroundColor: colors.surfaceContainerLow },
         ]}
       >
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const selected = active === tab.id;
           const showBadge = tab.id === "calls" && missedCount > 0;
           const badgeLabel =

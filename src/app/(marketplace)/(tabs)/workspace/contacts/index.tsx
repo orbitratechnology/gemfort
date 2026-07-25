@@ -24,7 +24,10 @@ import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-
 import { CONTACT_TYPES } from "@/constants/contact-types";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
-import { countMissedCalls } from "@/features/workspace/call-logs-service";
+import {
+  countMissedCalls,
+  isCallLogsSupported,
+} from "@/features/workspace/call-logs-service";
 import {
   filterContacts,
   groupContactsByLetter,
@@ -53,8 +56,11 @@ export default function ContactsListScreen() {
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const { logs: callLogs } = useMatchedCallLogs({ enabled: !!user });
-  const missedCount = countMissedCalls(callLogs);
+  const callLogsSupported = isCallLogsSupported();
+  const { logs: callLogs } = useMatchedCallLogs({
+    enabled: !!user && callLogsSupported,
+  });
+  const missedCount = callLogsSupported ? countMissedCalls(callLogs) : 0;
   const openSwipeRef = useRef<{
     id: string;
     methods: SwipeableMethods;
