@@ -3,11 +3,11 @@ import { useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 import {
   BASE_CURRENCY,

@@ -3,11 +3,11 @@ import { Link } from "expo-router";
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,13 +35,23 @@ import {
   fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Bill } from "@/types";
 import { useMemo } from "react";
+
+function billRemainingStored(bill: Bill) {
+  const remaining = remainingAmount(bill);
+  return {
+    amount: remaining,
+    currency: bill.currency,
+    amountBase:
+      bill.amount > 0 ? (remaining / bill.amount) * bill.amountBase : bill.amountBase,
+  };
+}
 
 function BillRow({
   bill,
@@ -56,14 +66,16 @@ function BillRow({
   colors: ReturnType<typeof useAppTheme>["colors"];
   onDelete: () => void | Promise<void>;
 }) {
+  const { formatStored } = usePreferredMoney();
   const isPayable = bill.direction === "payable";
   const remaining = remainingAmount(bill);
+  const remainingStored = billRemainingStored(bill);
   const partyLabel = contactName || "Contact";
 
   return (
     <ContextActionsLink
       href={`/(marketplace)/(tabs)/workspace/bills/${bill.id}` as never}
-      accessibilityLabel={`${partyLabel}, ${formatCurrency(remaining, bill.currency)}`}
+      accessibilityLabel={`${partyLabel}, ${formatStored(remainingStored)}`}
       actions={[
         {
           label: "Delete",
@@ -126,7 +138,7 @@ function BillRow({
             <Text
               style={[styles.rowAmount, { color: colors.primary }]}
             >
-              {formatCurrency(remaining, bill.currency)}
+              {formatStored(remainingStored)}
             </Text>
           </View>
           <Text
@@ -165,6 +177,7 @@ function BillRow({
 export default function BillsIndexScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -261,7 +274,7 @@ export default function BillsIndexScreen() {
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
               >
                 {summary.payableCount} ·{" "}
-                {formatCurrency(summary.payableTotal)}
+                {formatBase(summary.payableTotal)}
               </Text>
             </View>
             <View
@@ -283,7 +296,7 @@ export default function BillsIndexScreen() {
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
               >
                 {summary.receivableCount} ·{" "}
-                {formatCurrency(summary.receivableTotal)}
+                {formatBase(summary.receivableTotal)}
               </Text>
             </View>
           </View>

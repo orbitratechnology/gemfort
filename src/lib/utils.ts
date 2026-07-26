@@ -16,6 +16,12 @@ export function generateSku(sequence: number): string {
   return `GF-${year}-${String(sequence).padStart(5, '0')}`;
 }
 
+/** Short user-facing gem ID (hides internal SKU codes). */
+export function shortGemId(id: string | null | undefined): string {
+  if (!id) return '';
+  return id.slice(0, 8).toUpperCase();
+}
+
 export function generateListingSlug(sequence: number): string {
   return `GF-L-${String(sequence).padStart(5, '0')}`;
 }

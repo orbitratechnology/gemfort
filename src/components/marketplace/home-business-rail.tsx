@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 import { BusinessCard } from "@/components/marketplace/business-card";
 import { ElevatedCard } from "@/components/ui/elevated-card";

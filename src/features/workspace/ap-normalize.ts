@@ -18,18 +18,35 @@ export function isApPending(status: ApLifecycleStatus): boolean {
   return status === 'pending';
 }
 
+/** Total agreed value in LKR (source of truth). Falls back to face for legacy rows. */
 export function apAgreedTotal(ap: ApRecord): number {
   if (ap.items?.length) {
-    return ap.items.reduce((s, i) => s + (i.agreedPrice || 0), 0);
+    return ap.items.reduce(
+      (s, i) =>
+        s +
+        (typeof i.agreedPriceBase === 'number'
+          ? i.agreedPriceBase
+          : i.agreedPrice || 0),
+      0,
+    );
   }
   return ap.ownerMinimumPrice ?? 0;
 }
 
+/** Total owed to owner in LKR (source of truth). */
 export function apOwnerOwedTotal(ap: ApRecord): number {
   if (ap.items?.length) {
     return ap.items
       .filter((i) => i.lineStatus === 'sold')
-      .reduce((s, i) => s + (i.ownerReceives ?? i.agreedPrice), 0);
+      .reduce((s, i) => {
+        if (typeof i.ownerReceivesBase === 'number') return s + i.ownerReceivesBase;
+        const face = i.ownerReceives ?? i.agreedPrice;
+        if (typeof i.agreedPriceBase === 'number' && i.agreedPrice > 0) {
+          return s + (face / i.agreedPrice) * i.agreedPriceBase;
+        }
+        if ((i.currency || 'LKR') === 'LKR') return s + face;
+        return s;
+      }, 0);
   }
   if (ap.status === 'sold' || ap.status === 'payment_sent' || ap.status === 'done') {
     return ap.ownerReceives ?? ap.ownerMinimumPrice ?? 0;

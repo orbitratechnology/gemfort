@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { Redirect, Stack } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, type ReactNode } from "react";

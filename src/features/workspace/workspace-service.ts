@@ -119,10 +119,25 @@ export async function createGem(
     totalCostCurrency: "LKR",
     askingPrice: input.askingPrice ?? null,
     askingPriceCurrency: input.askingPriceCurrency ?? null,
+    askingPriceBase:
+      input.askingPrice != null
+        ? await convertToBase(
+            input.askingPrice,
+            input.askingPriceCurrency ?? acquisitionCurrency,
+          )
+        : null,
     minimumPrice: input.minimumPrice ?? null,
     minimumPriceCurrency: input.minimumPriceCurrency ?? null,
+    minimumPriceBase:
+      input.minimumPrice != null
+        ? await convertToBase(
+            input.minimumPrice,
+            input.minimumPriceCurrency ?? acquisitionCurrency,
+          )
+        : null,
     soldPrice: null,
     soldPriceCurrency: null,
+    soldPriceBase: null,
     soldDate: null,
     photoUrls: input.photoUrls ?? [],
     isListedOnMarketplace: false,
@@ -198,14 +213,26 @@ export async function updateGemStatus(
   ownerUid: string,
   newStatus: GemStatus,
   description: string,
+  sale?: { soldPrice: number; soldPriceCurrency: string },
 ) {
   const gem = await fetchGem(gemId);
   if (!gem) throw new Error("Gem not found");
   const now = Timestamp.now();
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", gemId), {
+  const updates: Record<string, unknown> = {
     status: newStatus,
     updatedAt: now,
-  });
+  };
+  if (newStatus === "sold" && sale) {
+    const soldPriceBase = await convertToBase(
+      sale.soldPrice,
+      sale.soldPriceCurrency,
+    );
+    updates.soldPrice = sale.soldPrice;
+    updates.soldPriceCurrency = sale.soldPriceCurrency;
+    updates.soldPriceBase = soldPriceBase;
+    updates.soldDate = now;
+  }
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", gemId), updates);
   await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
     gemId,
     ownerUid,
@@ -1518,10 +1545,19 @@ export async function createTrip(
     budget?: number;
     budgetCurrency?: string;
     cashCarried?: number;
+    cashCarriedCurrency?: string;
     notes?: string | null;
   },
 ): Promise<string> {
   const now = Timestamp.now();
+  const budget = input.budget ?? 0;
+  const budgetCurrency = input.budgetCurrency ?? "LKR";
+  const cashCarried = input.cashCarried ?? 0;
+  const cashCarriedCurrency = input.cashCarriedCurrency ?? budgetCurrency;
+  const [budgetBase, cashCarriedBase] = await Promise.all([
+    convertToBase(budget, budgetCurrency),
+    convertToBase(cashCarried, cashCarriedCurrency),
+  ]);
   const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_trips"), {
     ownerUid,
     companyId: null,
@@ -1532,9 +1568,12 @@ export async function createTrip(
     startDate: input.startDate,
     expectedEndDate: input.expectedEndDate,
     actualEndDate: null,
-    budget: input.budget ?? 0,
-    budgetCurrency: input.budgetCurrency ?? "LKR",
-    cashCarried: input.cashCarried ?? 0,
+    budget,
+    budgetCurrency,
+    budgetBase,
+    cashCarried,
+    cashCarriedCurrency,
+    cashCarriedBase,
     status: "planning" as TripStatus,
     summary: { ...EMPTY_TRIP_SUMMARY },
     notes: input.notes?.trim() ?? null,
@@ -1903,10 +1942,30 @@ export async function createListing(
     }
   }
 
+  const currency =
+    typeof input.currency === "string" ? input.currency : "LKR";
+  const priceMin =
+    typeof input.priceMin === "number" ? input.priceMin : null;
+  const priceMax =
+    typeof input.priceMax === "number" ? input.priceMax : null;
+  const [priceMinBase, priceMaxBase] = await Promise.all([
+    priceMin != null ? convertToBase(priceMin, currency) : Promise.resolve(null),
+    priceMax != null ? convertToBase(priceMax, currency) : Promise.resolve(null),
+  ]);
+
+  const listingTitle =
+    typeof input.title === "string" ? input.title.trim() : "";
+
   const ref = await addDoc(collection(getFirebaseDb(), "gems"), {
     ...input,
+    title: listingTitle || input.title,
     workspaceGemId,
     photoUrls,
+    currency,
+    priceMin,
+    priceMax,
+    priceMinBase,
+    priceMaxBase,
     sellerUid,
     businessId,
     shareableSlug: slug,
@@ -1919,6 +1978,51 @@ export async function createListing(
     updatedAt: now,
     publishedAt: now,
   });
+
+  if (workspaceGemId) {
+    const gemRef = doc(getFirebaseDb(), "gemtrack_gems", workspaceGemId);
+    const gemSnap = await getDoc(gemRef);
+    if (gemSnap.exists()) {
+      const gem = gemSnap.data();
+      const gemUpdates: Record<string, unknown> = {
+        isListedOnMarketplace: true,
+        marketplaceListingId: ref.id,
+        status: "listed" satisfies GemStatus,
+        updatedAt: now,
+      };
+      if (listingTitle) {
+        gemUpdates.title = listingTitle;
+      }
+      if (
+        typeof input.priceMin === "number" &&
+        input.priceMin > 0 &&
+        gem.askingPrice == null
+      ) {
+        gemUpdates.askingPrice = input.priceMin;
+        gemUpdates.askingPriceCurrency = currency;
+        gemUpdates.askingPriceBase = priceMinBase;
+      }
+      await updateDoc(gemRef, gemUpdates);
+      await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
+        gemId: workspaceGemId,
+        ownerUid: sellerUid,
+        eventType: "listed",
+        fromStatus: gem.status ?? null,
+        toStatus: "listed",
+        description: listingTitle
+          ? `Listed on marketplace as “${listingTitle}”`
+          : "Listed on marketplace",
+        weightAtEvent: gem.currentWeight ?? null,
+        photoUrl: null,
+        costAdded: null,
+        relatedServiceId: null,
+        relatedApId: null,
+        createdByUid: sellerUid,
+        createdAt: now,
+      });
+    }
+  }
+
   return { id: ref.id, slug };
 }
 

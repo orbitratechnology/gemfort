@@ -1,9 +1,11 @@
+import type { ComponentProps } from 'react';
 import {
   StyleSheet,
   View,
   type ScrollViewProps,
   type ViewProps,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +14,11 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 
 /** Matches KeyboardToolbar height so focused fields clear the accessory bar. */
 const KEYBOARD_TOOLBAR_OFFSET = 62;
+
+/** GH ScrollView — supported by Keyboard Controller; types expect Reanimated's ScrollView. */
+const GestureScrollView = ScrollView as NonNullable<
+  ComponentProps<typeof KeyboardAwareScrollView>['ScrollViewComponent']
+>;
 
 type ScreenProps = ScrollViewProps & {
   padded?: boolean;
@@ -33,6 +40,7 @@ export function Screen({
 
   return (
     <KeyboardAwareScrollView
+      ScrollViewComponent={GestureScrollView}
       style={[styles.flex, { backgroundColor: colors.background }, style]}
       contentContainerStyle={[
         padded && styles.padded,
@@ -54,6 +62,7 @@ export function ThemedScrollView({ style, keyboardShouldPersistTaps, ...props }:
   const { colors } = useAppTheme();
   return (
     <KeyboardAwareScrollView
+      ScrollViewComponent={GestureScrollView}
       style={[{ flex: 1, backgroundColor: colors.background }, style]}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps={keyboardShouldPersistTaps ?? 'handled'}

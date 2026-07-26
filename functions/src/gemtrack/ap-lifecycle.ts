@@ -14,11 +14,15 @@ type ApGemLine = {
   gemLabel: string;
   agreedPrice: number;
   currency: string;
+  agreedPriceBase: number;
   lineStatus: 'held' | 'sold' | 'returned';
   soldPrice: number | null;
+  soldPriceBase?: number | null;
   soldToName: string | null;
   soldDate: Timestamp | null;
   ownerReceives: number | null;
+  ownerReceivesBase?: number | null;
+  commissionBase?: number | null;
   commission: number | null;
   paymentDueDate: Timestamp | null;
 };
@@ -137,6 +141,7 @@ export const createApRequest = onCall(
       (biz.ownerName as string) ||
       'Trader';
 
+    const rates = await loadServerRates();
     const lines: ApGemLine[] = [];
     for (const item of itemsIn) {
       const price = Number(item.agreedPrice);
@@ -152,17 +157,22 @@ export const createApRequest = onCall(
       if (['on_ap', 'sold'].includes(gem.status as string)) {
         throw new HttpsError('failed-precondition', `${gemLabelFromDoc(gem, item.gemId)} is not available.`);
       }
+      const currency = item.currency?.trim() || 'LKR';
       lines.push({
         gemId: item.gemId,
         gemLabel: gemLabelFromDoc(gem, item.gemId),
         agreedPrice: price,
-        currency: item.currency?.trim() || 'LKR',
+        currency,
+        agreedPriceBase: convertToBaseServer(price, currency, rates),
         lineStatus: 'held',
         soldPrice: null,
+        soldPriceBase: null,
         soldToName: null,
         soldDate: null,
         ownerReceives: null,
+        ownerReceivesBase: null,
         commission: null,
+        commissionBase: null,
         paymentDueDate: null,
       });
     }
@@ -389,14 +399,23 @@ export const recordApGemSale = onCall(
       if (!Number.isNaN(d.getTime())) paymentDueDate = Timestamp.fromDate(d);
     }
 
+    const saleCurrency = line.currency || 'LKR';
+    const rates = await loadServerRates();
+    const saleAmountBase = convertToBaseServer(soldPrice, saleCurrency, rates);
+    const ownerReceivesBase = convertToBaseServer(ownerReceives, saleCurrency, rates);
+    const commissionBase = convertToBaseServer(commission, saleCurrency, rates);
+
     items[idx] = {
       ...line,
       lineStatus: 'sold',
       soldPrice,
+      soldPriceBase: saleAmountBase,
       soldToName: data.soldToName?.trim() || null,
       soldDate: now,
       ownerReceives,
+      ownerReceivesBase,
       commission,
+      commissionBase,
       paymentDueDate,
     };
 
@@ -405,15 +424,12 @@ export const recordApGemSale = onCall(
     batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
       status: 'sold',
       soldPrice,
-      soldPriceCurrency: line.currency || 'LKR',
+      soldPriceCurrency: saleCurrency,
+      soldPriceBase: saleAmountBase,
       soldDate: now,
       updatedAt: now,
     });
     await batch.commit();
-
-    const saleCurrency = line.currency || 'LKR';
-    const rates = await loadServerRates();
-    const saleAmountBase = convertToBaseServer(soldPrice, saleCurrency, rates);
 
     // Receiver books sale income now
     await db.collection('gemtrack_transactions').add({

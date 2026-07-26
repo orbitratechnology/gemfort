@@ -1,4 +1,4 @@
-import { FlashList } from "@shopify/flash-list";
+import { FlashList } from '@/components/ui/gesture-lists';
 import { Redirect, router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import {

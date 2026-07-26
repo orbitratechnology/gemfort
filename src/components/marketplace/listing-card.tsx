@@ -14,7 +14,7 @@ import { Icon } from "@/components/ui/icon";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatCurrency } from "@/lib/utils";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import type { MarketplaceListing } from "@/types";
 
 type ListingCardProps = {
@@ -36,9 +36,14 @@ export function ListingCard({
   style,
 }: ListingCardProps) {
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
   const price =
-    listing.showPrice && listing.priceMin
-      ? formatCurrency(listing.priceMin, listing.currency)
+    listing.showPrice && listing.priceMin != null
+      ? formatStored({
+          amount: listing.priceMin,
+          currency: listing.currency,
+          amountBase: listing.priceMinBase,
+        })
       : "Inquire";
 
   const media = listing.photoUrls?.[0] ? (

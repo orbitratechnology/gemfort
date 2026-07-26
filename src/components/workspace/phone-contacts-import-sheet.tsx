@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {

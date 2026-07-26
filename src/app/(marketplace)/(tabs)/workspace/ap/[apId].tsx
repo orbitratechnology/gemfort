@@ -44,6 +44,7 @@ import {
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import {
   formatCurrency,
@@ -69,6 +70,7 @@ export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -244,7 +246,7 @@ export default function ApDetailScreen() {
             </View>
 
             <Text style={[styles.heroAmount, { color: heroFg }]}>
-              {formatCurrency(agreed, currency)}
+              {formatBase(agreed)}
             </Text>
             <Text style={[styles.heroParty, { color: heroMuted }]}>
               {partyLabel}
@@ -341,12 +343,25 @@ export default function ApDetailScreen() {
                     <Text
                       style={[styles.meta, { color: colors.textMuted }]}
                     >
-                      AP {formatCurrency(line.agreedPrice, line.currency)}
+                      AP{" "}
+                      {formatStored({
+                        amount: line.agreedPrice,
+                        currency: line.currency,
+                        amountBase: line.agreedPriceBase,
+                      })}
                       {line.soldPrice != null
-                        ? ` · Sold ${formatCurrency(line.soldPrice, line.currency)}`
+                        ? ` · Sold ${formatStored({
+                            amount: line.soldPrice,
+                            currency: line.currency,
+                            amountBase: line.soldPriceBase ?? undefined,
+                          })}`
                         : ""}
                       {line.commission != null
-                        ? ` · Comm ${formatCurrency(line.commission, line.currency)}`
+                        ? ` · Comm ${formatStored({
+                            amount: line.commission,
+                            currency: line.currency,
+                            amountBase: line.commissionBase ?? undefined,
+                          })}`
                         : ""}
                     </Text>
                   </View>
@@ -576,7 +591,7 @@ export default function ApDetailScreen() {
         (ap.items ?? []).some((i) => i.lineStatus === "sold") ? (
           <FormSection title="Payment to owner">
             <Text style={[styles.meta, { color: colors.textMuted }]}>
-              Owed {formatCurrency(owed, currency)}
+              Owed {formatBase(owed)}
             </Text>
             <ChipSelect
               label="Method"
@@ -641,7 +656,7 @@ export default function ApDetailScreen() {
               {ap.paymentMethod
                 ? `Marked sent as ${ap.paymentMethod}`
                 : "Payment"}{" "}
-              · {formatCurrency(ap.paymentAmount ?? owed, currency)}
+              · {formatBase(ap.paymentAmount ?? owed)}
             </Text>
             <ChipSelect
               label="How was it received?"

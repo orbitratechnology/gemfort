@@ -2,7 +2,8 @@ import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { addMonths, format, subMonths } from 'date-fns';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
@@ -17,7 +18,7 @@ import {
 } from '@/features/workspace/cheque-utils';
 import { fetchCheques, fetchContacts } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -25,6 +26,7 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function ChequeCalendarScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase, formatStored } = usePreferredMoney();
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<Date>(() => new Date());
 
@@ -66,7 +68,7 @@ export default function ChequeCalendarScreen() {
           <View style={styles.monthCenter}>
             <Text style={[styles.monthTitle, { color: colors.primary }]}>{format(month, 'MMMM yyyy')}</Text>
             <Text style={[styles.monthSub, { color: colors.textMuted }]}>
-              {formatCurrency(monthTotal)} maturing
+              {formatBase(monthTotal)} maturing
             </Text>
           </View>
           <Pressable onPress={() => setMonth((m) => addMonths(m, 1))} hitSlop={12}>
@@ -149,7 +151,11 @@ export default function ChequeCalendarScreen() {
                 <View style={styles.chequeItemTop}>
                   <Text style={[styles.chequeNum, { color: colors.onSurface }]}>{c.chequeNumber}</Text>
                   <Text style={[styles.chequeAmt, { color: colors.primary }]}>
-                    {formatCurrency(c.amount, c.currency)}
+                    {formatStored({
+                      amount: c.amount,
+                      currency: c.currency,
+                      amountBase: c.amountBase,
+                    })}
                   </Text>
                 </View>
                 <Text style={[styles.chequeBank, { color: colors.textMuted }]}>

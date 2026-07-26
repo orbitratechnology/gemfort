@@ -5,12 +5,12 @@ import { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BusinessCard } from "@/components/marketplace/business-card";

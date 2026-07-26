@@ -25,7 +25,9 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { convertToBaseSync } from "@/lib/exchange-rates";
 import { Timestamp } from "@/lib/firebase/db";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
@@ -45,6 +47,7 @@ export default function RecordSaleScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
+  const { formatBase, formatFace, rates } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -91,9 +94,23 @@ export default function RecordSaleScreen() {
 
   const salePrice = parseFloat(price.amount) || 0;
   const costBasis = gem?.totalCost ?? 0;
-  const netProfit = salePrice - costBasis;
+  const saleBase =
+    rates && salePrice > 0
+      ? (() => {
+          try {
+            return convertToBaseSync(salePrice, price.currency, rates);
+          } catch {
+            return price.currency === "LKR" ? salePrice : null;
+          }
+        })()
+      : price.currency === "LKR"
+        ? salePrice
+        : null;
+  const netProfitBase = saleBase != null ? saleBase - costBasis : null;
   const roi =
-    costBasis > 0 ? ((netProfit / costBasis) * 100).toFixed(1) : "0.0";
+    netProfitBase != null && costBasis > 0
+      ? ((netProfitBase / costBasis) * 100).toFixed(1)
+      : "0.0";
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -142,6 +159,7 @@ export default function RecordSaleScreen() {
         user.uid,
         "sold",
         `Sold for ${formatCurrency(data.price, price.currency)}`,
+        { soldPrice: data.price, soldPriceCurrency: price.currency },
       );
       await queryClient.invalidateQueries({ queryKey: ["gems"] });
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -183,7 +201,7 @@ export default function RecordSaleScreen() {
           />
           {gem ? (
             <Text style={[styles.gemMeta, { color: colors.textMuted }]}>
-              Cost basis {formatCurrency(costBasis)}
+              Cost basis {formatBase(costBasis)}
             </Text>
           ) : null}
         </ScreenInset>
@@ -249,7 +267,7 @@ export default function RecordSaleScreen() {
                   <Text
                     style={[styles.projValue, { color: colors.onPrimary }]}
                   >
-                    {formatCurrency(costBasis)}
+                    {formatBase(costBasis)}
                   </Text>
                 </View>
                 <View style={styles.projCell}>
@@ -263,14 +281,15 @@ export default function RecordSaleScreen() {
                       styles.projValue,
                       {
                         color:
-                          netProfit >= 0
+                          (netProfitBase ?? 0) >= 0
                             ? colors.onPrimary
                             : colors.errorContainer,
                       },
                     ]}
                   >
-                    {netProfit >= 0 ? "+" : ""}
-                    {formatCurrency(netProfit, price.currency)}
+                    {netProfitBase != null
+                      ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
+                      : formatFace(salePrice, price.currency)}
                   </Text>
                 </View>
                 <View style={styles.projCell}>

@@ -4,13 +4,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
   TextInput,
   View,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -212,6 +212,7 @@ export default function ContactsListScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        renderScrollComponent={(props) => <ScrollView {...props} />}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }

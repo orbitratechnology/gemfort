@@ -1,13 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,8 +26,8 @@ import {
 } from "@/features/workspace/trip-utils";
 import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -42,6 +42,7 @@ function TripRow({
   colors: ReturnType<typeof useAppTheme>["colors"];
   onDelete: () => void | Promise<void>;
 }) {
+  const { formatBase } = usePreferredMoney();
   const typeMeta =
     TRIP_TYPES.find((t) => t.id === trip.tripType) ?? TRIP_TYPES[0];
   const isActive = trip.status === "planning" || trip.status === "ongoing";
@@ -133,7 +134,7 @@ function TripRow({
               },
             ]}
           >
-            Net {formatCurrency(trip.summary.netResult)}
+            Net {formatBase(trip.summary.netResult)}
           </Text>
         ) : null}
       </View>

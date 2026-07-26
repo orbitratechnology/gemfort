@@ -4,12 +4,12 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon, type IconName } from '@/components/ui/icon';

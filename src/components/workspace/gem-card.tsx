@@ -14,10 +14,15 @@ import {
   type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import {
+  MANUAL_STATUS_OPTIONS,
+  formatGemType,
+  formatOptionLabel,
+} from "@/constants/gem-options";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { formatCurrency } from "@/lib/utils";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { shortGemId } from "@/lib/utils";
 import { confirmDelete } from "@/providers/confirm-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -38,12 +43,21 @@ type GemCardProps = {
  */
 export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
-  const currency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? "LKR";
   const price =
     gem.askingPrice != null
-      ? formatCurrency(gem.askingPrice, currency)
+      ? formatStored({
+          amount: gem.askingPrice,
+          currency: gem.askingPriceCurrency ?? gem.totalCostCurrency,
+          amountBase: gem.askingPriceBase,
+        })
       : "No price set";
+
+  const gemTitle = gem.title?.trim() || formatGemType(gem.gemType);
+  const statusLabel =
+    formatOptionLabel(MANUAL_STATUS_OPTIONS, gem.status) ||
+    gem.status.replace(/_/g, " ");
 
   const media = photo ? (
     <Image source={{ uri: photo }} style={styles.image} contentFit="cover" />
@@ -68,34 +82,23 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
             style={[styles.statusText, { color: colors.onPrimary }]}
             numberOfLines={1}
           >
-            {gem.status.replace(/_/g, " ")}
+            {statusLabel}
           </Text>
         </View>
       </View>
 
       <View style={styles.body}>
         <Text
-          style={[styles.sku, { color: colors.onSurfaceVariant }]}
-          numberOfLines={1}
-        >
-          {gem.sku}
-        </Text>
-        <Text
           style={[styles.type, { color: colors.onSurface }]}
           numberOfLines={2}
         >
-          {gem.title?.trim() || formatGemType(gem.gemType)}
+          {gemTitle}
         </Text>
         <Text
           style={[styles.meta, { color: colors.onSurfaceVariant }]}
           numberOfLines={1}
         >
-          {gem.currentWeight} ct
-          {gem.title?.trim()
-            ? ` · ${formatGemType(gem.gemType)}`
-            : gem.shape
-              ? ` · ${gem.shape}`
-              : ""}
+          {gem.currentWeight} ct · {formatGemType(gem.gemType)}
         </Text>
         <Text
           style={[styles.price, { color: colors.primary }]}
@@ -116,7 +119,7 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
     style,
   ]);
 
-  const label = `${gem.sku}, ${gem.title?.trim() || formatGemType(gem.gemType)}, ${price}`;
+  const label = `${gemTitle}, ${price}`;
 
   const actions: ContextMenuAction[] = onDelete
     ? [
@@ -127,7 +130,7 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
           onPress: () =>
             confirmDelete(
               "Delete gem",
-              `Remove ${gem.sku} from inventory? This cannot be undone.`,
+              `Remove ${gemTitle} (${shortGemId(gem.id)}) from inventory? This cannot be undone.`,
               onDelete,
             ),
         },
@@ -205,10 +208,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 12,
     gap: 3,
-  },
-  sku: {
-    ...Typography.caption,
-    letterSpacing: 0.3,
   },
   type: {
     ...Typography.bodyMd,

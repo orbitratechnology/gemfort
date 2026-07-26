@@ -1,5 +1,6 @@
 import { router, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 import { NewsArticleCard } from '@/components/news/news-article-card';
 import { Icon } from '@/components/ui/icon';

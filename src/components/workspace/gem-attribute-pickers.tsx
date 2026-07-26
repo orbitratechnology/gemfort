@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { Image } from "expo-image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -550,7 +550,9 @@ export function ColorPickerSheet({
     onClose();
   }
 
-  const width = panelWidth > 0 ? panelWidth : 1;
+  // FlashList v2 MVCP + mounting at width=1 inside a transformed track leaves a
+  // bogus top content offset until the first scroll. Wait for layout, then mount.
+  const listsReady = panelWidth > 0;
 
   return (
     <BottomSheet
@@ -560,124 +562,55 @@ export function ColorPickerSheet({
       scrollable={false}
     >
       <View style={styles.colorTrack} onLayout={onTrackLayout}>
-        <Animated.View
-          style={[
-            styles.colorPanels,
-            {
-              width: width * 2,
-              transform: [{ translateX }],
-            },
-          ]}
-        >
-          <View style={[styles.colorPanel, { width }]}>
-            <Text style={[styles.hint, { color: colors.textMuted }]}>
-              Choose a color family, then a shade.
-            </Text>
-            <View
-              style={[
-                styles.searchBox,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Icon name="search" size={20} color={colors.outline} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.onSurface }]}
-                placeholder="Search colors…"
-                placeholderTextColor={colors.outline}
-                value={query}
-                onChangeText={setQuery}
-                autoCorrect={false}
-              />
-            </View>
-            <FlashList
-              data={filteredFamilies}
-              keyExtractor={(item) => item.value}
-              style={styles.colorList}
-              contentContainerStyle={styles.listContent}
-              ItemSeparatorComponent={SheetListSeparator}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => {
-                    setQuery("");
-                    setFamily(item);
-                  }}
-                  style={({ pressed }) => [
-                    styles.colorRow,
-                    {
-                      backgroundColor: colors.surfaceContainerLow,
-                      borderColor: colors.outlineVariant,
-                      opacity: pressed ? 0.9 : 1,
-                    },
-                  ]}
-                >
-                  <ColorSwatch
-                    hex={item.hex}
-                    size={32}
-                    border={colors.outlineVariant}
-                  />
-                  <View style={styles.colorText}>
-                    <Text style={[styles.rowLabel, { color: colors.onSurface }]}>
-                      {item.label}
-                    </Text>
-                    <Text style={[styles.meta, { color: colors.textMuted }]}>
-                      {item.shades.length} shades
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </Pressable>
-              )}
-            />
-          </View>
-          <View style={[styles.colorPanel, { width }]}>
-            <View
-              style={[
-                styles.searchBox,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Icon name="search" size={20} color={colors.outline} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.onSurface }]}
-                placeholder="Search shades…"
-                placeholderTextColor={colors.outline}
-                value={query}
-                onChangeText={setQuery}
-                autoCorrect={false}
-              />
-            </View>
-            <FlashList
-              data={filteredShades}
-              keyExtractor={(item) => item.value}
-              style={styles.colorList}
-              contentContainerStyle={styles.listContent}
-              ItemSeparatorComponent={SheetListSeparator}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <EmptyState
-                  icon="search"
-                  title="No shades"
-                  subtitle="Try another search."
+        {listsReady ? (
+          <Animated.View
+            style={[
+              styles.colorPanels,
+              {
+                width: panelWidth * 2,
+                transform: [{ translateX }],
+              },
+            ]}
+          >
+            <View style={[styles.colorPanel, { width: panelWidth }]}>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                Choose a color family, then a shade.
+              </Text>
+              <View
+                style={[
+                  styles.searchBox,
+                  { backgroundColor: colors.surfaceContainerLow },
+                ]}
+              >
+                <Icon name="search" size={20} color={colors.outline} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.onSurface }]}
+                  placeholder="Search colors…"
+                  placeholderTextColor={colors.outline}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCorrect={false}
                 />
-              }
-              renderItem={({ item }) => {
-                const active = item.value === value;
-                return (
+              </View>
+              <FlashList
+                data={filteredFamilies}
+                keyExtractor={(item) => item.value}
+                style={styles.colorList}
+                contentContainerStyle={styles.listContent}
+                ItemSeparatorComponent={SheetListSeparator}
+                keyboardShouldPersistTaps="handled"
+                maintainVisibleContentPosition={{ disabled: true }}
+                renderItem={({ item }) => (
                   <Pressable
                     onPress={() => {
-                      onSelect(item.value);
-                      setFamily(null);
-                      onClose();
+                      setQuery("");
+                      setFamily(item);
                     }}
                     style={({ pressed }) => [
                       styles.colorRow,
                       {
-                        backgroundColor: active
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerLow,
-                        borderColor: active
-                          ? colors.primary
-                          : colors.outlineVariant,
+                        backgroundColor: colors.surfaceContainerLow,
+                        borderColor: colors.outlineVariant,
                         opacity: pressed ? 0.9 : 1,
                       },
                     ]}
@@ -689,30 +622,111 @@ export function ColorPickerSheet({
                     />
                     <View style={styles.colorText}>
                       <Text
-                        style={[
-                          styles.rowLabel,
-                          {
-                            color: active
-                              ? colors.onPrimaryContainer
-                              : colors.onSurface,
-                          },
-                        ]}
+                        style={[styles.rowLabel, { color: colors.onSurface }]}
                       >
                         {item.label}
                       </Text>
                       <Text style={[styles.meta, { color: colors.textMuted }]}>
-                        {item.hex}
+                        {item.shades.length} shades
                       </Text>
                     </View>
-                    {active ? (
-                      <Icon name="check" size={20} color={colors.primary} />
-                    ) : null}
+                    <Icon
+                      name="chevron-right"
+                      size={20}
+                      color={colors.outline}
+                    />
                   </Pressable>
-                );
-              }}
-            />
-          </View>
-        </Animated.View>
+                )}
+              />
+            </View>
+            <View style={[styles.colorPanel, { width: panelWidth }]}>
+              <View
+                style={[
+                  styles.searchBox,
+                  { backgroundColor: colors.surfaceContainerLow },
+                ]}
+              >
+                <Icon name="search" size={20} color={colors.outline} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.onSurface }]}
+                  placeholder="Search shades…"
+                  placeholderTextColor={colors.outline}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCorrect={false}
+                />
+              </View>
+              <FlashList
+                data={filteredShades}
+                keyExtractor={(item) => item.value}
+                style={styles.colorList}
+                contentContainerStyle={styles.listContent}
+                ItemSeparatorComponent={SheetListSeparator}
+                keyboardShouldPersistTaps="handled"
+                maintainVisibleContentPosition={{ disabled: true }}
+                ListEmptyComponent={
+                  <EmptyState
+                    icon="search"
+                    title="No shades"
+                    subtitle="Try another search."
+                  />
+                }
+                renderItem={({ item }) => {
+                  const active = item.value === value;
+                  return (
+                    <Pressable
+                      onPress={() => {
+                        onSelect(item.value);
+                        setFamily(null);
+                        onClose();
+                      }}
+                      style={({ pressed }) => [
+                        styles.colorRow,
+                        {
+                          backgroundColor: active
+                            ? colors.primaryContainer
+                            : colors.surfaceContainerLow,
+                          borderColor: active
+                            ? colors.primary
+                            : colors.outlineVariant,
+                          opacity: pressed ? 0.9 : 1,
+                        },
+                      ]}
+                    >
+                      <ColorSwatch
+                        hex={item.hex}
+                        size={32}
+                        border={colors.outlineVariant}
+                      />
+                      <View style={styles.colorText}>
+                        <Text
+                          style={[
+                            styles.rowLabel,
+                            {
+                              color: active
+                                ? colors.onPrimaryContainer
+                                : colors.onSurface,
+                            },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <Text
+                          style={[styles.meta, { color: colors.textMuted }]}
+                        >
+                          {item.hex}
+                        </Text>
+                      </View>
+                      {active ? (
+                        <Icon name="check" size={20} color={colors.primary} />
+                      ) : null}
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+          </Animated.View>
+        ) : null}
       </View>
     </BottomSheet>
   );
@@ -958,8 +972,8 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: Spacing.lg },
   colorTrack: { flex: 1, minHeight: 0, overflow: "hidden" },
   colorPanels: { flexDirection: "row", height: "100%" },
-  colorPanel: { height: "100%" },
-  colorList: { flex: 1 },
+  colorPanel: { height: "100%", minHeight: 0, overflow: "hidden" },
+  colorList: { flex: 1, minHeight: 0 },
   hint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
   row: {
     flexDirection: "row",

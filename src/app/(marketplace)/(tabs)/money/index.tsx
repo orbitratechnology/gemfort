@@ -29,7 +29,7 @@ import {
   fetchTransactions,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 
 const MONEY = '/(marketplace)/(tabs)/money';
@@ -38,6 +38,7 @@ const WORKSPACE = '/(marketplace)/(tabs)/workspace';
 export default function MoneyDashboard() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase, formatStored } = usePreferredMoney();
   const uid = user?.uid;
 
   const [period, setPeriod] = useState<MoneyPeriod>('this_month');
@@ -147,7 +148,7 @@ export default function MoneyDashboard() {
             </View>
           </View>
 
-          <Text style={[styles.heroValue, { color: colors.onPrimary }]}>{formatCurrency(net)}</Text>
+          <Text style={[styles.heroValue, { color: colors.onPrimary }]}>{formatBase(net)}</Text>
 
           <View style={[styles.heroDivider, { backgroundColor: onPrimaryHair }]} />
 
@@ -157,14 +158,14 @@ export default function MoneyDashboard() {
                 <View style={[styles.dot, { backgroundColor: colors.successEmerald }]} />
                 <Text style={[styles.heroColCaption, { color: onPrimarySoft }]}>Income</Text>
               </View>
-              <Text style={[styles.heroColValue, { color: colors.onPrimary }]}>{formatCurrency(income)}</Text>
+              <Text style={[styles.heroColValue, { color: colors.onPrimary }]}>{formatBase(income)}</Text>
             </View>
             <View style={styles.heroCol}>
               <View style={styles.heroColLabel}>
                 <View style={[styles.dot, { backgroundColor: colors.warningAmber }]} />
                 <Text style={[styles.heroColCaption, { color: onPrimarySoft }]}>Expenses</Text>
               </View>
-              <Text style={[styles.heroColValue, { color: colors.onPrimary }]}>{formatCurrency(expense)}</Text>
+              <Text style={[styles.heroColValue, { color: colors.onPrimary }]}>{formatBase(expense)}</Text>
             </View>
           </View>
         </View>
@@ -181,7 +182,7 @@ export default function MoneyDashboard() {
             <View style={[styles.outIcon, { backgroundColor: colors.successEmerald + '1F' }]}>
               <Icon name="south-west" size={18} color={colors.successEmerald} />
             </View>
-            <Text style={[styles.outValue, { color: colors.onSurface }]}>{formatCurrency(outstanding.toCollect)}</Text>
+            <Text style={[styles.outValue, { color: colors.onSurface }]}>{formatBase(outstanding.toCollect)}</Text>
             <Text style={[styles.outLabel, { color: colors.textMuted }]}>To collect</Text>
           </Pressable>
 
@@ -195,7 +196,7 @@ export default function MoneyDashboard() {
             <View style={[styles.outIcon, { backgroundColor: colors.warningAmber + '1F' }]}>
               <Icon name="north-east" size={18} color={colors.warningAmber} />
             </View>
-            <Text style={[styles.outValue, { color: colors.onSurface }]}>{formatCurrency(outstanding.toPay)}</Text>
+            <Text style={[styles.outValue, { color: colors.onSurface }]}>{formatBase(outstanding.toPay)}</Text>
             <Text style={[styles.outLabel, { color: colors.textMuted }]}>To pay</Text>
           </Pressable>
         </View>
@@ -214,7 +215,7 @@ export default function MoneyDashboard() {
               <Text style={[styles.chequeCardTitle, { color: colors.onPrimary }]}>Cheque tracker</Text>
               <Text style={[styles.chequeCardSub, { color: colors.onPrimary + 'AA' }]}>
                 {chequeSummary.pendingCount > 0
-                  ? `${chequeSummary.pendingCount} pending · ${formatCurrency(chequeSummary.pendingTotal)}`
+                  ? `${chequeSummary.pendingCount} pending · ${formatBase(chequeSummary.pendingTotal)}`
                   : 'Track post-dated cheques'}
               </Text>
             </View>
@@ -308,7 +309,7 @@ export default function MoneyDashboard() {
                           {meta.label}
                         </Text>
                         <Text style={[styles.catAmount, { color: colors.onSurface }]}>
-                          {formatCurrency(cat.amount)}
+                          {formatBase(cat.amount)}
                         </Text>
                       </View>
                       <View style={[styles.catTrack, { backgroundColor: colors.surfaceContainerHigh }]}>
@@ -357,7 +358,11 @@ export default function MoneyDashboard() {
                     </View>
                     <Text style={[styles.txAmount, { color: tone }]}>
                       {isIncome ? '+' : '−'}
-                      {formatCurrency(t.amount)}
+                      {formatStored({
+                        amount: t.amount,
+                        currency: t.currency,
+                        amountBase: t.amountBase,
+                      })}
                     </Text>
                   </View>
                 );

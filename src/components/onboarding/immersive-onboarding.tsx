@@ -3,10 +3,10 @@ import { useCallback, useRef, useState } from 'react';
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  ScrollView,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
 import { OnboardingSlide } from '@/components/onboarding/onboarding-slide';
 import { OnboardingChapters } from '@/constants/brand-story';

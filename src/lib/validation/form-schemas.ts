@@ -72,7 +72,7 @@ export const addGemSchema = z.object({
   ]),
   colorPrimary: z.string().min(1, 'Choose a color'),
   clarity: z.string().min(1, 'Choose clarity'),
-  shape: z.string().min(1, 'Choose a shape'),
+  shape: z.string().min(1, 'Choose a cut'),
   status: z.enum(
     [
       'rough',
