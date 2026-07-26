@@ -219,10 +219,16 @@ export type WorkspaceGem = {
   totalCostCurrency: string;
   askingPrice: number | null;
   askingPriceCurrency: string | null;
+  /** LKR equivalent of askingPrice at write time. */
+  askingPriceBase?: number | null;
   minimumPrice: number | null;
   minimumPriceCurrency: string | null;
+  /** LKR equivalent of minimumPrice at write time. */
+  minimumPriceBase?: number | null;
   soldPrice: number | null;
   soldPriceCurrency: string | null;
+  /** LKR equivalent of soldPrice at write time. */
+  soldPriceBase?: number | null;
   soldDate: Timestamp | null;
   photoUrls: string[];
   isListedOnMarketplace: boolean;
@@ -331,12 +337,20 @@ export type ApGemLine = {
   gemLabel: string;
   agreedPrice: number;
   currency: string;
+  /** LKR equivalent of agreedPrice at write time. */
+  agreedPriceBase?: number;
   lineStatus: ApGemLineStatus;
   soldPrice: number | null;
+  /** LKR equivalent of soldPrice at write time. */
+  soldPriceBase?: number | null;
   soldToName: string | null;
   soldDate: Timestamp | null;
   ownerReceives: number | null;
+  /** LKR equivalent of ownerReceives at write time. */
+  ownerReceivesBase?: number | null;
   commission: number | null;
+  /** LKR equivalent of commission at write time. */
+  commissionBase?: number | null;
   paymentDueDate: Timestamp | null;
 };
 
@@ -574,7 +588,12 @@ export type Trip = {
   actualEndDate: Timestamp | null;
   budget: number;
   budgetCurrency: string;
+  /** LKR equivalent of budget at write time. */
+  budgetBase?: number;
   cashCarried: number;
+  cashCarriedCurrency?: string;
+  /** LKR equivalent of cashCarried at write time. */
+  cashCarriedBase?: number;
   status: TripStatus;
   summary: {
     totalExpenses: number;
@@ -642,9 +661,14 @@ export type MarketplaceListing = {
   certifyingLab: string | null;
   certificateNumber: string | null;
   showPrice: boolean;
+  /** Face asking price as entered by the seller. */
   priceMin: number | null;
   priceMax: number | null;
   currency: string;
+  /** LKR equivalent of priceMin — source of truth for display conversion. */
+  priceMinBase?: number | null;
+  /** LKR equivalent of priceMax. */
+  priceMaxBase?: number | null;
   photoUrls: string[];
   status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;

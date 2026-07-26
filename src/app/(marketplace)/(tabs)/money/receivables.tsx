@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -30,7 +30,9 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
-import { formatCurrency, formatRelativeDue } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
+import { outstandingBase } from '@/lib/money';
+import { formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
@@ -40,6 +42,7 @@ export default function ReceivablesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
+  const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [contactId, setContactId] = useState('');
@@ -137,8 +140,23 @@ export default function ReceivablesScreen() {
     }
   }
 
+  function receivableRemainingStored(item: Receivable) {
+    const remaining = item.amount - item.amountReceived;
+    return {
+      amount: remaining,
+      currency: item.currency,
+      amountBase: outstandingBase(
+        item.amount,
+        item.amountReceived,
+        item.amountBase,
+        item.currency,
+      ),
+    };
+  }
+
   function renderRow({ item }: { item: Receivable }) {
     const remaining = item.amount - item.amountReceived;
+    const remainingStored = receivableRemainingStored(item);
     const status = effectiveReceivableStatus(item);
     const isPaying = payingId === item.id;
     const paid = status === 'paid';
@@ -153,7 +171,7 @@ export default function ReceivablesScreen() {
         ]}>
         <View style={styles.rowHeader}>
           <Text style={[styles.amount, { color: paid ? colors.successEmerald : isOverdue ? colors.error : colors.primary }]}>
-            {formatCurrency(remaining, item.currency)}
+            {formatStored(remainingStored)}
           </Text>
           <View
             style={[
@@ -180,7 +198,16 @@ export default function ReceivablesScreen() {
         <Text style={[styles.desc, { color: colors.onSurface }]}>{item.description}</Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
           Due {formatRelativeDue(item.dueDate)}
-          {item.amountReceived > 0 ? ` · Received ${formatCurrency(item.amountReceived, item.currency)}` : ''}
+          {item.amountReceived > 0
+            ? ` · Received ${formatStored({
+                amount: item.amountReceived,
+                currency: item.currency,
+                amountBase:
+                  item.amountBase && item.amount > 0
+                    ? (item.amountReceived / item.amount) * item.amountBase
+                    : undefined,
+              })}`
+            : ''}
         </Text>
         {!paid ? (
           isPaying ? (
@@ -252,10 +279,10 @@ export default function ReceivablesScreen() {
           <View style={styles.listHeader}>
             <View style={[styles.summary, { backgroundColor: colors.primary }]}>
               <Text style={[styles.summaryLabel, { color: colors.onPrimary + 'AA' }]}>OUTSTANDING RECEIVABLE</Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>{formatCurrency(summary.totalOutstanding)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>{formatBase(summary.totalOutstanding)}</Text>
               {summary.overdueCount > 0 ? (
                 <Text style={[styles.overdueHint, { color: colors.onPrimary + 'CC' }]}>
-                  {summary.overdueCount} overdue · {formatCurrency(summary.overdueAmount)}
+                  {summary.overdueCount} overdue · {formatBase(summary.overdueAmount)}
                 </Text>
               ) : null}
             </View>

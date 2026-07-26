@@ -5,11 +5,11 @@ import { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -54,8 +54,9 @@ import {
   fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatRelativeDue } from "@/lib/utils";
+import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -268,13 +269,13 @@ function ApRow({
     action: "accepted" | "rejected",
   ) => void | Promise<void>;
 }) {
+  const { formatBase } = usePreferredMoney();
   const overdue = isApOverdue(record);
   const party =
     side === "given"
       ? record.receiverName || "Holder"
       : record.senderName || "Sender";
   const total = apAgreedTotal(record);
-  const currency = record.items?.[0]?.currency || record.currency || "LKR";
   const tone = statusTone(record, colors);
   const showActions =
     side === "taken" && record.status === "pending" && !!onRespond;
@@ -319,7 +320,7 @@ function ApRow({
     <View style={styles.rowWrap}>
       <ContextActionsLink
         href={`/(marketplace)/(tabs)/workspace/ap/${record.id}` as never}
-        accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatCurrency(total, currency)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
+        accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatBase(total)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
         actions={menuActions}
       >
         {({ pressed }) => (
@@ -366,7 +367,7 @@ function ApRow({
               <Text
                 style={[styles.rowAmount, { color: amountColor }]}
               >
-                {formatCurrency(total, currency)}
+                {formatBase(total)}
               </Text>
             </View>
             <View style={styles.partyRow}>
@@ -447,6 +448,7 @@ function ApRow({
 export default function ApListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
@@ -706,7 +708,7 @@ export default function ApListScreen() {
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
               >
-                {formatCurrency(summary.totalValue)}
+                {formatBase(summary.totalValue)}
               </Text>
             </View>
           </View>

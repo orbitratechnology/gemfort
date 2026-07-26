@@ -22,20 +22,21 @@ import {
     ClarityPickerSheet,
     ColorPickerSheet,
     ColorSwatch,
+    CutPickerSheet,
     GemTypePickerSheet,
-    ShapePickerSheet,
     StatusPickerSheet,
     TreatmentPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
     GEM_CLARITIES,
-    GEM_SHAPES,
+    GEM_CUTS,
     GEM_TREATMENTS,
     GEM_TYPES,
     MANUAL_STATUS_OPTIONS,
     findColorShade,
     formatColorLabel,
+    formatCutLabel,
     formatGemType,
     formatOptionLabel,
     type GemTreatmentValue,
@@ -63,7 +64,7 @@ type SheetKey =
   | "type"
   | "color"
   | "clarity"
-  | "shape"
+  | "cut"
   | "treatment"
   | "status"
   | null;
@@ -83,7 +84,7 @@ export default function AddGemScreen() {
   const [originCountry, setOriginCountry] = useState("Sri Lanka");
   const [colorShade, setColorShade] = useState("");
   const [clarity, setClarity] = useState("");
-  const [shape, setShape] = useState("");
+  const [cut, setCut] = useState("");
   const [roughWeight, setRoughWeight] = useState("");
   const [acquisition, setAcquisition] = useState<CurrencyAmountValue>({
     amount: "",
@@ -151,7 +152,7 @@ export default function AddGemScreen() {
       treatment,
       colorPrimary: colorShade,
       clarity,
-      shape,
+      shape: cut,
       status,
     });
     if (!result.success) {
@@ -230,8 +231,8 @@ export default function AddGemScreen() {
         acquisitionCurrency: acquisition.currency,
         colorPrimary: colorLabel || data.colorPrimary,
         clarity: formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity,
-        cutType: null,
-        shape: formatOptionLabel(GEM_SHAPES, data.shape) || data.shape,
+        cutType: formatOptionLabel(GEM_CUTS, data.shape) || data.shape,
+        shape: formatOptionLabel(GEM_CUTS, data.shape) || data.shape,
         isNatural: data.treatment === "natural",
         treatmentStatus: data.treatment,
         status: data.status,
@@ -372,10 +373,10 @@ export default function AddGemScreen() {
               <View style={styles.row}>
                 <View style={styles.flex}>
                   <AttributePickerField
-                    label="Shape"
-                    valueLabel={formatOptionLabel(GEM_SHAPES, shape)}
+                    label="Cut"
+                    valueLabel={formatCutLabel(cut)}
                     placeholder="Select"
-                    onPress={() => setSheet("shape")}
+                    onPress={() => setSheet("cut")}
                     error={errors.shape}
                   />
                 </View>
@@ -492,8 +493,8 @@ export default function AddGemScreen() {
                 value={formatOptionLabel(GEM_CLARITIES, clarity) || "—"}
               />
               <ReviewRow
-                label="Shape"
-                value={formatOptionLabel(GEM_SHAPES, shape) || "—"}
+                label="Cut"
+                value={formatCutLabel(cut) || "—"}
               />
               <ReviewRow
                 label="Origin"
@@ -569,12 +570,12 @@ export default function AddGemScreen() {
           clearField("clarity");
         }}
       />
-      <ShapePickerSheet
-        visible={sheet === "shape"}
+      <CutPickerSheet
+        visible={sheet === "cut"}
         onClose={() => setSheet(null)}
-        value={shape}
+        value={cut}
         onSelect={(v) => {
-          setShape(v);
+          setCut(v);
           clearField("shape");
         }}
       />

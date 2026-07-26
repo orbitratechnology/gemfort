@@ -12,18 +12,23 @@ import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import {
+  formatCutLabel,
+  formatGemType,
+  formatTreatmentLabel,
+} from "@/constants/gem-options";
 import { fetchBusiness } from "@/features/marketplace/marketplace-service";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
-import { formatCurrency, openWhatsApp } from "@/lib/utils";
+import { openWhatsApp } from "@/lib/utils";
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
   Color: "palette",
   Clarity: "visibility",
-  Shape: "category",
+  Cut: "content-cut",
   Treatment: "science",
   Origin: "location-on",
   Lab: "verified",
@@ -40,6 +45,7 @@ export default function PublicListingScreen() {
   const params = useLocalSearchParams<{ slug: string | string[] }>();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
 
   const {
     data: listing,
@@ -113,21 +119,31 @@ export default function PublicListingScreen() {
     VISIBILITY_LABEL[listing.visibility] ?? listing.visibility;
   const priceLabel =
     listing.showPrice && listing.priceMin != null
-      ? `${formatCurrency(listing.priceMin, listing.currency ?? "USD")}${
+      ? `${formatStored({
+          amount: listing.priceMin,
+          currency: listing.currency ?? "USD",
+          amountBase: listing.priceMinBase,
+        })}${
           listing.priceMax
-            ? ` – ${formatCurrency(listing.priceMax, listing.currency ?? "USD")}`
+            ? ` – ${formatStored({
+                amount: listing.priceMax,
+                currency: listing.currency ?? "USD",
+                amountBase: listing.priceMaxBase,
+              })}`
             : ""
         }`
       : "Contact for price";
 
+  const cutLabel = formatCutLabel(listing.shape);
+  const treatmentLabel = formatTreatmentLabel(listing.treatmentStatus);
   const specs = [
     { label: "Weight", value: `${listing.caratWeight} ct` },
     ...(listing.color ? [{ label: "Color", value: listing.color }] : []),
     ...(listing.clarity ? [{ label: "Clarity", value: listing.clarity }] : []),
-    ...(listing.shape ? [{ label: "Shape", value: listing.shape }] : []),
+    ...(cutLabel ? [{ label: "Cut", value: cutLabel }] : []),
     {
       label: "Treatment",
-      value: listing.treatmentStatus?.replace(/_/g, " ") || "None",
+      value: treatmentLabel || "None",
     },
     { label: "Origin", value: listing.origin || "Unknown" },
     ...(listing.isCertified && listing.certifyingLab
@@ -153,7 +169,7 @@ export default function PublicListingScreen() {
       edges={["top"]}
     >
       <StackHeader
-        title={listing.shareableSlug || "Listing"}
+        title={listingTitle || formatGemType(listing.gemType)}
         right={
           <View style={styles.headerActions}>
             <Pressable
@@ -221,13 +237,12 @@ export default function PublicListingScreen() {
               </View>
               <View style={styles.identityText}>
                 <Text style={[styles.gemName, { color: colors.onSurface }]}>
-                  {listing.title || formatGemType(listing.gemType)}
+                  {listingTitle || formatGemType(listing.gemType)}
                 </Text>
                 <Text
                   style={[styles.skuLine, { color: colors.onSurfaceVariant }]}
                 >
-                  {formatGemType(listing.gemType)}
-                  {listing.shareableSlug ? ` · ${listing.shareableSlug}` : ""}
+                  {formatGemType(listing.gemType)} · {listing.caratWeight} ct
                 </Text>
               </View>
             </View>

@@ -4,14 +4,14 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
   type StyleProp,
   type ViewStyle,
-} from "react-native";
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";

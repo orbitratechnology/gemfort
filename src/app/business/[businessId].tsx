@@ -33,10 +33,11 @@ import {
     trackBusinessAnalytics,
 } from "@/features/marketplace/marketplace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
-import { formatCurrency, openPhone, openWhatsApp } from "@/lib/utils";
+import { openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { BusinessType } from "@/types";
@@ -75,6 +76,7 @@ type StatItem = {
 export default function BusinessProfileScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
   const { colors } = useAppTheme();
+  const { formatFace } = usePreferredMoney();
   const { user, profile } = useAuth();
   const toast = useToast();
   const insets = useSafeAreaInsets();
@@ -172,7 +174,7 @@ export default function BusinessProfileScreen() {
     } else if (business.sellerProfile?.priceRangeMin != null) {
       items.push({
         label: "From",
-        value: formatCurrency(
+        value: formatFace(
           business.sellerProfile.priceRangeMin,
           business.sellerProfile.preferredCurrencies?.[0] ?? "LKR",
         ).replace(/\.00$/, ""),
@@ -180,7 +182,7 @@ export default function BusinessProfileScreen() {
       });
     }
     return items.slice(0, 4);
-  }, [business, isProvider]);
+  }, [business, isProvider, formatFace]);
 
   async function handleEndorse() {
     if (!user || !myBusiness || !business) return;
@@ -630,14 +632,14 @@ export default function BusinessProfileScreen() {
                     label="Price range"
                     value={[
                       business.sellerProfile.priceRangeMin != null
-                        ? formatCurrency(
+                        ? formatFace(
                             business.sellerProfile.priceRangeMin,
                             business.sellerProfile.preferredCurrencies?.[0] ??
                               "LKR",
                           )
                         : null,
                       business.sellerProfile.priceRangeMax != null
-                        ? formatCurrency(
+                        ? formatFace(
                             business.sellerProfile.priceRangeMax,
                             business.sellerProfile.preferredCurrencies?.[0] ??
                               "LKR",
@@ -703,9 +705,9 @@ export default function BusinessProfileScreen() {
                       <Text
                         style={[styles.serviceMeta, { color: colors.primary }]}
                       >
-                        {formatCurrency(s.priceMin, s.currency)}
+                        {formatFace(s.priceMin, s.currency)}
                         {s.priceMax > s.priceMin
-                          ? ` - ${formatCurrency(s.priceMax, s.currency)}`
+                          ? ` - ${formatFace(s.priceMax, s.currency)}`
                           : ""}
                       </Text>
                       <Text
@@ -766,7 +768,7 @@ export default function BusinessProfileScreen() {
                         style={[styles.serviceMeta, { color: colors.primary }]}
                       >
                         {c.price != null
-                          ? formatCurrency(c.price, c.currency)
+                          ? formatFace(c.price, c.currency)
                           : "Inquire"}
                       </Text>
                     </View>

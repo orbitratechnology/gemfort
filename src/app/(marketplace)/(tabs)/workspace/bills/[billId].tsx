@@ -37,8 +37,9 @@ import {
   updateBillStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -58,6 +59,7 @@ export default function BillDetailScreen() {
   const { billId } = useLocalSearchParams<{ billId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatStored, formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -206,6 +208,20 @@ export default function BillDetailScreen() {
   }
 
   const remaining = remainingAmount(bill);
+  const remainingStored = {
+    amount: remaining,
+    currency: bill.currency,
+    amountBase:
+      bill.amount > 0 ? (remaining / bill.amount) * bill.amountBase : bill.amountBase,
+  };
+  const settledStored = {
+    amount: bill.amountSettled,
+    currency: bill.currency,
+    amountBase:
+      bill.amount > 0
+        ? (bill.amountSettled / bill.amount) * bill.amountBase
+        : undefined,
+  };
   const isPayable = bill.direction === "payable";
   const open = isOpenBill(bill);
   const commissionOnFace = billCommissionAmount(
@@ -276,7 +292,7 @@ export default function BillDetailScreen() {
                 { color: isPayable ? colors.error : colors.onPrimary },
               ]}
             >
-              {formatCurrency(remaining, bill.currency)}
+              {formatStored(remainingStored)}
             </Text>
             <Text
               style={[
@@ -308,7 +324,11 @@ export default function BillDetailScreen() {
         <FormSection title="Details">
           <DetailRow
             label="Face amount"
-            value={formatCurrency(bill.amount, bill.currency)}
+            value={formatStored({
+              amount: bill.amount,
+              currency: bill.currency,
+              amountBase: bill.amountBase,
+            })}
             colors={colors}
           />
           {commissionOnFace > 0 ? (
@@ -319,24 +339,24 @@ export default function BillDetailScreen() {
                     ? `Your commission (${bill.commissionPercent}%)`
                     : `Commission to ${contactName} (${bill.commissionPercent}%)`
                 }
-                value={formatCurrency(commissionOnFace, bill.currency)}
+                value={formatFace(commissionOnFace, bill.currency)}
                 colors={colors}
               />
               <DetailRow
                 label={isPayable ? "Total to pay" : "You receive"}
-                value={formatCurrency(netOnFace, bill.currency)}
+                value={formatFace(netOnFace, bill.currency)}
                 colors={colors}
               />
             </>
           ) : null}
           <DetailRow
             label="Settled"
-            value={formatCurrency(bill.amountSettled, bill.currency)}
+            value={formatStored(settledStored)}
             colors={colors}
           />
           <DetailRow
             label="Remaining"
-            value={formatCurrency(remaining, bill.currency)}
+            value={formatStored(remainingStored)}
             colors={colors}
           />
           <DetailRow

@@ -19,7 +19,13 @@ import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { MANUAL_STATUS_OPTIONS, formatGemType } from "@/constants/gem-options";
+import {
+    MANUAL_STATUS_OPTIONS,
+    formatCostTypeLabel,
+    formatCutLabel,
+    formatGemType,
+    formatTreatmentLabel,
+} from "@/constants/gem-options";
 import { getGemQuickActions } from "@/features/workspace/gem-utils";
 import {
     fetchGem,
@@ -28,9 +34,10 @@ import {
     updateGemStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { shareFile, shareLink } from "@/lib/share";
-import { formatCurrency, formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { GemStatus } from "@/types";
@@ -97,6 +104,7 @@ export default function GemDetailScreen() {
   const { gemId } = useLocalSearchParams<{ gemId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatStored, formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [statusOpen, setStatusOpen] = useState(false);
@@ -159,11 +167,15 @@ export default function GemDetailScreen() {
   }
 
   const askCurrency = gem.askingPriceCurrency ?? gem.totalCostCurrency ?? "LKR";
-  const profit =
-    gem.askingPrice != null ? gem.askingPrice - gem.totalCost : null;
+  const askBase =
+    gem.askingPriceBase ??
+    (gem.askingPrice != null && askCurrency === "LKR" ? gem.askingPrice : null);
+  const costBase = gem.totalCost;
+  const profitBase =
+    askBase != null ? askBase - costBase : null;
   const roi =
-    profit != null && gem.totalCost > 0
-      ? ((profit / gem.totalCost) * 100).toFixed(1)
+    profitBase != null && costBase > 0
+      ? ((profitBase / costBase) * 100).toFixed(1)
       : null;
   const quickActions = getGemQuickActions(gem);
   const primaryAction =
@@ -175,14 +187,14 @@ export default function GemDetailScreen() {
     gem.status === "certified" ||
     gem.treatmentStatus?.toLowerCase().includes("cert");
 
+  const cutLabel = formatCutLabel(gem.cutType || gem.shape);
+  const treatmentLabel = formatTreatmentLabel(gem.treatmentStatus);
   const specs = [
     { label: "Weight", value: `${gem.currentWeight} ct` },
     ...(gem.colorPrimary ? [{ label: "Color", value: gem.colorPrimary }] : []),
     ...(gem.clarity ? [{ label: "Clarity", value: gem.clarity }] : []),
-    ...(gem.cutType || gem.shape
-      ? [{ label: "Cut", value: gem.cutType || gem.shape || "" }]
-      : []),
-    { label: "Treatment", value: gem.treatmentStatus || "None" },
+    ...(cutLabel ? [{ label: "Cut", value: cutLabel }] : []),
+    { label: "Treatment", value: treatmentLabel || "None" },
     { label: "Origin", value: gem.originCountry || "Unknown" },
   ];
 
@@ -190,16 +202,24 @@ export default function GemDetailScreen() {
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
   const photo = photos[0] ?? null;
-  const gemSummary = `${formatGemType(gem.gemType)} ${gem.currentWeight}ct · ${gem.sku}`;
-  const gemSku = gem.sku;
+  const gemTitle =
+    gem.title?.trim() || formatGemType(gem.gemType);
+  const gemDisplayId = shortGemId(gem.id);
+  const gemSummary = `${gemTitle} · ${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
   const gemIdForShare = gem.id;
+  const historyEvents = [...events].reverse();
+  const costLines = [...costs].sort((a, b) => {
+    const aMs = toJsDate(a.date ?? a.createdAt)?.getTime() ?? 0;
+    const bMs = toJsDate(b.date ?? b.createdAt)?.getTime() ?? 0;
+    return bMs - aMs;
+  });
 
   async function handleShareGem() {
     if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
       await shareFile({
         uri: photo,
         mimeType: "image/jpeg",
-        dialogTitle: gemSku,
+        dialogTitle: gemTitle,
         UTI: "public.jpeg",
       });
       return;
@@ -207,7 +227,7 @@ export default function GemDetailScreen() {
     await shareLink({
       message: `GemFort gem: ${gemSummary}`,
       url: `gemfort://workspace/gems/${gemIdForShare}`,
-      title: gemSku,
+      title: gemTitle,
     });
   }
 
@@ -217,7 +237,7 @@ export default function GemDetailScreen() {
       edges={["top"]}
     >
       <StackHeader
-        title={gem.sku}
+        title={gemTitle}
         right={
           <Pressable
             onPress={() => void handleShareGem()}
@@ -274,17 +294,14 @@ export default function GemDetailScreen() {
             </View>
             <View style={styles.identityText}>
               <Text style={[styles.gemName, { color: colors.onSurface }]}>
-                {gem.title?.trim() || formatGemType(gem.gemType)}
+                {gemTitle}
               </Text>
               <Text
                 style={[styles.skuLine, { color: colors.onSurfaceVariant }]}
               >
-                {gem.sku}
-                {gem.title?.trim()
-                  ? ` · ${formatGemType(gem.gemType)}`
-                  : gem.variety
-                    ? ` · ${gem.variety}`
-                    : ""}
+                {formatGemType(gem.gemType)}
+                {gem.variety ? ` · ${gem.variety}` : ""}
+                {gemDisplayId ? ` · ${gemDisplayId}` : ""}
               </Text>
             </View>
           </View>
@@ -344,7 +361,11 @@ export default function GemDetailScreen() {
             <View style={styles.priceRow}>
               <Icon name="sell" size={18} color={colors.primary} />
               <Text style={[styles.askPrice, { color: colors.primary }]}>
-                {formatCurrency(gem.askingPrice, askCurrency)}
+                {formatStored({
+                  amount: gem.askingPrice,
+                  currency: askCurrency,
+                  amountBase: gem.askingPriceBase,
+                })}
               </Text>
             </View>
           ) : (
@@ -408,9 +429,9 @@ export default function GemDetailScreen() {
         </ScreenInset>
 
         <FormSection title="History" icon="history">
-          {events.length ? (
+          {historyEvents.length ? (
             <View style={styles.timeline}>
-              {events.map((e, i) => (
+              {historyEvents.map((e, i) => (
                 <View key={e.id} style={styles.timelineRow}>
                   <View style={styles.timelineRail}>
                     <View
@@ -425,7 +446,7 @@ export default function GemDetailScreen() {
                       ]}
                     >
                       <Icon
-                        name={eventIcon(e.eventType)}
+                        name={eventIcon(e.eventType || e.description)}
                         size={14}
                         color={
                           i === 0
@@ -434,7 +455,7 @@ export default function GemDetailScreen() {
                         }
                       />
                     </View>
-                    {i < events.length - 1 ? (
+                    {i < historyEvents.length - 1 ? (
                       <View
                         style={[
                           styles.timelineLine,
@@ -485,30 +506,49 @@ export default function GemDetailScreen() {
           )}
         </FormSection>
 
-        <FormSection title="Financials" icon="lock">
-          {costs.length ? (
-            costs.map((c) => (
-              <View key={c.id} style={styles.financeRow}>
-                <View style={styles.financeLabelRow}>
-                  <Icon
-                    name="payments"
-                    size={16}
-                    color={colors.onSurfaceVariant}
-                  />
+        <FormSection title="Financials" icon="payments">
+          {costLines.length ? (
+            costLines.map((c) => (
+              <View key={c.id} style={styles.financeItem}>
+                <View style={styles.financeRow}>
+                  <View style={styles.financeLabelRow}>
+                    <Icon
+                      name="payments"
+                      size={16}
+                      color={colors.onSurfaceVariant}
+                    />
+                    <View style={styles.financeLabelCol}>
+                      <Text
+                        style={[
+                          styles.financeLabel,
+                          { color: colors.onSurface },
+                        ]}
+                      >
+                        {formatCostTypeLabel(c.costType)}
+                      </Text>
+                      {c.description ? (
+                        <Text
+                          style={[
+                            styles.financeDesc,
+                            { color: colors.onSurfaceVariant },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {c.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
                   <Text
-                    style={[
-                      styles.financeLabel,
-                      { color: colors.onSurfaceVariant },
-                    ]}
+                    style={[styles.financeValue, { color: colors.onSurface }]}
                   >
-                    {c.costType}
+                    {formatStored({
+                      amount: c.amount,
+                      currency: c.currency,
+                      amountBase: c.amountBase,
+                    })}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.financeValue, { color: colors.onSurface }]}
-                >
-                  {formatCurrency(c.amount, c.currency)}
-                </Text>
               </View>
             ))
           ) : (
@@ -538,10 +578,10 @@ export default function GemDetailScreen() {
             <Text
               style={[styles.financeTotalValue, { color: colors.onSurface }]}
             >
-              {formatCurrency(gem.totalCost, gem.totalCostCurrency)}
+              {formatBase(gem.totalCost)}
             </Text>
           </View>
-          {profit != null ? (
+          {profitBase != null ? (
             <View style={styles.financeRow}>
               <View style={styles.financeLabelRow}>
                 <Icon
@@ -564,7 +604,7 @@ export default function GemDetailScreen() {
                   { color: colors.successEmerald },
                 ]}
               >
-                {formatCurrency(profit, askCurrency)}
+                {formatBase(profitBase)}
                 {roi ? ` (${roi}%)` : ""}
               </Text>
             </View>
@@ -820,20 +860,23 @@ const styles = StyleSheet.create({
   },
   timelineMeta: { ...Typography.bodySmall },
 
+  financeItem: { gap: 2 },
   financeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
   },
   financeLabelRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     flex: 1,
     minWidth: 0,
   },
-  financeLabel: { ...Typography.bodyMd, flexShrink: 1 },
+  financeLabelCol: { flex: 1, gap: 2, minWidth: 0 },
+  financeLabel: { ...Typography.bodyMd, fontWeight: "600", flexShrink: 1 },
+  financeDesc: { ...Typography.caption },
   financeValue: {
     ...Typography.bodyMd,
     fontWeight: "600",

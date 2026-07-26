@@ -26,7 +26,7 @@ import {
   fetchServices,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
@@ -54,6 +54,7 @@ export default function ServiceDetailScreen() {
   const { serviceId } = useLocalSearchParams<{ serviceId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [weightAfter, setWeightAfter] = useState('');
@@ -274,13 +275,13 @@ export default function ServiceDetailScreen() {
               {service.agreedPrice != null ? (
                 <View style={styles.costRow}>
                   <Text style={[styles.costLabel, { color: colors.onSurfaceVariant }]}>Agreed Price</Text>
-                  <Text style={[styles.costValue, { color: colors.onSurface }]}>{formatCurrency(service.agreedPrice)}</Text>
+                  <Text style={[styles.costValue, { color: colors.onSurface }]}>{formatFace(service.agreedPrice, service.agreedPriceCurrency)}</Text>
                 </View>
               ) : null}
               {service.advancePaid > 0 ? (
                 <View style={styles.costRow}>
                   <Text style={[styles.costLabel, { color: colors.onSurfaceVariant }]}>Advance Paid</Text>
-                  <Text style={[styles.costValue, { color: colors.onSurface }]}>{formatCurrency(service.advancePaid)}</Text>
+                  <Text style={[styles.costValue, { color: colors.onSurface }]}>{formatFace(service.advancePaid, service.agreedPriceCurrency ?? service.finalCostCurrency)}</Text>
                 </View>
               ) : null}
               <View style={[styles.costTotalRow, { borderTopColor: colors.surfaceVariant }]}>
@@ -288,7 +289,10 @@ export default function ServiceDetailScreen() {
                   {service.finalCost != null ? 'Final Cost' : 'Total Estimate'}
                 </Text>
                 <Text style={[styles.costTotalValue, { color: colors.primary }]}>
-                  {formatCurrency(service.finalCost ?? service.agreedPrice ?? 0)}
+                  {formatFace(
+                    service.finalCost ?? service.agreedPrice ?? 0,
+                    service.finalCostCurrency ?? service.agreedPriceCurrency,
+                  )}
                 </Text>
               </View>
             </View>

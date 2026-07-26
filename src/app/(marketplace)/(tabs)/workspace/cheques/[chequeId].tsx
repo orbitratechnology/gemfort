@@ -18,8 +18,9 @@ import {
   updateChequeStatus,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
-import { formatCurrency, formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
+import { formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
 import { confirm } from '@/providers/confirm-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { ChequeStatus } from '@/types';
@@ -34,6 +35,7 @@ const STATUS_ACTIONS: { status: ChequeStatus; label: string; icon: 'account-bala
 export default function ChequeDetailScreen() {
   const { chequeId } = useLocalSearchParams<{ chequeId: string }>();
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [bounceReason, setBounceReason] = useState('');
@@ -151,7 +153,11 @@ export default function ChequeDetailScreen() {
             </View>
           </View>
           <Text style={[styles.heroAmount, { color: isBounced ? colors.error : colors.onPrimary }]}>
-            {formatCurrency(cheque.amount, cheque.currency)}
+            {formatStored({
+              amount: cheque.amount,
+              currency: cheque.currency,
+              amountBase: cheque.amountBase,
+            })}
           </Text>
           <Text style={[styles.heroBank, { color: isBounced ? colors.onErrorContainer : colors.onPrimary + 'CC' }]}>
             {cheque.chequeNumber} · {cheque.bankName}

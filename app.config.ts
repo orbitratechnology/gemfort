@@ -164,70 +164,85 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-quick-actions",
       {
-        // Android shortcuts can be pinned — adaptive icons act as alt entry points.
-        // Foreground: white silhouettes in assets/images/shortcuts (~30% padding).
+        // String icons = non-adaptive (transparent, no colored plate).
+        // *_light = black glyph, *_dark = white glyph; JS picks via useColorScheme.
         // Regenerate: python scripts/generate-shortcut-icons.py
         androidIcons: {
-          shortcut_verify: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_verify.png",
-          },
-          shortcut_gem: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_gem.png",
-          },
-          shortcut_add: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_gem.png",
-          },
-          shortcut_ap: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_ap.png",
-          },
-          shortcut_cheque: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_cheque.png",
-          },
-          shortcut_service: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_service.png",
-          },
-          shortcut_jobs: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_jobs.png",
-          },
-          shortcut_contacts: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_contacts.png",
-          },
-          shortcut_bill: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_bill.png",
-          },
-          shortcut_certificates: {
-            foregroundImage:
-              "./assets/images/shortcuts/shortcut_certificates.png",
-          },
-          shortcut_money: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_money.png",
-          },
-          shortcut_directory: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_directory.png",
-          },
-          shortcut_search: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_search.png",
-          },
-          shortcut_news: {
-            foregroundImage: "./assets/images/shortcuts/shortcut_news.png",
-          },
+          shortcut_verify_light:
+            "./assets/images/shortcuts/shortcut_verify_light.png",
+          shortcut_verify_dark:
+            "./assets/images/shortcuts/shortcut_verify_dark.png",
+          shortcut_gem_light:
+            "./assets/images/shortcuts/shortcut_gem_light.png",
+          shortcut_gem_dark: "./assets/images/shortcuts/shortcut_gem_dark.png",
+          shortcut_add_light:
+            "./assets/images/shortcuts/shortcut_add_light.png",
+          shortcut_add_dark: "./assets/images/shortcuts/shortcut_add_dark.png",
+          shortcut_ap_light: "./assets/images/shortcuts/shortcut_ap_light.png",
+          shortcut_ap_dark: "./assets/images/shortcuts/shortcut_ap_dark.png",
+          shortcut_cheque_light:
+            "./assets/images/shortcuts/shortcut_cheque_light.png",
+          shortcut_cheque_dark:
+            "./assets/images/shortcuts/shortcut_cheque_dark.png",
+          shortcut_service_light:
+            "./assets/images/shortcuts/shortcut_service_light.png",
+          shortcut_service_dark:
+            "./assets/images/shortcuts/shortcut_service_dark.png",
+          shortcut_jobs_light:
+            "./assets/images/shortcuts/shortcut_jobs_light.png",
+          shortcut_jobs_dark:
+            "./assets/images/shortcuts/shortcut_jobs_dark.png",
+          shortcut_contacts_light:
+            "./assets/images/shortcuts/shortcut_contacts_light.png",
+          shortcut_contacts_dark:
+            "./assets/images/shortcuts/shortcut_contacts_dark.png",
+          shortcut_bill_light:
+            "./assets/images/shortcuts/shortcut_bill_light.png",
+          shortcut_bill_dark:
+            "./assets/images/shortcuts/shortcut_bill_dark.png",
+          shortcut_certificates_light:
+            "./assets/images/shortcuts/shortcut_certificates_light.png",
+          shortcut_certificates_dark:
+            "./assets/images/shortcuts/shortcut_certificates_dark.png",
+          shortcut_money_light:
+            "./assets/images/shortcuts/shortcut_money_light.png",
+          shortcut_money_dark:
+            "./assets/images/shortcuts/shortcut_money_dark.png",
+          shortcut_directory_light:
+            "./assets/images/shortcuts/shortcut_directory_light.png",
+          shortcut_directory_dark:
+            "./assets/images/shortcuts/shortcut_directory_dark.png",
+          shortcut_search_light:
+            "./assets/images/shortcuts/shortcut_search_light.png",
+          shortcut_search_dark:
+            "./assets/images/shortcuts/shortcut_search_dark.png",
+          shortcut_news_light:
+            "./assets/images/shortcuts/shortcut_news_light.png",
+          shortcut_news_dark:
+            "./assets/images/shortcuts/shortcut_news_dark.png",
         },
         // Static iOS actions available before JS loads; replaced dynamically by role.
-        // Prefer SF Symbols so they match system “Edit Home Screen / Share / Remove” icons.
+        // Prefer outline SF Symbols / built-ins so they match system menu icons.
         iosActions: [
           {
             id: "verify",
             title: "Verify certificate",
             subtitle: "Check a lab certificate",
-            icon: "symbol:checkmark.seal.fill",
+            icon: "symbol:checkmark.seal",
             params: { href: "/verify-certificate" },
           },
           {
             id: "directory",
             title: "Directory",
             subtitle: "Find traders, lapidaries & labs",
-            icon: "symbol:person.2.fill",
+            icon: "symbol:person.2",
             params: { href: "/(marketplace)/(tabs)/directory" },
+          },
+          {
+            id: "news",
+            title: "Gem news",
+            icon: "symbol:newspaper",
+            params: { href: "/news" },
           },
           {
             id: "search",

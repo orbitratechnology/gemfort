@@ -107,8 +107,10 @@ export default function CreateListingScreen() {
 
   useEffect(() => {
     if (didPrefill || !gem) return;
-    const autoTitle = `${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
-    setTitle(autoTitle);
+    const currentTitle =
+      gem.title?.trim() ||
+      `${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
+    setTitle(currentTitle);
     if (gem.askingPrice != null && gem.askingPrice > 0) {
       setPrice({
         amount: String(gem.askingPrice),
@@ -242,7 +244,7 @@ export default function CreateListingScreen() {
         caratWeight: gem.currentWeight,
         color: gem.colorPrimary || "—",
         clarity: gem.clarity || null,
-        shape: gem.shape || gem.cutType || null,
+        shape: gem.cutType || gem.shape || null,
         origin: gem.originCountry || "Unknown",
         treatmentStatus: gem.treatmentStatus || "natural",
         isCertified: gem.status === "certified",
@@ -346,14 +348,15 @@ export default function CreateListingScreen() {
                 numberOfLines={1}
                 selectable
               >
-                {formatGemType(gem.gemType)}
+                {gem.title?.trim() || formatGemType(gem.gemType)}
               </Text>
               <Text
                 style={[styles.gemMeta, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
                 selectable
               >
-                {gem.sku} · {gem.currentWeight} ct · {gem.originCountry}
+                {formatGemType(gem.gemType)} · {gem.currentWeight} ct
+                {gem.originCountry ? ` · ${gem.originCountry}` : ""}
               </Text>
             </View>
           </View>
@@ -370,6 +373,7 @@ export default function CreateListingScreen() {
             leftIcon="diamond"
             error={errors.title}
             placeholder="e.g. Blue sapphire 2.4ct"
+            helperText="Updates the gem title in My Gems when you publish."
           />
 
           <CurrencyAmountField

@@ -9,10 +9,11 @@ import {
   type GemColorFamily,
   type GemColorShade,
 } from '@/constants/gem-colors';
+import { GEM_CUTS } from '@/constants/gem-cuts';
 
 export type { GemColorFamily, GemColorShade } from '@/constants/gem-colors';
 export { GEM_COLOR_FAMILIES } from '@/constants/gem-colors';
-export { GEM_CUTS } from '@/constants/gem-cuts';
+export { GEM_CUTS };
 
 /**
  * Gem types with local photos from GIA Gem Encyclopedia.
@@ -502,10 +503,51 @@ export function formatOptionLabel(
   value: string | null | undefined,
 ): string {
   if (!value) return '';
-  return options.find((o) => o.value === value)?.label ?? value.replace(/_/g, ' ');
+  const byValue = options.find((o) => o.value === value)?.label;
+  if (byValue) return byValue;
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, '_');
+  const byNormalized = options.find((o) => o.value === normalized)?.label;
+  if (byNormalized) return byNormalized;
+  const byLabel = options.find(
+    (o) => o.label.toLowerCase() === value.trim().toLowerCase(),
+  )?.label;
+  if (byLabel) return byLabel;
+  return value.replace(/_/g, ' ');
+}
+
+/** Cut / shape display — accepts stored slugs or legacy label strings. */
+export function formatCutLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  return (
+    formatOptionLabel(GEM_CUTS, value) ||
+    formatOptionLabel(GEM_SHAPES, value) ||
+    value.replace(/_/g, ' ')
+  );
+}
+
+export function formatTreatmentLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  return formatOptionLabel(GEM_TREATMENTS, value) || value.replace(/_/g, ' ');
 }
 
 export function formatOriginLabel(value: string | null | undefined): string {
   if (!value) return '';
   return GEM_ORIGINS.find((o) => o.value === value)?.label ?? value.replace(/_/g, ' ');
+}
+
+/** Workspace cost line labels (Firestore `costType` slugs). */
+export const GEM_COST_TYPE_LABELS: Record<string, string> = {
+  acquisition: 'Purchase',
+  purchase: 'Purchase',
+  cutting: 'Cutting',
+  heating: 'Heating',
+  polishing: 'Polishing',
+  certification: 'Certification',
+  transport: 'Transport',
+  other: 'Other',
+};
+
+export function formatCostTypeLabel(value: string | null | undefined): string {
+  if (!value) return '';
+  return GEM_COST_TYPE_LABELS[value] ?? value.replace(/_/g, ' ');
 }

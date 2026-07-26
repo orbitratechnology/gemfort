@@ -36,8 +36,9 @@ import {
     updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency, formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -47,6 +48,7 @@ export default function TripDetailScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
@@ -124,7 +126,7 @@ export default function TripDetailScreen() {
         try {
           const amount = await distributeTripOverhead(user.uid, trip.id);
           await queryClient.invalidateQueries({ queryKey: ["gems"] });
-          toast.success(`Distributed ${formatCurrency(amount)} across gems.`);
+          toast.success(`Distributed ${formatBase(amount)} across gems.`);
         } catch (e) {
           toast.error(friendlyError(e, "Could not distribute overhead."));
           throw e;
@@ -249,7 +251,7 @@ export default function TripDetailScreen() {
           <View style={styles.statGrid}>
             <Stat
               label="Expenses"
-              value={formatCurrency(summary.totalExpenses)}
+              value={formatBase(summary.totalExpenses)}
               colors={colors}
             />
             <Stat
@@ -264,7 +266,7 @@ export default function TripDetailScreen() {
             />
             <Stat
               label="Net result"
-              value={formatCurrency(summary.netResult)}
+              value={formatBase(summary.netResult)}
               colors={colors}
               accent={netPositive ? colors.successEmerald : colors.error}
             />
@@ -490,7 +492,11 @@ export default function TripDetailScreen() {
                 <Text
                   style={[styles.listAmt, { color: colors.onSurface }]}
                 >
-                  {formatCurrency(e.amount, e.currency)}
+                  {formatStored({
+                    amount: e.amount,
+                    currency: e.currency,
+                    amountBase: e.amountBase,
+                  })}
                 </Text>
               </View>
             ))
@@ -562,9 +568,9 @@ export default function TripDetailScreen() {
                       style={[styles.listAmt, { color: colors.primary }]}
                     >
                       {tg.salePrice != null
-                        ? formatCurrency(tg.salePrice)
+                        ? formatBase(tg.salePrice)
                         : tg.purchaseCost != null
-                          ? formatCurrency(tg.purchaseCost)
+                          ? formatBase(tg.purchaseCost)
                           : "—"}
                     </Text>
                   </Pressable>

@@ -3,7 +3,7 @@ import { useQuickActionCallback } from "expo-quick-actions/hooks";
 import { isRouterAction } from "expo-quick-actions/router";
 import { router, type Href } from "expo-router";
 import { useCallback, useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
 import { buildHomeScreenQuickActions } from "@/lib/home-screen-quick-actions";
 import { useAuth } from "@/providers/auth-provider";
@@ -14,9 +14,13 @@ import { useAuth } from "@/providers/auth-provider";
  * Uses `params.href` + Expo Router navigation — same linking model as
  * `expo-quick-actions/router`, with the imperative `router` used elsewhere
  * in GemFort (notifications) so cold starts work from the root providers.
+ *
+ * Android icons are theme-aware (black / white glyphs); re-set when the
+ * system color scheme changes.
  */
 export function QuickActionsRegistrar() {
   const { user, profile, isLoading } = useAuth();
+  const colorScheme = useColorScheme();
 
   const onQuickAction = useCallback((action: QuickActions.Action) => {
     if (!isRouterAction(action)) return;
@@ -39,14 +43,14 @@ export function QuickActionsRegistrar() {
       if (!supported || cancelled) return;
 
       await QuickActions.setItems(
-        buildHomeScreenQuickActions(!!user, profile),
+        buildHomeScreenQuickActions(!!user, profile, colorScheme),
       );
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isLoading, user, profile]);
+  }, [isLoading, user, profile, colorScheme]);
 
   return null;
 }

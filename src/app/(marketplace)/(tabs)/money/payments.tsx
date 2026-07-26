@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,13 +9,15 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchPayments } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatCurrency, formatRelativeTime } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
+import { formatRelativeTime } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import type { Payment } from '@/types';
 
 export default function PaymentsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
 
   const { data: payments = [], refetch, isRefetching } = useQuery({
     queryKey: ['payments', user?.uid],
@@ -39,7 +41,12 @@ export default function PaymentsScreen() {
           <Text style={[styles.sub, { color: colors.textMuted }]}>
             {formatRelativeTime(item.paymentDate)}
             {item.paymentMethod ? ` · ${item.paymentMethod}` : ''}
-            {item.commission ? ` · Commission ${formatCurrency(item.commission, item.currency)}` : ''}
+            {item.commission
+              ? ` · Commission ${formatStored({
+                  amount: item.commission,
+                  currency: item.currency,
+                })}`
+              : ''}
           </Text>
           {item.notes ? (
             <Text style={[styles.notes, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
@@ -50,11 +57,12 @@ export default function PaymentsScreen() {
         <View style={styles.amountCol}>
           <Text style={[styles.amount, { color: tone }]}>
             {isIn ? '+' : '−'}
-            {formatCurrency(item.amount, item.currency)}
+            {formatStored({
+              amount: item.amount,
+              currency: item.currency,
+              amountBase: item.amountBase,
+            })}
           </Text>
-          {item.currency !== 'LKR' ? (
-            <Text style={[styles.base, { color: colors.textMuted }]}>{formatCurrency(item.amountBase)}</Text>
-          ) : null}
         </View>
       </View>
     );
@@ -107,5 +115,4 @@ const styles = StyleSheet.create({
   notes: { ...Typography.bodySmall, marginTop: 2 },
   amountCol: { alignItems: 'flex-end', gap: 2 },
   amount: { ...Typography.labelMd, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  base: { ...Typography.caption },
 });

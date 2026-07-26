@@ -4,12 +4,12 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";

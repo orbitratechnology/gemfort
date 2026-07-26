@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';

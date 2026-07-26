@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { Image } from "expo-image";
 import { useMemo, useState } from "react";
 import {
@@ -218,7 +218,7 @@ export function GemPickerSheet({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${item.sku}, ${formatGemType(item.gemType)}, ${item.currentWeight} carat`}
+              accessibilityLabel={`${item.title?.trim() || formatGemType(item.gemType)}, ${item.currentWeight} carat`}
               onPress={() => {
                 onSelect(item);
                 setQuery("");
@@ -263,14 +263,16 @@ export function GemPickerSheet({
                   style={[styles.sku, { color: colors.onSurface }]}
                   numberOfLines={1}
                 >
-                  {item.sku}
+                  {item.title?.trim() || formatGemType(item.gemType)}
                 </Text>
                 <Text
                   style={[styles.type, { color: colors.onSurfaceVariant }]}
                   numberOfLines={1}
                 >
                   {formatGemType(item.gemType)}
-                  {item.cutType ? ` · ${item.cutType}` : ""}
+                  {item.cutType || item.shape
+                    ? ` · ${item.cutType || item.shape}`
+                    : ""}
                 </Text>
                 <View style={styles.metaRow}>
                   <Text

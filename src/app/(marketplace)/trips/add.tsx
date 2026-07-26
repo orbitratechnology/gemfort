@@ -95,6 +95,7 @@ export default function AddTripScreen() {
         budget: data.budget ?? 0,
         budgetCurrency: budget.currency,
         cashCarried: data.cashCarried ?? 0,
+        cashCarriedCurrency: cashCarried.currency,
         notes: data.notes || null,
       });
       toast.success('Trip created.');

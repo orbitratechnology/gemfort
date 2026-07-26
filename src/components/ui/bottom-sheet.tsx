@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import {
   Animated,
   Dimensions,
@@ -9,6 +16,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,6 +25,11 @@ import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
 import { haptics } from '@/lib/haptics';
+
+/** GH ScrollView — supported by Keyboard Controller; types expect Reanimated's ScrollView. */
+const GestureScrollView = ScrollView as NonNullable<
+  ComponentProps<typeof KeyboardAwareScrollView>['ScrollViewComponent']
+>;
 
 type BottomSheetProps = {
   visible: boolean;
@@ -197,6 +210,7 @@ export function BottomSheet({
           ) : null}
           {scrollable ? (
             <KeyboardAwareScrollView
+              ScrollViewComponent={GestureScrollView}
               style={styles.body}
               contentContainerStyle={styles.bodyContent}
               showsVerticalScrollIndicator={false}

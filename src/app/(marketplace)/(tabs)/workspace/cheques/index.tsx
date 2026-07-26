@@ -21,8 +21,8 @@ import {
     fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -31,13 +31,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo } from "react";
 import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChequeRow({
@@ -53,6 +53,7 @@ function ChequeRow({
   colors: ReturnType<typeof useAppTheme>["colors"];
   onDelete: () => void | Promise<void>;
 }) {
+  const { formatStored } = usePreferredMoney();
   const isBounced = cheque.status === "bounced";
   const isReceived = cheque.direction === "received";
   const partyLabel = contactName || cheque.issuedBy || "Counterparty";
@@ -131,7 +132,11 @@ function ChequeRow({
               <Text
                 style={[styles.rowAmount, { color: colors.primary }]}
               >
-                {formatCurrency(cheque.amount, cheque.currency)}
+                {formatStored({
+                  amount: cheque.amount,
+                  currency: cheque.currency,
+                  amountBase: cheque.amountBase,
+                })}
               </Text>
             </View>
             <Text
@@ -175,6 +180,7 @@ function ChequeRow({
 export default function ChequesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -276,7 +282,7 @@ export default function ChequesScreen() {
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
               >
-                {summary.holdingCount} · {formatCurrency(summary.holdingTotal)}
+                {summary.holdingCount} · {formatBase(summary.holdingTotal)}
               </Text>
             </View>
             <View
@@ -297,7 +303,7 @@ export default function ChequesScreen() {
               <Text
                 style={[styles.summaryValue, { color: colors.onPrimary }]}
               >
-                {formatCurrency(summary.clearingThisMonth)}
+                {formatBase(summary.clearingThisMonth)}
               </Text>
             </View>
           </View>

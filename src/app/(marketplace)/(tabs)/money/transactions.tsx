@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Timestamp } from '@/lib/firebase/db';
@@ -24,7 +25,7 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
-import { formatCurrency } from '@/lib/utils';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
@@ -33,6 +34,7 @@ export default function TransactionsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
+  const { formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [type, setType] = useState<'income' | 'expense'>('income');
@@ -154,6 +156,7 @@ export default function TransactionsScreen() {
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
+          renderScrollComponent={(props) => <ScrollView {...props} />}
           ListEmptyComponent={
             <EmptyState icon="receipt-long" title="No transactions yet" subtitle="Tap + to record one." />
           }
@@ -177,7 +180,12 @@ export default function TransactionsScreen() {
                     <View style={styles.txHeaderRow}>
                       <Text style={[styles.txTitle, { color: colors.primary }]} numberOfLines={1}>{item.description || 'Transaction'}</Text>
                       <Text style={[styles.txAmount, { color: isIncome ? colors.successEmerald : colors.error }]}>
-                        {isIncome ? '+' : '-'}{formatCurrency(item.amount)}
+                        {isIncome ? '+' : '-'}
+                        {formatStored({
+                          amount: item.amount,
+                          currency: item.currency,
+                          amountBase: item.amountBase,
+                        })}
                       </Text>
                     </View>
                     <View style={styles.txMetaRow}>

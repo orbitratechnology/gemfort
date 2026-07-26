@@ -53,7 +53,8 @@ import {
 import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
-import { formatCurrency } from "@/lib/utils";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { outstandingBase } from "@/lib/money";
 import { useAuth } from "@/providers/auth-provider";
 
 const WORKSPACE = "/(marketplace)/(tabs)/workspace";
@@ -100,6 +101,7 @@ function toneColors(tone: AlertItem["tone"], colors: ThemeColors) {
 export default function WorkspaceHub() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
+  const { formatBase, formatStored } = usePreferredMoney();
   const insets = useSafeAreaInsets();
   const [chromeHeight, setChromeHeight] = useState(0);
   const userId = user?.uid;
@@ -265,7 +267,7 @@ export default function WorkspaceHub() {
     getMonthTotals(transactions);
   const monthNet = monthIncome - monthExpense;
   const totalInventoryValue = gems.reduce(
-    (sum, g) => sum + (g.acquisitionCost || 0),
+    (sum, g) => sum + (g.acquisitionCostBase || g.acquisitionCost || 0),
     0,
   );
 
@@ -478,7 +480,11 @@ export default function WorkspaceHub() {
     ...maturingCheques.map((c) => ({
       id: `chq-${c.id}`,
       title: "Cheque matures tomorrow",
-      subtitle: `${c.chequeNumber} · ${formatCurrency(c.amount)}`,
+      subtitle: `${c.chequeNumber} · ${formatStored({
+        amount: c.amount,
+        currency: c.currency,
+        amountBase: c.amountBase,
+      })}`,
       icon: "money-check-dollar" as const,
       tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
@@ -486,7 +492,16 @@ export default function WorkspaceHub() {
     ...billsDueToday.map((b) => ({
       id: `bill-${b.id}`,
       title: "Bill due today",
-      subtitle: `${formatCurrency(b.amount - b.amountSettled, b.currency)}`,
+      subtitle: `${formatStored({
+        amount: b.amount - b.amountSettled,
+        currency: b.currency,
+        amountBase: outstandingBase(
+          b.amount,
+          b.amountSettled,
+          b.amountBase,
+          b.currency,
+        ),
+      })}`,
       icon: "receipt-long" as const,
       tone: "warning" as const,
       route: `${WORKSPACE}/bills/${b.id}`,
@@ -507,12 +522,12 @@ export default function WorkspaceHub() {
         ? "Certificates published"
         : "Workspace";
   const heroValue = showGemsHero
-    ? formatCurrency(totalInventoryValue)
+    ? formatBase(totalInventoryValue)
     : showJobsHero
       ? String(jobs.length)
       : showCertsHero
         ? String(certificates.length)
-        : formatCurrency(monthNet);
+        : formatBase(monthNet);
   const heroRoute = showGemsHero
     ? `${WORKSPACE}/gems`
     : showJobsHero
