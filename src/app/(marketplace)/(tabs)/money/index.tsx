@@ -18,16 +18,19 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { DateRangeSheet } from "@/components/workspace/date-range-sheet";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
-import { getChequeSummary } from "@/features/workspace/cheque-utils";
 import {
     MONEY_PERIODS,
+    type DateRange,
     type MoneyPeriod,
     getCashFlowBuckets,
+    getCashFlowBucketsForRange,
     getCategoryBreakdown,
     getNetTrend,
+    getNetTrendForRange,
     getOutstanding,
     getPeriodRange,
     getRangeTotals,
@@ -43,7 +46,6 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { useAuth } from "@/providers/auth-provider";
 
 const MONEY = "/(marketplace)/(tabs)/money";
-const WORKSPACE = "/(marketplace)/(tabs)/workspace";
 
 export default function MoneyDashboard() {
   const { user } = useAuth();
@@ -52,6 +54,8 @@ export default function MoneyDashboard() {
   const uid = user?.uid;
 
   const [period, setPeriod] = useState<MoneyPeriod>("this_month");
+  const [customRange, setCustomRange] = useState<DateRange | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const txQuery = useQuery({
     queryKey: ["transactions", uid],
@@ -77,21 +81,28 @@ export default function MoneyDashboard() {
   const transactions = useMemo(() => txQuery.data ?? [], [txQuery.data]);
   const receivables = useMemo(() => recQuery.data ?? [], [recQuery.data]);
   const payables = useMemo(() => payQuery.data ?? [], [payQuery.data]);
-  const cheques = useMemo(() => chequeQuery.data ?? [], [chequeQuery.data]);
-  const chequeSummary = useMemo(() => getChequeSummary(cheques), [cheques]);
 
-  const range = useMemo(() => getPeriodRange(period), [period]);
+  const range = useMemo(
+    () => customRange ?? getPeriodRange(period),
+    [customRange, period],
+  );
   const { income, expense, net } = useMemo(
     () => getRangeTotals(transactions, range),
     [transactions, range],
   );
   const trend = useMemo(
-    () => getNetTrend(transactions, period),
-    [transactions, period],
+    () =>
+      customRange
+        ? getNetTrendForRange(transactions, customRange)
+        : getNetTrend(transactions, period),
+    [transactions, period, customRange],
   );
   const buckets = useMemo(
-    () => getCashFlowBuckets(transactions, period),
-    [transactions, period],
+    () =>
+      customRange
+        ? getCashFlowBucketsForRange(transactions, customRange)
+        : getCashFlowBuckets(transactions, period),
+    [transactions, period, customRange],
   );
   const categories = useMemo(
     () => getCategoryBreakdown(transactions, range, "expense").slice(0, 4),
@@ -108,7 +119,15 @@ export default function MoneyDashboard() {
   );
   const maxCategory = Math.max(1, ...categories.map((c) => c.amount));
   const hasCashFlow = buckets.some((b) => b.income > 0 || b.expense > 0);
-  const recent = transactions.slice(0, 5);
+  const rangedTransactions = useMemo(
+    () =>
+      transactions.filter((t) => {
+        const date = t.date.toDate();
+        return date >= range.start && date <= range.end;
+      }),
+    [transactions, range],
+  );
+  const recent = rangedTransactions.slice(0, 5);
 
   const onPrimarySoft = colors.onPrimary + "99";
   const onPrimaryHair = colors.onPrimary + "24";
@@ -120,13 +139,47 @@ export default function MoneyDashboard() {
     chequeQuery.refetch();
   };
 
+  const selectPeriod = (id: MoneyPeriod) => {
+    setCustomRange(null);
+    setPeriod(id);
+  };
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
       <WorkspaceScreenBackdrop kind="money" />
-      <StackHeader title="Money" showBack={false} />
+      <StackHeader
+        title="Money"
+        showBack={false}
+        right={
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Filter by date range"
+              hitSlop={8}
+              onPress={() => setCalendarOpen(true)}
+              style={styles.headerBtn}
+            >
+              <Icon
+                name="calendar-month"
+                size={24}
+                color={customRange ? colors.primary : colors.onSurface}
+              />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="PDF Reports"
+              hitSlop={8}
+              onPress={() => router.push(`${MONEY}/reports` as never)}
+              style={styles.headerBtn}
+            >
+              <Icon name="picture-as-pdf" size={24} color={colors.onSurface} />
+            </Pressable>
+          </View>
+        }
+      />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
@@ -148,11 +201,11 @@ export default function MoneyDashboard() {
             ]}
           >
             {MONEY_PERIODS.map((p) => {
-              const active = period === p.id;
+              const active = !customRange && period === p.id;
               return (
                 <Pressable
                   key={p.id}
-                  onPress={() => setPeriod(p.id)}
+                  onPress={() => selectPeriod(p.id)}
                   style={[
                     styles.segmentBtn,
                     active && {
@@ -176,6 +229,38 @@ export default function MoneyDashboard() {
               );
             })}
           </View>
+
+          {customRange ? (
+            <Pressable
+              onPress={() => setCalendarOpen(true)}
+              style={[
+                styles.rangeChip,
+                {
+                  backgroundColor: colors.primary + "14",
+                  borderColor: colors.primary + "33",
+                },
+              ]}
+            >
+              <Icon name="date-range" size={16} color={colors.primary} />
+              <Text
+                selectable
+                style={[styles.rangeChipText, { color: colors.primary }]}
+              >
+                {customRange.label}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear date filter"
+                hitSlop={8}
+                onPress={() => {
+                  setCustomRange(null);
+                  setPeriod("this_month");
+                }}
+              >
+                <Icon name="close" size={16} color={colors.primary} />
+              </Pressable>
+            </Pressable>
+          ) : null}
 
           {/* Net profit hero */}
           <View style={[styles.hero, { backgroundColor: colors.primary }]}>
@@ -311,41 +396,23 @@ export default function MoneyDashboard() {
             </Pressable>
           </View>
 
-          {/* Reports & payments */}
-          <View style={styles.toolsRow}>
-            <Pressable
-              onPress={() => router.push(`${MONEY}/reports` as never)}
-              style={({ pressed }) => [
-                styles.toolCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Icon name="picture-as-pdf" size={22} color={colors.primary} />
-              <Text style={[styles.toolLabel, { color: colors.onSurface }]}>
-                PDF Reports
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push(`${MONEY}/payments` as never)}
-              style={({ pressed }) => [
-                styles.toolCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Icon name="payments" size={22} color={colors.primary} />
-              <Text style={[styles.toolLabel, { color: colors.onSurface }]}>
-                Payments
-              </Text>
-            </Pressable>
-          </View>
+          {/* Payments */}
+          <Pressable
+            onPress={() => router.push(`${MONEY}/payments` as never)}
+            style={({ pressed }) => [
+              styles.toolCard,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                borderColor: colors.surfaceVariant,
+              },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Icon name="payments" size={22} color={colors.primary} />
+            <Text style={[styles.toolLabel, { color: colors.onSurface }]}>
+              Payments
+            </Text>
+          </Pressable>
         </ScreenInset>
 
         {/* Cash flow */}
@@ -476,7 +543,7 @@ export default function MoneyDashboard() {
         {/* Recent transactions */}
         <FormSectionLabel title="Recent activity" />
         <ScreenInset style={styles.sectionHeader}>
-          {transactions.length > 0 ? (
+          {rangedTransactions.length > 0 ? (
             <Pressable
               onPress={() => router.push(`${MONEY}/transactions` as never)}
               hitSlop={8}
@@ -578,6 +645,26 @@ export default function MoneyDashboard() {
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
+
+      <DateRangeSheet
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        value={range}
+        activePeriod={customRange ? null : period}
+        onApply={(next, nextPeriod) => {
+          if (nextPeriod) {
+            setCustomRange(null);
+            setPeriod(nextPeriod);
+            return;
+          }
+          setCustomRange(next);
+        }}
+        onClear={() => {
+          setCustomRange(null);
+          setPeriod("this_month");
+          setCalendarOpen(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -590,6 +677,13 @@ const styles = StyleSheet.create({
     gap: Spacing.gutterMd,
   },
   inset: { gap: Spacing.gutterMd },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   fab: {
     position: "absolute",
     bottom: 24,
@@ -616,6 +710,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   segmentText: { ...Typography.labelMd },
+  rangeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  rangeChipText: { ...Typography.labelMd, fontWeight: "600" },
 
   hero: {
     borderRadius: Radius.xl,
@@ -682,9 +787,7 @@ const styles = StyleSheet.create({
   chequeCardTitle: { ...Typography.labelMd, fontWeight: "700" },
   chequeCardSub: { ...Typography.bodySmall, marginTop: 2 },
 
-  toolsRow: { flexDirection: "row", gap: Spacing.stackMd },
   toolCard: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,

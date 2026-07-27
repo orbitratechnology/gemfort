@@ -8,26 +8,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { CountryFlag } from "@/components/ui/country-flag";
-import { FormFooter } from "@/components/ui/form-footer";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { TripExpensesSheet } from "@/components/workspace/trip-expenses-sheet";
+import { TripGemsSheet } from "@/components/workspace/trip-gems-sheet";
 import {
-  TripExpensesButton,
-  TripExpensesSheet,
-} from "@/components/workspace/trip-expenses-sheet";
-import {
-  TripGemAvatar,
-  TripGemsButton,
-  TripGemsSheet,
-} from "@/components/workspace/trip-gems-sheet";
+  TripBudgetCard,
+  TripQuickActions,
+  TripResultsCard,
+  TripWalletCard,
+} from "@/components/workspace/trip-money-cards";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import {
-  flagUrl,
-  formatGemType,
-  resolveCountryCode,
-} from "@/constants/gem-options";
+import { flagUrl, resolveCountryCode } from "@/constants/gem-options";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
   budgetRemaining,
@@ -39,6 +32,8 @@ import {
   tripBudgetBase,
   tripBudgetSpent,
   tripCashCarriedBase,
+  tripCashInHandBase,
+  tripCashSpentBase,
   tripDurationDays,
 } from "@/features/workspace/trip-utils";
 import {
@@ -48,6 +43,7 @@ import {
   fetchTripExpenses,
   fetchTripGems,
   recordTripGemSale,
+  updateTripBudget,
   updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -57,7 +53,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { TripGem } from "@/types";
 
 export default function TripDetailScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -66,8 +61,6 @@ export default function TripDetailScreen() {
   const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [saleTarget, setSaleTarget] = useState<TripGem | null>(null);
-  const [salePrice, setSalePrice] = useState("");
   const [expensesOpen, setExpensesOpen] = useState(false);
   const [gemsOpen, setGemsOpen] = useState(false);
   const flagBlurTargetRef = useRef<View | null>(null);
@@ -128,6 +121,24 @@ export default function TripDetailScreen() {
     }
   }
 
+  async function handleSaveBudget(next: {
+    budget: number;
+    budgetCurrency: string;
+  }) {
+    if (!user || !trip) return;
+    try {
+      await withLoading(async () => {
+        await updateTripBudget(trip.id, user.uid, next);
+        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+        await queryClient.invalidateQueries({ queryKey: ["trips"] });
+        toast.success("Budget updated.");
+      }, "Saving budget…");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not update budget."));
+      throw e;
+    }
+  }
+
   async function handleDistributeOverhead() {
     if (!user || !trip) return;
     await confirm({
@@ -150,34 +161,36 @@ export default function TripDetailScreen() {
     });
   }
 
-  async function handleRecordSale() {
-    if (!user || !trip || !saleTarget) return;
-    const price = parseFloat(salePrice);
+  async function handleConfirmSale(
+    tripGem: { id: string; gemId: string },
+    price: number,
+  ) {
+    if (!user || !trip) return;
     if (!price || price <= 0) {
       toast.error("Enter a valid sale price.");
-      return;
+      throw new Error("Invalid sale price");
     }
-
     try {
       await withLoading(async () => {
         await recordTripGemSale(
           user.uid,
           trip.id,
-          saleTarget.id,
-          saleTarget.gemId,
+          tripGem.id,
+          tripGem.gemId,
           price,
         );
-        await queryClient.invalidateQueries({ queryKey: ["trip-gems", tripId] });
+        await queryClient.invalidateQueries({
+          queryKey: ["trip-gems", tripId],
+        });
         await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
         await queryClient.invalidateQueries({ queryKey: ["trips"] });
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
         await queryClient.invalidateQueries({ queryKey: ["transactions"] });
         toast.success("Sale recorded on trip.");
-        setSaleTarget(null);
-        setSalePrice("");
       }, "Recording sale…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not record sale."));
+      throw e;
     }
   }
 
@@ -196,12 +209,18 @@ export default function TripDetailScreen() {
   }
 
   const budgetBase = tripBudgetBase(trip);
-  const cashBase = tripCashCarriedBase(trip);
+  const cashStarted = tripCashCarriedBase(trip);
   const spent = tripBudgetSpent(summary.totalExpenses, summary.purchaseSpend);
   const remaining = budgetRemaining(trip, spent);
   const budgetPct = budgetUsedPercent(trip, spent);
+  const cashSpent = tripCashSpentBase(expenses, summary.purchaseSpend);
+  const cashInHand = tripCashInHandBase(
+    trip,
+    expenses,
+    summary.purchaseSpend,
+    summary.totalRevenue,
+  );
   const netPositive = summary.netResult >= 0;
-  const saleGem = saleTarget ? gemMap.get(saleTarget.gemId) : null;
   const destinationFlagCode = resolveCountryCode(trip.destinationCountry);
   const locationLine = [trip.destinationCity, trip.destinationCountry]
     .filter((part): part is string => !!part?.trim())
@@ -216,12 +235,7 @@ export default function TripDetailScreen() {
     >
       <StackHeader title={trip.tripName} />
 
-      <ThemedScrollView
-        contentContainerStyle={[
-          styles.content,
-          (showStart || showComplete) && styles.contentWithFooter,
-        ]}
-      >
+      <ThemedScrollView contentContainerStyle={styles.content}>
         <View
           style={[
             styles.hero,
@@ -287,184 +301,52 @@ export default function TripDetailScreen() {
           ) : null}
         </View>
 
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Text style={[styles.cardTitle, { color: colors.primary }]}>
-            Summary
-          </Text>
-          <View style={styles.statGrid}>
-            <Stat
-              label="Budget"
-              value={
-                budgetBase > 0
-                  ? formatStored({
-                      amount: trip.budget,
-                      currency: trip.budgetCurrency,
-                      amountBase: budgetBase,
-                    })
-                  : "—"
-              }
-              colors={colors}
-            />
-            <Stat
-              label="Cash carried"
-              value={
-                cashBase > 0 || trip.cashCarried > 0
-                  ? formatStored({
-                      amount: trip.cashCarried,
-                      currency: trip.cashCarriedCurrency ?? trip.budgetCurrency,
-                      amountBase: cashBase,
-                    })
-                  : "—"
-              }
-              colors={colors}
-            />
-            <Stat
-              label="Budget used"
-              value={budgetBase > 0 ? formatBase(spent) : "—"}
-              colors={colors}
-            />
-            <Stat
-              label="Budget remaining"
-              value={
-                budgetBase > 0
-                  ? formatBase(remaining)
-                  : "—"
-              }
-              colors={colors}
-              accent={
-                budgetBase > 0
-                  ? remaining < 0
-                    ? colors.error
-                    : colors.successEmerald
-                  : undefined
-              }
-            />
-            <Stat
-              label="Expenses"
-              value={formatBase(summary.totalExpenses)}
-              colors={colors}
-            />
-            <Stat
-              label="Purchases"
-              value={String(summary.totalGemsPurchased)}
-              colors={colors}
-            />
-            <Stat
-              label="Sold"
-              value={String(summary.totalGemsSold)}
-              colors={colors}
-            />
-            <Stat
-              label="Net result"
-              value={formatBase(summary.netResult)}
-              colors={colors}
-              accent={netPositive ? colors.successEmerald : colors.error}
-            />
-          </View>
-          {budgetBase > 0 ? (
-            <View style={styles.budgetWrap}>
-              <View style={styles.budgetRow}>
-                <Text style={[styles.budgetLabel, { color: colors.textMuted }]}>
-                  Budget used
-                </Text>
-                <Text style={[styles.budgetPct, { color: colors.onSurface }]}>
-                  {budgetPct}% · {formatBase(spent)} of {formatBase(budgetBase)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.budgetTrack,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.budgetFill,
-                    {
-                      width: `${budgetPct}%`,
-                      backgroundColor:
-                        budgetPct > 90 ? colors.error : colors.primary,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ) : null}
-        </View>
+        <TripBudgetCard
+          budgetLabel={
+            budgetBase > 0
+              ? formatStored({
+                  amount: trip.budget,
+                  currency: trip.budgetCurrency,
+                  amountBase: budgetBase,
+                })
+              : "Set a budget"
+          }
+          usedLabel={formatBase(spent)}
+          remainingLabel={
+            budgetBase > 0 ? formatBase(remaining) : formatBase(0)
+          }
+          remainingNegative={budgetBase > 0 && remaining < 0}
+          percent={budgetPct}
+          budgetAmount={trip.budget}
+          budgetCurrency={trip.budgetCurrency}
+          onSaveBudget={handleSaveBudget}
+        />
 
-        <View style={styles.linkRow}>
-          <TripExpensesButton
-            count={expenses.length}
-            onPress={() => setExpensesOpen(true)}
-          />
-          <TripGemsButton
-            count={tripGems.length}
-            onPress={() => setGemsOpen(true)}
-          />
-          <Pressable
-            onPress={() => router.push(sheets.addExpense as never)}
-            style={({ pressed }) => [
-              styles.linkBtn,
-              { backgroundColor: colors.surfaceContainerLow },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Icon name="add" size={20} color={colors.primary} />
-            <Text style={[styles.linkLabel, { color: colors.onSurface }]}>
-              Add expense
-            </Text>
-          </Pressable>
-          {isSourcing ? (
-            <Pressable
-              onPress={() => router.push(sheets.addGem as never)}
-              style={({ pressed }) => [
-                styles.linkBtn,
-                { backgroundColor: colors.secondaryContainer },
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Icon
-                name="diamond"
-                size={20}
-                color={colors.onSecondaryContainer}
-              />
-              <Text
-                style={[
-                  styles.linkLabel,
-                  { color: colors.onSecondaryContainer },
-                ]}
-              >
-                Add gem
-              </Text>
-            </Pressable>
-          ) : null}
-          {isSelling ? (
-            <Pressable
-              onPress={() => router.push(sheets.addGems as never)}
-              style={({ pressed }) => [
-                styles.linkBtn,
-                { backgroundColor: colors.primaryContainer },
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Icon
-                name="inventory-2"
-                size={20}
-                color={colors.onPrimaryContainer}
-              />
-              <Text
-                style={[styles.linkLabel, { color: colors.onPrimaryContainer }]}
-              >
-                Add gems
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <TripQuickActions
+          expenseCount={expenses.length}
+          gemCount={tripGems.length}
+          onExpenses={() => setExpensesOpen(true)}
+          onGems={() => setGemsOpen(true)}
+        />
+
+        <TripResultsCard
+          expenses={formatBase(summary.totalExpenses)}
+          purchases={String(summary.totalGemsPurchased)}
+          sold={String(summary.totalGemsSold)}
+          netResult={formatBase(summary.netResult)}
+          netPositive={netPositive}
+        />
+
+        <TripWalletCard
+          hasCash={cashStarted > 0 || trip.cashCarried > 0}
+          cashInHand={formatBase(cashInHand)}
+          startedWith={formatStored({
+            amount: trip.cashCarried,
+            currency: trip.cashCarriedCurrency ?? trip.budgetCurrency,
+            amountBase: cashStarted,
+          })}
+          spentFromCash={formatBase(cashSpent)}
+        />
 
         {isSourcing &&
         summary.totalGemsPurchased > 0 &&
@@ -487,50 +369,6 @@ export default function TripDetailScreen() {
           </Pressable>
         ) : null}
 
-        {saleTarget ? (
-          <View
-            style={[
-              styles.saleCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.primary,
-              },
-            ]}
-          >
-            <View style={styles.saleHeader}>
-              <TripGemAvatar gem={saleGem} selected size={48} />
-              <Text style={[styles.saleTitle, { color: colors.onSurface }]}>
-                Record sale · {saleGem ? formatGemType(saleGem.gemType) : "Gem"}
-              </Text>
-            </View>
-            <Input
-              label="Sale price (LKR)"
-              value={salePrice}
-              onChangeText={setSalePrice}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              leftIcon="payments"
-            />
-            <View style={styles.saleActions}>
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => {
-                  setSaleTarget(null);
-                  setSalePrice("");
-                }}
-                style={{ flex: 1 }}
-              />
-              <Button
-                title="Confirm sale"
-                icon="check-circle"
-                onPress={handleRecordSale}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        ) : null}
-
         {trip.notes ? (
           <View
             style={[
@@ -546,22 +384,22 @@ export default function TripDetailScreen() {
             </Text>
           </View>
         ) : null}
-      </ThemedScrollView>
 
-      {showStart ? (
-        <FormFooter
-          title="Start trip"
-          icon="flight"
-          onPress={() => handleStatus("ongoing")}
-        />
-      ) : null}
-      {showComplete ? (
-        <FormFooter
-          title="Complete trip"
-          icon="done-all"
-          onPress={() => handleStatus("completed")}
-        />
-      ) : null}
+        {showStart ? (
+          <Button
+            title="Start trip"
+            icon="flight"
+            onPress={() => handleStatus("ongoing")}
+          />
+        ) : null}
+        {showComplete ? (
+          <Button
+            title="Complete trip"
+            icon="done-all"
+            onPress={() => handleStatus("completed")}
+          />
+        ) : null}
+      </ThemedScrollView>
 
       <TripExpensesSheet
         visible={expensesOpen}
@@ -575,16 +413,10 @@ export default function TripDetailScreen() {
         tripGems={tripGems}
         gemMap={gemMap}
         canRecordSales={canRecordSales}
-        saleTargetId={saleTarget?.id}
         onOpenGem={(gemId) =>
-          router.push(
-            `/(marketplace)/(tabs)/workspace/gems/${gemId}` as never,
-          )
+          router.push(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never)
         }
-        onRecordSale={(tg) => {
-          setSaleTarget(tg);
-          setSalePrice("");
-        }}
+        onConfirmSale={handleConfirmSale}
         showAddGem={isSourcing}
         showAddGems={isSelling}
         onAddGem={() => router.push(sheets.addGem as never)}
@@ -660,29 +492,6 @@ function HeroCardContent({
   );
 }
 
-function Stat({
-  label,
-  value,
-  colors,
-  accent,
-}: {
-  label: string;
-  value: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  accent?: string;
-}) {
-  return (
-    <View style={styles.stat}>
-      <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-        {label}
-      </Text>
-      <Text style={[styles.statValue, { color: accent ?? colors.onSurface }]}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -690,9 +499,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
-  },
-  contentWithFooter: {
-    paddingBottom: Spacing.section + 72,
   },
   hero: {
     borderRadius: Radius.xl,
@@ -748,47 +554,6 @@ const styles = StyleSheet.create({
   heroLoc: { ...Typography.headlineMdMobile, fontWeight: "700" },
   heroDates: { ...Typography.bodySmall },
   heroDur: { ...Typography.bodySmall },
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  cardTitle: { ...Typography.headlineMdMobile, fontWeight: "700" },
-  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.md },
-  stat: { width: "47%", gap: 2 },
-  statLabel: {
-    ...Typography.labelMd,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  statValue: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  budgetWrap: { gap: Spacing.sm },
-  budgetRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  budgetLabel: { ...Typography.bodySmall },
-  budgetPct: {
-    ...Typography.labelMd,
-    fontWeight: "600",
-    flexShrink: 1,
-    textAlign: "right",
-  },
-  budgetTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
-  budgetFill: { height: "100%", borderRadius: 3 },
-  linkRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  linkBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    minHeight: 44,
-  },
-  linkLabel: { ...Typography.labelMd, fontWeight: "600" },
   overheadBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -800,19 +565,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   overheadText: { ...Typography.labelMd, fontWeight: "600" },
-  saleCard: {
-    padding: Spacing.lg,
+  card: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",
-    borderWidth: 1,
+    padding: Spacing.lg,
     gap: Spacing.md,
   },
-  saleHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  saleTitle: { ...Typography.labelMd, fontWeight: "700", flex: 1 },
-  saleActions: { flexDirection: "row", gap: Spacing.sm },
+  cardTitle: { ...Typography.headlineMdMobile, fontWeight: "700" },
   notes: { ...Typography.bodyMd, lineHeight: 22 },
 });

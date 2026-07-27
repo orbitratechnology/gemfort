@@ -8,6 +8,8 @@ import {
   tripBudgetBase,
   tripBudgetSpent,
   tripCashCarriedBase,
+  tripCashInHandBase,
+  tripCashSpentBase,
 } from '@/features/workspace/trip-utils';
 import type { Trip, TripExpense, TripGem, WorkspaceGem } from '@/types';
 
@@ -61,5 +63,17 @@ describe('budget helpers', () => {
     expect(budgetUsedPercent(trip, spent)).toBe(17);
     expect(budgetUsedPercent(trip, 400000)).toBe(100);
     expect(budgetUsedPercent({ budget: 0 } as Trip, 50)).toBe(0);
+  });
+
+  it('computes cash in hand after cash spends and sales', () => {
+    const expenses = [
+      { amountBase: 5000, paymentMethod: 'cash' },
+      { amountBase: 3000, paymentMethod: 'card' },
+      { amountBase: 2000, paymentMethod: 'Cash' },
+    ] as TripExpense[];
+    expect(tripCashSpentBase(expenses, 10000)).toBe(17000);
+    expect(tripCashInHandBase(trip, expenses, 10000, 5000)).toBe(
+      67249.5 - 17000 + 5000,
+    );
   });
 });
