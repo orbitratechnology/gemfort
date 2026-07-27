@@ -31,6 +31,7 @@ import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 import type { Payable } from '@/types';
@@ -48,7 +49,6 @@ export default function PayablesScreen() {
     currency: preferred,
   });
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
@@ -80,26 +80,25 @@ export default function PayablesScreen() {
       toast.error('Select a contact and enter an amount.');
       return;
     }
-    setLoading(true);
     try {
-      const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
-      await createPayable(user.uid, {
-        contactId,
-        amount: parseFloat(money.amount),
-        currency: money.currency,
-        description: description || 'Payable',
-        dueDate: due,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['payables'] });
-      toast.success('Payable added');
-      setMoney({ amount: '', currency: preferred });
-      setDescription('');
-      setContactId('');
-      setShowForm(false);
+      await withLoading(async () => {
+        const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
+        await createPayable(user.uid, {
+          contactId,
+          amount: parseFloat(money.amount),
+          currency: money.currency,
+          description: description || 'Payable',
+          dueDate: due,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['payables'] });
+        toast.success('Payable added');
+        setMoney({ amount: '', currency: preferred });
+        setDescription('');
+        setContactId('');
+        setShowForm(false);
+      }, 'Adding…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save payable.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -111,23 +110,22 @@ export default function PayablesScreen() {
       toast.error('Enter a valid payment amount');
       return;
     }
-    setLoading(true);
     try {
-      await recordPayablePayment(user.uid, item.id, parsed, {
-        currency: paymentMoney.currency,
-        paymentMethod: paymentMethod || null,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['payables'] });
-      await queryClient.invalidateQueries({ queryKey: ['payments'] });
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Payment recorded');
-      setPayingId(null);
-      setPaymentMoney({ amount: '', currency: preferred });
-      setPaymentMethod('');
+      await withLoading(async () => {
+        await recordPayablePayment(user.uid, item.id, parsed, {
+          currency: paymentMoney.currency,
+          paymentMethod: paymentMethod || null,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['payables'] });
+        await queryClient.invalidateQueries({ queryKey: ['payments'] });
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast.success('Payment recorded');
+        setPayingId(null);
+        setPaymentMoney({ amount: '', currency: preferred });
+        setPaymentMethod('');
+      }, 'Recording payment…');
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -210,7 +208,7 @@ export default function PayablesScreen() {
                 placeholder={String(remaining)}
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
-              <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
+              <Button title="Confirm Payment" icon="check-circle" onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
             </View>
           ) : (
@@ -288,7 +286,7 @@ export default function PayablesScreen() {
                 <ContactPicker label="To contact" contacts={contacts} value={contactId} onChange={setContactId} />
                 <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
                 <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
-                <Button title="Add Payable" icon="add" loading={loading} onPress={handleAdd} />
+                <Button title="Add Payable" icon="add" onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>
             ) : (

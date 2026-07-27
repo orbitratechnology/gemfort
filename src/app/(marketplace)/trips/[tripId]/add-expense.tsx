@@ -27,6 +27,7 @@ import {
 } from '@/lib/firebase/storage-service';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddTripExpenseScreen() {
@@ -45,7 +46,6 @@ export default function AddTripExpenseScreen() {
   const [description, setDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
-  const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     if (!user || !tripId) return;
@@ -55,35 +55,34 @@ export default function AddTripExpenseScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      let receiptPhotoUrl: string | null = null;
-      if (receipt) {
-        const ext = extensionForMedia(receipt);
-        receiptPhotoUrl = await uploadLocalMedia(
-          receipt,
-          `trips/${user.uid}/${Date.now()}.${ext}`,
-        );
-      }
+      await withLoading(async () => {
+        let receiptPhotoUrl: string | null = null;
+        if (receipt) {
+          const ext = extensionForMedia(receipt);
+          receiptPhotoUrl = await uploadLocalMedia(
+            receipt,
+            `trips/${user.uid}/${Date.now()}.${ext}`,
+          );
+        }
 
-      await addTripExpense(user.uid, tripId, {
-        category,
-        amount: parsed,
-        currency: money.currency,
-        description: description || null,
-        paymentMethod: paymentMethod || null,
-        receiptPhotoUrl,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trips'] });
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Expense logged on trip.');
-      router.back();
+        await addTripExpense(user.uid, tripId, {
+          category,
+          amount: parsed,
+          currency: money.currency,
+          description: description || null,
+          paymentMethod: paymentMethod || null,
+          receiptPhotoUrl,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trips'] });
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast.success('Expense logged on trip.');
+        router.back();
+      }, 'Adding expense…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save expense.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -158,7 +157,7 @@ export default function AddTripExpenseScreen() {
           emptyTitle="Add receipt photo"
         />
 
-        <Button title="Save expense" icon="shield" loading={loading} onPress={handleSubmit} />
+        <Button title="Save expense" icon="shield" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>

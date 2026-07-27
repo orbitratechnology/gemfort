@@ -22,6 +22,7 @@ import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
 import { confirm } from '@/providers/confirm-provider';
+import { useIsBusy, withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { ChequeStatus } from '@/types';
 
@@ -38,9 +39,9 @@ export default function ChequeDetailScreen() {
   const { formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const busy = useIsBusy();
   const [bounceReason, setBounceReason] = useState('');
   const [showBounceForm, setShowBounceForm] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const { data: cheque, isLoading } = useQuery({
     queryKey: ['cheque', chequeId],
@@ -73,7 +74,13 @@ export default function ChequeDetailScreen() {
         confirmLabel: 'Yes',
         cancelLabel: 'No',
         icon: 'cancel',
-        onConfirm: () => applyStatus('cancelled'),
+        onConfirm: async () => {
+          await updateChequeStatus(cheque.id, 'cancelled');
+          await queryClient.invalidateQueries({ queryKey: ['cheques'] });
+          await queryClient.invalidateQueries({ queryKey: ['cheque', chequeId] });
+          await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          toast.success(`Cheque marked as ${CHEQUE_STATUS_LABELS.cancelled.toLowerCase()}.`);
+        },
       });
       return;
     }
@@ -83,17 +90,16 @@ export default function ChequeDetailScreen() {
 
   async function applyStatus(status: ChequeStatus, reason?: string) {
     if (!cheque) return;
-    setLoading(true);
     try {
-      await updateChequeStatus(cheque.id, status, reason ? { bouncedReason: reason } : undefined);
-      await queryClient.invalidateQueries({ queryKey: ['cheques'] });
-      await queryClient.invalidateQueries({ queryKey: ['cheque', chequeId] });
-      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success(`Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`);
+      await withLoading(async () => {
+        await updateChequeStatus(cheque.id, status, reason ? { bouncedReason: reason } : undefined);
+        await queryClient.invalidateQueries({ queryKey: ['cheques'] });
+        await queryClient.invalidateQueries({ queryKey: ['cheque', chequeId] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        toast.success(`Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`);
+      }, 'Updating…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not update status.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -208,7 +214,6 @@ export default function ChequeDetailScreen() {
               <Button
                 title="Confirm bounce"
                 icon="cancel"
-                loading={loading}
                 onPress={() => {
                   if (!bounceReason.trim()) {
                     toast.error('Enter a reason for the bounce.');
@@ -234,7 +239,7 @@ export default function ChequeDetailScreen() {
                 <Pressable
                   key={a.status}
                   onPress={() => handleStatus(a.status)}
-                  disabled={loading}
+                  disabled={busy}
                   style={({ pressed }) => [
                     styles.actionBtn,
                     {

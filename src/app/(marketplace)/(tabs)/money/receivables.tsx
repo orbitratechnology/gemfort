@@ -34,6 +34,7 @@ import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 import type { Receivable } from '@/types';
@@ -51,7 +52,6 @@ export default function ReceivablesScreen() {
     currency: preferred,
   });
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
@@ -87,26 +87,25 @@ export default function ReceivablesScreen() {
       toast.error('Select a contact and enter an amount.');
       return;
     }
-    setLoading(true);
     try {
-      const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
-      await createReceivable(user.uid, {
-        contactId,
-        amount: parseFloat(money.amount),
-        currency: money.currency,
-        description: description || 'Receivable',
-        dueDate: due,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['receivables'] });
-      toast.success('Receivable added');
-      setMoney({ amount: '', currency: preferred });
-      setDescription('');
-      setContactId('');
-      setShowForm(false);
+      await withLoading(async () => {
+        const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
+        await createReceivable(user.uid, {
+          contactId,
+          amount: parseFloat(money.amount),
+          currency: money.currency,
+          description: description || 'Receivable',
+          dueDate: due,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['receivables'] });
+        toast.success('Receivable added');
+        setMoney({ amount: '', currency: preferred });
+        setDescription('');
+        setContactId('');
+        setShowForm(false);
+      }, 'Adding…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save receivable.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -118,25 +117,24 @@ export default function ReceivablesScreen() {
       toast.error('Enter a valid payment amount');
       return;
     }
-    setLoading(true);
     try {
-      await recordReceivablePayment(user.uid, item.id, parsed, {
-        currency: paymentMoney.currency,
-        paymentMethod: paymentMethod || null,
-        commission: commission.amount ? parseFloat(commission.amount) : null,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['receivables'] });
-      await queryClient.invalidateQueries({ queryKey: ['payments'] });
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Payment recorded');
-      setPayingId(null);
-      setPaymentMoney({ amount: '', currency: preferred });
-      setPaymentMethod('');
-      setCommission({ amount: '', currency: preferred });
+      await withLoading(async () => {
+        await recordReceivablePayment(user.uid, item.id, parsed, {
+          currency: paymentMoney.currency,
+          paymentMethod: paymentMethod || null,
+          commission: commission.amount ? parseFloat(commission.amount) : null,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['receivables'] });
+        await queryClient.invalidateQueries({ queryKey: ['payments'] });
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        toast.success('Payment recorded');
+        setPayingId(null);
+        setPaymentMoney({ amount: '', currency: preferred });
+        setPaymentMethod('');
+        setCommission({ amount: '', currency: preferred });
+      }, 'Recording payment…');
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -224,7 +222,7 @@ export default function ReceivablesScreen() {
                 value={commission}
                 onChange={setCommission}
               />
-              <Button title="Confirm Payment" icon="check-circle" loading={loading} onPress={() => handleRecordPayment(item)} />
+              <Button title="Confirm Payment" icon="check-circle" onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
             </View>
           ) : (
@@ -300,7 +298,7 @@ export default function ReceivablesScreen() {
                 <ContactPicker label="From contact" contacts={contacts} value={contactId} onChange={setContactId} />
                 <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
                 <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
-                <Button title="Add Receivable" icon="add" loading={loading} onPress={handleAdd} />
+                <Button title="Add Receivable" icon="add" onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>
             ) : (

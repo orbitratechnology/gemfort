@@ -8,6 +8,7 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { submitFraudReport } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { FraudReportType } from '@/types';
 
@@ -41,7 +42,6 @@ export function FraudReportSheet({
   const toast = useToast();
   const [reportType, setReportType] = useState<FraudReportType>('scammer');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     if (description.trim().length < 10) {
@@ -49,22 +49,21 @@ export function FraudReportSheet({
       return;
     }
 
-    setLoading(true);
     try {
-      await submitFraudReport({
-        reporterUid,
-        reportedBusinessId,
-        reportedUserUid,
-        reportType,
-        description,
-      });
-      toast.success('Report submitted. Our team will review it.');
-      setDescription('');
-      onClose();
+      await withLoading(async () => {
+        await submitFraudReport({
+          reporterUid,
+          reportedBusinessId,
+          reportedUserUid,
+          reportType,
+          description,
+        });
+        toast.success('Report submitted. Our team will review it.');
+        setDescription('');
+        onClose();
+      }, 'Submitting…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not submit report.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -74,7 +73,7 @@ export function FraudReportSheet({
       onClose={onClose}
       title="Report a concern"
       footer={
-        <Button title="Submit report" onPress={handleSubmit} loading={loading} disabled={loading} />
+        <Button title="Submit report" onPress={handleSubmit} />
       }>
       <Text style={[styles.intro, { color: colors.onSurfaceVariant }]}>
         Report {businessName}. Reports are reviewed by GemFort. The business will not be notified who

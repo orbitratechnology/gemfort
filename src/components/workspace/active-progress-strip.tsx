@@ -51,6 +51,7 @@ type ActiveProgressStripProps = {
   services?: ServiceRecord[];
   currentUid?: string | null;
   contactName: (id: string | null | undefined) => string;
+  gemTitle?: (id: string | null | undefined) => string;
   contactPhoto?: (id: string | null | undefined) => string | null;
   businessPhoto?: (id: string | null | undefined) => string | null;
   ownerBusinessPhoto?: (uid: string | null | undefined) => string | null;
@@ -81,32 +82,65 @@ const ProgressCardFace = memo(function ProgressCardFace({
   const tone = item.overdue ? colors.error : colors.primary;
   const thumbSize = compact ? 30 : 34;
   const imageUrl = item.imageUrl?.trim() || null;
-  const showPartyAvatar = item.kind !== "trip";
+  const isTrip = item.kind === "trip";
+  const showPartyAvatar = !isTrip;
 
   return (
     <View
       style={{
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "stretch",
         gap: compact ? 8 : Spacing.sm,
         paddingVertical: compact ? 10 : Spacing.md,
         paddingHorizontal: compact ? 12 : Spacing.md,
         minHeight: compact ? 64 : 76,
       }}
     >
-      {imageUrl && item.imageShape === "rounded" ? (
-        <GemThumb
-          uri={imageUrl}
-          label={item.title}
-          size={thumbSize}
-          radius={10}
-        />
+      {isTrip ? (
+        <View
+          style={{
+            width: thumbSize,
+            height: thumbSize,
+            borderRadius: 10,
+            borderCurve: "continuous",
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+            alignSelf: "center",
+            backgroundColor: colors.primaryContainer,
+          }}
+        >
+          {item.country ? (
+            <CountryFlag
+              country={item.country}
+              width={thumbSize}
+              height={thumbSize}
+            />
+          ) : (
+            <Icon
+              name={item.icon}
+              size={compact ? 15 : 18}
+              color={colors.onPrimaryContainer}
+            />
+          )}
+        </View>
+      ) : imageUrl && item.imageShape === "rounded" ? (
+        <View style={{ alignSelf: "center" }}>
+          <GemThumb
+            uri={imageUrl}
+            label={item.title}
+            size={thumbSize}
+            radius={10}
+          />
+        </View>
       ) : showPartyAvatar ? (
-        <ContactAvatar
-          name={item.title}
-          photoUrl={imageUrl}
-          size={thumbSize}
-        />
+        <View style={{ alignSelf: "center" }}>
+          <ContactAvatar
+            name={item.title}
+            photoUrl={imageUrl}
+            size={thumbSize}
+          />
+        </View>
       ) : (
         <View
           style={{
@@ -116,6 +150,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
             borderCurve: "continuous",
             alignItems: "center",
             justifyContent: "center",
+            alignSelf: "center",
             backgroundColor: colors.primaryContainer,
           }}
         >
@@ -126,7 +161,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
           />
         </View>
       )}
-      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 4, justifyContent: "center" }}>
         <View
           style={{
             flexDirection: "row",
@@ -159,28 +194,17 @@ const ProgressCardFace = memo(function ProgressCardFace({
             {item.title}
           </Text>
         </View>
-        <View
+        <Text
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
+            ...Typography.caption,
+            color: colors.textMuted,
             flexShrink: 1,
+            fontVariant: ["tabular-nums"],
           }}
+          numberOfLines={1}
         >
-          {item.country ? (
-            <CountryFlag country={item.country} size="xs" />
-          ) : null}
-          <Text
-            style={{
-              ...Typography.caption,
-              color: colors.textMuted,
-              flexShrink: 1,
-            }}
-            numberOfLines={1}
-          >
-            {item.subtitle}
-          </Text>
-        </View>
+          {item.subtitle}
+        </Text>
         <View
           style={{
             height: 4,
@@ -200,9 +224,21 @@ const ProgressCardFace = memo(function ProgressCardFace({
           />
         </View>
       </View>
-      <View style={{ alignItems: "flex-end", gap: 6 }}>
+      <View
+        style={{
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          maxWidth: "34%",
+          gap: 6,
+        }}
+      >
         <Text
-          style={{ ...Typography.caption, fontWeight: "700", color: tone }}
+          style={{
+            ...Typography.caption,
+            fontWeight: "700",
+            color: tone,
+            fontVariant: ["tabular-nums"],
+          }}
           numberOfLines={1}
         >
           {item.when}
@@ -210,7 +246,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
         <Icon
           name={item.icon}
           size={compact ? 14 : 16}
-          color={colors.onSurfaceVariant}
+          color={colors.textMuted}
         />
       </View>
     </View>
@@ -309,6 +345,7 @@ export function ActiveProgressStrip({
   services = [],
   currentUid,
   contactName,
+  gemTitle,
   contactPhoto,
   businessPhoto,
   ownerBusinessPhoto,
@@ -328,6 +365,7 @@ export function ActiveProgressStrip({
         services,
         currentUid,
         contactName,
+        gemTitle,
         contactPhoto,
         businessPhoto,
         ownerBusinessPhoto,
@@ -342,6 +380,7 @@ export function ActiveProgressStrip({
       services,
       currentUid,
       contactName,
+      gemTitle,
       contactPhoto,
       businessPhoto,
       ownerBusinessPhoto,

@@ -43,6 +43,7 @@ import { parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm, showActions } from "@/providers/confirm-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import { z } from "zod";
 
@@ -88,7 +89,6 @@ export default function CreateListingScreen() {
   });
   const [visibility, setVisibility] = useState<ListingVisibility>("public");
   const [visibilityOpen, setVisibilityOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [didPrefill, setDidPrefill] = useState(false);
 
@@ -218,86 +218,85 @@ export default function CreateListingScreen() {
       return;
     }
     setErrors({});
-    setLoading(true);
     try {
-      const business = await fetchBusinessByOwnerUid(user.uid);
-      if (!business) {
-        await confirm({
-          title: "Business profile required",
-          message: "Set up your business profile before publishing listings.",
-          confirmLabel: "Set Up",
-          cancelLabel: "Cancel",
-          icon: "storefront",
-          onConfirm: () => {
-            router.push("/profile/business" as Href);
-          },
-        });
-        return;
-      }
-
-      const { slug } = await createListing(user.uid, business.id, {
-        workspaceGemId: gem.id,
-        title: parsed.data.title,
-        description: null,
-        visibility: parsed.data.visibility,
-        gemType: gem.gemType,
-        caratWeight: gem.currentWeight,
-        color: gem.colorPrimary || "—",
-        clarity: gem.clarity || null,
-        shape: gem.cutType || gem.shape || null,
-        origin: gem.originCountry || "Unknown",
-        treatmentStatus: gem.treatmentStatus || "natural",
-        isCertified: gem.status === "certified",
-        certifyingLab: null,
-        certificateNumber: null,
-        showPrice: true,
-        priceMin: parsed.data.price,
-        priceMax: null,
-        currency: price.currency,
-        photoUrls: gem.photoUrls ?? [],
-      });
-      const url = listingShareUrl(slug);
-      await copyLink(url, { silent: true });
-      const whatsapp = business.contacts?.whatsapp?.value;
-      toast.success("Listing published — link copied.");
-      showActions({
-        title: "Published",
-        message: `Link copied:\n${url}`,
-        actions: [
-          ...(whatsapp
-            ? [
-                {
-                  label: "WhatsApp",
-                  onPress: () =>
-                    void Linking.openURL(
-                      openWhatsApp(
-                        whatsapp,
-                        `Check out my gem listing: ${url}`,
-                      ),
-                    ),
-                },
-              ]
-            : []),
-          {
-            label: "Share",
-            onPress: () => {
-              void shareLink({
-                url,
-                message: `Check out my gem listing: ${parsed.data.title}`,
-                title: parsed.data.title,
-              });
+      await withLoading(async () => {
+        const business = await fetchBusinessByOwnerUid(user.uid);
+        if (!business) {
+          await confirm({
+            title: "Business profile required",
+            message: "Set up your business profile before publishing listings.",
+            confirmLabel: "Set Up",
+            cancelLabel: "Cancel",
+            icon: "storefront",
+            onConfirm: () => {
+              router.push("/profile/business" as Href);
             },
-          },
-          {
-            label: "View",
-            onPress: () => router.push(`/listing/${slug}`),
-          },
-        ],
-      });
+          });
+          return;
+        }
+
+        const { slug } = await createListing(user.uid, business.id, {
+          workspaceGemId: gem.id,
+          title: parsed.data.title,
+          description: null,
+          visibility: parsed.data.visibility,
+          gemType: gem.gemType,
+          caratWeight: gem.currentWeight,
+          color: gem.colorPrimary || "—",
+          clarity: gem.clarity || null,
+          shape: gem.shape || gem.cutType || null,
+          origin: gem.originCountry || "Unknown",
+          treatmentStatus: gem.treatmentStatus || "natural",
+          isCertified: gem.status === "certified",
+          certifyingLab: null,
+          certificateNumber: null,
+          showPrice: true,
+          priceMin: parsed.data.price,
+          priceMax: null,
+          currency: price.currency,
+          photoUrls: gem.photoUrls ?? [],
+        });
+        const url = listingShareUrl(slug);
+        await copyLink(url, { silent: true });
+        const whatsapp = business.contacts?.whatsapp?.value;
+        toast.success("Listing published — link copied.");
+        showActions({
+          title: "Published",
+          message: `Link copied:\n${url}`,
+          actions: [
+            ...(whatsapp
+              ? [
+                  {
+                    label: "WhatsApp",
+                    onPress: () =>
+                      void Linking.openURL(
+                        openWhatsApp(
+                          whatsapp,
+                          `Check out my gem listing: ${url}`,
+                        ),
+                      ),
+                  },
+                ]
+              : []),
+            {
+              label: "Share",
+              onPress: () => {
+                void shareLink({
+                  url,
+                  message: `Check out my gem listing: ${parsed.data.title}`,
+                  title: parsed.data.title,
+                });
+              },
+            },
+            {
+              label: "View",
+              onPress: () => router.push(`/listing/${slug}`),
+            },
+          ],
+        });
+      }, "Creating listing…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not publish listing."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -422,7 +421,6 @@ export default function CreateListingScreen() {
       <FormFooter
         title="Publish listing"
         icon="publish"
-        loading={loading}
         onPress={() => void handlePublish()}
       />
 

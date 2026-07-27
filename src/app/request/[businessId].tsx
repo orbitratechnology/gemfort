@@ -33,6 +33,7 @@ import { fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -82,7 +83,6 @@ export default function RequestServiceScreen() {
   const [serviceTypes, setServiceTypes] = useState<string[]>([]);
   const [gemId, setGemId] = useState(gemIdParam ?? "");
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: business } = useQuery({
@@ -175,33 +175,32 @@ export default function RequestServiceScreen() {
       return;
     }
     setErrors({});
-    setLoading(true);
     try {
-      const gemName = gemDisplayName(gem!);
-      const id = await createServiceRequest({
-        traderUid: user.uid,
-        traderBusinessId: myBusiness?.id ?? null,
-        lapidaryUid: business.ownerUid,
-        lapidaryBusinessId: business.id,
-        gemId: gem!.id,
-        gemName,
-        serviceTypes,
-        notes,
-      });
-      await createClientNotification({
-        recipientUid: business.ownerUid,
-        type: "service_request_received",
-        title: "New service request",
-        message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes.join(", ")} for ${gemName}.`,
-        referenceType: "service_request",
-        referenceId: id,
-      });
-      toast.success("Service request sent.");
-      router.back();
+      await withLoading(async () => {
+        const gemName = gemDisplayName(gem!);
+        const id = await createServiceRequest({
+          traderUid: user.uid,
+          traderBusinessId: myBusiness?.id ?? null,
+          lapidaryUid: business.ownerUid,
+          lapidaryBusinessId: business.id,
+          gemId: gem!.id,
+          gemName,
+          serviceTypes,
+          notes,
+        });
+        await createClientNotification({
+          recipientUid: business.ownerUid,
+          type: "service_request_received",
+          title: "New service request",
+          message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes.join(", ")} for ${gemName}.`,
+          referenceType: "service_request",
+          referenceId: id,
+        });
+        toast.success("Service request sent.");
+        router.back();
+      }, "Sending request…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not send request."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -364,7 +363,6 @@ export default function RequestServiceScreen() {
 
       <FormFooter
         title="Send request"
-        loading={loading}
         onPress={submit}
         icon="send"
       />

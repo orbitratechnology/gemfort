@@ -32,6 +32,7 @@ import { Timestamp } from "@/lib/firebase/db";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 
 type PaymentMethod = "transfer" | "cash" | "cheque";
@@ -62,7 +63,6 @@ export default function RecordSaleScreen() {
   const [buyerContactId, setBuyerContactId] = useState("");
   const [buyerCustomName, setBuyerCustomName] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("transfer");
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useQuery({
@@ -141,42 +141,41 @@ export default function RecordSaleScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      const data = result.data;
-      await createTransaction(user.uid, {
-        type: "income",
-        amount: data.price,
-        currency: price.currency,
-        category: "sale",
-        description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
-        gemId: gem.id,
-        contactId: buyerContactId || null,
-        date: Timestamp.now(),
-      });
-      await updateGemStatus(
-        gem.id,
-        user.uid,
-        "sold",
-        `Sold for ${formatCurrency(data.price, price.currency)}`,
-        { soldPrice: data.price, soldPriceCurrency: price.currency },
-      );
-      await queryClient.invalidateQueries({ queryKey: ["gems"] });
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      if (data.method === "cheque") {
-        toast.success(`${gem.sku} sold. Add the cheque next.`);
-        router.replace({
-          pathname: "/(marketplace)/cheques/add",
-          params: { amount: String(data.price), gemId: gem.id },
+      await withLoading(async () => {
+        const data = result.data;
+        await createTransaction(user.uid, {
+          type: "income",
+          amount: data.price,
+          currency: price.currency,
+          category: "sale",
+          description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
+          gemId: gem.id,
+          contactId: buyerContactId || null,
+          date: Timestamp.now(),
         });
-        return;
-      }
-      toast.success(`${gem.sku} marked as sold.`);
-      router.back();
+        await updateGemStatus(
+          gem.id,
+          user.uid,
+          "sold",
+          `Sold for ${formatCurrency(data.price, price.currency)}`,
+          { soldPrice: data.price, soldPriceCurrency: price.currency },
+        );
+        await queryClient.invalidateQueries({ queryKey: ["gems"] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        if (data.method === "cheque") {
+          toast.success(`${gem.sku} sold. Add the cheque next.`);
+          router.replace({
+            pathname: "/(marketplace)/cheques/add",
+            params: { amount: String(data.price), gemId: gem.id },
+          });
+          return;
+        }
+        toast.success(`${gem.sku} marked as sold.`);
+        router.back();
+      }, "Recording sale…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not record sale."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -327,7 +326,6 @@ export default function RecordSaleScreen() {
       <FormFooter
         title={method === "cheque" ? "Sell & add cheque" : "Confirm sale"}
         icon="check-circle"
-        loading={loading}
         onPress={handleConfirm}
       />
     </SafeAreaView>

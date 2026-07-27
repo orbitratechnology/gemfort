@@ -47,6 +47,7 @@ import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { BillDirection, LapidaryJob, WorkspaceGem } from "@/types";
 
@@ -101,7 +102,6 @@ export default function AddBillScreen() {
   const [jobId, setJobId] = useState(paramJobId);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [jobSheetOpen, setJobSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: contacts = [] } = useQuery({
@@ -202,32 +202,33 @@ export default function AddBillScreen() {
       return;
     }
     setErrors({});
-    setLoading(true);
     try {
-      const dueDate = Timestamp.fromDate(
-        addDays(new Date(), result.data.dueDays),
-      );
-      const id = await createBill(user.uid, {
-        direction: result.data.direction,
-        amount: result.data.amount,
-        currency: money.currency,
-        counterpartyContactId: result.data.contactId,
-        dueDate,
-        commissionPercent: isLapidary ? null : result.data.commissionPercent,
-        notes: result.data.notes,
-        gemIds: isLapidary ? [] : gemIds,
-        jobId: isLapidary ? jobId || null : null,
-        status: isLapidary ? "ongoing" : "open",
-      });
-      await queryClient.invalidateQueries({ queryKey: ["bills"] });
-      toast.success(
-        isLapidary ? "Bill started — ongoing until due date" : "Bill saved",
-      );
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/bills/${id}` as never);
+      await withLoading(async () => {
+        const dueDate = Timestamp.fromDate(
+          addDays(new Date(), result.data.dueDays),
+        );
+        const id = await createBill(user.uid, {
+          direction: result.data.direction,
+          amount: result.data.amount,
+          currency: money.currency,
+          counterpartyContactId: result.data.contactId,
+          dueDate,
+          commissionPercent: isLapidary ? null : result.data.commissionPercent,
+          notes: result.data.notes,
+          gemIds: isLapidary ? [] : gemIds,
+          jobId: isLapidary ? jobId || null : null,
+          status: isLapidary ? "ongoing" : "open",
+        });
+        await queryClient.invalidateQueries({ queryKey: ["bills"] });
+        toast.success(
+          isLapidary ? "Bill started — ongoing until due date" : "Bill saved",
+        );
+        replaceWithAnchor(
+          `/(marketplace)/(tabs)/workspace/bills/${id}` as never,
+        );
+      }, "Adding bill…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not save bill."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -431,7 +432,6 @@ export default function AddBillScreen() {
 
       <FormFooter
         title="Save bill"
-        loading={loading}
         onPress={handleSubmit}
         icon="check"
       />

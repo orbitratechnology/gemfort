@@ -28,6 +28,7 @@ import {
 } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { confirm } from '@/providers/confirm-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AccountSettingsScreen() {
@@ -39,13 +40,10 @@ export default function AccountSettingsScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [sendingReset, setSendingReset] = useState(false);
 
   const [deletePassword, setDeletePassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
-  const [deleting, setDeleting] = useState(false);
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -63,31 +61,29 @@ export default function AccountSettingsScreen() {
       return;
     }
 
-    setChangingPassword(true);
     setPasswordErrors({});
     try {
-      await changePassword(result.data.currentPassword, result.data.newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      toast.success('Password updated.');
+      await withLoading(async () => {
+        await changePassword(result.data.currentPassword, result.data.newPassword);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        toast.success('Password updated.');
+      }, 'Updating password…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not update password.'));
-    } finally {
-      setChangingPassword(false);
     }
   }
 
   async function handleSendResetLink() {
     Keyboard.dismiss();
-    setSendingReset(true);
     try {
-      await sendPasswordResetForCurrentUser();
-      toast.success('Reset link sent. Check your inbox.');
+      await withLoading(async () => {
+        await sendPasswordResetForCurrentUser();
+        toast.success('Reset link sent. Check your inbox.');
+      }, 'Sending reset link…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not send reset email.'));
-    } finally {
-      setSendingReset(false);
     }
   }
 
@@ -115,7 +111,6 @@ export default function AccountSettingsScreen() {
   }
 
   async function runDelete(password: string) {
-    setDeleting(true);
     setDeleteErrors({});
     try {
       await deleteAccount(password);
@@ -124,8 +119,6 @@ export default function AccountSettingsScreen() {
     } catch (e) {
       toast.error(friendlyError(e, 'Could not delete account.'));
       throw e;
-    } finally {
-      setDeleting(false);
     }
   }
 
@@ -190,7 +183,6 @@ export default function AccountSettingsScreen() {
             <Button
               title="Update password"
               icon="check"
-              loading={changingPassword}
               onPress={handleChangePassword}
             />
           </View>
@@ -203,7 +195,6 @@ export default function AccountSettingsScreen() {
               title="Send reset link"
               icon="send"
               variant="secondary"
-              loading={sendingReset}
               onPress={handleSendResetLink}
             />
           </View>
@@ -245,7 +236,6 @@ export default function AccountSettingsScreen() {
             <Button
               title="Delete my account"
               icon="delete-forever"
-              loading={deleting}
               onPress={confirmDeleteAccount}
               style={{ backgroundColor: colors.error }}
               textStyle={{ color: colors.onError }}

@@ -21,6 +21,7 @@ import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { parseForm, verifyOtpSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function VerifyOtpScreen() {
@@ -32,8 +33,6 @@ export default function VerifyOtpScreen() {
 
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [code, setCode] = useState('');
-  const [sending, setSending] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -52,16 +51,15 @@ export default function VerifyOtpScreen() {
       toast.error('Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.');
       return;
     }
-    setSending(true);
     try {
-      const id = await sendPhoneVerificationCode(phone);
-      setVerificationId(id);
-      setCooldown(60);
-      toast.success(`Code sent to ${phone}`);
+      await withLoading(async () => {
+        const id = await sendPhoneVerificationCode(phone);
+        setVerificationId(id);
+        setCooldown(60);
+        toast.success(`Code sent to ${phone}`);
+      }, 'Sending code…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not send code. Try again.'));
-    } finally {
-      setSending(false);
     }
   }, [phone, toast]);
 
@@ -77,17 +75,16 @@ export default function VerifyOtpScreen() {
       return;
     }
 
-    setConfirming(true);
     setErrors({});
     try {
-      await confirmPhoneVerificationCode(verificationId, result.data.code);
-      await markOnboardingComplete();
-      router.replace('/(marketplace)/(tabs)/home');
+      await withLoading(async () => {
+        await confirmPhoneVerificationCode(verificationId, result.data.code);
+        await markOnboardingComplete();
+        router.replace('/(marketplace)/(tabs)/home');
+      }, 'Verifying…');
     } catch (e) {
       setErrors({ code: 'Invalid or expired code. Try again.' });
       toast.error(friendlyError(e, 'Verification failed. Invalid code.'));
-    } finally {
-      setConfirming(false);
     }
   }
 
@@ -112,7 +109,6 @@ export default function VerifyOtpScreen() {
           <Button
             title={verificationId ? 'Resend code' : 'Send code'}
             icon="sms"
-            loading={sending}
             disabled={cooldown > 0}
             onPress={handleSendCode}
           />
@@ -148,7 +144,6 @@ export default function VerifyOtpScreen() {
           <Button
             title="Verify & continue"
             icon="verified"
-            loading={confirming}
             onPress={handleConfirm}
           />
 

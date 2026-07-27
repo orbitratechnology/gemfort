@@ -28,6 +28,7 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 import type { ServiceRecord } from '@/types';
@@ -59,7 +60,6 @@ export default function ServiceDetailScreen() {
   const queryClient = useQueryClient();
   const [weightAfter, setWeightAfter] = useState('');
   const [finalCost, setFinalCost] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const { data: services = [] } = useQuery({
     queryKey: ['services', user?.uid],
@@ -98,62 +98,58 @@ export default function ServiceDetailScreen() {
 
   async function handleComplete() {
     if (!user) return;
-    setLoading(true);
     try {
-      await completeService(serviceId!, user.uid, {
-        weightAfter: parseFloat(weightAfter),
-        finalCost: parseFloat(finalCost),
-      });
-      await queryClient.invalidateQueries({ queryKey: ['gems'] });
-      await invalidate();
-      toast.success('Service marked complete');
-      router.back();
+      await withLoading(async () => {
+        await completeService(serviceId!, user.uid, {
+          weightAfter: parseFloat(weightAfter),
+          finalCost: parseFloat(finalCost),
+        });
+        await queryClient.invalidateQueries({ queryKey: ['gems'] });
+        await invalidate();
+        toast.success('Service marked complete');
+        router.back();
+      }, 'Saving…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not update service.'));
-    } finally {
-      setLoading(false);
     }
   }
 
   async function handleRequestCancel() {
-    setLoading(true);
     try {
-      await requestServiceCancellation(service!.id);
-      await invalidate();
-      toast.success('Cancellation requested');
+      await withLoading(async () => {
+        await requestServiceCancellation(service!.id);
+        await invalidate();
+        toast.success('Cancellation requested');
+      }, 'Updating…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not request cancellation.'));
-    } finally {
-      setLoading(false);
     }
   }
 
   async function handleRespondCancel(action: 'accepted' | 'rejected') {
-    setLoading(true);
     try {
-      await respondServiceCancellation(service!.id, action);
-      await invalidate();
-      toast.success(
-        action === 'accepted' ? 'Cancellation accepted' : 'Cancellation declined',
-      );
+      await withLoading(async () => {
+        await respondServiceCancellation(service!.id, action);
+        await invalidate();
+        toast.success(
+          action === 'accepted' ? 'Cancellation accepted' : 'Cancellation declined',
+        );
+      }, 'Updating…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not respond to cancellation.'));
-    } finally {
-      setLoading(false);
     }
   }
 
   async function handleDelete() {
     if (!user) return;
-    setLoading(true);
     try {
-      await deleteService(service!.id, user.uid);
-      toast.success('Service deleted');
-      router.back();
+      await withLoading(async () => {
+        await deleteService(service!.id, user.uid);
+        toast.success('Service deleted');
+        router.back();
+      }, 'Deleting…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not delete service.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -303,7 +299,7 @@ export default function ServiceDetailScreen() {
           <FormSection title="Mark as received">
             <Input label="Weight After (ct)" value={weightAfter} onChangeText={setWeightAfter} keyboardType="decimal-pad" leftIcon="scale" />
             <Input label="Final Cost (LKR)" value={finalCost} onChangeText={setFinalCost} keyboardType="decimal-pad" leftIcon="payments" />
-            <Button title="Mark Received & Complete" icon="check-circle" loading={loading} onPress={handleComplete} />
+            <Button title="Mark Received & Complete" icon="check-circle" onPress={handleComplete} />
           </FormSection>
         ) : null}
 
@@ -316,7 +312,6 @@ export default function ServiceDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
-                loading={loading}
                 onPress={() => handleRespondCancel('accepted')}
                 style={styles.flex}
               />
@@ -324,7 +319,6 @@ export default function ServiceDetailScreen() {
                 title="Decline"
                 variant="secondary"
                 icon="close"
-                loading={loading}
                 onPress={() => handleRespondCancel('rejected')}
                 style={styles.flex}
               />
@@ -338,7 +332,6 @@ export default function ServiceDetailScreen() {
               title="Request cancellation"
               variant="secondary"
               icon="cancel"
-              loading={loading}
               onPress={handleRequestCancel}
             />
           </ScreenInset>
@@ -350,7 +343,6 @@ export default function ServiceDetailScreen() {
               title="Delete service"
               variant="secondary"
               icon="delete"
-              loading={loading}
               onPress={handleDelete}
             />
           </ScreenInset>

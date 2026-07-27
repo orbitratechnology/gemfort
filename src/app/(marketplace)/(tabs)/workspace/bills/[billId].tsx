@@ -42,6 +42,7 @@ import { friendlyError } from "@/lib/errors";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ApPaymentMethod } from "@/types";
 
@@ -66,7 +67,6 @@ export default function BillDetailScreen() {
   const [showPayForm, setShowPayForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
-  const [loading, setLoading] = useState(false);
 
   const { data: bill, isLoading } = useQuery({
     queryKey: ["bill", billId],
@@ -146,25 +146,24 @@ export default function BillDetailScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      await recordBillPayment(user.uid, bill.id, parsed, {
-        currency: bill.currency,
-        paymentMethod: payMethod,
-      });
-      await invalidate();
-      toast.success(
-        bill.direction === "receivable"
-          ? "Payment received"
-          : "Payment recorded",
-      );
-      setShowPayForm(false);
-      setPaymentAmount("");
-      setPayMethod("cash");
+      await withLoading(async () => {
+        await recordBillPayment(user.uid, bill.id, parsed, {
+          currency: bill.currency,
+          paymentMethod: payMethod,
+        });
+        await invalidate();
+        toast.success(
+          bill.direction === "receivable"
+            ? "Payment received"
+            : "Payment recorded",
+        );
+        setShowPayForm(false);
+        setPaymentAmount("");
+        setPayMethod("cash");
+      }, "Recording payment…");
     } catch (e) {
       toast.error(friendlyError(e, "Payment could not be recorded."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -178,7 +177,6 @@ export default function BillDetailScreen() {
       cancelLabel: "No",
       icon: "cancel",
       onConfirm: async () => {
-        setLoading(true);
         try {
           await updateBillStatus(bill.id, "cancelled");
           await invalidate();
@@ -186,8 +184,6 @@ export default function BillDetailScreen() {
         } catch (e) {
           toast.error(friendlyError(e, "Could not cancel bill."));
           throw e;
-        } finally {
-          setLoading(false);
         }
       },
     });
@@ -449,7 +445,6 @@ export default function BillDetailScreen() {
                     icon={
                       payMethod === "cheque" ? "money-check-dollar" : "check-circle"
                     }
-                    loading={loading}
                     onPress={handleRecordPayment}
                   />
                   <Button
@@ -463,7 +458,6 @@ export default function BillDetailScreen() {
                   <Button
                     title={isPayable ? "Paid" : "Received"}
                     icon="check-circle"
-                    loading={loading}
                     style={styles.flex1}
                     onPress={() => openPayForm(remaining)}
                   />
@@ -480,7 +474,6 @@ export default function BillDetailScreen() {
                   title="Cancel bill"
                   variant="ghost"
                   icon="cancel"
-                  loading={loading}
                   onPress={handleCancel}
                 />
               ) : null}

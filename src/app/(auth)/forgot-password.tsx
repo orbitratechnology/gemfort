@@ -12,13 +12,13 @@ import { resetPassword } from '@/lib/firebase/auth-service';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { forgotPasswordSchema, parseForm } from '@/lib/validation/form-schemas';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -30,17 +30,16 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
-    setLoading(true);
     setErrors({});
     try {
-      await resetPassword(result.data.email);
-      setSent(true);
-      haptics.success();
-      toast.success('Check your inbox for reset instructions.');
+      await withLoading(async () => {
+        await resetPassword(result.data.email);
+        setSent(true);
+        haptics.success();
+        toast.success('Check your inbox for reset instructions.');
+      }, 'Sending reset link…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not send reset email.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -89,7 +88,6 @@ export default function ForgotPasswordScreen() {
 
         <Button
           title={sent ? 'Resend link' : 'Send reset link'}
-          loading={loading}
           onPress={handleReset}
           style={styles.cta}
         />

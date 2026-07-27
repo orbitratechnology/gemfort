@@ -33,6 +33,7 @@ import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -62,7 +63,6 @@ export default function AddApScreen() {
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [holderId, setHolderId] = useState("");
   const [days, setDays] = useState("30");
-  const [loading, setLoading] = useState(false);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -144,24 +144,23 @@ export default function AddApScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      const id = await createApRequest({
-        receiverContactId: holderId,
-        receiverBusinessId: holder?.linkedBusinessId ?? null,
-        expectedDurationDays: parseInt(days, 10) || 30,
-        items: lines.map((l) => ({
-          gemId: l.gemId,
-          agreedPrice: parseFloat(l.price.amount),
-          currency: l.price.currency,
-        })),
-      });
-      toast.success("AP request sent");
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
+      await withLoading(async () => {
+        const id = await createApRequest({
+          receiverContactId: holderId,
+          receiverBusinessId: holder?.linkedBusinessId ?? null,
+          expectedDurationDays: parseInt(days, 10) || 30,
+          items: lines.map((l) => ({
+            gemId: l.gemId,
+            agreedPrice: parseFloat(l.price.amount),
+            currency: l.price.currency,
+          })),
+        });
+        toast.success("AP request sent");
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
+      }, "Sending AP…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not send AP request."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -275,7 +274,6 @@ export default function AddApScreen() {
           <Button
             title="Send AP request"
             icon="handshake"
-            loading={loading}
             onPress={handleSubmit}
           />
         </ScreenInset>

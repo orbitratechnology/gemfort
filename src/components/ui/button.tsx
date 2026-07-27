@@ -13,6 +13,7 @@ import { Icon, type IconName } from '@/components/ui/icon';
 import { Palette, Radius, TouchTarget, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics, type HapticKind } from '@/lib/haptics';
+import { useIsBusy } from '@/providers/loading-provider';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'whatsapp' | 'phone';
 
@@ -44,6 +45,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const { colors } = useAppTheme();
+  const globalBusy = useIsBusy();
 
   const variantStyles: Record<Variant, { container: ViewStyle; text: TextStyle }> = {
     primary: {
@@ -78,7 +80,8 @@ export function Button({
 
   const v = variantStyles[variant];
   const iconColor = iconColorProp ?? (v.text.color as string) ?? colors.onPrimary;
-  const isDisabled = disabled || loading;
+  // Block every button while a global mutation overlay is active.
+  const isDisabled = disabled || loading || globalBusy;
 
   return (
     <Pressable

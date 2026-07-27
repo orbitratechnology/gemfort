@@ -1,7 +1,7 @@
 import { startOfDay } from "date-fns";
 
 import type { IconName } from "@/components/ui/icon";
-import { isApOngoing } from "@/features/workspace/ap-normalize";
+import { apAgreedTotal, isApOngoing } from "@/features/workspace/ap-normalize";
 import { isOpenBill, toDate as billToDate } from "@/features/workspace/bill-utils";
 import { isPendingCheque, toDate as chequeToDate } from "@/features/workspace/cheque-utils";
 import { toTripDate, tripScheduleProgressPercent } from "@/features/workspace/trip-utils";
@@ -16,18 +16,20 @@ export type ActiveProgressItem = {
   badge: string;
   title: string;
   subtitle: string;
-  /** When set, subtitle is rendered with a country flag. */
+  /** When set, leading thumb is a country flag (trips). */
   country?: string;
   /** Absolute date label, e.g. "22 Jul 2026" */
   dateLabel: string;
   /** Relative due, e.g. "in 3d" */
   when: string;
+  /** Face money label for bill / cheque / AP strips. */
+  amountLabel?: string;
   href: string;
   progress: number;
   overdue: boolean;
   icon: IconName;
   sortAt: number;
-  /** Contact / business profile photo (or trip icon fallback). */
+  /** Contact / business / lapidary profile photo. */
   imageUrl?: string | null;
   /** People/business = circle; gems = rounded. Default circle. */
   imageShape?: "circle" | "rounded";
@@ -67,6 +69,8 @@ export function buildActiveProgressItems(input: {
   /** Signed-in uid — used to pick the other party on Taken APs. */
   currentUid?: string | null;
   contactName: (id: string | null | undefined) => string;
+  /** Gem display title for service strips (by gem id). */
+  gemTitle?: (id: string | null | undefined) => string;
   /** Contact / business avatar for cheque, bill, AP, and service rows. */
   contactPhoto?: (id: string | null | undefined) => string | null;
   /** Direct business logo by business id (services / AP receiverBusinessId). */
@@ -131,14 +135,26 @@ export function buildActiveProgressItems(input: {
         ? ownerBusinessPhoto(r.senderUid)
         : contactPhoto(r.receiverContactId || r.apHolderContactId) ||
           businessPhoto(r.receiverBusinessId));
+    const faceCurrency =
+      r.items?.[0]?.currency || r.currency || "LKR";
+    const faceTotal = r.items?.length
+      ? r.items.reduce((s, i) => s + (i.agreedPrice || 0), 0)
+      : (r.ownerMinimumPrice ?? 0);
+    const amountLabel =
+      faceTotal > 0
+        ? formatCurrency(faceTotal, faceCurrency)
+        : apAgreedTotal(r) > 0
+          ? formatCurrency(apAgreedTotal(r), "LKR")
+          : undefined;
     items.push({
       id: `ap-${r.id}`,
       kind: "ap",
       badge: overdue ? "AP overdue" : "AP out",
       title: partyName,
-      subtitle: end ? `Return by ${formatDate(end)}` : "Return date TBD",
+      subtitle: amountLabel ?? "AP",
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
+      amountLabel,
       href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
       progress: scheduleProgress(start, end),
       overdue,
@@ -157,16 +173,16 @@ export function buildActiveProgressItems(input: {
     const overdue = !!endDay && endDay < today;
     const who =
       input.contactName(c.counterpartyContactId) || c.issuedBy || "Counterparty";
+    const amountLabel = formatCurrency(c.amount, c.currency);
     items.push({
       id: `cheque-${c.id}`,
       kind: "cheque",
       badge: overdue ? "Cheque due" : "Cheque",
       title: who,
-      subtitle: end
-        ? `#${c.chequeNumber} · matures ${formatDate(end)}`
-        : `#${c.chequeNumber}`,
+      subtitle: amountLabel,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
+      amountLabel,
       href: `/(marketplace)/(tabs)/workspace/cheques/${c.id}`,
       progress: scheduleProgress(start, end),
       overdue,
@@ -184,16 +200,16 @@ export function buildActiveProgressItems(input: {
     const overdue = !!endDay && endDay < today;
     const who = input.contactName(b.counterpartyContactId) || "Contact";
     const remaining = Math.max(0, b.amount - b.amountSettled);
+    const amountLabel = formatCurrency(remaining, b.currency);
     items.push({
       id: `bill-${b.id}`,
       kind: "bill",
       badge: overdue ? "Bill overdue" : "Bill",
       title: who,
-      subtitle: `${formatCurrency(remaining, b.currency)}${
-        end ? ` · due ${formatDate(end)}` : ""
-      }`,
+      subtitle: amountLabel,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
+      amountLabel,
       href: `/(marketplace)/(tabs)/workspace/bills/${b.id}`,
       progress: scheduleProgress(toJs(b.createdAt), end),
       overdue,
@@ -218,16 +234,27 @@ export function buildActiveProgressItems(input: {
     const photo =
       contactPhoto(s.providerContactId) ||
       businessPhoto(s.providerBusinessId);
+    const price =
+      s.agreedPrice != null && s.agreedPrice > 0
+        ? formatCurrency(
+            s.agreedPrice,
+            s.agreedPriceCurrency || "LKR",
+          )
+        : null;
+    const serviceType = s.serviceType.replace(/_/g, " ");
+    const gemName = input.gemTitle?.(s.gemId)?.trim() || "";
+    const subtitle = gemName
+      ? `${serviceType}: ${gemName}`
+      : serviceType;
     items.push({
       id: `service-${s.id}`,
       kind: "service",
       badge: overdue ? "Service overdue" : "Service",
       title: who,
-      subtitle: `${s.serviceType.replace(/_/g, " ")}${
-        end ? ` · due ${formatDate(end)}` : ""
-      }`,
+      subtitle,
       dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
+      amountLabel: price ?? undefined,
       href: `/(marketplace)/(tabs)/workspace/services/${s.id}`,
       progress: scheduleProgress(start, end),
       overdue,

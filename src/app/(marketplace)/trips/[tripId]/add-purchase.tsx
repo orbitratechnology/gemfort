@@ -22,6 +22,7 @@ import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddTripPurchaseScreen() {
@@ -40,7 +41,6 @@ export default function AddTripPurchaseScreen() {
     currency: preferred,
   });
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     if (!user || !tripId) return;
@@ -51,26 +51,25 @@ export default function AddTripPurchaseScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      const gemId = await createGemOnSourcingTrip(user.uid, tripId, {
-        gemType,
-        originCountry: originCountry.trim() || 'Unknown',
-        roughWeight: weight,
-        acquisitionCost: cost,
-        acquisitionCurrency: acquisition.currency,
-        notes: notes || null,
-      });
-      await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trips'] });
-      await queryClient.invalidateQueries({ queryKey: ['gems'] });
-      toast.success('Gem purchased and linked to trip.');
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never);
+      await withLoading(async () => {
+        const gemId = await createGemOnSourcingTrip(user.uid, tripId, {
+          gemType,
+          originCountry: originCountry.trim() || 'Unknown',
+          roughWeight: weight,
+          acquisitionCost: cost,
+          acquisitionCurrency: acquisition.currency,
+          notes: notes || null,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trips'] });
+        await queryClient.invalidateQueries({ queryKey: ['gems'] });
+        toast.success('Gem purchased and linked to trip.');
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never);
+      }, 'Recording purchase…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not record purchase.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -126,7 +125,7 @@ export default function AddTripPurchaseScreen() {
         />
         <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 
-        <Button title="Add to trip" icon="add" loading={loading} onPress={handleSubmit} />
+        <Button title="Add to trip" icon="add" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>

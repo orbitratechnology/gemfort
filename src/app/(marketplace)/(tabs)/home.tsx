@@ -3,15 +3,15 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carousel";
@@ -24,48 +24,43 @@ import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { SkeletonList } from "@/components/ui/skeleton-list";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
-import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
 import {
-  ROLE_LABELS,
-  canAccessModule,
-  resolveProfileRole,
+    ROLE_LABELS,
+    canAccessModule,
+    resolveProfileRole,
 } from "@/constants/roles";
+import { popularByRole } from "@/features/marketplace/home-feed";
 import {
-  buildHomeUpcoming,
-  popularByRole,
-} from "@/features/marketplace/home-feed";
-import {
-  demoBusinesses,
-  demoListings,
-  fetchBusinessByOwnerUid,
-  fetchBusinesses,
-  fetchPublicListings,
-  filterListings,
+    demoBusinesses,
+    demoListings,
+    fetchBusinessByOwnerUid,
+    fetchBusinesses,
+    fetchPublicListings,
+    filterListings,
 } from "@/features/marketplace/marketplace-service";
 import {
-  gemPrimaryPhotoUrl,
-  resolveBusinessPhotoById,
-  resolveBusinessPhotoByOwnerUid,
-  resolvePartyPhotoUrl,
+    resolveBusinessPhotoById,
+    resolveBusinessPhotoByOwnerUid,
+    resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
 import {
-  fetchApRecords,
-  fetchBills,
-  fetchCheques,
-  fetchContacts,
-  fetchGems,
-  fetchServices,
-  fetchTrips,
+    fetchApRecords,
+    fetchBills,
+    fetchCheques,
+    fetchContacts,
+    fetchGems,
+    fetchServices,
+    fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useInvalidateExchangeRates } from "@/hooks/use-exchange-rates";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import {
-  isNestedWorkspaceHref,
-  pushWithAnchor,
+    isNestedWorkspaceHref,
+    pushWithAnchor,
 } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -78,12 +73,12 @@ function pushFromHome(href: string) {
 }
 
 const FEATURED_LIMIT = 6;
-const UPCOMING_LIMIT = 8;
 
 type QuickAction = {
   id: string;
   label: string;
   icon: IconName;
+  image?: number;
   href: string;
 };
 
@@ -91,6 +86,7 @@ const VERIFY_ACTION: QuickAction = {
   id: "verify",
   label: "Verify",
   icon: "verified",
+  image: require("@/assets/images/certificate-icon.png"),
   href: "/verify-certificate",
 };
 
@@ -107,6 +103,7 @@ function quickActionsForRole(
         id: "jobs",
         label: "Jobs",
         icon: "construction",
+        image: require("@/assets/images/lapidary-icon.png"),
         href: "/(marketplace)/(tabs)/workspace/jobs",
       },
       {
@@ -119,6 +116,7 @@ function quickActionsForRole(
         id: "bill",
         label: "Bill",
         icon: "receipt-long",
+        image: require("@/assets/images/bill-icon.png"),
         href: "/(marketplace)/bills/add",
       },
     ];
@@ -131,6 +129,7 @@ function quickActionsForRole(
         id: "certificates",
         label: "Certificates",
         icon: "workspace-premium",
+        image: require("@/assets/images/certificate-icon.png"),
         href: "/(marketplace)/(tabs)/workspace/certificates",
       },
     ];
@@ -141,31 +140,27 @@ function quickActionsForRole(
     VERIFY_ACTION,
     {
       id: "add-gem",
-      label: "Add gem",
+      label: "Gem",
       icon: "diamond",
+      image: require("@/assets/images/mygems-icon.png"),
       href: "/(marketplace)/gems/add",
     },
     {
       id: "ap",
       label: "Give AP",
       icon: "handshake",
+      image: require("@/assets/images/ap-icon.png"),
       href: "/(marketplace)/ap/add",
     },
     {
       id: "service",
       label: "Service",
       icon: "handyman",
+      image: require("@/assets/images/lapidary-icon.png"),
       href: "/(marketplace)/services/add",
     },
   ];
 }
-
-const KIND_ICON: Record<string, IconName> = {
-  ap: "handshake",
-  service: "handyman",
-  trip: "flight",
-  cheque: "money-check-dollar",
-};
 
 function initialsFromName(name: string) {
   return (
@@ -252,15 +247,6 @@ export default function HomeScreen() {
     enabled: workspaceEnabled && canAccessModule(role, "gems"),
   });
 
-  const gemPhotoById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of gems) {
-      const url = gemPrimaryPhotoUrl(g);
-      if (url) map.set(g.id, url);
-    }
-    return map;
-  }, [gems]);
-
   const contactPhoto = useMemo(
     () => (id: string | null | undefined) => {
       if (!id) return null;
@@ -344,45 +330,6 @@ export default function HomeScreen() {
     [businesses],
   );
 
-  const upcoming = useMemo(
-    () =>
-      buildHomeUpcoming({
-        apRecords,
-        services,
-        trips,
-        cheques,
-        currentUid: user?.uid,
-        contactName: (id) =>
-          contacts.find((c) => c.id === id)?.displayName ?? "Contact",
-        contactPhoto,
-        apImage,
-        serviceImage: (s) => {
-          const gemUrl = gemPhotoById.get(s.gemId) ?? null;
-          if (gemUrl) return { url: gemUrl, shape: "rounded" };
-          return {
-            url: contactPhoto(s.providerContactId),
-            shape: "circle",
-          };
-        },
-      }),
-    [
-      apRecords,
-      services,
-      trips,
-      cheques,
-      contacts,
-      user?.uid,
-      contactPhoto,
-      apImage,
-      gemPhotoById,
-    ],
-  );
-
-  const upcomingPreview = useMemo(
-    () => upcoming.slice(0, UPCOMING_LIMIT),
-    [upcoming],
-  );
-
   function contactName(id: string | null | undefined) {
     return contacts.find((c) => c.id === id)?.displayName ?? "Contact";
   }
@@ -448,6 +395,12 @@ export default function HomeScreen() {
             services={services}
             currentUid={user?.uid}
             contactName={contactName}
+            gemTitle={(id) => {
+              if (!id) return "";
+              const gem = gems.find((g) => g.id === id);
+              if (!gem) return "";
+              return gem.title?.trim() || formatGemType(gem.gemType);
+            }}
             contactPhoto={contactPhoto}
             businessPhoto={businessPhoto}
             ownerBusinessPhoto={ownerBusinessPhoto}
@@ -483,21 +436,32 @@ export default function HomeScreen() {
                 <View
                   style={[
                     styles.actionIcon,
-                    {
-                      backgroundColor:
-                        index === 0
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerHigh,
-                    },
+                    a.image
+                      ? null
+                      : {
+                          backgroundColor:
+                            index === 0
+                              ? colors.primaryContainer
+                              : colors.surfaceContainerHigh,
+                        },
                   ]}
                 >
-                  <Icon
-                    name={a.icon}
-                    size={20}
-                    color={
-                      index === 0 ? colors.onPrimaryContainer : colors.primary
-                    }
-                  />
+                  {a.image ? (
+                    <Image
+                      source={a.image}
+                      style={styles.actionImage}
+                      contentFit="cover"
+                      accessibilityIgnoresInvertColors
+                    />
+                  ) : (
+                    <Icon
+                      name={a.icon}
+                      size={20}
+                      color={
+                        index === 0 ? colors.onPrimaryContainer : colors.primary
+                      }
+                    />
+                  )}
                 </View>
                 <Text
                   style={[styles.actionLabel, { color: colors.onSurface }]}
@@ -508,151 +472,6 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </View>
-        </View>
-
-        {/* Upcoming events — relative time, no calendar */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Upcoming
-            </Text>
-            {upcoming.length > 0 ? (
-              <View
-                style={[
-                  styles.countPill,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.countPillText,
-                    { color: colors.onPrimaryContainer },
-                  ]}
-                >
-                  {upcoming.length}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          {!user ? (
-            <View
-              style={[
-                styles.quietCard,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              <EmptyState
-                icon="event"
-                title="Sign in for upcoming events"
-                subtitle="Cheques, AP returns, services, and trips show up here."
-              />
-            </View>
-          ) : upcomingPreview.length === 0 ? (
-            <View
-              style={[
-                styles.quietCard,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              <EmptyState
-                icon="event-available"
-                title="Nothing coming up"
-                subtitle="AP stones, cheques, cutter dates, and trips appear when scheduled."
-              />
-            </View>
-          ) : (
-            <View style={styles.upcomingList}>
-              {upcomingPreview.map((item) => (
-                <Pressable
-                  key={item.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.title}. ${item.subtitle}. ${item.when}`}
-                  onPress={() => pushFromHome(item.href)}
-                  style={({ pressed }) => [
-                    styles.upcomingRow,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.94 : 1,
-                      borderColor: item.overdue
-                        ? colors.error + "44"
-                        : "transparent",
-                      borderWidth: item.overdue ? 1 : 0,
-                    },
-                  ]}
-                >
-                  {item.imageUrl ? (
-                    item.imageShape === "rounded" ? (
-                      <GemThumb
-                        uri={item.imageUrl}
-                        label={item.title}
-                        size={36}
-                        radius={10}
-                      />
-                    ) : (
-                      <ContactAvatar
-                        name={item.title}
-                        photoUrl={item.imageUrl}
-                        size={36}
-                      />
-                    )
-                  ) : (
-                    <View
-                      style={[
-                        styles.upcomingIcon,
-                        {
-                          backgroundColor: item.overdue
-                            ? colors.errorContainer
-                            : colors.primary + "14",
-                        },
-                      ]}
-                    >
-                      <Icon
-                        name={KIND_ICON[item.kind] ?? "event"}
-                        size={18}
-                        color={item.overdue ? colors.error : colors.primary}
-                      />
-                    </View>
-                  )}
-                  <View style={styles.upcomingCopy}>
-                    <Text
-                      style={[
-                        styles.upcomingTitle,
-                        { color: colors.onSurface },
-                      ]}
-                    >
-                      {item.title}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.upcomingSub,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.subtitle}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.upcomingWhen,
-                      {
-                        color: item.overdue ? colors.error : colors.primary,
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.when}
-                  </Text>
-                </Pressable>
-              ))}
-              {upcoming.length > UPCOMING_LIMIT ? (
-                <Text style={[styles.moreHint, { color: colors.textMuted }]}>
-                  +{upcoming.length - UPCOMING_LIMIT} more in Workspace
-                </Text>
-              ) : null}
-            </View>
-          )}
         </View>
 
         {/* Popular network */}
@@ -970,15 +789,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...Typography.headlineSmMobile },
   seeAll: { ...Typography.labelMd, color: undefined, fontWeight: "600" },
-  countPill: {
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-  },
-  countPillText: { ...Typography.caption, fontWeight: "700" },
 
   actionsCard: {
     flexDirection: "row",
@@ -999,6 +809,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  actionImage: {
+    width: 44,
+    height: 44,
   },
   actionLabel: {
     ...Typography.caption,
@@ -1006,37 +821,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  upcomingList: { gap: Spacing.stackSm },
-  upcomingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.stackMd,
-    padding: 14,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
-  },
-  upcomingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  upcomingCopy: { flex: 1, gap: 2, minWidth: 0 },
-  upcomingTitle: { ...Typography.bodyLg, fontWeight: "600" },
-  upcomingSub: { ...Typography.bodyMd },
-  upcomingWhen: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    maxWidth: 88,
-    textAlign: "right",
-  },
-  moreHint: {
-    ...Typography.caption,
-    textAlign: "center",
-    marginTop: 4,
-  },
   quietCard: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",

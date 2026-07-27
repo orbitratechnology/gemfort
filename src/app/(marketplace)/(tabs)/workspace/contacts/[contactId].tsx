@@ -42,6 +42,7 @@ import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 
 export default function ContactDetailScreen() {
@@ -57,7 +58,6 @@ export default function ContactDetailScreen() {
   const [email, setEmail] = useState("");
   const [contactTypes, setContactTypes] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["contacts", user?.uid],
@@ -115,23 +115,22 @@ export default function ContactDetailScreen() {
       toast.error("Contact name is required.");
       return;
     }
-    setSaving(true);
     try {
-      await updateContact(contact.id, {
-        displayName: displayName.trim(),
-        phone: phone || null,
-        whatsapp: whatsapp || null,
-        email: email || null,
-        contactTypes,
-        notes: notes || null,
-      });
-      await queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast.success("Contact updated");
-      setEditing(false);
+      await withLoading(async () => {
+        await updateContact(contact.id, {
+          displayName: displayName.trim(),
+          phone: phone || null,
+          whatsapp: whatsapp || null,
+          email: email || null,
+          contactTypes,
+          notes: notes || null,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+        toast.success("Contact updated");
+        setEditing(false);
+      }, "Saving…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not save contact."));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -271,7 +270,6 @@ export default function ContactDetailScreen() {
             <Button
               title="Save Changes"
               icon="check"
-              loading={saving}
               onPress={handleSave}
             />
           </ScreenInset>

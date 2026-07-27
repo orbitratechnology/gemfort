@@ -36,6 +36,7 @@ import { friendlyError } from "@/lib/errors";
 import { registerUser } from "@/lib/firebase/auth-service";
 import { haptics } from "@/lib/haptics";
 import { parseForm, registerSchema } from "@/lib/validation/form-schemas";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { UserRole } from "@/types";
 
@@ -52,7 +53,6 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function clearField(key: string) {
@@ -103,25 +103,24 @@ export default function RegisterScreen() {
       return;
     }
 
-    setLoading(true);
     setErrors({});
     try {
-      const data = result.data;
-      const { phone: verifiedPhone } = await registerUser({
-        email: data.email,
-        password: data.password,
-        displayName: data.displayName,
-        phone: data.phone,
-        role: data.role,
-      });
-      router.replace({
-        pathname: "/(auth)/verify-otp",
-        params: { phone: verifiedPhone },
-      });
+      await withLoading(async () => {
+        const data = result.data;
+        const { phone: verifiedPhone } = await registerUser({
+          email: data.email,
+          password: data.password,
+          displayName: data.displayName,
+          phone: data.phone,
+          role: data.role,
+        });
+        router.replace({
+          pathname: "/(auth)/verify-otp",
+          params: { phone: verifiedPhone },
+        });
+      }, "Creating account…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not create account. Try again."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -275,7 +274,6 @@ export default function RegisterScreen() {
 
             <Button
               title="Sign Up"
-              loading={loading}
               onPress={handleRegister}
               style={styles.cta}
             />

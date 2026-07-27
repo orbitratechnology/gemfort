@@ -52,6 +52,7 @@ import {
   formatRelativeTime,
 } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ApGemLine, ApPaymentMethod } from "@/types";
 import { GemThumb } from "@/components/workspace/gem-thumb";
@@ -81,7 +82,6 @@ export default function ApDetailScreen() {
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
   const [payAmount, setPayAmount] = useState("");
   const [receiveMethod, setReceiveMethod] = useState<ApPaymentMethod>("cash");
-  const [loading, setLoading] = useState(false);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["ap", "detail", user?.uid],
@@ -136,18 +136,17 @@ export default function ApDetailScreen() {
   }
 
   async function run(action: () => Promise<unknown>, ok: string) {
-    setLoading(true);
     try {
-      await action();
-      toast.success(ok);
-      await invalidate();
-      setSellGemId(null);
-      setSoldPrice("");
-      setSoldToName("");
+      await withLoading(async () => {
+        await action();
+        toast.success(ok);
+        await invalidate();
+        setSellGemId(null);
+        setSoldPrice("");
+        setSoldToName("");
+      }, "Updating…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not update AP."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -400,7 +399,6 @@ export default function ApDetailScreen() {
                       title="Return"
                       variant="secondary"
                       icon="undo"
-                      loading={loading}
                       onPress={() =>
                         run(
                           () => returnApGem(ap.id, line.gemId),
@@ -454,7 +452,6 @@ export default function ApDetailScreen() {
                       />
                       <Button
                         title="Confirm sale"
-                        loading={loading}
                         onPress={() => {
                           const price = parseFloat(soldPrice);
                           if (!price || Number.isNaN(price)) {
@@ -492,7 +489,6 @@ export default function ApDetailScreen() {
               title="Cancel request"
               variant="secondary"
               icon="cancel"
-              loading={loading}
               onPress={() =>
                 run(async () => {
                   await cancelApRequest(ap.id);
@@ -510,7 +506,6 @@ export default function ApDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
-                loading={loading}
                 onPress={() =>
                   run(
                     () => respondApRequest(ap.id, "accepted"),
@@ -523,7 +518,6 @@ export default function ApDetailScreen() {
                 title="Reject"
                 variant="secondary"
                 icon="close"
-                loading={loading}
                 onPress={() =>
                   run(async () => {
                     await respondApRequest(ap.id, "rejected");
@@ -542,7 +536,6 @@ export default function ApDetailScreen() {
               title="Request cancellation"
               variant="secondary"
               icon="cancel"
-              loading={loading}
               onPress={() =>
                 run(
                   () => requestApCancellation(ap.id),
@@ -560,7 +553,6 @@ export default function ApDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
-                loading={loading}
                 onPress={() =>
                   run(
                     () => respondApCancellation(ap.id, "accepted"),
@@ -573,7 +565,6 @@ export default function ApDetailScreen() {
                 title="Decline"
                 variant="secondary"
                 icon="close"
-                loading={loading}
                 onPress={() =>
                   run(
                     () => respondApCancellation(ap.id, "rejected"),
@@ -614,7 +605,6 @@ export default function ApDetailScreen() {
                   : "Payment Sent"
               }
               icon={payMethod === "cheque" ? "money-check-dollar" : "send"}
-              loading={loading}
               onPress={() => {
                 const amount = parseFloat(payAmount || String(owed));
                 if (!amount || Number.isNaN(amount)) {
@@ -676,7 +666,6 @@ export default function ApDetailScreen() {
                   ? "money-check-dollar"
                   : "check-circle"
               }
-              loading={loading}
               onPress={() => {
                 if (receiveMethod === "cheque") {
                   router.push({
@@ -735,7 +724,6 @@ export default function ApDetailScreen() {
               title="Delete AP"
               variant="secondary"
               icon="delete"
-              loading={loading}
               onPress={() =>
                 run(async () => {
                   await deleteApRecord(ap.id);

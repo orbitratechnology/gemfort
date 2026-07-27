@@ -13,8 +13,8 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-  formatCutLabel,
   formatGemType,
+  formatShapeLabel,
   formatTreatmentLabel,
 } from "@/constants/gem-options";
 import { fetchBusiness } from "@/features/marketplace/marketplace-service";
@@ -28,17 +28,10 @@ const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
   Color: "palette",
   Clarity: "visibility",
-  Cut: "content-cut",
+  Shape: "category",
   Treatment: "science",
   Origin: "location-on",
   Lab: "verified",
-};
-
-const VISIBILITY_LABEL: Record<string, string> = {
-  public: "Public",
-  contacts: "Contacts",
-  private: "Private link",
-  members_only: "Members",
 };
 
 export default function PublicListingScreen() {
@@ -115,8 +108,6 @@ export default function PublicListingScreen() {
     business?.contacts?.whatsapp?.isVisible && business.contacts.whatsapp.value
       ? business.contacts.whatsapp.value
       : null;
-  const visibilityLabel =
-    VISIBILITY_LABEL[listing.visibility] ?? listing.visibility;
   const priceLabel =
     listing.showPrice && listing.priceMin != null
       ? `${formatStored({
@@ -134,13 +125,13 @@ export default function PublicListingScreen() {
         }`
       : "Contact for price";
 
-  const cutLabel = formatCutLabel(listing.shape);
+  const shapeLabel = formatShapeLabel(listing.shape);
   const treatmentLabel = formatTreatmentLabel(listing.treatmentStatus);
   const specs = [
     { label: "Weight", value: `${listing.caratWeight} ct` },
     ...(listing.color ? [{ label: "Color", value: listing.color }] : []),
     ...(listing.clarity ? [{ label: "Clarity", value: listing.clarity }] : []),
-    ...(cutLabel ? [{ label: "Cut", value: cutLabel }] : []),
+    ...(shapeLabel ? [{ label: "Shape", value: shapeLabel }] : []),
     {
       label: "Treatment",
       value: treatmentLabel || "None",
@@ -243,41 +234,6 @@ export default function PublicListingScreen() {
                   style={[styles.skuLine, { color: colors.onSurfaceVariant }]}
                 >
                   {formatGemType(listing.gemType)} · {listing.caratWeight} ct
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.statusChip,
-                {
-                  backgroundColor: colors.primaryContainer,
-                  borderColor: colors.primary + "33",
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.statusChipIcon,
-                  { backgroundColor: colors.primary },
-                ]}
-              >
-                <Icon name="storefront" size={16} color={colors.onPrimary} />
-              </View>
-              <View style={styles.statusChipText}>
-                <Text
-                  style={[
-                    styles.statusChipLabel,
-                    { color: colors.onPrimaryContainer },
-                  ]}
-                >
-                  Listed
-                </Text>
-                <Text
-                  style={[styles.statusChipValue, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {visibilityLabel}
                 </Text>
               </View>
             </View>
@@ -506,33 +462,6 @@ const styles = StyleSheet.create({
   identityText: { flex: 1, gap: 2, minWidth: 0 },
   gemName: { ...Typography.headlineMdMobile },
   skuLine: { ...Typography.bodyMd },
-
-  statusChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 56,
-    paddingVertical: 10,
-    paddingLeft: 10,
-    paddingRight: 12,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1.5,
-  },
-  statusChipIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusChipText: { flex: 1, gap: 1, minWidth: 0 },
-  statusChipLabel: {
-    ...Typography.caption,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  statusChipValue: { ...Typography.bodyMd, fontWeight: "700" },
 
   priceRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   askPrice: {
