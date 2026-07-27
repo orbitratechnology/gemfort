@@ -229,18 +229,18 @@ export const GEM_TYPES = [
 export type GemTypeValue = (typeof GEM_TYPES)[number]['value'];
 
 export const GEM_CLARITIES = [
-  { value: 'eye_clean', label: 'Eye Clean' },
-  { value: 'slightly_included', label: 'Slightly Included' },
-  { value: 'moderately_included', label: 'Moderately Included' },
-  { value: 'heavily_included', label: 'Heavily Included' },
-  { value: 'fl', label: 'FL (Flawless)' },
-  { value: 'if', label: 'IF (Internally Flawless)' },
-  { value: 'vvs', label: 'VVS' },
-  { value: 'vs', label: 'VS' },
-  { value: 'si', label: 'SI' },
-  { value: 'i', label: 'I (Included)' },
-  { value: 'opaque', label: 'Opaque' },
-  { value: 'translucent', label: 'Translucent' },
+  { value: 'eye_clean', label: 'Eye Clean', icon: 'visibility' as IconName },
+  { value: 'slightly_included', label: 'Slightly Included', icon: 'visibility' as IconName },
+  { value: 'moderately_included', label: 'Moderately Included', icon: 'blur-on' as IconName },
+  { value: 'heavily_included', label: 'Heavily Included', icon: 'blur-circular' as IconName },
+  { value: 'fl', label: 'FL (Flawless)', icon: 'diamond' as IconName },
+  { value: 'if', label: 'IF (Internally Flawless)', icon: 'auto-awesome' as IconName },
+  { value: 'vvs', label: 'VVS', icon: 'grade' as IconName },
+  { value: 'vs', label: 'VS', icon: 'star-half' as IconName },
+  { value: 'si', label: 'SI', icon: 'lens' as IconName },
+  { value: 'i', label: 'I (Included)', icon: 'circle' as IconName },
+  { value: 'opaque', label: 'Opaque', icon: 'block' as IconName },
+  { value: 'translucent', label: 'Translucent', icon: 'opacity' as IconName },
 ] as const;
 
 export const GEM_SHAPES = [
