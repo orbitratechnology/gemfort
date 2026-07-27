@@ -8,43 +8,51 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { CountryFlag } from "@/components/ui/country-flag";
+import { FormFooter } from "@/components/ui/form-footer";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+  TripExpensesButton,
+  TripExpensesSheet,
+} from "@/components/workspace/trip-expenses-sheet";
+import {
+  TripGemAvatar,
+  TripGemsButton,
+  TripGemsSheet,
+} from "@/components/workspace/trip-gems-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-    flagUrl,
-    formatGemType,
-    resolveCountryCode,
+  flagUrl,
+  formatGemType,
+  resolveCountryCode,
 } from "@/constants/gem-options";
+import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
-    TRIP_STATUS_LABELS,
-    TRIP_TYPES,
-    getExpenseCategoryIcon,
-    getExpenseCategoryLabel,
-} from "@/constants/trip-options";
-import {
-    budgetUsedPercent,
-    canCompleteTrip,
-    canStartTrip,
-    computeTripSummary,
-    formatTripDates,
-    tripDurationDays,
+  budgetRemaining,
+  budgetUsedPercent,
+  canCompleteTrip,
+  canStartTrip,
+  computeTripSummary,
+  formatTripDates,
+  tripBudgetBase,
+  tripBudgetSpent,
+  tripCashCarriedBase,
+  tripDurationDays,
 } from "@/features/workspace/trip-utils";
 import {
-    distributeTripOverhead,
-    fetchGems,
-    fetchTrip,
-    fetchTripExpenses,
-    fetchTripGems,
-    recordTripGemSale,
-    updateTripStatus,
+  distributeTripOverhead,
+  fetchGems,
+  fetchTrip,
+  fetchTripExpenses,
+  fetchTripGems,
+  recordTripGemSale,
+  updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
@@ -60,6 +68,8 @@ export default function TripDetailScreen() {
   const queryClient = useQueryClient();
   const [saleTarget, setSaleTarget] = useState<TripGem | null>(null);
   const [salePrice, setSalePrice] = useState("");
+  const [expensesOpen, setExpensesOpen] = useState(false);
+  const [gemsOpen, setGemsOpen] = useState(false);
   const flagBlurTargetRef = useRef<View | null>(null);
 
   const { data: trip, isLoading } = useQuery({
@@ -185,16 +195,19 @@ export default function TripDetailScreen() {
     );
   }
 
-  const budgetPct = budgetUsedPercent(
-    trip,
-    summary.totalExpenses + summary.purchaseSpend,
-  );
+  const budgetBase = tripBudgetBase(trip);
+  const cashBase = tripCashCarriedBase(trip);
+  const spent = tripBudgetSpent(summary.totalExpenses, summary.purchaseSpend);
+  const remaining = budgetRemaining(trip, spent);
+  const budgetPct = budgetUsedPercent(trip, spent);
   const netPositive = summary.netResult >= 0;
   const saleGem = saleTarget ? gemMap.get(saleTarget.gemId) : null;
   const destinationFlagCode = resolveCountryCode(trip.destinationCountry);
   const locationLine = [trip.destinationCity, trip.destinationCountry]
     .filter((part): part is string => !!part?.trim())
     .join(", ");
+  const showStart = canStartTrip(trip.status);
+  const showComplete = canCompleteTrip(trip.status);
 
   return (
     <SafeAreaView
@@ -203,7 +216,12 @@ export default function TripDetailScreen() {
     >
       <StackHeader title={trip.tripName} />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
+      <ThemedScrollView
+        contentContainerStyle={[
+          styles.content,
+          (showStart || showComplete) && styles.contentWithFooter,
+        ]}
+      >
         <View
           style={[
             styles.hero,
@@ -280,6 +298,53 @@ export default function TripDetailScreen() {
           </Text>
           <View style={styles.statGrid}>
             <Stat
+              label="Budget"
+              value={
+                budgetBase > 0
+                  ? formatStored({
+                      amount: trip.budget,
+                      currency: trip.budgetCurrency,
+                      amountBase: budgetBase,
+                    })
+                  : "—"
+              }
+              colors={colors}
+            />
+            <Stat
+              label="Cash carried"
+              value={
+                cashBase > 0 || trip.cashCarried > 0
+                  ? formatStored({
+                      amount: trip.cashCarried,
+                      currency: trip.cashCarriedCurrency ?? trip.budgetCurrency,
+                      amountBase: cashBase,
+                    })
+                  : "—"
+              }
+              colors={colors}
+            />
+            <Stat
+              label="Budget used"
+              value={budgetBase > 0 ? formatBase(spent) : "—"}
+              colors={colors}
+            />
+            <Stat
+              label="Budget remaining"
+              value={
+                budgetBase > 0
+                  ? formatBase(remaining)
+                  : "—"
+              }
+              colors={colors}
+              accent={
+                budgetBase > 0
+                  ? remaining < 0
+                    ? colors.error
+                    : colors.successEmerald
+                  : undefined
+              }
+            />
+            <Stat
               label="Expenses"
               value={formatBase(summary.totalExpenses)}
               colors={colors}
@@ -301,14 +366,14 @@ export default function TripDetailScreen() {
               accent={netPositive ? colors.successEmerald : colors.error}
             />
           </View>
-          {trip.budget > 0 ? (
+          {budgetBase > 0 ? (
             <View style={styles.budgetWrap}>
               <View style={styles.budgetRow}>
                 <Text style={[styles.budgetLabel, { color: colors.textMuted }]}>
                   Budget used
                 </Text>
                 <Text style={[styles.budgetPct, { color: colors.onSurface }]}>
-                  {budgetPct}%
+                  {budgetPct}% · {formatBase(spent)} of {formatBase(budgetBase)}
                 </Text>
               </View>
               <View
@@ -332,25 +397,15 @@ export default function TripDetailScreen() {
           ) : null}
         </View>
 
-        {canStartTrip(trip.status) ? (
-          <Button
-            title="Start trip"
-            icon="flight"
-            onPress={() => handleStatus("ongoing")}
-          />
-        ) : null}
-        {canCompleteTrip(trip.status) ? (
-          <View style={styles.actionRow}>
-            <Button
-              title="Complete trip"
-              icon="done-all"
-              onPress={() => handleStatus("completed")}
-              style={{ flex: 1 }}
-            />
-          </View>
-        ) : null}
-
         <View style={styles.linkRow}>
+          <TripExpensesButton
+            count={expenses.length}
+            onPress={() => setExpensesOpen(true)}
+          />
+          <TripGemsButton
+            count={tripGems.length}
+            onPress={() => setGemsOpen(true)}
+          />
           <Pressable
             onPress={() => router.push(sheets.addExpense as never)}
             style={({ pressed }) => [
@@ -359,7 +414,7 @@ export default function TripDetailScreen() {
               pressed && { opacity: 0.85 },
             ]}
           >
-            <Icon name="receipt" size={20} color={colors.primary} />
+            <Icon name="add" size={20} color={colors.primary} />
             <Text style={[styles.linkLabel, { color: colors.onSurface }]}>
               Add expense
             </Text>
@@ -442,9 +497,12 @@ export default function TripDetailScreen() {
               },
             ]}
           >
-            <Text style={[styles.saleTitle, { color: colors.onSurface }]}>
-              Record sale · {saleGem ? formatGemType(saleGem.gemType) : "Gem"}
-            </Text>
+            <View style={styles.saleHeader}>
+              <TripGemAvatar gem={saleGem} selected size={48} />
+              <Text style={[styles.saleTitle, { color: colors.onSurface }]}>
+                Record sale · {saleGem ? formatGemType(saleGem.gemType) : "Gem"}
+              </Text>
+            </View>
             <Input
               label="Sale price (LKR)"
               value={salePrice}
@@ -473,163 +531,6 @@ export default function TripDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Expenses
-          </Text>
-          {expenses.length === 0 ? (
-            <Text style={[styles.empty, { color: colors.textMuted }]}>
-              No expenses logged yet.
-            </Text>
-          ) : (
-            expenses.map((e) => (
-              <View
-                key={e.id}
-                style={[
-                  styles.listRow,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.listIcon,
-                    { backgroundColor: colors.primary + "14" },
-                  ]}
-                >
-                  <Icon
-                    name={getExpenseCategoryIcon(e.category)}
-                    size={18}
-                    color={colors.primary}
-                  />
-                </View>
-                <View style={styles.listBody}>
-                  <Text style={[styles.listTitle, { color: colors.onSurface }]}>
-                    {getExpenseCategoryLabel(e.category)}
-                  </Text>
-                  <Text
-                    style={[styles.listSub, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {e.description || formatRelativeTime(e.date)}
-                  </Text>
-                </View>
-                <Text style={[styles.listAmt, { color: colors.onSurface }]}>
-                  {formatStored({
-                    amount: e.amount,
-                    currency: e.currency,
-                    amountBase: e.amountBase,
-                  })}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Gems
-          </Text>
-          {tripGems.length === 0 ? (
-            <Text style={[styles.empty, { color: colors.textMuted }]}>
-              No gems linked to this trip yet.
-            </Text>
-          ) : (
-            tripGems.map((tg) => {
-              const gem = gemMap.get(tg.gemId);
-              const showSale =
-                canRecordSales &&
-                tg.role === "parcel" &&
-                tg.status === "on_trip" &&
-                saleTarget?.id !== tg.id;
-
-              return (
-                <View key={tg.id} style={styles.gemRowWrap}>
-                  <Pressable
-                    onPress={() =>
-                      router.push(
-                        `/(marketplace)/(tabs)/workspace/gems/${tg.gemId}` as never,
-                      )
-                    }
-                    style={({ pressed }) => [
-                      styles.listRow,
-                      {
-                        backgroundColor: colors.surfaceContainerLowest,
-                        borderColor: colors.outlineVariant,
-                      },
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.listIcon,
-                        { backgroundColor: colors.secondaryContainer },
-                      ]}
-                    >
-                      <Icon
-                        name="diamond"
-                        size={18}
-                        color={colors.onSecondaryContainer}
-                      />
-                    </View>
-                    <View style={styles.listBody}>
-                      <Text
-                        style={[styles.listTitle, { color: colors.onSurface }]}
-                      >
-                        {gem?.sku ?? tg.gemId.slice(0, 8)} ·{" "}
-                        {tg.role === "purchase" ? "Purchase" : "Parcel"}
-                      </Text>
-                      <Text
-                        style={[styles.listSub, { color: colors.textMuted }]}
-                      >
-                        {gem
-                          ? `${formatGemType(gem.gemType)} · ${gem.currentWeight}ct`
-                          : tg.status}
-                      </Text>
-                    </View>
-                    <Text style={[styles.listAmt, { color: colors.primary }]}>
-                      {tg.salePrice != null
-                        ? formatBase(tg.salePrice)
-                        : tg.purchaseCost != null
-                          ? formatBase(tg.purchaseCost)
-                          : "—"}
-                    </Text>
-                  </Pressable>
-                  {showSale ? (
-                    <Pressable
-                      onPress={() => {
-                        setSaleTarget(tg);
-                        setSalePrice("");
-                      }}
-                      style={({ pressed }) => [
-                        styles.saleBtn,
-                        { backgroundColor: colors.primaryContainer },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <Icon
-                        name="sell"
-                        size={16}
-                        color={colors.onPrimaryContainer}
-                      />
-                      <Text
-                        style={[
-                          styles.saleBtnText,
-                          { color: colors.onPrimaryContainer },
-                        ]}
-                      >
-                        Record sale
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              );
-            })
-          )}
-        </View>
-
         {trip.notes ? (
           <View
             style={[
@@ -646,6 +547,49 @@ export default function TripDetailScreen() {
           </View>
         ) : null}
       </ThemedScrollView>
+
+      {showStart ? (
+        <FormFooter
+          title="Start trip"
+          icon="flight"
+          onPress={() => handleStatus("ongoing")}
+        />
+      ) : null}
+      {showComplete ? (
+        <FormFooter
+          title="Complete trip"
+          icon="done-all"
+          onPress={() => handleStatus("completed")}
+        />
+      ) : null}
+
+      <TripExpensesSheet
+        visible={expensesOpen}
+        onClose={() => setExpensesOpen(false)}
+        expenses={expenses}
+        onAddExpense={() => router.push(sheets.addExpense as never)}
+      />
+      <TripGemsSheet
+        visible={gemsOpen}
+        onClose={() => setGemsOpen(false)}
+        tripGems={tripGems}
+        gemMap={gemMap}
+        canRecordSales={canRecordSales}
+        saleTargetId={saleTarget?.id}
+        onOpenGem={(gemId) =>
+          router.push(
+            `/(marketplace)/(tabs)/workspace/gems/${gemId}` as never,
+          )
+        }
+        onRecordSale={(tg) => {
+          setSaleTarget(tg);
+          setSalePrice("");
+        }}
+        showAddGem={isSourcing}
+        showAddGems={isSelling}
+        onAddGem={() => router.push(sheets.addGem as never)}
+        onAddGems={() => router.push(sheets.addGems as never)}
+      />
     </SafeAreaView>
   );
 }
@@ -747,6 +691,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
   },
+  contentWithFooter: {
+    paddingBottom: Spacing.section + 72,
+  },
   hero: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",
@@ -821,12 +768,16 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   budgetWrap: { gap: Spacing.sm },
-  budgetRow: { flexDirection: "row", justifyContent: "space-between" },
+  budgetRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   budgetLabel: { ...Typography.bodySmall },
-  budgetPct: { ...Typography.labelMd, fontWeight: "600" },
+  budgetPct: {
+    ...Typography.labelMd,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+  },
   budgetTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   budgetFill: { height: "100%", borderRadius: 3 },
-  actionRow: { flexDirection: "row", gap: Spacing.sm },
   linkRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   linkBtn: {
     flexDirection: "row",
@@ -856,47 +807,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: Spacing.md,
   },
-  saleTitle: { ...Typography.labelMd, fontWeight: "700" },
-  saleActions: { flexDirection: "row", gap: Spacing.sm },
-  section: { gap: Spacing.sm },
-  sectionTitle: { ...Typography.headlineMdMobile, fontWeight: "700" },
-  empty: { ...Typography.bodySmall, paddingVertical: Spacing.sm },
-  gemRowWrap: { gap: Spacing.xs },
-  listRow: {
+  saleHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
   },
-  listIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  listBody: { flex: 1, gap: 2, minWidth: 0 },
-  listTitle: { ...Typography.labelMd, fontWeight: "600" },
-  listSub: { ...Typography.bodySmall },
-  listAmt: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  saleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.full,
-    alignSelf: "flex-end",
-    minHeight: 36,
-  },
-  saleBtnText: { ...Typography.labelMd, fontWeight: "600" },
+  saleTitle: { ...Typography.labelMd, fontWeight: "700", flex: 1 },
+  saleActions: { flexDirection: "row", gap: Spacing.sm },
   notes: { ...Typography.bodyMd, lineHeight: 22 },
 });

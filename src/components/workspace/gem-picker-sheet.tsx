@@ -241,7 +241,11 @@ export function GemPickerSheet({
               <View
                 style={[
                   styles.thumb,
-                  { backgroundColor: colors.surfaceContainerHigh },
+                  {
+                    backgroundColor: colors.surfaceContainerHigh,
+                    borderColor: selected ? colors.primary : "transparent",
+                    borderWidth: selected ? 2 : 0,
+                  },
                 ]}
               >
                 {photo ? (
@@ -249,12 +253,15 @@ export function GemPickerSheet({
                     source={{ uri: photo }}
                     style={styles.thumbImg}
                     contentFit="cover"
+                    recyclingKey={photo}
                   />
                 ) : (
                   <Icon
                     name="diamond"
                     size={22}
-                    color={colors.outlineVariant}
+                    color={
+                      selected ? colors.primary : colors.outlineVariant
+                    }
                   />
                 )}
               </View>
@@ -359,7 +366,11 @@ export function GemSelectField({
             <View
               style={[
                 styles.fieldThumb,
-                { backgroundColor: colors.surfaceContainerHigh },
+                {
+                  backgroundColor: colors.surfaceContainerHigh,
+                  borderColor: colors.primary,
+                  borderWidth: 2,
+                },
               ]}
             >
               {photo ? (
@@ -367,9 +378,10 @@ export function GemSelectField({
                   source={{ uri: photo }}
                   style={styles.thumbImg}
                   contentFit="cover"
+                  recyclingKey={photo}
                 />
               ) : (
-                <Icon name="diamond" size={18} color={colors.outlineVariant} />
+                <Icon name="diamond" size={18} color={colors.primary} />
               )}
             </View>
             <View style={styles.fieldBody}>

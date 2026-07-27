@@ -36,3 +36,23 @@ export function getExpenseCategoryLabel(id: string): string {
 export function getExpenseCategoryIcon(id: string): IconName {
   return TRIP_EXPENSE_CATEGORIES.find((c) => c.id === id)?.icon ?? 'receipt';
 }
+
+export const TRIP_PAYMENT_METHODS: {
+  id: 'cash' | 'card' | 'transfer';
+  label: string;
+  icon: IconName;
+}[] = [
+  { id: 'cash', label: 'Cash', icon: 'payments' },
+  { id: 'card', label: 'Card', icon: 'credit-card' },
+  { id: 'transfer', label: 'Transfer', icon: 'account-balance' },
+];
+
+export type TripPaymentMethod = (typeof TRIP_PAYMENT_METHODS)[number]['id'];
+
+export function getTripPaymentMethodLabel(id: string | null | undefined): string {
+  if (!id) return '';
+  const match = TRIP_PAYMENT_METHODS.find((m) => m.id === id);
+  if (match) return match.label;
+  // Legacy free-text values (e.g. "Cash")
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}

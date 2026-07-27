@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { ChipSelect } from '@/components/ui/chip-select';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -15,7 +16,11 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
-import { TRIP_EXPENSE_CATEGORIES } from '@/constants/trip-options';
+import {
+  TRIP_EXPENSE_CATEGORIES,
+  TRIP_PAYMENT_METHODS,
+  type TripPaymentMethod,
+} from '@/constants/trip-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { addTripExpense } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -44,7 +49,7 @@ export default function AddTripExpenseScreen() {
     currency: preferred,
   });
   const [description, setDescription] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<TripPaymentMethod>('cash');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
 
   async function handleSubmit() {
@@ -71,7 +76,7 @@ export default function AddTripExpenseScreen() {
           amount: parsed,
           currency: money.currency,
           description: description || null,
-          paymentMethod: paymentMethod || null,
+          paymentMethod,
           receiptPhotoUrl,
         });
         await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
@@ -141,12 +146,16 @@ export default function AddTripExpenseScreen() {
           placeholder="Optional note"
           leftIcon="notes"
         />
-        <Input
+        <ChipSelect
           label="Payment method"
+          layout="wrap"
+          options={TRIP_PAYMENT_METHODS.map((m) => ({
+            value: m.id,
+            label: m.label,
+            icon: m.icon,
+          }))}
           value={paymentMethod}
-          onChangeText={setPaymentMethod}
-          placeholder="Cash, card…"
-          leftIcon="account-balance-wallet"
+          onChange={setPaymentMethod}
         />
 
         <MediaField
