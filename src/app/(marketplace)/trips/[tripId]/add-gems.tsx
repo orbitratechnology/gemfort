@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +12,7 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { formatGemType } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
 import { addGemsToSellingTrip, fetchGems, fetchTripGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
@@ -113,9 +115,12 @@ export default function AddGemsToTripScreen() {
         ) : (
           available.map((g) => {
             const isSelected = selected.has(g.id);
+            const photo = gemPrimaryPhotoUrl(g);
             return (
               <ScreenInset key={g.id}>
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
                 onPress={() => toggleGem(g.id)}
                 style={({ pressed }) => [
                   styles.row,
@@ -125,16 +130,40 @@ export default function AddGemsToTripScreen() {
                   },
                   pressed && { opacity: 0.85 },
                 ]}>
-                <View style={[styles.check, { borderColor: isSelected ? colors.primary : colors.outline }]}>
-                  {isSelected ? <Icon name="check" size={16} color={colors.primary} /> : null}
+                <View
+                  style={[
+                    styles.thumb,
+                    {
+                      backgroundColor: colors.surfaceContainerHigh,
+                      borderColor: isSelected ? colors.primary : 'transparent',
+                      borderWidth: isSelected ? 2 : 0,
+                    },
+                  ]}>
+                  {photo ? (
+                    <Image
+                      source={{ uri: photo }}
+                      style={styles.thumbImg}
+                      contentFit="cover"
+                      recyclingKey={photo}
+                    />
+                  ) : (
+                    <Icon
+                      name="diamond"
+                      size={20}
+                      color={isSelected ? colors.primary : colors.outlineVariant}
+                    />
+                  )}
                 </View>
                 <View style={styles.rowBody}>
                   <Text style={[styles.rowTitle, { color: colors.onSurface }]}>
-                    {g.sku ?? g.id.slice(0, 8)} · {formatGemType(g.gemType)}
+                    {g.title?.trim() || g.sku || g.id.slice(0, 8)} · {formatGemType(g.gemType)}
                   </Text>
                   <Text style={[styles.rowSub, { color: colors.textMuted }]}>
                     {g.currentWeight}ct · {formatCurrency(g.acquisitionCost)}
                   </Text>
+                </View>
+                <View style={[styles.check, { borderColor: isSelected ? colors.primary : colors.outline }]}>
+                  {isSelected ? <Icon name="check" size={16} color={colors.primary} /> : null}
                 </View>
               </Pressable>
               </ScreenInset>
@@ -174,6 +203,16 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: 1,
   },
+  thumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbImg: { width: '100%', height: '100%' },
   check: {
     width: 24,
     height: 24,
@@ -182,7 +221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowBody: { flex: 1, gap: 2 },
+  rowBody: { flex: 1, gap: 2, minWidth: 0 },
   rowTitle: { ...Typography.labelMd, fontWeight: '600' },
   rowSub: { ...Typography.bodySmall },
 });

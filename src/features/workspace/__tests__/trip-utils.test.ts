@@ -1,9 +1,13 @@
 import {
+  budgetRemaining,
   budgetUsedPercent,
   canCompleteTrip,
   canStartTrip,
   computeTripSummary,
   isActiveTrip,
+  tripBudgetBase,
+  tripBudgetSpent,
+  tripCashCarriedBase,
 } from '@/features/workspace/trip-utils';
 import type { Trip, TripExpense, TripGem, WorkspaceGem } from '@/types';
 
@@ -37,9 +41,25 @@ describe('computeTripSummary', () => {
   });
 });
 
-describe('budgetUsedPercent', () => {
-  it('caps at 100', () => {
-    expect(budgetUsedPercent({ budget: 100 } as Trip, 150)).toBe(100);
+describe('budget helpers', () => {
+  const trip = {
+    budget: 300000,
+    budgetBase: 300000,
+    cashCarried: 200,
+    cashCarriedBase: 67249.5,
+  } as Trip;
+
+  it('prefers stored base amounts', () => {
+    expect(tripBudgetBase(trip)).toBe(300000);
+    expect(tripCashCarriedBase(trip)).toBe(67249.5);
+  });
+
+  it('computes spent, remaining, and used percent from budgetBase', () => {
+    const spent = tripBudgetSpent(40000, 10000);
+    expect(spent).toBe(50000);
+    expect(budgetRemaining(trip, spent)).toBe(250000);
+    expect(budgetUsedPercent(trip, spent)).toBe(17);
+    expect(budgetUsedPercent(trip, 400000)).toBe(100);
     expect(budgetUsedPercent({ budget: 0 } as Trip, 50)).toBe(0);
   });
 });

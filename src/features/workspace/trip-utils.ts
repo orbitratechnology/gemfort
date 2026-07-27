@@ -66,9 +66,32 @@ export function getTripsByStatus(trips: Trip[]) {
   };
 }
 
+/** Budget in LKR — prefer stored `budgetBase`, fall back to face `budget`. */
+export function tripBudgetBase(trip: Trip): number {
+  return trip.budgetBase ?? trip.budget ?? 0;
+}
+
+/** Cash carried in LKR — prefer stored `cashCarriedBase`. */
+export function tripCashCarriedBase(trip: Trip): number {
+  return trip.cashCarriedBase ?? trip.cashCarried ?? 0;
+}
+
+/** Expenses + gem purchase spend against the trip budget (LKR). */
+export function tripBudgetSpent(
+  totalExpenses: number,
+  purchaseSpend: number,
+): number {
+  return totalExpenses + purchaseSpend;
+}
+
+export function budgetRemaining(trip: Trip, totalSpent: number): number {
+  return tripBudgetBase(trip) - totalSpent;
+}
+
 export function budgetUsedPercent(trip: Trip, totalSpent: number): number {
-  if (!trip.budget || trip.budget <= 0) return 0;
-  return Math.min(100, Math.round((totalSpent / trip.budget) * 100));
+  const budget = tripBudgetBase(trip);
+  if (!budget || budget <= 0) return 0;
+  return Math.min(100, Math.round((totalSpent / budget) * 100));
 }
 
 /** Calendar progress from start → expected end (clamped 0–100). */
