@@ -197,6 +197,14 @@ export default function AddGemScreen() {
     () => (colorShade ? findColorShade(colorShade) : null),
     [colorShade],
   );
+  const selectedShape = useMemo(
+    () => GEM_SHAPES.find((s) => s.value === shape),
+    [shape],
+  );
+  const selectedClarity = useMemo(
+    () => GEM_CLARITIES.find((c) => c.value === clarity),
+    [clarity],
+  );
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -462,6 +470,28 @@ export default function AddGemScreen() {
                   placeholder="Select"
                   onPress={() => setSheet("shape")}
                   error={errors.shape}
+                  leading={
+                    <View
+                      style={[
+                        styles.placeholderIcon,
+                        {
+                          backgroundColor: selectedShape
+                            ? colors.primaryContainer
+                            : colors.surfaceContainerHigh,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={selectedShape?.icon ?? "category"}
+                        size={18}
+                        color={
+                          selectedShape
+                            ? colors.onPrimaryContainer
+                            : colors.outline
+                        }
+                      />
+                    </View>
+                  }
                 />
               </View>
               <View style={styles.flex}>
@@ -471,6 +501,28 @@ export default function AddGemScreen() {
                   placeholder="Select"
                   onPress={() => setSheet("clarity")}
                   error={errors.clarity}
+                  leading={
+                    <View
+                      style={[
+                        styles.placeholderIcon,
+                        {
+                          backgroundColor: selectedClarity
+                            ? colors.primaryContainer
+                            : colors.surfaceContainerHigh,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={selectedClarity?.icon ?? "visibility"}
+                        size={18}
+                        color={
+                          selectedClarity
+                            ? colors.onPrimaryContainer
+                            : colors.outline
+                        }
+                      />
+                    </View>
+                  }
                 />
               </View>
             </View>

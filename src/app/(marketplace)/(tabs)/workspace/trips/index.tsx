@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,19 +16,24 @@ import { Icon } from "@/components/ui/icon";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-    ContextActionsLink,
+  ContextActionsLink,
 } from "@/components/workspace/context-actions-link";
+import {
+  TripStatusTabs,
+  type TripListTab,
+} from "@/components/workspace/trip-status-tabs";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
-    formatTripDates,
-    getTripsByStatus,
+  formatTripDates,
+  getTripsByStatus,
 } from "@/features/workspace/trip-utils";
 import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -66,80 +72,87 @@ function TripRow({
       ]}
     >
       {({ pressed }) => (
-      <View
-        style={[
-          styles.row,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: colors.outlineVariant,
-          },
-          pressed && { opacity: 0.85 },
-        ]}
-      >
-      <View
-        style={[
-          styles.rowIcon,
-          {
-            backgroundColor: isActive
-              ? colors.primaryContainer
-              : colors.surfaceContainerHigh,
-          },
-        ]}
-      >
-        <Icon
-          name={typeMeta.icon}
-          size={22}
-          color={isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant}
-        />
-      </View>
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text
-            style={[styles.rowTitle, { color: colors.onSurface }]}
-            numberOfLines={1}
-          >
-            {trip.tripName}
-          </Text>
+        <View
+          style={[
+            styles.row,
+            {
+              backgroundColor: colors.surfaceContainerLowest,
+              borderColor: colors.outlineVariant,
+            },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
           <View
             style={[
-              styles.badge,
-              { backgroundColor: colors.surfaceContainerHighest },
-            ]}
-          >
-            <Text
-              style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
-            >
-              {TRIP_STATUS_LABELS[trip.status]}
-            </Text>
-          </View>
-        </View>
-        <PlaceLabel
-          parts={[trip.destinationCity]}
-          country={trip.destinationCountry}
-          size="xs"
-          textStyle={[styles.rowSub, { color: colors.textMuted }]}
-        />
-        <Text style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}>
-          {formatTripDates(trip)} · {typeMeta.label}
-        </Text>
-        {trip.summary.netResult !== 0 || trip.summary.totalExpenses > 0 ? (
-          <Text
-            style={[
-              styles.rowNet,
+              styles.rowIcon,
               {
-                color:
-                  trip.summary.netResult >= 0
-                    ? colors.successEmerald
-                    : colors.error,
+                backgroundColor: isActive
+                  ? colors.primaryContainer
+                  : colors.surfaceContainerHigh,
               },
             ]}
           >
-            Net {formatBase(trip.summary.netResult)}
-          </Text>
-        ) : null}
-      </View>
-      <Icon name="chevron-right" size={20} color={colors.outline} />
-      </View>
+            <Icon
+              name={typeMeta.icon}
+              size={22}
+              color={
+                isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant
+              }
+            />
+          </View>
+          <View style={styles.rowBody}>
+            <View style={styles.rowTop}>
+              <Text
+                style={[styles.rowTitle, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {trip.tripName}
+              </Text>
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: colors.surfaceContainerHighest },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.badgeText,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  {TRIP_STATUS_LABELS[trip.status]}
+                </Text>
+              </View>
+            </View>
+            <PlaceLabel
+              parts={[trip.destinationCity]}
+              country={trip.destinationCountry}
+              size="xs"
+              textStyle={[styles.rowSub, { color: colors.textMuted }]}
+            />
+            <Text
+              style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}
+            >
+              {formatTripDates(trip)} · {typeMeta.label}
+            </Text>
+            {trip.summary.netResult !== 0 || trip.summary.totalExpenses > 0 ? (
+              <Text
+                style={[
+                  styles.rowNet,
+                  {
+                    color:
+                      trip.summary.netResult >= 0
+                        ? colors.successEmerald
+                        : colors.error,
+                  },
+                ]}
+              >
+                Net {formatBase(trip.summary.netResult)}
+              </Text>
+            ) : null}
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
+        </View>
       )}
     </ContextActionsLink>
   );
@@ -150,6 +163,7 @@ export default function TripsScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<TripListTab>("active");
 
   const {
     data: trips = [],
@@ -161,7 +175,11 @@ export default function TripsScreen() {
     enabled: !!user,
   });
 
-  const { active, completed } = getTripsByStatus(trips);
+  const { active, completed } = useMemo(
+    () => getTripsByStatus(trips),
+    [trips],
+  );
+  const visible = tab === "active" ? active : completed;
 
   async function handleDelete(tripId: string) {
     if (!user) return;
@@ -182,6 +200,13 @@ export default function TripsScreen() {
       <WorkspaceScreenBackdrop kind="trips" />
       <StackHeader title="Trips" />
 
+      <TripStatusTabs
+        tab={tab}
+        onChange={setTab}
+        activeCount={active.length}
+        completedCount={completed.length}
+      />
+
       <ScrollView
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -190,82 +215,62 @@ export default function TripsScreen() {
         }
       >
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Track sourcing and selling trips — expenses, purchases, and sales in
-          one place.
+          {tab === "active"
+            ? "Planning and ongoing trips — expenses, purchases, and sales in one place."
+            : "Finished trips and their results."}
         </Text>
 
-        <Pressable
-          onPress={() =>
-            router.push("/(marketplace)/trips/add" as never)
-          }
-          style={({ pressed }) => [
-            styles.createCard,
-            { backgroundColor: colors.primary },
-            pressed && { opacity: 0.92 },
-          ]}
-        >
-          <Icon name="flight-takeoff" size={24} color={colors.onPrimary} />
-          <View style={styles.createText}>
-            <Text style={[styles.createTitle, { color: colors.onPrimary }]}>
-              Plan a new trip
-            </Text>
-            <Text
-              style={[styles.createSub, { color: colors.onPrimary + "AA" }]}
-            >
-              Ratnapura, Bangkok, or anywhere you trade
-            </Text>
-          </View>
-          <Icon
-            name="chevron-right"
-            size={22}
-            color={colors.onPrimary + "99"}
-          />
-        </Pressable>
+        {tab === "active" ? (
+          <Pressable
+            onPress={haptics.wrap("light", () =>
+              router.push("/(marketplace)/trips/add" as never),
+            )}
+            style={({ pressed }) => [
+              styles.createCard,
+              { backgroundColor: colors.primary },
+              pressed && { opacity: 0.92 },
+            ]}
+          >
+            <Icon name="flight-takeoff" size={24} color={colors.onPrimary} />
+            <View style={styles.createText}>
+              <Text style={[styles.createTitle, { color: colors.onPrimary }]}>
+                Plan a new trip
+              </Text>
+              <Text
+                style={[styles.createSub, { color: colors.onPrimary + "AA" }]}
+              >
+                Ratnapura, Bangkok, or anywhere you trade
+              </Text>
+            </View>
+            <Icon
+              name="chevron-right"
+              size={22}
+              color={colors.onPrimary + "99"}
+            />
+          </Pressable>
+        ) : null}
 
-        {trips.length === 0 ? (
+        {visible.length === 0 ? (
           <EmptyState
-            icon="flight"
-            title="No trips yet"
-            subtitle="Create a sourcing or selling trip to track travel costs and gem deals."
+            icon={tab === "active" ? "flight" : "check-circle"}
+            title={tab === "active" ? "No active trips" : "No completed trips"}
+            subtitle={
+              tab === "active"
+                ? "Create a sourcing or selling trip to track travel costs and gem deals."
+                : "Completed trips will show up here."
+            }
           />
         ) : (
-          <>
-            {active.length > 0 ? (
-              <View style={styles.section}>
-                <Text
-                  style={[styles.sectionTitle, { color: colors.onSurface }]}
-                >
-                  Active
-                </Text>
-                {active.map((t) => (
-                  <TripRow
-                    key={t.id}
-                    trip={t}
-                    colors={colors}
-                    onDelete={() => handleDelete(t.id)}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {completed.length > 0 ? (
-              <View style={styles.section}>
-                <Text
-                  style={[styles.sectionTitle, { color: colors.onSurface }]}
-                >
-                  Completed
-                </Text>
-                {completed.map((t) => (
-                  <TripRow
-                    key={t.id}
-                    trip={t}
-                    colors={colors}
-                    onDelete={() => handleDelete(t.id)}
-                  />
-                ))}
-              </View>
-            ) : null}
-          </>
+          <View style={styles.list}>
+            {visible.map((t) => (
+              <TripRow
+                key={t.id}
+                trip={t}
+                colors={colors}
+                onDelete={() => handleDelete(t.id)}
+              />
+            ))}
+          </View>
         )}
       </ScrollView>
 
@@ -277,9 +282,9 @@ export default function TripsScreen() {
           { backgroundColor: colors.primary },
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
-        onPress={() =>
-          router.push("/(marketplace)/trips/add" as never)
-        }
+        onPress={haptics.wrap("light", () =>
+          router.push("/(marketplace)/trips/add" as never),
+        )}
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
@@ -294,12 +299,6 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
     gap: Spacing.lg,
   },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   subtitle: { ...Typography.bodySmall, lineHeight: 20 },
   createCard: {
     flexDirection: "row",
@@ -312,8 +311,7 @@ const styles = StyleSheet.create({
   createText: { flex: 1, gap: 2 },
   createTitle: { ...Typography.labelMd, fontWeight: "700" },
   createSub: { ...Typography.bodySmall },
-  section: { gap: Spacing.sm },
-  sectionTitle: { ...Typography.headlineMdMobile, fontWeight: "700" },
+  list: { gap: Spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -362,10 +360,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
   },
 });

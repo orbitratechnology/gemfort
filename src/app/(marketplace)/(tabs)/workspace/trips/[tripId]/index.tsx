@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -255,6 +256,17 @@ export default function TripDetailScreen() {
               />
             </View>
           )}
+
+          {destinationFlagCode ? (
+            <View style={styles.heroFlagCorner} pointerEvents="none">
+              <CountryFlag
+                country={trip.destinationCountry}
+                width={40}
+                height={28}
+                style={styles.heroFlagCornerImage}
+              />
+            </View>
+          ) : null}
         </View>
 
         <View
@@ -750,7 +762,22 @@ const styles = StyleSheet.create({
   },
   heroBlur: {
     padding: Spacing.lg,
+    paddingRight: Spacing.lg + 48,
     gap: Spacing.xs,
+  },
+  heroFlagCorner: {
+    position: "absolute",
+    right: Spacing.lg,
+    bottom: Spacing.lg,
+    borderRadius: Radius.sm,
+    borderCurve: "continuous",
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.4)",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.28)",
+  },
+  heroFlagCornerImage: {
+    borderRadius: Radius.sm,
   },
   heroTop: {
     flexDirection: "row",
