@@ -76,6 +76,39 @@ export function tripCashCarriedBase(trip: Trip): number {
   return trip.cashCarriedBase ?? trip.cashCarried ?? 0;
 }
 
+function isCashPaymentMethod(method: string | null | undefined): boolean {
+  if (!method) return false;
+  return method.trim().toLowerCase() === 'cash';
+}
+
+/** Cash spent from the trip wallet (cash expenses + gem purchases). */
+export function tripCashSpentBase(
+  expenses: TripExpense[],
+  purchaseSpend: number,
+): number {
+  const cashExpenses = expenses
+    .filter((e) => isCashPaymentMethod(e.paymentMethod))
+    .reduce((s, e) => s + e.amountBase, 0);
+  return cashExpenses + purchaseSpend;
+}
+
+/**
+ * Current cash in hand (LKR): started with cash carried, minus cash spends,
+ * plus trip sale revenue (assumed received in cash on the road).
+ */
+export function tripCashInHandBase(
+  trip: Trip,
+  expenses: TripExpense[],
+  purchaseSpend: number,
+  saleRevenue = 0,
+): number {
+  return (
+    tripCashCarriedBase(trip) -
+    tripCashSpentBase(expenses, purchaseSpend) +
+    saleRevenue
+  );
+}
+
 /** Expenses + gem purchase spend against the trip budget (LKR). */
 export function tripBudgetSpent(
   totalExpenses: number,

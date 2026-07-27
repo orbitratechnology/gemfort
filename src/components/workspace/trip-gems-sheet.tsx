@@ -1,9 +1,11 @@
 import { Image } from "expo-image";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
@@ -17,9 +19,8 @@ type TripGemsSheetProps = {
   tripGems: TripGem[];
   gemMap: Map<string, WorkspaceGem>;
   canRecordSales?: boolean;
-  saleTargetId?: string | null;
   onOpenGem: (gemId: string) => void;
-  onRecordSale?: (tripGem: TripGem) => void;
+  onConfirmSale?: (tripGem: TripGem, price: number) => Promise<void>;
   onAddGem?: () => void;
   onAddGems?: () => void;
   showAddGem?: boolean;
@@ -62,25 +63,22 @@ function GemThumb({
         <Icon
           name="diamond"
           size={Math.round(size * 0.4)}
-          color={
-            selected ? colors.primary : colors.outlineVariant
-          }
+          color={selected ? colors.primary : colors.outlineVariant}
         />
       )}
     </View>
   );
 }
 
-/** Trip gems list sheet — always shows primary photo when available. */
+/** Trip gems list sheet — Record Sale available on every eligible parcel. */
 export function TripGemsSheet({
   visible,
   onClose,
   tripGems,
   gemMap,
   canRecordSales,
-  saleTargetId,
   onOpenGem,
-  onRecordSale,
+  onConfirmSale,
   onAddGem,
   onAddGems,
   showAddGem,
@@ -88,6 +86,29 @@ export function TripGemsSheet({
 }: TripGemsSheetProps) {
   const { colors } = useAppTheme();
   const { formatBase } = usePreferredMoney();
+  const [saleGemId, setSaleGemId] = useState<string | null>(null);
+  const [salePrice, setSalePrice] = useState("");
+  const [savingSale, setSavingSale] = useState(false);
+
+  function handleClose() {
+    setSaleGemId(null);
+    setSalePrice("");
+    onClose();
+  }
+
+  async function confirmSale(tg: TripGem) {
+    if (!onConfirmSale) return;
+    const price = parseFloat(salePrice);
+    if (!price || price <= 0) return;
+    setSavingSale(true);
+    try {
+      await onConfirmSale(tg, price);
+      setSaleGemId(null);
+      setSalePrice("");
+    } finally {
+      setSavingSale(false);
+    }
+  }
 
   const footerActions =
     showAddGem || showAddGems ? (
@@ -98,7 +119,7 @@ export function TripGemsSheet({
             icon="diamond"
             variant={showAddGems ? "secondary" : "primary"}
             onPress={() => {
-              onClose();
+              handleClose();
               onAddGem();
             }}
             style={showAddGems ? styles.footerHalf : undefined}
@@ -109,7 +130,7 @@ export function TripGemsSheet({
             title="Add gems"
             icon="inventory-2"
             onPress={() => {
-              onClose();
+              handleClose();
               onAddGems();
             }}
             style={showAddGem ? styles.footerHalf : undefined}
@@ -121,7 +142,7 @@ export function TripGemsSheet({
   return (
     <BottomSheet
       visible={visible}
-      onClose={onClose}
+      onClose={handleClose}
       title="Gems"
       footer={footerActions}
     >
@@ -139,41 +160,36 @@ export function TripGemsSheet({
         <View style={styles.list}>
           {tripGems.map((tg) => {
             const gem = gemMap.get(tg.gemId);
-            const selected = saleTargetId === tg.id;
-            const showSale =
-              canRecordSales &&
+            const canSell =
+              !!canRecordSales &&
+              !!onConfirmSale &&
               tg.role === "parcel" &&
-              tg.status === "on_trip" &&
-              !selected;
+              tg.status === "on_trip";
+            const selling = saleGemId === tg.id;
 
             return (
               <View key={tg.id} style={styles.gemWrap}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ selected }}
                   accessibilityLabel={
                     gem
                       ? `${gem.title?.trim() || formatGemType(gem.gemType)}, ${gem.currentWeight} carat`
                       : "Gem"
                   }
                   onPress={() => {
-                    onClose();
+                    handleClose();
                     onOpenGem(tg.gemId);
                   }}
                   style={({ pressed }) => [
                     styles.row,
                     {
-                      backgroundColor: selected
-                        ? colors.primaryContainer
-                        : colors.surfaceContainerLow,
-                      borderColor: selected
-                        ? colors.primary
-                        : colors.outlineVariant,
+                      backgroundColor: colors.surfaceContainerLow,
+                      borderColor: colors.outlineVariant,
                     },
                     pressed && { opacity: 0.9 },
                   ]}
                 >
-                  <GemThumb gem={gem} selected={selected} />
+                  <GemThumb gem={gem} />
                   <View style={styles.rowBody}>
                     <Text
                       style={[styles.rowTitle, { color: colors.onSurface }]}
@@ -193,16 +209,7 @@ export function TripGemsSheet({
                         : tg.status}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.rowAmt,
-                      {
-                        color: selected
-                          ? colors.onPrimaryContainer
-                          : colors.primary,
-                      },
-                    ]}
-                  >
+                  <Text style={[styles.rowAmt, { color: colors.primary }]}>
                     {tg.salePrice != null
                       ? formatBase(tg.salePrice)
                       : tg.purchaseCost != null
@@ -210,32 +217,75 @@ export function TripGemsSheet({
                         : "—"}
                   </Text>
                 </Pressable>
-                {showSale && onRecordSale ? (
-                  <Pressable
-                    onPress={() => {
-                      onClose();
-                      onRecordSale(tg);
-                    }}
-                    style={({ pressed }) => [
-                      styles.saleBtn,
-                      { backgroundColor: colors.primaryContainer },
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <Icon
-                      name="sell"
-                      size={16}
-                      color={colors.onPrimaryContainer}
-                    />
-                    <Text
+
+                {canSell ? (
+                  selling ? (
+                    <View
                       style={[
-                        styles.saleBtnText,
-                        { color: colors.onPrimaryContainer },
+                        styles.salePanel,
+                        {
+                          backgroundColor: colors.primaryContainer,
+                          borderColor: colors.primary,
+                        },
                       ]}
                     >
-                      Record sale
-                    </Text>
-                  </Pressable>
+                      <Input
+                        label="Sale price (LKR)"
+                        value={salePrice}
+                        onChangeText={setSalePrice}
+                        keyboardType="decimal-pad"
+                        placeholder="0.00"
+                        leftIcon="payments"
+                      />
+                      <View style={styles.saleActions}>
+                        <Button
+                          title="Cancel"
+                          variant="secondary"
+                          onPress={() => {
+                            setSaleGemId(null);
+                            setSalePrice("");
+                          }}
+                          style={styles.footerHalf}
+                          disabled={savingSale}
+                        />
+                        <Button
+                          title="Confirm"
+                          icon="check-circle"
+                          loading={savingSale}
+                          onPress={() => confirmSale(tg)}
+                          style={styles.footerHalf}
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Record sale"
+                      onPress={() => {
+                        setSaleGemId(tg.id);
+                        setSalePrice("");
+                      }}
+                      style={({ pressed }) => [
+                        styles.saleBtn,
+                        { backgroundColor: colors.primaryContainer },
+                        pressed && { opacity: 0.85 },
+                      ]}
+                    >
+                      <Icon
+                        name="sell"
+                        size={16}
+                        color={colors.onPrimaryContainer}
+                      />
+                      <Text
+                        style={[
+                          styles.saleBtnText,
+                          { color: colors.onPrimaryContainer },
+                        ]}
+                      >
+                        Record sale
+                      </Text>
+                    </Pressable>
+                  )
                 ) : null}
               </View>
             );
@@ -243,49 +293,6 @@ export function TripGemsSheet({
         </View>
       )}
     </BottomSheet>
-  );
-}
-
-export function TripGemsButton({
-  count,
-  onPress,
-}: {
-  count: number;
-  onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Gems, ${count}`}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.trigger,
-        { backgroundColor: colors.secondaryContainer },
-        pressed && { opacity: 0.85 },
-      ]}
-    >
-      <Icon name="diamond" size={20} color={colors.onSecondaryContainer} />
-      <Text
-        style={[styles.triggerLabel, { color: colors.onSecondaryContainer }]}
-      >
-        Gems
-      </Text>
-      {count > 0 ? (
-        <View
-          style={[
-            styles.countBadge,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Text
-            style={[styles.countText, { color: colors.onSecondaryContainer }]}
-          >
-            {count}
-          </Text>
-        </View>
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -311,8 +318,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { ...Typography.labelMd, fontWeight: "700" },
   emptySub: { ...Typography.bodySmall, textAlign: "center" },
-  list: { gap: Spacing.sm },
-  gemWrap: { gap: Spacing.xs },
+  list: { gap: Spacing.md },
+  gemWrap: { gap: Spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -345,28 +352,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.full,
-    alignSelf: "flex-end",
-    minHeight: 36,
-  },
-  saleBtnText: { ...Typography.labelMd, fontWeight: "600" },
-  footerRow: { flexDirection: "row", gap: Spacing.sm },
-  footerHalf: { flex: 1 },
-  trigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
+    alignSelf: "stretch",
     minHeight: 44,
   },
-  triggerLabel: { ...Typography.labelMd, fontWeight: "600" },
-  countBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-    minWidth: 22,
-    alignItems: "center",
+  saleBtnText: { ...Typography.labelMd, fontWeight: "600" },
+  salePanel: {
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
   },
-  countText: { ...Typography.labelMd, fontSize: 11, fontWeight: "700" },
+  saleActions: { flexDirection: "row", gap: Spacing.sm },
+  footerRow: { flexDirection: "row", gap: Spacing.sm },
+  footerHalf: { flex: 1 },
 });

@@ -1592,6 +1592,24 @@ export async function updateTripStatus(tripId: string, status: TripStatus) {
   await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), updates);
 }
 
+export async function updateTripBudget(
+  tripId: string,
+  ownerUid: string,
+  input: { budget: number; budgetCurrency: string },
+): Promise<void> {
+  const trip = await fetchTrip(tripId);
+  if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");
+  const budget = Math.max(0, input.budget);
+  const budgetCurrency = input.budgetCurrency || "LKR";
+  const budgetBase = await convertToBase(budget, budgetCurrency);
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), {
+    budget,
+    budgetCurrency,
+    budgetBase,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function deleteTrip(tripId: string, ownerUid: string) {
   const trip = await fetchTrip(tripId);
   if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");

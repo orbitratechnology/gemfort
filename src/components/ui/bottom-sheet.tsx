@@ -242,7 +242,7 @@ export function FilterChipGroup<T extends string>({
 }: {
   label: string;
   options: { id: T; label: string }[];
-  value: T;
+  value: T | null;
   onChange: (id: T) => void;
 }) {
   const { colors } = useAppTheme();
