@@ -8,6 +8,7 @@ import { FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
+import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import {
@@ -115,6 +116,7 @@ export default function LapidaryJobsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <WorkspaceScreenBackdrop kind="jobs" />
       <StackHeader title="Workshop jobs" />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSectionLabel title="Incoming requests" />

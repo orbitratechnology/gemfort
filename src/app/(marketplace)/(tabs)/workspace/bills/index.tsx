@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "expo-router";
+import { router } from "expo-router";
 import {
   Pressable,
   RefreshControl,
@@ -232,20 +232,7 @@ export default function BillsIndexScreen() {
       edges={["top"]}
     >
       <WorkspaceScreenBackdrop kind="bills" />
-      <StackHeader
-        title="Bills"
-        right={
-          <Link href="/(marketplace)/bills/add" asChild>
-            <Pressable
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Add bill"
-            >
-              <Icon name="add" size={24} color={colors.primary} />
-            </Pressable>
-          </Link>
-        }
-      />
+      <StackHeader title="Bills" />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -350,6 +337,19 @@ export default function BillsIndexScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add bill"
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push("/(marketplace)/bills/add" as never)}
+      >
+        <Icon name="add" size={28} color={colors.onPrimary} />
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.xxl + 72,
     gap: Spacing.md,
   },
   subtitle: { ...Typography.bodySmall },
@@ -421,4 +421,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   badgeText: { fontSize: 10, fontWeight: "700" },
+  fab: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
+    zIndex: 100,
+  },
 });

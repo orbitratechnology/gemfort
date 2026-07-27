@@ -27,6 +27,7 @@ import { Timestamp } from '@/lib/firebase/db';
 import { addTripSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { TripType } from '@/types';
 
@@ -50,7 +51,6 @@ export default function AddTripScreen() {
     currency: preferred,
   });
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function clearField(key: string) {
@@ -80,30 +80,29 @@ export default function AddTripScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      const data = result.data;
-      const start = Timestamp.now();
-      const end = Timestamp.fromDate(addDays(new Date(), data.durationDays));
-      const id = await createTrip(user.uid, {
-        tripName: data.tripName,
-        tripType: data.tripType,
-        destinationCountry: data.destinationCountry,
-        destinationCity: data.destinationCity,
-        startDate: start,
-        expectedEndDate: end,
-        budget: data.budget ?? 0,
-        budgetCurrency: budget.currency,
-        cashCarried: data.cashCarried ?? 0,
-        cashCarriedCurrency: cashCarried.currency,
-        notes: data.notes || null,
-      });
-      toast.success('Trip created.');
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
+      await withLoading(async () => {
+        const data = result.data;
+        const start = Timestamp.now();
+        const end = Timestamp.fromDate(addDays(new Date(), data.durationDays));
+        const id = await createTrip(user.uid, {
+          tripName: data.tripName,
+          tripType: data.tripType,
+          destinationCountry: data.destinationCountry,
+          destinationCity: data.destinationCity,
+          startDate: start,
+          expectedEndDate: end,
+          budget: data.budget ?? 0,
+          budgetCurrency: budget.currency,
+          cashCarried: data.cashCarried ?? 0,
+          cashCarriedCurrency: cashCarried.currency,
+          notes: data.notes || null,
+        });
+        toast.success('Trip created.');
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
+      }, 'Creating trip…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not create trip.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -220,7 +219,7 @@ export default function AddTripScreen() {
         </FormSection>
       </ThemedScrollView>
 
-      <FormFooter title="Create trip" icon="add" loading={loading} onPress={handleSubmit} />
+      <FormFooter title="Create trip" icon="add" onPress={handleSubmit} />
     </SafeAreaView>
   );
 }

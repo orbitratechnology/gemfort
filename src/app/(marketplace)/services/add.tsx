@@ -23,6 +23,7 @@ import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 const SERVICE_TYPES = [
@@ -45,7 +46,6 @@ export default function AddServiceScreen() {
   const [serviceType, setServiceType] = useState('cutting');
   const [weightBefore, setWeightBefore] = useState('');
   const [daysUntilReturn, setDaysUntilReturn] = useState('14');
-  const [loading, setLoading] = useState(false);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [providerSheetOpen, setProviderSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -82,38 +82,37 @@ export default function AddServiceScreen() {
     }
     if (!provider) return;
 
-    setLoading(true);
     try {
-      let providerUid: string | null = null;
-      if (provider.source === 'business') {
-        const biz = await fetchBusiness(provider.businessId);
-        providerUid = biz?.ownerUid ?? null;
-      }
-      const expectedReturn = Timestamp.fromDate(
-        new Date(Date.now() + parseInt(daysUntilReturn, 10) * 86400000),
-      );
-      const id = await createService(user.uid, {
-        gemId,
-        serviceType,
-        providerContactId: provider.source === 'contact' ? provider.contactId : '',
-        providerBusinessId: provider.source === 'business' ? provider.businessId : null,
-        providerUid,
-        providerName: provider.label,
-        dateGiven: Timestamp.now(),
-        expectedReturnDate: expectedReturn,
-        weightBefore: parseFloat(weightBeforeValue) || selectedGem?.currentWeight || 0,
-        photoBeforeUrls: [],
-        instructions: null,
-        agreedPrice: null,
-        agreedPriceCurrency: null,
-        advancePaid: 0,
-      });
-      toast.success('Service record created');
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
+      await withLoading(async () => {
+        let providerUid: string | null = null;
+        if (provider.source === 'business') {
+          const biz = await fetchBusiness(provider.businessId);
+          providerUid = biz?.ownerUid ?? null;
+        }
+        const expectedReturn = Timestamp.fromDate(
+          new Date(Date.now() + parseInt(daysUntilReturn, 10) * 86400000),
+        );
+        const id = await createService(user.uid, {
+          gemId,
+          serviceType,
+          providerContactId: provider.source === 'contact' ? provider.contactId : '',
+          providerBusinessId: provider.source === 'business' ? provider.businessId : null,
+          providerUid,
+          providerName: provider.label,
+          dateGiven: Timestamp.now(),
+          expectedReturnDate: expectedReturn,
+          weightBefore: parseFloat(weightBeforeValue) || selectedGem?.currentWeight || 0,
+          photoBeforeUrls: [],
+          instructions: null,
+          agreedPrice: null,
+          agreedPriceCurrency: null,
+          advancePaid: 0,
+        });
+        toast.success('Service record created');
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
+      }, 'Adding service…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not create service.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -194,7 +193,7 @@ export default function AddServiceScreen() {
           error={errors.provider}
         />
 
-        <Button title="Create Service Record" icon="handyman" loading={loading} onPress={handleSubmit} />
+        <Button title="Create Service Record" icon="handyman" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
 

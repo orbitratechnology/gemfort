@@ -20,6 +20,7 @@ import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { markOnboardingComplete } from '@/lib/onboarding';
 import { loginSchema, parseForm } from '@/lib/validation/form-schemas';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function LoginScreen() {
@@ -29,7 +30,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -58,27 +58,26 @@ export default function LoginScreen() {
       return;
     }
 
-    setLoading(true);
     setErrors({});
     try {
-      const loggedInUser = await loginUser(result.data.email, result.data.password);
-      await saveRememberedEmail(rememberMe ? result.data.email : null);
-      await markOnboardingComplete();
-      const profile = await getUserProfile(loggedInUser.uid);
-      if (needsPhoneVerification(profile)) {
-        router.replace({
-          pathname: '/(auth)/verify-otp',
-          params: { phone: profile!.phone },
-        });
-      } else {
-        router.replace('/(marketplace)/(tabs)/home');
-      }
+      await withLoading(async () => {
+        const loggedInUser = await loginUser(result.data.email, result.data.password);
+        await saveRememberedEmail(rememberMe ? result.data.email : null);
+        await markOnboardingComplete();
+        const profile = await getUserProfile(loggedInUser.uid);
+        if (needsPhoneVerification(profile)) {
+          router.replace({
+            pathname: '/(auth)/verify-otp',
+            params: { phone: profile!.phone },
+          });
+        } else {
+          router.replace('/(marketplace)/(tabs)/home');
+        }
+      }, 'Signing in…');
     } catch (e) {
       const msg = friendlyError(e, 'Could not sign in. Please try again.');
       setErrors({ password: msg });
       toast.error(msg);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -159,7 +158,7 @@ export default function LoginScreen() {
           />
         </View>
 
-        <Button title="Sign In" loading={loading} onPress={handleLogin} style={styles.cta} />
+        <Button title="Sign In" onPress={handleLogin} style={styles.cta} />
       </View>
 
       <AuthFooterLink

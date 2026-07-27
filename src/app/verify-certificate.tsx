@@ -10,27 +10,26 @@ import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { verifyCertificateByNumber } from '@/features/marketplace/request-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
+import { withLoading } from '@/providers/loading-provider';
 import type { PublicCertificate } from '@/types';
 
 export default function VerifyCertificateScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [number, setNumber] = useState('');
-  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PublicCertificate | null | undefined>(undefined);
 
   async function onSearch() {
     Keyboard.dismiss();
     if (!number.trim()) return;
-    setLoading(true);
     try {
-      const cert = await verifyCertificateByNumber(number.trim());
-      setResult(cert);
+      await withLoading(async () => {
+        const cert = await verifyCertificateByNumber(number.trim());
+        setResult(cert);
+      }, 'Verifying…');
     } catch (e) {
       setResult(null);
       console.warn(friendlyError(e, 'Verify failed'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -59,7 +58,7 @@ export default function VerifyCertificateScreen() {
           blurOnSubmit
           onSubmitEditing={onSearch}
         />
-        <Button title="Verify" loading={loading} onPress={onSearch} />
+        <Button title="Verify" onPress={onSearch} />
       </ScreenInset>
 
       {result === null ? (

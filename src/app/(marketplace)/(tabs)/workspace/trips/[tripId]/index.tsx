@@ -1,17 +1,22 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BlurTargetView, BlurView } from "expo-blur";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
-import { PlaceLabel } from "@/components/ui/country-flag";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { formatGemType } from "@/constants/gem-options";
+import {
+    flagUrl,
+    formatGemType,
+    resolveCountryCode,
+} from "@/constants/gem-options";
 import {
     TRIP_STATUS_LABELS,
     TRIP_TYPES,
@@ -41,6 +46,7 @@ import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { TripGem } from "@/types";
 
@@ -51,9 +57,9 @@ export default function TripDetailScreen() {
   const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(false);
   const [saleTarget, setSaleTarget] = useState<TripGem | null>(null);
   const [salePrice, setSalePrice] = useState("");
+  const flagBlurTargetRef = useRef<View | null>(null);
 
   const { data: trip, isLoading } = useQuery({
     queryKey: ["trip", tripId],
@@ -62,15 +68,15 @@ export default function TripDetailScreen() {
   });
 
   const { data: expenses = [] } = useQuery({
-    queryKey: ["trip-expenses", tripId],
-    queryFn: () => fetchTripExpenses(tripId!),
-    enabled: !!tripId,
+    queryKey: ["trip-expenses", tripId, user?.uid],
+    queryFn: () => fetchTripExpenses(tripId!, user!.uid),
+    enabled: !!tripId && !!user,
   });
 
   const { data: tripGems = [] } = useQuery({
-    queryKey: ["trip-gems", tripId],
-    queryFn: () => fetchTripGems(tripId!),
-    enabled: !!tripId,
+    queryKey: ["trip-gems", tripId, user?.uid],
+    queryFn: () => fetchTripGems(tripId!, user!.uid),
+    enabled: !!tripId && !!user,
   });
 
   const { data: gems = [] } = useQuery({
@@ -91,24 +97,23 @@ export default function TripDetailScreen() {
   const canRecordSales = isSelling && trip?.status === "ongoing";
   const sheets = {
     addExpense: `/(marketplace)/trips/${tripId}/add-expense`,
-    addPurchase: `/(marketplace)/trips/${tripId}/add-purchase`,
+    addGem: `/(marketplace)/gems/add?tripId=${tripId}`,
     addGems: `/(marketplace)/trips/${tripId}/add-gems`,
   };
 
   async function handleStatus(next: "ongoing" | "completed" | "cancelled") {
     if (!trip) return;
-    setLoading(true);
     try {
-      await updateTripStatus(trip.id, next);
-      await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
-      await queryClient.invalidateQueries({ queryKey: ["trips"] });
-      toast.success(
-        `Trip marked as ${TRIP_STATUS_LABELS[next].toLowerCase()}.`,
-      );
+      await withLoading(async () => {
+        await updateTripStatus(trip.id, next);
+        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+        await queryClient.invalidateQueries({ queryKey: ["trips"] });
+        toast.success(
+          `Trip marked as ${TRIP_STATUS_LABELS[next].toLowerCase()}.`,
+        );
+      }, "Updating…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not update trip."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -122,7 +127,6 @@ export default function TripDetailScreen() {
       cancelLabel: "Cancel",
       icon: "pie-chart",
       onConfirm: async () => {
-        setLoading(true);
         try {
           const amount = await distributeTripOverhead(user.uid, trip.id);
           await queryClient.invalidateQueries({ queryKey: ["gems"] });
@@ -130,8 +134,6 @@ export default function TripDetailScreen() {
         } catch (e) {
           toast.error(friendlyError(e, "Could not distribute overhead."));
           throw e;
-        } finally {
-          setLoading(false);
         }
       },
     });
@@ -145,27 +147,26 @@ export default function TripDetailScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      await recordTripGemSale(
-        user.uid,
-        trip.id,
-        saleTarget.id,
-        saleTarget.gemId,
-        price,
-      );
-      await queryClient.invalidateQueries({ queryKey: ["trip-gems", tripId] });
-      await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
-      await queryClient.invalidateQueries({ queryKey: ["trips"] });
-      await queryClient.invalidateQueries({ queryKey: ["gems"] });
-      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success("Sale recorded on trip.");
-      setSaleTarget(null);
-      setSalePrice("");
+      await withLoading(async () => {
+        await recordTripGemSale(
+          user.uid,
+          trip.id,
+          saleTarget.id,
+          saleTarget.gemId,
+          price,
+        );
+        await queryClient.invalidateQueries({ queryKey: ["trip-gems", tripId] });
+        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+        await queryClient.invalidateQueries({ queryKey: ["trips"] });
+        await queryClient.invalidateQueries({ queryKey: ["gems"] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        toast.success("Sale recorded on trip.");
+        setSaleTarget(null);
+        setSalePrice("");
+      }, "Recording sale…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not record sale."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -189,6 +190,10 @@ export default function TripDetailScreen() {
   );
   const netPositive = summary.netResult >= 0;
   const saleGem = saleTarget ? gemMap.get(saleTarget.gemId) : null;
+  const destinationFlagCode = resolveCountryCode(trip.destinationCountry);
+  const locationLine = [trip.destinationCity, trip.destinationCountry]
+    .filter((part): part is string => !!part?.trim())
+    .join(", ");
 
   return (
     <SafeAreaView
@@ -198,45 +203,58 @@ export default function TripDetailScreen() {
       <StackHeader title={trip.tripName} />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
-        <View style={[styles.hero, { backgroundColor: colors.primary }]}>
-          <View style={styles.heroTop}>
-            <View
-              style={[
-                styles.heroIcon,
-                { backgroundColor: colors.onPrimary + "22" },
-              ]}
-            >
-              <Icon
-                name={typeMeta?.icon ?? "flight"}
-                size={26}
-                color={colors.onPrimary}
+        <View
+          style={[
+            styles.hero,
+            {
+              backgroundColor: destinationFlagCode ? "#1a1a1a" : colors.primary,
+            },
+          ]}
+        >
+          {destinationFlagCode ? (
+            <>
+              <BlurTargetView ref={flagBlurTargetRef} style={styles.heroFlag}>
+                <Image
+                  source={{ uri: flagUrl(destinationFlagCode, 640) }}
+                  style={styles.heroFlagImage}
+                  contentFit="cover"
+                  accessibilityLabel={`Flag for ${trip.destinationCountry}`}
+                />
+              </BlurTargetView>
+              <BlurView
+                blurTarget={flagBlurTargetRef}
+                intensity={40}
+                tint="dark"
+                blurMethod="dimezisBlurView"
+                style={styles.heroBlur}
+              >
+                <HeroCardContent
+                  typeIcon={typeMeta?.icon ?? "flight"}
+                  statusLabel={TRIP_STATUS_LABELS[trip.status]}
+                  locationLine={locationLine}
+                  dates={formatTripDates(trip)}
+                  durationLabel={`${tripDurationDays(trip)} days · ${typeMeta?.label}`}
+                  statusTextColor={colors.onSurfaceVariant}
+                  statusBg={colors.surfaceContainerLowest}
+                  onFlagBackground
+                />
+              </BlurView>
+            </>
+          ) : (
+            <View style={styles.heroBlur}>
+              <HeroCardContent
+                typeIcon={typeMeta?.icon ?? "flight"}
+                statusLabel={TRIP_STATUS_LABELS[trip.status]}
+                locationLine={locationLine}
+                dates={formatTripDates(trip)}
+                durationLabel={`${tripDurationDays(trip)} days · ${typeMeta?.label}`}
+                statusTextColor={colors.onSurfaceVariant}
+                statusBg={colors.surfaceContainerLowest}
+                onFlagBackground={false}
+                fallbackIconColor={colors.onPrimary}
               />
             </View>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              <Text
-                style={[styles.statusText, { color: colors.onSurfaceVariant }]}
-              >
-                {TRIP_STATUS_LABELS[trip.status]}
-              </Text>
-            </View>
-          </View>
-          <PlaceLabel
-            parts={[trip.destinationCity]}
-            country={trip.destinationCountry}
-            size="sm"
-            textStyle={[styles.heroLoc, { color: colors.onPrimary + "CC" }]}
-          />
-          <Text style={[styles.heroDates, { color: colors.onPrimary + "AA" }]}>
-            {formatTripDates(trip)}
-          </Text>
-          <Text style={[styles.heroDur, { color: colors.onPrimary + "99" }]}>
-            {tripDurationDays(trip)} days · {typeMeta?.label}
-          </Text>
+          )}
         </View>
 
         <View
@@ -306,7 +324,6 @@ export default function TripDetailScreen() {
           <Button
             title="Start trip"
             icon="flight"
-            loading={loading}
             onPress={() => handleStatus("ongoing")}
           />
         ) : null}
@@ -315,7 +332,6 @@ export default function TripDetailScreen() {
             <Button
               title="Complete trip"
               icon="done-all"
-              loading={loading}
               onPress={() => handleStatus("completed")}
               style={{ flex: 1 }}
             />
@@ -338,7 +354,7 @@ export default function TripDetailScreen() {
           </Pressable>
           {isSourcing ? (
             <Pressable
-              onPress={() => router.push(sheets.addPurchase as never)}
+              onPress={() => router.push(sheets.addGem as never)}
               style={({ pressed }) => [
                 styles.linkBtn,
                 { backgroundColor: colors.secondaryContainer },
@@ -356,7 +372,7 @@ export default function TripDetailScreen() {
                   { color: colors.onSecondaryContainer },
                 ]}
               >
-                Buy gem
+                Add gem
               </Text>
             </Pressable>
           ) : null}
@@ -438,7 +454,6 @@ export default function TripDetailScreen() {
               <Button
                 title="Confirm sale"
                 icon="check-circle"
-                loading={loading}
                 onPress={handleRecordSale}
                 style={{ flex: 1 }}
               />
@@ -489,9 +504,7 @@ export default function TripDetailScreen() {
                     {e.description || formatRelativeTime(e.date)}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.listAmt, { color: colors.onSurface }]}
-                >
+                <Text style={[styles.listAmt, { color: colors.onSurface }]}>
                   {formatStored({
                     amount: e.amount,
                     currency: e.currency,
@@ -564,9 +577,7 @@ export default function TripDetailScreen() {
                           : tg.status}
                       </Text>
                     </View>
-                    <Text
-                      style={[styles.listAmt, { color: colors.primary }]}
-                    >
+                    <Text style={[styles.listAmt, { color: colors.primary }]}>
                       {tg.salePrice != null
                         ? formatBase(tg.salePrice)
                         : tg.purchaseCost != null
@@ -617,15 +628,79 @@ export default function TripDetailScreen() {
             <Text style={[styles.cardTitle, { color: colors.primary }]}>
               Notes
             </Text>
-            <Text
-              style={[styles.notes, { color: colors.onSurfaceVariant }]}
-            >
+            <Text style={[styles.notes, { color: colors.onSurfaceVariant }]}>
               {trip.notes}
             </Text>
           </View>
         ) : null}
       </ThemedScrollView>
     </SafeAreaView>
+  );
+}
+
+function HeroCardContent({
+  typeIcon,
+  statusLabel,
+  locationLine,
+  dates,
+  durationLabel,
+  statusTextColor,
+  statusBg,
+  onFlagBackground,
+  fallbackIconColor = "#FFFFFF",
+}: {
+  typeIcon: IconName;
+  statusLabel: string;
+  locationLine: string;
+  dates: string;
+  durationLabel: string;
+  statusTextColor: string;
+  statusBg: string;
+  onFlagBackground: boolean;
+  fallbackIconColor?: string;
+}) {
+  const textPrimary = onFlagBackground
+    ? "rgba(255,255,255,0.92)"
+    : fallbackIconColor + "CC";
+  const textSecondary = onFlagBackground
+    ? "rgba(255,255,255,0.72)"
+    : fallbackIconColor + "AA";
+  const textTertiary = onFlagBackground
+    ? "rgba(255,255,255,0.62)"
+    : fallbackIconColor + "99";
+  const iconColor = onFlagBackground ? "#FFFFFF" : fallbackIconColor;
+
+  return (
+    <>
+      <View style={styles.heroTop}>
+        <View
+          style={[
+            styles.heroIcon,
+            {
+              backgroundColor: onFlagBackground
+                ? "rgba(255,255,255,0.18)"
+                : iconColor + "22",
+            },
+          ]}
+        >
+          <Icon name={typeIcon} size={26} color={iconColor} />
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+          <Text style={[styles.statusText, { color: statusTextColor }]}>
+            {statusLabel}
+          </Text>
+        </View>
+      </View>
+      {locationLine ? (
+        <Text selectable style={[styles.heroLoc, { color: textPrimary }]}>
+          {locationLine}
+        </Text>
+      ) : null}
+      <Text style={[styles.heroDates, { color: textSecondary }]}>{dates}</Text>
+      <Text style={[styles.heroDur, { color: textTertiary }]}>
+        {durationLabel}
+      </Text>
+    </>
   );
 }
 
@@ -645,9 +720,7 @@ function Stat({
       <Text style={[styles.statLabel, { color: colors.textMuted }]}>
         {label}
       </Text>
-      <Text
-        style={[styles.statValue, { color: accent ?? colors.onSurface }]}
-      >
+      <Text style={[styles.statValue, { color: accent ?? colors.onSurface }]}>
         {value}
       </Text>
     </View>
@@ -665,6 +738,17 @@ const styles = StyleSheet.create({
   hero: {
     borderRadius: Radius.xl,
     borderCurve: "continuous",
+    overflow: "hidden",
+    minHeight: 148,
+  },
+  heroFlag: {
+    ...StyleSheet.absoluteFill,
+  },
+  heroFlagImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroBlur: {
     padding: Spacing.lg,
     gap: Spacing.xs,
   },
@@ -687,7 +771,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   statusText: { ...Typography.labelMd, fontWeight: "600" },
-  heroLoc: { ...Typography.headlineMdMobile, fontWeight: "700", color: "#fff" },
+  heroLoc: { ...Typography.headlineMdMobile, fontWeight: "700" },
   heroDates: { ...Typography.bodySmall },
   heroDur: { ...Typography.bodySmall },
   card: {

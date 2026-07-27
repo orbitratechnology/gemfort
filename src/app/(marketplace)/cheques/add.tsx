@@ -46,6 +46,7 @@ import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
 
@@ -122,7 +123,6 @@ export default function AddChequeScreen() {
   const [maturityDays, setMaturityDays] = useState("30");
   const [notes, setNotes] = useState(sharedNotes);
   const [photo, setPhoto] = useState<LocalMedia | null>(null);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
@@ -198,106 +198,107 @@ export default function AddChequeScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      const data = result.data;
-      const now = Timestamp.now();
-      const maturity = Timestamp.fromDate(
-        addDays(new Date(), data.maturityDays),
-      );
-      const issuer =
-        data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
-
-      let photoUrl: string | null = null;
-      if (photo) {
-        const ext = extensionForMedia(photo);
-        photoUrl = await uploadLocalMedia(
-          photo,
-          `cheques/${user.uid}/${Date.now()}.${ext}`,
+      await withLoading(async () => {
+        const data = result.data;
+        const now = Timestamp.now();
+        const maturity = Timestamp.fromDate(
+          addDays(new Date(), data.maturityDays),
         );
-      }
+        const issuer =
+          data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
 
-      const id = await createCheque(user.uid, {
-        direction: data.direction,
-        chequeNumber: data.chequeNumber,
-        bankName: data.bankName,
-        bankCode,
-        branch: data.branch || null,
-        amount: data.amount,
-        currency: money.currency,
-        counterpartyContactId: data.contactId,
-        issuedBy: issuer,
-        issueDate: now,
-        maturityDate: maturity,
-        photoUrl,
-        gemId: paramGemId,
-        apRecordId: paramApRecordId,
-        billId: paramBillId,
-        notes: data.notes || null,
-      });
-
-      if (paramBillId) {
-        const settle = parseFloat(settleAmount || String(data.amount));
-        if (settle > 0) {
-          await recordBillPayment(user.uid, paramBillId, settle, {
-            paymentMethod: "cheque",
-            notes: `Cheque ${data.chequeNumber}`,
-          });
-          await queryClient.invalidateQueries({ queryKey: ["bills"] });
-          await queryClient.invalidateQueries({ queryKey: ["bill", paramBillId] });
-          await queryClient.invalidateQueries({ queryKey: ["payments"] });
-          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        let photoUrl: string | null = null;
+        if (photo) {
+          const ext = extensionForMedia(photo);
+          photoUrl = await uploadLocalMedia(
+            photo,
+            `cheques/${user.uid}/${Date.now()}.${ext}`,
+          );
         }
-      }
 
-      if (paramApRecordId && confirmApSent) {
-        await apPaymentSent({
-          apId: paramApRecordId,
-          method: "cheque",
+        const id = await createCheque(user.uid, {
+          direction: data.direction,
+          chequeNumber: data.chequeNumber,
+          bankName: data.bankName,
+          bankCode,
+          branch: data.branch || null,
           amount: data.amount,
-          chequeId: id,
+          currency: money.currency,
+          counterpartyContactId: data.contactId,
+          issuedBy: issuer,
+          issueDate: now,
+          maturityDate: maturity,
+          photoUrl,
+          gemId: paramGemId,
+          apRecordId: paramApRecordId,
+          billId: paramBillId,
+          notes: data.notes || null,
         });
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-      }
 
-      if (paramApRecordId && confirmApReceived) {
-        await apPaymentReceived(paramApRecordId, {
-          method: "cheque",
-          chequeId: id,
-        });
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        await queryClient.invalidateQueries({ queryKey: ["money"] });
-      }
+        if (paramBillId) {
+          const settle = parseFloat(settleAmount || String(data.amount));
+          if (settle > 0) {
+            await recordBillPayment(user.uid, paramBillId, settle, {
+              paymentMethod: "cheque",
+              notes: `Cheque ${data.chequeNumber}`,
+            });
+            await queryClient.invalidateQueries({ queryKey: ["bills"] });
+            await queryClient.invalidateQueries({
+              queryKey: ["bill", paramBillId],
+            });
+            await queryClient.invalidateQueries({ queryKey: ["payments"] });
+            await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+          }
+        }
 
-      await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-      toast.success(
-        paramBillId
-          ? "Cheque saved and bill payment recorded."
-          : confirmApReceived
-            ? "Cheque saved and AP payment confirmed."
-            : confirmApSent
-              ? "Cheque saved and payment marked sent."
-              : "Cheque added to your tracker.",
-      );
+        if (paramApRecordId && confirmApSent) {
+          await apPaymentSent({
+            apId: paramApRecordId,
+            method: "cheque",
+            amount: data.amount,
+            chequeId: id,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["ap"] });
+        }
 
-      if (paramBillId) {
-        replaceWithAnchor(
-          `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
+        if (paramApRecordId && confirmApReceived) {
+          await apPaymentReceived(paramApRecordId, {
+            method: "cheque",
+            chequeId: id,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["ap"] });
+          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+          await queryClient.invalidateQueries({ queryKey: ["money"] });
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+        toast.success(
+          paramBillId
+            ? "Cheque saved and bill payment recorded."
+            : confirmApReceived
+              ? "Cheque saved and AP payment confirmed."
+              : confirmApSent
+                ? "Cheque saved and payment marked sent."
+                : "Cheque added to your tracker.",
         );
-      } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
-        replaceWithAnchor(
-          `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
-        );
-      } else {
-        replaceWithAnchor(
-          `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
-        );
-      }
+
+        if (paramBillId) {
+          replaceWithAnchor(
+            `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
+          );
+        } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
+          replaceWithAnchor(
+            `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
+          );
+        } else {
+          replaceWithAnchor(
+            `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
+          );
+        }
+      }, "Adding cheque…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not save cheque."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -441,7 +442,6 @@ export default function AddChequeScreen() {
       <FormFooter
         title="Save cheque"
         icon="shield"
-        loading={loading}
         onPress={handleSubmit}
       />
 

@@ -48,6 +48,7 @@ import {
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Business, LabCertificateOffering, UserProfile } from "@/types";
 
@@ -144,7 +145,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   );
   const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
   const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
-  const [loading, setLoading] = useState(false);
   const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
     draftsFromBusiness(business),
   );
@@ -198,91 +198,90 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
       toast.error("Business name and city are required.");
       return;
     }
-    setLoading(true);
     try {
-      const socialLinks = { website, instagram, tiktok, facebook, wechat };
-      let nextLogo = logoUri;
-      let nextCover = coverUri;
+      await withLoading(async () => {
+        const socialLinks = { website, instagram, tiktok, facebook, wechat };
+        let nextLogo = logoUri;
+        let nextCover = coverUri;
 
-      if (logoLocal) {
-        nextLogo = await uploadLocalMedia(
-          logoLocal,
-          `businesses/${user.uid}/logo.${extensionForMedia(logoLocal)}`,
-        );
-      }
-      if (coverLocal) {
-        nextCover = await uploadLocalMedia(
-          coverLocal,
-          `businesses/${user.uid}/cover.${extensionForMedia(coverLocal)}`,
-        );
-      }
-
-      if (business) {
-        await updateBusinessProfile(business.id, {
-          businessName,
-          shortDescription,
-          city,
-          country,
-          address,
-          whatsapp,
-          phone,
-          socialLinks,
-          logoUrl: nextLogo,
-          coverPhotoUrl: nextCover,
-          ...(isLab
-            ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
-            : {}),
-        });
-      } else {
-        if (!derivedBusinessType) {
-          toast.error(
-            "Create a business profile after registering as Trader, Lapidary, or Gem Lab.",
+        if (logoLocal) {
+          nextLogo = await uploadLocalMedia(
+            logoLocal,
+            `businesses/${user.uid}/logo.${extensionForMedia(logoLocal)}`,
           );
-          return;
         }
-        const id = await createBusinessProfile(
-          user.uid,
-          profile?.displayName ?? "Owner",
-          {
+        if (coverLocal) {
+          nextCover = await uploadLocalMedia(
+            coverLocal,
+            `businesses/${user.uid}/cover.${extensionForMedia(coverLocal)}`,
+          );
+        }
+
+        if (business) {
+          await updateBusinessProfile(business.id, {
             businessName,
-            businessType: derivedBusinessType,
+            shortDescription,
             city,
             country,
             address,
-            shortDescription: shortDescription || "Gem business in Beruwala.",
-            whatsapp: whatsapp || profile?.phone || undefined,
-            phone: phone || profile?.phone || undefined,
+            whatsapp,
+            phone,
             socialLinks,
-          },
-        );
-        const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
-        if (nextLogo) mediaAndCert.logoUrl = nextLogo;
-        if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
-        if (isLab) {
-          mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
+            logoUrl: nextLogo,
+            coverPhotoUrl: nextCover,
+            ...(isLab
+              ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
+              : {}),
+          });
+        } else {
+          if (!derivedBusinessType) {
+            toast.error(
+              "Create a business profile after registering as Trader, Lapidary, or Gem Lab.",
+            );
+            return;
+          }
+          const id = await createBusinessProfile(
+            user.uid,
+            profile?.displayName ?? "Owner",
+            {
+              businessName,
+              businessType: derivedBusinessType,
+              city,
+              country,
+              address,
+              shortDescription: shortDescription || "Gem business in Beruwala.",
+              whatsapp: whatsapp || profile?.phone || undefined,
+              phone: phone || profile?.phone || undefined,
+              socialLinks,
+            },
+          );
+          const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
+          if (nextLogo) mediaAndCert.logoUrl = nextLogo;
+          if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
+          if (isLab) {
+            mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
+          }
+          if (Object.keys(mediaAndCert).length > 0) {
+            await updateBusinessProfile(id, mediaAndCert);
+          }
         }
-        if (Object.keys(mediaAndCert).length > 0) {
-          await updateBusinessProfile(id, mediaAndCert);
-        }
-      }
 
-      setCoverLocal(null);
-      setLogoLocal(null);
-      setCoverUri(nextCover);
-      setLogoUri(nextLogo);
-      await queryClient.invalidateQueries({ queryKey: ["my-business"] });
-      if (business) {
-        await queryClient.invalidateQueries({
-          queryKey: ["business", business.id],
-        });
-      }
-      toast.success(
-        business ? "Business profile updated." : "Business profile created.",
-      );
+        setCoverLocal(null);
+        setLogoLocal(null);
+        setCoverUri(nextCover);
+        setLogoUri(nextLogo);
+        await queryClient.invalidateQueries({ queryKey: ["my-business"] });
+        if (business) {
+          await queryClient.invalidateQueries({
+            queryKey: ["business", business.id],
+          });
+        }
+        toast.success(
+          business ? "Business profile updated." : "Business profile created.",
+        );
+      }, "Saving…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not save."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -590,7 +589,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         <Button
           title={business ? "Save changes" : "Create business profile"}
           icon="shield"
-          loading={loading}
           disabled={!canSave}
           onPress={handleSave}
         />

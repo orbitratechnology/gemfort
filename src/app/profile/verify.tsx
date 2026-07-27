@@ -28,6 +28,7 @@ import {
 } from '@/lib/firebase/storage-service';
 import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 const STEPS = ['Documents', 'Review'];
@@ -66,7 +67,6 @@ export default function VerifyApplicationScreen() {
   const [idPhoto, setIdPhoto] = useState<LocalMedia | null>(null);
   const [brPhoto, setBrPhoto] = useState<LocalMedia | null>(null);
   const [licensePhoto, setLicensePhoto] = useState<LocalMedia | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const dobDate = parseIsoDate(dateOfBirth) ?? maxDob;
 
@@ -123,65 +123,64 @@ export default function VerifyApplicationScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      let nicPhotoUrl: string | null = null;
-      let brPhotoUrl: string | null = null;
-      let gemLicensePhotoUrl: string | null = null;
+      await withLoading(async () => {
+        let nicPhotoUrl: string | null = null;
+        let brPhotoUrl: string | null = null;
+        let gemLicensePhotoUrl: string | null = null;
 
-      if (idPhoto) {
-        nicPhotoUrl = await uploadLocalMedia(
-          idPhoto,
-          `verification/${user.uid}/nic.${extensionForMedia(idPhoto)}`,
-        );
-      }
-      if (brPhoto) {
-        brPhotoUrl = await uploadLocalMedia(
-          brPhoto,
-          `verification/${user.uid}/br.${extensionForMedia(brPhoto)}`,
-        );
-      }
-      if (licensePhoto) {
-        gemLicensePhotoUrl = await uploadLocalMedia(
-          licensePhoto,
-          `verification/${user.uid}/gem-license.${extensionForMedia(licensePhoto)}`,
-        );
-      }
+        if (idPhoto) {
+          nicPhotoUrl = await uploadLocalMedia(
+            idPhoto,
+            `verification/${user.uid}/nic.${extensionForMedia(idPhoto)}`,
+          );
+        }
+        if (brPhoto) {
+          brPhotoUrl = await uploadLocalMedia(
+            brPhoto,
+            `verification/${user.uid}/br.${extensionForMedia(brPhoto)}`,
+          );
+        }
+        if (licensePhoto) {
+          gemLicensePhotoUrl = await uploadLocalMedia(
+            licensePhoto,
+            `verification/${user.uid}/gem-license.${extensionForMedia(licensePhoto)}`,
+          );
+        }
 
-      const business = await fetchBusinessByOwnerUid(user.uid);
-      if (business && business.businessName.trim() !== applicant.data.businessName) {
-        await updateBusinessProfile(business.id, {
+        const business = await fetchBusinessByOwnerUid(user.uid);
+        if (business && business.businessName.trim() !== applicant.data.businessName) {
+          await updateBusinessProfile(business.id, {
+            businessName: applicant.data.businessName,
+          });
+        }
+
+        await submitVerificationApplication(user.uid, {
+          businessId: business?.id ?? 'pending',
+          applicationType: role === 'admin' ? 'trader' : role,
+          dateOfBirth: applicant.data.dateOfBirth,
           businessName: applicant.data.businessName,
+          servicesOffered: isLapidary ? servicesOffered : [],
+          documents: {
+            brNumber: brNumber.trim() || null,
+            brPhotoUrl,
+            ngjaNumber: null,
+            ngjaPhotoUrl: null,
+            nicPhotoUrl,
+            gemLicenseNumber: gemLicenseNumber.trim() || null,
+            gemLicensePhotoUrl,
+            tinNumber: tinNumber.trim() || null,
+            businessPhotosUrls: [],
+            addressProofUrl: null,
+            otherDocUrls: [],
+          },
         });
-      }
-
-      await submitVerificationApplication(user.uid, {
-        businessId: business?.id ?? 'pending',
-        applicationType: role === 'admin' ? 'trader' : role,
-        dateOfBirth: applicant.data.dateOfBirth,
-        businessName: applicant.data.businessName,
-        servicesOffered: isLapidary ? servicesOffered : [],
-        documents: {
-          brNumber: brNumber.trim() || null,
-          brPhotoUrl,
-          ngjaNumber: null,
-          ngjaPhotoUrl: null,
-          nicPhotoUrl,
-          gemLicenseNumber: gemLicenseNumber.trim() || null,
-          gemLicensePhotoUrl,
-          tinNumber: tinNumber.trim() || null,
-          businessPhotosUrls: [],
-          addressProofUrl: null,
-          otherDocUrls: [],
-        },
-      });
-      await refreshProfile();
-      toast.success('Verification submitted. Pending review.');
-      router.back();
+        await refreshProfile();
+        toast.success('Verification submitted. Pending review.');
+        router.back();
+      }, 'Submitting…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not submit. Please try again.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -397,7 +396,7 @@ export default function VerifyApplicationScreen() {
         ) : null}
 
         <ScreenInset style={styles.actions}>
-          <Button title="Submit for review" icon="send" loading={loading} onPress={handleSubmit} />
+          <Button title="Submit for review" icon="send" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>

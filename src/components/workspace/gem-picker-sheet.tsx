@@ -270,8 +270,8 @@ export function GemPickerSheet({
                   numberOfLines={1}
                 >
                   {formatGemType(item.gemType)}
-                  {item.cutType || item.shape
-                    ? ` · ${item.cutType || item.shape}`
+                  {item.shape || item.cutType
+                    ? ` · ${item.shape || item.cutType}`
                     : ""}
                 </Text>
                 <View style={styles.metaRow}>

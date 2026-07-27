@@ -25,6 +25,7 @@ import { importDeviceContactsBatch } from '@/features/workspace/workspace-servic
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { friendlyError } from '@/lib/errors';
+import { useIsBusy, withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { Contact } from '@/types';
 
@@ -55,10 +56,10 @@ export function PhoneContactsImportSheet({
 }: PhoneContactsImportSheetProps) {
   const { colors } = useAppTheme();
   const toast = useToast();
+  const isBusy = useIsBusy();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 300);
   const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [denied, setDenied] = useState(false);
   const [deviceContacts, setDeviceContacts] = useState<DeviceContact[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -146,22 +147,21 @@ export function PhoneContactsImportSheet({
       toast.error('Select at least one contact.');
       return;
     }
-    setImporting(true);
     try {
-      const { created, linked } = await importDeviceContactsBatch(ownerUid, toImport);
-      toast.success(
-        created
-          ? `Imported ${created} contact${created === 1 ? '' : 's'}${linked ? ` · ${linked} already linked` : ''}.`
-          : linked
-            ? `Linked ${linked} existing contact${linked === 1 ? '' : 's'}.`
-            : 'Nothing new to import.',
-      );
-      onImported();
-      onClose();
+      await withLoading(async () => {
+        const { created, linked } = await importDeviceContactsBatch(ownerUid, toImport);
+        toast.success(
+          created
+            ? `Imported ${created} contact${created === 1 ? '' : 's'}${linked ? ` · ${linked} already linked` : ''}.`
+            : linked
+              ? `Linked ${linked} existing contact${linked === 1 ? '' : 's'}.`
+              : 'Nothing new to import.',
+        );
+        onImported();
+        onClose();
+      }, 'Importing…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not import contacts.'));
-    } finally {
-      setImporting(false);
     }
   }
 
@@ -305,16 +305,16 @@ export function PhoneContactsImportSheet({
           )}
 
           <Pressable
-            disabled={importing || selected.size === 0}
+            disabled={isBusy || selected.size === 0}
             onPress={() => void handleImport()}
             style={[
               styles.primaryBtn,
               {
                 backgroundColor: colors.primary,
-                opacity: importing || selected.size === 0 ? 0.5 : 1,
+                opacity: isBusy || selected.size === 0 ? 0.5 : 1,
               },
             ]}>
-            {importing ? (
+            {isBusy ? (
               <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>

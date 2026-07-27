@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,9 +14,13 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { CallLogRow } from "@/components/workspace/call-log-row";
-import { WorkspaceModules } from "@/components/workspace/workspace-modules";
+import {
+    WorkspaceModules,
+    type WorkspaceModuleItem,
+} from "@/components/workspace/workspace-modules";
 import type { ThemeColors } from "@/constants/design-tokens";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
@@ -23,15 +28,16 @@ import {
     fetchLabCertificates,
     fetchLapidaryJobs,
 } from "@/features/marketplace/request-service";
+import { isApOngoing } from "@/features/workspace/ap-normalize";
 import {
     detectBillsDueToday,
     getBillSummary,
 } from "@/features/workspace/bill-utils";
+import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
 } from "@/features/workspace/cheque-utils";
-import { isApOngoing } from "@/features/workspace/ap-normalize";
 import { getMonthTotals } from "@/features/workspace/money-utils";
 import {
     resolveBusinessPhotoById,
@@ -50,7 +56,6 @@ import {
     fetchTransactions,
     fetchTrips,
 } from "@/features/workspace/workspace-service";
-import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
@@ -60,15 +65,8 @@ import { useAuth } from "@/providers/auth-provider";
 const WORKSPACE = "/(marketplace)/(tabs)/workspace";
 const MONEY = "/(marketplace)/(tabs)/money";
 
-type ModuleGroupId = "inventory" | "money" | "people";
-
-type ModuleItem = {
-  label: string;
-  value: number;
-  icon: IconName;
-  route: string;
-  group: ModuleGroupId;
-};
+type ModuleGroupId = WorkspaceModuleItem["group"];
+type ModuleItem = WorkspaceModuleItem;
 
 const MODULE_GROUPS: { id: ModuleGroupId; title: string }[] = [
   { id: "inventory", title: "Inventory & work" },
@@ -290,6 +288,7 @@ export default function WorkspaceHub() {
       label: "Gems",
       value: listedGems,
       icon: "diamond",
+      image: require("@/assets/images/mygems-icon.png"),
       route: `${WORKSPACE}/gems`,
       group: "inventory",
     },
@@ -304,6 +303,7 @@ export default function WorkspaceHub() {
       label: "Services",
       value: ongoingServices,
       icon: "handyman",
+      image: require("@/assets/images/lapidary-icon.png"),
       route: `${WORKSPACE}/services`,
       group: "inventory",
     },
@@ -311,6 +311,7 @@ export default function WorkspaceHub() {
       label: "Certificates",
       value: certificates.length,
       icon: "workspace-premium",
+      image: require("@/assets/images/certificate-icon.png"),
       route: `${WORKSPACE}/certificates`,
       group: "inventory",
     },
@@ -318,6 +319,7 @@ export default function WorkspaceHub() {
       label: "Trips",
       value: ongoingTrips.length,
       icon: "flight",
+      image: require("@/assets/images/trips-icon.png"),
       route: `${WORKSPACE}/trips`,
       group: "inventory",
     },
@@ -325,6 +327,7 @@ export default function WorkspaceHub() {
       label: "AP",
       value: ongoingAp,
       icon: "hourglass-empty",
+      image: require("@/assets/images/ap-icon.png"),
       route: `${WORKSPACE}/ap`,
       group: "inventory",
     },
@@ -332,6 +335,7 @@ export default function WorkspaceHub() {
       label: "Cheques",
       value: chequeSummary.pendingCount,
       icon: "money-check-dollar",
+      image: require("@/assets/images/cheque-icon.png"),
       route: `${WORKSPACE}/cheques`,
       group: "money",
     },
@@ -339,6 +343,7 @@ export default function WorkspaceHub() {
       label: "Bills",
       value: billSummary.openCount,
       icon: "receipt-long",
+      image: require("@/assets/images/bill-icon.png"),
       route: `${WORKSPACE}/bills`,
       group: "money",
     },
@@ -374,6 +379,7 @@ export default function WorkspaceHub() {
   const actions: {
     label: string;
     icon: IconName;
+    image?: number;
     route: string;
     primary?: boolean;
   }[] =
@@ -382,12 +388,14 @@ export default function WorkspaceHub() {
           {
             label: "Add certificate",
             icon: "workspace-premium",
+            image: require("@/assets/images/certificate-icon.png"),
             route: `${WORKSPACE}/certificates?add=1`,
             primary: true,
           },
           {
             label: "Verify",
             icon: "verified",
+            image: require("@/assets/images/certificate-icon.png"),
             route: "/verify-certificate",
           },
         ]
@@ -396,13 +404,15 @@ export default function WorkspaceHub() {
             {
               label: "Jobs",
               icon: "construction",
+              image: require("@/assets/images/lapidary-icon.png"),
               route: `${WORKSPACE}/jobs`,
               primary: true,
             },
             {
               label: "Bill",
               icon: "receipt-long",
-              route: '/(marketplace)/bills/add',
+              image: require("@/assets/images/bill-icon.png"),
+              route: "/(marketplace)/bills/add",
             },
             {
               label: "Contacts",
@@ -417,25 +427,29 @@ export default function WorkspaceHub() {
           ]
         : [
             {
-              label: "Add gem",
+              label: "Gem",
               icon: "add",
-              route: '/(marketplace)/gems/add',
+              image: require("@/assets/images/mygems-icon.png"),
+              route: "/(marketplace)/gems/add",
               primary: true,
             },
             {
               label: "Plan trip",
               icon: "flight-takeoff",
-              route: '/(marketplace)/trips/add',
+              image: require("@/assets/images/trips-icon.png"),
+              route: "/(marketplace)/trips/add",
             },
             {
               label: "Cheque",
               icon: "money-check-dollar",
-              route: '/(marketplace)/cheques/add',
+              image: require("@/assets/images/cheque-icon.png"),
+              route: "/(marketplace)/cheques/add",
             },
             {
               label: "Bill",
               icon: "receipt-long",
-              route: '/(marketplace)/bills/add',
+              image: require("@/assets/images/bill-icon.png"),
+              route: "/(marketplace)/bills/add",
             },
             {
               label: "Sale",
@@ -574,6 +588,12 @@ export default function WorkspaceHub() {
           contactName={(id) =>
             contacts.find((c) => c.id === id)?.displayName ?? "Contact"
           }
+          gemTitle={(id) => {
+            if (!id) return "";
+            const gem = gems.find((g) => g.id === id);
+            if (!gem) return "";
+            return gem.title?.trim() || formatGemType(gem.gemType);
+          }}
           contactPhoto={contactPhoto}
           businessPhoto={businessPhoto}
           ownerBusinessPhoto={ownerBusinessPhoto}
@@ -598,9 +618,7 @@ export default function WorkspaceHub() {
               >
                 {heroTitle}
               </Text>
-              <Text
-                style={[styles.heroValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.heroValue, { color: colors.onPrimary }]}>
                 {heroValue}
               </Text>
             </View>
@@ -733,18 +751,29 @@ export default function WorkspaceHub() {
                 <View
                   style={[
                     styles.actionIcon,
-                    a.primary
-                      ? { backgroundColor: colors.primary }
-                      : { backgroundColor: colors.primaryContainer },
+                    a.image
+                      ? null
+                      : a.primary
+                        ? { backgroundColor: colors.primary }
+                        : { backgroundColor: colors.primaryContainer },
                   ]}
                 >
-                  <Icon
-                    name={a.icon}
-                    size={20}
-                    color={
-                      a.primary ? colors.onPrimary : colors.onPrimaryContainer
-                    }
-                  />
+                  {a.image ? (
+                    <Image
+                      source={a.image}
+                      style={styles.actionImage}
+                      contentFit="cover"
+                      accessibilityIgnoresInvertColors
+                    />
+                  ) : (
+                    <Icon
+                      name={a.icon}
+                      size={20}
+                      color={
+                        a.primary ? colors.onPrimary : colors.onPrimaryContainer
+                      }
+                    />
+                  )}
                 </View>
                 <Text
                   style={[
@@ -1030,6 +1059,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  actionImage: {
+    width: 44,
+    height: 44,
   },
   actionLabel: {
     ...Typography.caption,

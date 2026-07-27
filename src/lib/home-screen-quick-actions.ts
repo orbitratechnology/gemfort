@@ -1,5 +1,5 @@
-import { Platform, type ColorSchemeName } from "react-native";
 import type { RouterAction } from "expo-quick-actions/router";
+import { Platform, type ColorSchemeName } from "react-native";
 
 import { resolveProfileRole } from "@/constants/roles";
 import type { UserProfile, UserRole } from "@/types";
@@ -21,8 +21,7 @@ const AndroidIconKey = {
   news: "news",
 } as const;
 
-type AndroidIconKeyName =
-  (typeof AndroidIconKey)[keyof typeof AndroidIconKey];
+type AndroidIconKeyName = (typeof AndroidIconKey)[keyof typeof AndroidIconKey];
 
 /**
  * iOS: outline SF Symbols / built-ins (already theme-adaptive).
@@ -100,7 +99,7 @@ function traderActions(scheme: "light" | "dark"): RouterAction[] {
     ),
     action(
       "add-gem",
-      "Add gem",
+      "Gem",
       "/(marketplace)/gems/add",
       icon("symbol:diamond", AndroidIconKey.gem, scheme),
       "Log a stone in GemTrack",

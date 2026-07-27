@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
@@ -22,6 +23,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import { extensionForMedia, uploadLocalMedia, type LocalMedia } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 export default function LabCertificatesScreen() {
@@ -40,7 +42,6 @@ export default function LabCertificatesScreen() {
   const [certNumber, setCertNumber] = useState('');
   const [reportType, setReportType] = useState('full');
   const [file, setFile] = useState<LocalMedia | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const { data: certificates = [] } = useQuery({
     queryKey: ['lab-certificates', user?.uid],
@@ -74,35 +75,35 @@ export default function LabCertificatesScreen() {
       toast.error('Certificate number and file are required.');
       return;
     }
-    setLoading(true);
     try {
-      const fileUrl = await uploadLocalMedia(
-        file,
-        `certificates/${user.uid}/${Date.now()}.${extensionForMedia(file)}`,
-      );
-      await publishCertificate({
-        labUid: user.uid,
-        labBusinessId: business.id,
-        labName: business.businessName,
-        certificateNumber: certNumber.trim(),
-        reportType,
-        fileUrl,
-        fileType: file.mimeType?.includes('pdf') ? 'pdf' : 'image',
-      });
-      setCertNumber('');
-      setFile(null);
-      setShowAdd(false);
-      await queryClient.invalidateQueries({ queryKey: ['lab-certificates'] });
-      toast.success('Certificate published. GemFort can verify it publicly.');
+      await withLoading(async () => {
+        const fileUrl = await uploadLocalMedia(
+          file,
+          `certificates/${user.uid}/${Date.now()}.${extensionForMedia(file)}`,
+        );
+        await publishCertificate({
+          labUid: user.uid,
+          labBusinessId: business.id,
+          labName: business.businessName,
+          certificateNumber: certNumber.trim(),
+          reportType,
+          fileUrl,
+          fileType: file.mimeType?.includes('pdf') ? 'pdf' : 'image',
+        });
+        setCertNumber('');
+        setFile(null);
+        setShowAdd(false);
+        await queryClient.invalidateQueries({ queryKey: ['lab-certificates'] });
+        toast.success('Certificate published. GemFort can verify it publicly.');
+      }, 'Publishing…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not publish certificate.'));
-    } finally {
-      setLoading(false);
     }
   }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <WorkspaceScreenBackdrop kind="certificates" />
       <StackHeader title="Certificates" />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.actions}>
@@ -119,7 +120,7 @@ export default function LabCertificatesScreen() {
             <Input label="Certificate / report number" value={certNumber} onChangeText={setCertNumber} />
             <Input label="Report type" value={reportType} onChangeText={setReportType} />
             <MediaField label="Certificate file / photo" value={file} onChange={setFile} allows="all" />
-            <Button title="Publish" loading={loading} onPress={() => void publish()} />
+            <Button title="Publish" onPress={() => void publish()} />
           </FormSection>
         ) : null}
 

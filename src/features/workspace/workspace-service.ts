@@ -1597,8 +1597,8 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
   if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");
 
   const [expenses, tripGems] = await Promise.all([
-    fetchTripExpenses(tripId),
-    fetchTripGems(tripId),
+    fetchTripExpenses(tripId, ownerUid),
+    fetchTripGems(tripId, ownerUid),
   ]);
 
   await Promise.all([
@@ -1623,9 +1623,11 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
 
 export async function fetchTripExpenses(
   tripId: string,
+  ownerUid: string,
 ): Promise<TripExpense[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_trip_expenses"),
+    where("ownerUid", "==", ownerUid),
     where("tripId", "==", tripId),
     orderBy("date", "desc"),
   );
@@ -1681,9 +1683,13 @@ export async function addTripExpense(
   return ref.id;
 }
 
-export async function fetchTripGems(tripId: string): Promise<TripGem[]> {
+export async function fetchTripGems(
+  tripId: string,
+  ownerUid: string,
+): Promise<TripGem[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_trip_gems"),
+    where("ownerUid", "==", ownerUid),
     where("tripId", "==", tripId),
   );
   const snap = await getDocs(q);
@@ -1692,8 +1698,8 @@ export async function fetchTripGems(tripId: string): Promise<TripGem[]> {
 
 async function refreshTripSummary(tripId: string, ownerUid: string) {
   const [expenses, tripGems] = await Promise.all([
-    fetchTripExpenses(tripId),
-    fetchTripGems(tripId),
+    fetchTripExpenses(tripId, ownerUid),
+    fetchTripGems(tripId, ownerUid),
   ]);
   const purchases = tripGems.filter((tg) => tg.role === "purchase");
   const parcels = tripGems.filter((tg) => tg.role === "parcel");
@@ -1722,22 +1728,17 @@ async function refreshTripSummary(tripId: string, ownerUid: string) {
 export async function createGemOnSourcingTrip(
   ownerUid: string,
   tripId: string,
-  input: {
+  input: Partial<WorkspaceGem> & {
     gemType: string;
     originCountry: string;
     roughWeight: number;
     acquisitionCost: number;
-    acquisitionCurrency?: string;
-    notes?: string | null;
   },
 ): Promise<string> {
   const gemId = await createGem(ownerUid, {
-    gemType: input.gemType,
-    originCountry: input.originCountry,
-    roughWeight: input.roughWeight,
-    acquisitionCost: input.acquisitionCost,
-    acquisitionCurrency: input.acquisitionCurrency ?? "LKR",
-    notes: input.notes ?? `Purchased on trip`,
+    ...input,
+    status: "on_trip",
+    notes: input.notes ?? "Purchased on trip",
   });
 
   const now = Timestamp.now();
@@ -1827,8 +1828,8 @@ export async function distributeTripOverhead(
   tripId: string,
 ): Promise<number> {
   const [expenses, tripGems] = await Promise.all([
-    fetchTripExpenses(tripId),
-    fetchTripGems(tripId),
+    fetchTripExpenses(tripId, ownerUid),
+    fetchTripGems(tripId, ownerUid),
   ]);
   const purchases = tripGems.filter((tg) => tg.role === "purchase");
   if (purchases.length === 0)

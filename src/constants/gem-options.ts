@@ -368,7 +368,10 @@ export function formatGemType(value: string): string {
   return GEM_TYPES.find((t) => t.value === value)?.label ?? value.replace(/_/g, ' ');
 }
 
-export function flagUrl(countryCode: string, size: 40 | 80 = 40): string {
+export function flagUrl(
+  countryCode: string,
+  size: 40 | 80 | 160 | 320 | 640 = 40,
+): string {
   if (countryCode === 'un') {
     return `https://flagcdn.com/w${size}/un.png`;
   }
@@ -515,14 +518,19 @@ export function formatOptionLabel(
   return value.replace(/_/g, ' ');
 }
 
-/** Cut / shape display — accepts stored slugs or legacy label strings. */
-export function formatCutLabel(value: string | null | undefined): string {
+/** Shape / cut display — accepts stored slugs or legacy label strings. */
+export function formatShapeLabel(value: string | null | undefined): string {
   if (!value) return '';
   return (
-    formatOptionLabel(GEM_CUTS, value) ||
     formatOptionLabel(GEM_SHAPES, value) ||
+    formatOptionLabel(GEM_CUTS, value) ||
     value.replace(/_/g, ' ')
   );
+}
+
+/** @deprecated Prefer formatShapeLabel — kept for older call sites. */
+export function formatCutLabel(value: string | null | undefined): string {
+  return formatShapeLabel(value);
 }
 
 export function formatTreatmentLabel(value: string | null | undefined): string {

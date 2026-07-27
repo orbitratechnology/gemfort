@@ -22,8 +22,8 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
     MANUAL_STATUS_OPTIONS,
     formatCostTypeLabel,
-    formatCutLabel,
     formatGemType,
+    formatShapeLabel,
     formatTreatmentLabel,
 } from "@/constants/gem-options";
 import { getGemQuickActions } from "@/features/workspace/gem-utils";
@@ -39,6 +39,7 @@ import { friendlyError } from "@/lib/errors";
 import { shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { GemStatus } from "@/types";
 
@@ -46,7 +47,7 @@ const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
   Color: "palette",
   Clarity: "visibility",
-  Cut: "content-cut",
+  Shape: "category",
   Treatment: "science",
   Origin: "location-on",
 };
@@ -132,17 +133,19 @@ export default function GemDetailScreen() {
     if (!user || !gem || newStatus === gem.status || statusSaving) return;
     setStatusSaving(true);
     try {
-      await updateGemStatus(
-        gem.id,
-        user.uid,
-        newStatus,
-        `Status changed to ${statusLabelOf(newStatus)}`,
-      );
-      await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-      await queryClient.invalidateQueries({ queryKey: ["gem-events", gemId] });
-      await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-      setStatusOpen(false);
-      toast.success(`Moved to ${statusLabelOf(newStatus)}`);
+      await withLoading(async () => {
+        await updateGemStatus(
+          gem.id,
+          user.uid,
+          newStatus,
+          `Status changed to ${statusLabelOf(newStatus)}`,
+        );
+        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gem-events", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        setStatusOpen(false);
+        toast.success(`Moved to ${statusLabelOf(newStatus)}`);
+      }, "Updating…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not update status."));
     } finally {
@@ -187,13 +190,13 @@ export default function GemDetailScreen() {
     gem.status === "certified" ||
     gem.treatmentStatus?.toLowerCase().includes("cert");
 
-  const cutLabel = formatCutLabel(gem.cutType || gem.shape);
+  const shapeLabel = formatShapeLabel(gem.shape || gem.cutType);
   const treatmentLabel = formatTreatmentLabel(gem.treatmentStatus);
   const specs = [
     { label: "Weight", value: `${gem.currentWeight} ct` },
     ...(gem.colorPrimary ? [{ label: "Color", value: gem.colorPrimary }] : []),
     ...(gem.clarity ? [{ label: "Clarity", value: gem.clarity }] : []),
-    ...(cutLabel ? [{ label: "Cut", value: cutLabel }] : []),
+    ...(shapeLabel ? [{ label: "Shape", value: shapeLabel }] : []),
     { label: "Treatment", value: treatmentLabel || "None" },
     { label: "Origin", value: gem.originCountry || "Unknown" },
   ];

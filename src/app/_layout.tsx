@@ -7,6 +7,7 @@ import {
 } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
+import { LoadingProvider } from "@/providers/loading-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
 import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { QueryProvider } from "@/providers/query-provider";
@@ -120,16 +121,18 @@ export default function RootLayout() {
       <KeyboardProvider>
         <ThemeProvider>
           <ToastProvider>
-            <ConfirmProvider>
-              <QueryProvider>
-                <AuthProvider>
-                  <PushNotificationRegistrar />
-                  <QuickActionsRegistrar />
-                  <RootNavigator />
-                  <KeyboardToolbar />
-                </AuthProvider>
-              </QueryProvider>
-            </ConfirmProvider>
+            <LoadingProvider>
+              <ConfirmProvider>
+                <QueryProvider>
+                  <AuthProvider>
+                    <PushNotificationRegistrar />
+                    <QuickActionsRegistrar />
+                    <RootNavigator />
+                    <KeyboardToolbar />
+                  </AuthProvider>
+                </QueryProvider>
+              </ConfirmProvider>
+            </LoadingProvider>
           </ToastProvider>
         </ThemeProvider>
       </KeyboardProvider>

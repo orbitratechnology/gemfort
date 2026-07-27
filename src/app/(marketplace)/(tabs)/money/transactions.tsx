@@ -27,6 +27,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 
@@ -44,7 +45,6 @@ export default function TransactionsScreen() {
   });
   const [description, setDescription] = useState('');
   const [gemId, setGemId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -75,27 +75,26 @@ export default function TransactionsScreen() {
 
   async function handleAdd() {
     if (!user || !money.amount) return;
-    setLoading(true);
     try {
-      await createTransaction(user.uid, {
-        type,
-        amount: parseFloat(money.amount),
-        currency: money.currency,
-        category: 'general',
-        description: description || (type === 'income' ? 'Income' : 'Expense'),
-        gemId,
-        contactId: null,
-        date: Timestamp.now(),
-      });
-      setMoney({ amount: '', currency: preferred });
-      setDescription('');
-      setGemId(null);
-      setShowForm(false);
-      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      await withLoading(async () => {
+        await createTransaction(user.uid, {
+          type,
+          amount: parseFloat(money.amount),
+          currency: money.currency,
+          category: 'general',
+          description: description || (type === 'income' ? 'Income' : 'Expense'),
+          gemId,
+          contactId: null,
+          date: Timestamp.now(),
+        });
+        setMoney({ amount: '', currency: preferred });
+        setDescription('');
+        setGemId(null);
+        setShowForm(false);
+        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      }, 'Adding…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save entry.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -144,7 +143,7 @@ export default function TransactionsScreen() {
             </View>
             <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
             <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
-            <Button title="Add Transaction" icon="add" loading={loading} onPress={handleAdd} style={{ marginTop: 8 }} />
+            <Button title="Add Transaction" icon="add" onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>
         )}
 

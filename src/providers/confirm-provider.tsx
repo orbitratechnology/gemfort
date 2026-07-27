@@ -18,6 +18,7 @@ import {
   type ConfirmTone,
 } from "@/components/ui/confirm-dialog";
 import type { IconName } from "@/components/ui/icon";
+import { withLoading } from "@/providers/loading-provider";
 
 export type ConfirmOptions = {
   title: string;
@@ -112,7 +113,18 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      await current.onConfirm();
+      // Mark global busy (disables buttons) without a second overlay —
+      // the confirm dialog already shows its own spinner.
+      await withLoading(
+        async () => {
+          await current.onConfirm!();
+        },
+        {
+          overlay: false,
+          message:
+            current.tone === "destructive" ? "Deleting…" : "Working…",
+        },
+      );
       close(true);
     } catch {
       setLoading(false);

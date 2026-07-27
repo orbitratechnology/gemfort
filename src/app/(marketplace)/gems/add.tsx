@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -7,8 +8,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CountryField } from "@/components/ui/country-field";
 import { CountryFlag } from "@/components/ui/country-flag";
 import {
-    CurrencyAmountField,
-    type CurrencyAmountValue,
+  CurrencyAmountField,
+  type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -18,44 +19,54 @@ import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-    AttributePickerField,
-    ClarityPickerSheet,
-    ColorPickerSheet,
-    ColorSwatch,
-    CutPickerSheet,
-    GemTypePickerSheet,
-    StatusPickerSheet,
-    TreatmentPickerSheet,
+  AttributePickerField,
+  ClarityPickerSheet,
+  ColorPickerSheet,
+  ColorSwatch,
+  GemTypePickerSheet,
+  ShapePickerSheet,
+  StatusPickerSheet,
+  TreatmentPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
+import {
+  TripPickerSheet,
+  TripSelectField,
+} from "@/components/workspace/trip-picker-sheet";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
-    GEM_CLARITIES,
-    GEM_CUTS,
-    GEM_TREATMENTS,
-    GEM_TYPES,
-    MANUAL_STATUS_OPTIONS,
-    findColorShade,
-    formatColorLabel,
-    formatCutLabel,
-    formatGemType,
-    formatOptionLabel,
-    type GemTreatmentValue,
+  GEM_CLARITIES,
+  GEM_SHAPES,
+  GEM_TREATMENTS,
+  GEM_TYPES,
+  MANUAL_STATUS_OPTIONS,
+  findColorShade,
+  formatColorLabel,
+  formatGemType,
+  formatOptionLabel,
+  formatShapeLabel,
+  type GemTreatmentValue,
 } from "@/constants/gem-options";
-import { createGem } from "@/features/workspace/workspace-service";
+import {
+  createGem,
+  createGemOnSourcingTrip,
+  fetchTrip,
+  fetchTrips,
+} from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
-    extensionForMedia,
-    uploadLocalMedia,
-    type LocalMedia,
+  extensionForMedia,
+  uploadLocalMedia,
+  type LocalMedia,
 } from "@/lib/firebase/storage-service";
 import { formatCurrency } from "@/lib/utils";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { GemStatus } from "@/types";
+import type { GemStatus, Trip } from "@/types";
 
 const STEPS = ["Details", "Photos", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
@@ -64,18 +75,32 @@ type SheetKey =
   | "type"
   | "color"
   | "clarity"
-  | "cut"
+  | "shape"
   | "treatment"
   | "status"
+  | "trip"
   | null;
+
+function isSourcingTrip(trip: Trip) {
+  return trip.tripType === "sourcing" || trip.tripType === "both";
+}
+
+function isLinkableTrip(trip: Trip) {
+  return (
+    isSourcingTrip(trip) &&
+    (trip.status === "ongoing" || trip.status === "planning")
+  );
+}
 
 export default function AddGemScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
   const toast = useToast();
-  const { sharedImageUris } = useLocalSearchParams<{
+  const queryClient = useQueryClient();
+  const { sharedImageUris, tripId: tripIdParam } = useLocalSearchParams<{
     sharedImageUris?: string;
+    tripId?: string;
   }>();
 
   const [step, setStep] = useState(0);
@@ -84,7 +109,7 @@ export default function AddGemScreen() {
   const [originCountry, setOriginCountry] = useState("Sri Lanka");
   const [colorShade, setColorShade] = useState("");
   const [clarity, setClarity] = useState("");
-  const [cut, setCut] = useState("");
+  const [shape, setShape] = useState("");
   const [roughWeight, setRoughWeight] = useState("");
   const [acquisition, setAcquisition] = useState<CurrencyAmountValue>({
     amount: "",
@@ -94,10 +119,50 @@ export default function AddGemScreen() {
   const [status, setStatus] = useState<GemStatus | "">("");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState(tripIdParam ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [didApplyShared, setDidApplyShared] = useState(false);
+  const [didApplyTripParam, setDidApplyTripParam] = useState(false);
+
+  const { data: trips = [] } = useQuery({
+    queryKey: ["trips", user?.uid],
+    queryFn: () => fetchTrips(user!.uid),
+    enabled: !!user,
+  });
+
+  const { data: paramTrip } = useQuery({
+    queryKey: ["trip", tripIdParam],
+    queryFn: () => fetchTrip(tripIdParam!),
+    enabled: !!tripIdParam && !didApplyTripParam,
+  });
+
+  const linkableTrips = useMemo(() => {
+    const ongoing = trips.filter(isLinkableTrip);
+    if (
+      paramTrip &&
+      isSourcingTrip(paramTrip) &&
+      !ongoing.some((t) => t.id === paramTrip.id)
+    ) {
+      return [paramTrip, ...ongoing];
+    }
+    return ongoing;
+  }, [trips, paramTrip]);
+
+  const selectedTrip = useMemo(
+    () => linkableTrips.find((t) => t.id === selectedTripId) ?? null,
+    [linkableTrips, selectedTripId],
+  );
+
+  useEffect(() => {
+    if (didApplyTripParam || !tripIdParam) return;
+    if (paramTrip && isSourcingTrip(paramTrip)) {
+      setSelectedTripId(paramTrip.id);
+      setDidApplyTripParam(true);
+    } else if (paramTrip === null) {
+      setDidApplyTripParam(true);
+    }
+  }, [tripIdParam, paramTrip, didApplyTripParam]);
 
   useEffect(() => {
     if (didApplyShared || !sharedImageUris) return;
@@ -152,8 +217,8 @@ export default function AddGemScreen() {
       treatment,
       colorPrimary: colorShade,
       clarity,
-      shape: cut,
-      status,
+      shape,
+      status: selectedTripId ? "on_trip" : status,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -209,41 +274,61 @@ export default function AddGemScreen() {
       setStep(1);
       return;
     }
-    setLoading(true);
     try {
-      const stamp = Date.now();
-      const photoUrls = await Promise.all(
-        photos.map((photo, index) => {
-          const ext = extensionForMedia(photo);
-          return uploadLocalMedia(
-            photo,
-            `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
-          );
-        }),
-      );
-      const colorLabel = formatColorLabel(data.colorPrimary);
-      const gemId = await createGem(user.uid, {
-        title: data.title,
-        gemType: data.gemType,
-        originCountry: data.originCountry,
-        roughWeight: data.roughWeight,
-        acquisitionCost: data.acquisitionCost,
-        acquisitionCurrency: acquisition.currency,
-        colorPrimary: colorLabel || data.colorPrimary,
-        clarity: formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity,
-        cutType: formatOptionLabel(GEM_CUTS, data.shape) || data.shape,
-        shape: formatOptionLabel(GEM_CUTS, data.shape) || data.shape,
-        isNatural: data.treatment === "natural",
-        treatmentStatus: data.treatment,
-        status: data.status,
-        photoUrls,
-      });
-      toast.success("Gem added to your inventory");
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
+      await withLoading(async () => {
+        const stamp = Date.now();
+        const photoUrls = await Promise.all(
+          photos.map((photo, index) => {
+            const ext = extensionForMedia(photo);
+            return uploadLocalMedia(
+              photo,
+              `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+            );
+          }),
+        );
+        const colorLabel = formatColorLabel(data.colorPrimary);
+        const gemPayload = {
+          title: data.title,
+          gemType: data.gemType,
+          originCountry: data.originCountry,
+          roughWeight: data.roughWeight,
+          acquisitionCost: data.acquisitionCost,
+          acquisitionCurrency: acquisition.currency,
+          colorPrimary: colorLabel || data.colorPrimary,
+          clarity:
+            formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity,
+          cutType: null,
+          shape: formatOptionLabel(GEM_SHAPES, data.shape) || data.shape,
+          isNatural: data.treatment === "natural",
+          treatmentStatus: data.treatment,
+          status: data.status,
+          photoUrls,
+        };
+
+        const gemId = selectedTripId
+          ? await createGemOnSourcingTrip(user.uid, selectedTripId, gemPayload)
+          : await createGem(user.uid, gemPayload);
+
+        if (selectedTripId) {
+          await queryClient.invalidateQueries({
+            queryKey: ["trip-gems", selectedTripId],
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["trip", selectedTripId],
+          });
+          await queryClient.invalidateQueries({ queryKey: ["trips"] });
+        }
+        await queryClient.invalidateQueries({ queryKey: ["gems"] });
+
+        toast.success(
+          selectedTripId
+            ? "Gem added and linked to trip"
+            : "Gem added to your inventory",
+        );
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
+      }, "Adding gem…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not add gem."));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -311,134 +396,148 @@ export default function AddGemScreen() {
         </ScreenInset>
 
         {step === 0 ? (
-          <>
-            <FormSection title="Stone">
-              <Input
-                label="Title"
-                value={title}
-                onChangeText={(v) => {
-                  setTitle(v);
-                  clearField("title");
-                }}
-                placeholder="e.g. Lot A blue oval"
-                leftIcon="title"
-                error={errors.title}
-                autoCapitalize="sentences"
-              />
+          <FormSection title="Stone">
+            <Input
+              label="Title"
+              value={title}
+              onChangeText={(v) => {
+                setTitle(v);
+                clearField("title");
+              }}
+              placeholder="e.g. Lot A blue oval"
+              leftIcon="title"
+              error={errors.title}
+              autoCapitalize="sentences"
+            />
 
-              <AttributePickerField
-                label="Gem type"
-                valueLabel={selectedType.label}
-                onPress={() => setSheet("type")}
-                error={errors.gemType}
-                leading={
-                  <Image
-                    source={selectedType.image}
-                    style={styles.typeThumb}
-                    contentFit="cover"
+            <AttributePickerField
+              label="Gem type"
+              valueLabel={selectedType.label}
+              onPress={() => setSheet("type")}
+              error={errors.gemType}
+              leading={
+                <Image
+                  source={selectedType.image}
+                  style={styles.typeThumb}
+                  contentFit="cover"
+                />
+              }
+            />
+
+            <AttributePickerField
+              label="Color"
+              valueLabel={formatColorLabel(colorShade)}
+              placeholder="Select color"
+              onPress={() => setSheet("color")}
+              error={errors.colorPrimary}
+              leading={
+                colorHit ? (
+                  <ColorSwatch
+                    hex={colorHit.shade.hex}
+                    size={36}
+                    border={colors.outlineVariant}
                   />
-                }
-              />
-
-              <AttributePickerField
-                label="Color"
-                valueLabel={formatColorLabel(colorShade)}
-                placeholder="Select color"
-                onPress={() => setSheet("color")}
-                error={errors.colorPrimary}
-                leading={
-                  colorHit ? (
-                    <ColorSwatch
-                      hex={colorHit.shade.hex}
-                      size={36}
-                      border={colors.outlineVariant}
+                ) : (
+                  <View
+                    style={[
+                      styles.placeholderIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="palette"
+                      size={18}
+                      color={colors.onPrimaryContainer}
                     />
-                  ) : (
-                    <View
-                      style={[
-                        styles.placeholderIcon,
-                        { backgroundColor: colors.primaryContainer },
-                      ]}
-                    >
-                      <Icon
-                        name="palette"
-                        size={18}
-                        color={colors.onPrimaryContainer}
-                      />
-                    </View>
-                  )
-                }
-              />
+                  </View>
+                )
+              }
+            />
 
-              <View style={styles.row}>
-                <View style={styles.flex}>
-                  <AttributePickerField
-                    label="Cut"
-                    valueLabel={formatCutLabel(cut)}
-                    placeholder="Select"
-                    onPress={() => setSheet("cut")}
-                    error={errors.shape}
-                  />
-                </View>
-                <View style={styles.flex}>
-                  <AttributePickerField
-                    label="Clarity"
-                    valueLabel={formatOptionLabel(GEM_CLARITIES, clarity)}
-                    placeholder="Select"
-                    onPress={() => setSheet("clarity")}
-                    error={errors.clarity}
-                  />
-                </View>
+            <View style={styles.row}>
+              <View style={styles.flex}>
+                <AttributePickerField
+                  label="Shape"
+                  valueLabel={formatShapeLabel(shape)}
+                  placeholder="Select"
+                  onPress={() => setSheet("shape")}
+                  error={errors.shape}
+                />
               </View>
-
-              <View style={styles.row}>
-                <View style={styles.flex}>
-                  <CountryField
-                    label="Origin"
-                    value={originCountry}
-                    onChange={(name) => {
-                      setOriginCountry(name);
-                      clearField("originCountry");
-                    }}
-                    placeholder="Select"
-                    sheetTitle="Origin"
-                    error={errors.originCountry}
-                  />
-                </View>
-                <View style={styles.flex}>
-                  <AttributePickerField
-                    label="Treatment"
-                    valueLabel={formatOptionLabel(GEM_TREATMENTS, treatment)}
-                    placeholder="Select"
-                    onPress={() => setSheet("treatment")}
-                    error={errors.treatment}
-                  />
-                </View>
+              <View style={styles.flex}>
+                <AttributePickerField
+                  label="Clarity"
+                  valueLabel={formatOptionLabel(GEM_CLARITIES, clarity)}
+                  placeholder="Select"
+                  onPress={() => setSheet("clarity")}
+                  error={errors.clarity}
+                />
               </View>
+            </View>
 
-              <Input
-                label="Weight (ct)"
-                value={roughWeight}
-                onChangeText={(v) => {
-                  setRoughWeight(v);
-                  clearField("roughWeight");
-                }}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                leftIcon="scale"
-                error={errors.roughWeight}
-              />
+            <View style={styles.row}>
+              <View style={styles.flex}>
+                <CountryField
+                  label="Origin"
+                  value={originCountry}
+                  onChange={(name) => {
+                    setOriginCountry(name);
+                    clearField("originCountry");
+                  }}
+                  placeholder="Select"
+                  sheetTitle="Origin"
+                  error={errors.originCountry}
+                />
+              </View>
+              <View style={styles.flex}>
+                <AttributePickerField
+                  label="Treatment"
+                  valueLabel={formatOptionLabel(GEM_TREATMENTS, treatment)}
+                  placeholder="Select"
+                  onPress={() => setSheet("treatment")}
+                  error={errors.treatment}
+                />
+              </View>
+            </View>
 
-              <CurrencyAmountField
-                label="Purchase price"
-                value={acquisition}
-                onChange={(next) => {
-                  setAcquisition(next);
-                  clearField("acquisitionCost");
-                }}
-                error={errors.acquisitionCost}
-              />
+            <Input
+              label="Weight (ct)"
+              value={roughWeight}
+              onChangeText={(v) => {
+                setRoughWeight(v);
+                clearField("roughWeight");
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              leftIcon="scale"
+              error={errors.roughWeight}
+            />
 
+            <CurrencyAmountField
+              label="Purchase price"
+              value={acquisition}
+              onChange={(next) => {
+                setAcquisition(next);
+                clearField("acquisitionCost");
+              }}
+              error={errors.acquisitionCost}
+            />
+
+            <TripSelectField
+              label="Trip"
+              trip={selectedTrip}
+              placeholder="Optional — link to a trip"
+              onPress={() => setSheet("trip")}
+              onClear={
+                tripIdParam
+                  ? undefined
+                  : () => {
+                      setSelectedTripId("");
+                    }
+              }
+            />
+
+            {selectedTripId ? null : (
               <AttributePickerField
                 label="Status"
                 valueLabel={formatOptionLabel(MANUAL_STATUS_OPTIONS, status)}
@@ -463,8 +562,8 @@ export default function AddGemScreen() {
                   </View>
                 }
               />
-            </FormSection>
-          </>
+            )}
+          </FormSection>
         ) : null}
 
         {step === 1 ? (
@@ -493,8 +592,8 @@ export default function AddGemScreen() {
                 value={formatOptionLabel(GEM_CLARITIES, clarity) || "—"}
               />
               <ReviewRow
-                label="Cut"
-                value={formatCutLabel(cut) || "—"}
+                label="Shape"
+                value={formatShapeLabel(shape) || "—"}
               />
               <ReviewRow
                 label="Origin"
@@ -518,8 +617,16 @@ export default function AddGemScreen() {
                 )}
               />
               <ReviewRow
+                label="Trip"
+                value={selectedTrip?.tripName ?? "None"}
+              />
+              <ReviewRow
                 label="Status"
-                value={formatOptionLabel(MANUAL_STATUS_OPTIONS, status) || "—"}
+                value={
+                  selectedTripId
+                    ? "On trip"
+                    : formatOptionLabel(MANUAL_STATUS_OPTIONS, status) || "—"
+                }
               />
               <ReviewRow
                 label="Photos"
@@ -537,7 +644,6 @@ export default function AddGemScreen() {
       <FormFooter
         title={step === 2 ? "Save gem" : "Continue"}
         icon={step === 2 ? "shield" : "arrow-forward"}
-        loading={loading}
         onPress={handleNext}
         secondaryTitle={step > 0 ? "Back" : undefined}
         onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}
@@ -570,12 +676,12 @@ export default function AddGemScreen() {
           clearField("clarity");
         }}
       />
-      <CutPickerSheet
-        visible={sheet === "cut"}
+      <ShapePickerSheet
+        visible={sheet === "shape"}
         onClose={() => setSheet(null)}
-        value={cut}
+        value={shape}
         onSelect={(v) => {
-          setCut(v);
+          setShape(v);
           clearField("shape");
         }}
       />
@@ -595,6 +701,15 @@ export default function AddGemScreen() {
         onSelect={(v) => {
           setStatus(v as GemStatus);
           clearField("status");
+        }}
+      />
+      <TripPickerSheet
+        visible={sheet === "trip"}
+        onClose={() => setSheet(null)}
+        trips={linkableTrips}
+        value={selectedTripId}
+        onSelect={(trip) => {
+          setSelectedTripId(trip.id);
         }}
       />
     </SafeAreaView>

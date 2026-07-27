@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
 import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
+import { setLoadingMessage } from '@/providers/loading-provider';
 
 export type LocalMediaKind = 'image' | 'video' | 'file';
 
@@ -132,6 +133,7 @@ export async function uploadImage(localUri: string, storagePath: string): Promis
 
 /** Upload a previously picked local media file. Call this on form submit. */
 export async function uploadLocalMedia(media: LocalMedia, storagePath: string): Promise<string> {
+  setLoadingMessage(media.kind === 'image' ? 'Uploading photo…' : 'Uploading…');
   return uploadBlobToStorage(media.uri, storagePath);
 }
 

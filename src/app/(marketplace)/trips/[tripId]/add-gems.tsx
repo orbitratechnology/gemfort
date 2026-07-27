@@ -16,6 +16,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatCurrency } from '@/lib/utils';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
+import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 
 const PARCEL_ELIGIBLE = new Set([
@@ -35,7 +36,6 @@ export default function AddGemsToTripScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
 
   const { data: gems = [] } = useQuery({
     queryKey: ['gems', user?.uid],
@@ -44,9 +44,9 @@ export default function AddGemsToTripScreen() {
   });
 
   const { data: tripGems = [] } = useQuery({
-    queryKey: ['trip-gems', tripId],
-    queryFn: () => fetchTripGems(tripId!),
-    enabled: !!tripId,
+    queryKey: ['trip-gems', tripId, user?.uid],
+    queryFn: () => fetchTripGems(tripId!, user!.uid),
+    enabled: !!tripId && !!user,
   });
 
   const onTripIds = useMemo(() => new Set(tripGems.map((tg) => tg.gemId)), [tripGems]);
@@ -80,19 +80,18 @@ export default function AddGemsToTripScreen() {
       return;
     }
 
-    setLoading(true);
     try {
-      await addGemsToSellingTrip(user.uid, tripId, [...selected]);
-      await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-      await queryClient.invalidateQueries({ queryKey: ['trips'] });
-      await queryClient.invalidateQueries({ queryKey: ['gems'] });
-      toast.success(`${selected.size} gem${selected.size === 1 ? '' : 's'} added to trip parcel.`);
-      router.back();
+      await withLoading(async () => {
+        await addGemsToSellingTrip(user.uid, tripId, [...selected]);
+        await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+        await queryClient.invalidateQueries({ queryKey: ['trips'] });
+        await queryClient.invalidateQueries({ queryKey: ['gems'] });
+        toast.success(`${selected.size} gem${selected.size === 1 ? '' : 's'} added to trip parcel.`);
+        router.back();
+      }, 'Adding gems…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not add gems to trip.'));
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -147,7 +146,6 @@ export default function AddGemsToTripScreen() {
           <ScreenInset>
           <Button
             title={selected.size > 0 ? `Add ${selected.size} gem${selected.size === 1 ? '' : 's'}` : 'Select gems'}
-            loading={loading}
             disabled={selected.size === 0}
             onPress={handleSubmit}
           />
