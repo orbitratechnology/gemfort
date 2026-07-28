@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -40,6 +40,18 @@ import {
     fetchPublicListings,
     filterListings,
 } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeApRecordsForUser,
+  subscribeBills,
+  subscribeBusinessByOwnerUid,
+  subscribeCheques,
+  subscribeContacts,
+  subscribeGems,
+  subscribePublicListings,
+  subscribeServices,
+  subscribeTrips,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import {
     resolveBusinessPhotoById,
     resolveBusinessPhotoByOwnerUid,
@@ -197,9 +209,11 @@ export default function HomeScreen() {
   const initials = initialsFromName(displayName);
   const showRequests = !!user && canAccessModule(role, "requests");
 
-  const { data: myBusiness } = useQuery({
+  const { data: myBusiness } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user && isFirebaseConfigured,
   });
 
@@ -213,11 +227,18 @@ export default function HomeScreen() {
     isLoading: listingsLoading,
     refetch: refetchListings,
     isRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["public-listings"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoListings();
       return fetchPublicListings();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoListings());
+        return () => undefined;
+      }
+      return subscribePublicListings(onData, onError);
     },
   });
 
@@ -225,25 +246,34 @@ export default function HomeScreen() {
     data: businesses = [],
     isLoading: businessesLoading,
     refetch: refetchBusinesses,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoBusinesses();
       return fetchBusinesses();
     },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoBusinesses());
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses(onData, onError);
+    },
   });
 
   const workspaceEnabled = !!user && isFirebaseConfigured;
 
-  const { data: contacts = [], refetch: refetchContacts } = useQuery({
+  const { data: contacts = [], refetch: refetchContacts } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: workspaceEnabled && canAccessModule(role, "contacts"),
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: workspaceEnabled && canAccessModule(role, "gems"),
   });
 
@@ -268,9 +298,11 @@ export default function HomeScreen() {
     [businesses],
   );
 
-  const { data: apRecords = [], refetch: refetchAp } = useQuery({
+  const { data: apRecords = [], refetch: refetchAp } = useFirestoreLiveQuery({
     queryKey: ["ap", user?.uid],
     queryFn: () => fetchApRecords(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeApRecordsForUser(user!.uid, onData, onError),
     enabled: workspaceEnabled && canAccessModule(role, "ap"),
   });
 
@@ -291,27 +323,31 @@ export default function HomeScreen() {
     [user?.uid, contactPhoto, businessPhoto, ownerBusinessPhoto],
   );
 
-  const { data: services = [], refetch: refetchServices } = useQuery({
+  const { data: services = [], refetch: refetchServices } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],
     queryFn: () => fetchServices(user!.uid),
+    subscribe: (onData, onError) => subscribeServices(user!.uid, onData, onError),
     enabled: workspaceEnabled,
   });
 
-  const { data: trips = [], refetch: refetchTrips } = useQuery({
+  const { data: trips = [], refetch: refetchTrips } = useFirestoreLiveQuery({
     queryKey: ["trips", user?.uid],
     queryFn: () => fetchTrips(user!.uid),
+    subscribe: (onData, onError) => subscribeTrips(user!.uid, onData, onError),
     enabled: workspaceEnabled,
   });
 
-  const { data: cheques = [], refetch: refetchCheques } = useQuery({
+  const { data: cheques = [], refetch: refetchCheques } = useFirestoreLiveQuery({
     queryKey: ["cheques", user?.uid],
     queryFn: () => fetchCheques(user!.uid),
+    subscribe: (onData, onError) => subscribeCheques(user!.uid, onData, onError),
     enabled: workspaceEnabled,
   });
 
-  const { data: bills = [], refetch: refetchBills } = useQuery({
+  const { data: bills = [], refetch: refetchBills } = useFirestoreLiveQuery({
     queryKey: ["bills", user?.uid],
     queryFn: () => fetchBills(user!.uid),
+    subscribe: (onData, onError) => subscribeBills(user!.uid, onData, onError),
     enabled: workspaceEnabled && canAccessModule(role, "bills"),
   });
 

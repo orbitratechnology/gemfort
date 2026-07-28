@@ -1,5 +1,4 @@
 import { Redirect, router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,7 +10,9 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchOutgoingServiceRequests } from '@/features/marketplace/request-service';
+import { subscribeOutgoingServiceRequests } from '@/features/workspace/firestore-subscriptions';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useAuth } from '@/providers/auth-provider';
 
 export default function TraderRequestsScreen() {
@@ -19,9 +20,11 @@ export default function TraderRequestsScreen() {
   const { colors } = useAppTheme();
   const role = resolveProfileRole(profile);
 
-  const { data: services = [] } = useQuery({
+  const { data: services = [] } = useFirestoreLiveQuery({
     queryKey: ['outgoing-service-requests', user?.uid],
     queryFn: () => fetchOutgoingServiceRequests(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeOutgoingServiceRequests(user!.uid, onData, onError),
     enabled: !!user && canAccessModule(role, 'requests'),
   });
 

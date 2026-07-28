@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
   Pressable,
@@ -30,11 +30,17 @@ import {
 } from "@/features/workspace/bill-utils";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
+  subscribeBills,
+  subscribeContacts,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   deleteBill,
   fetchBills,
   fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
@@ -185,21 +191,24 @@ export default function BillsIndexScreen() {
     data: bills = [],
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["bills", user?.uid],
     queryFn: () => fetchBills(user!.uid),
+    subscribe: (onData, onError) => subscribeBills(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import {
@@ -9,8 +9,10 @@ import {
 } from '@/components/workspace/contact-picker-sheet';
 import type { BusinessKind } from '@/features/workspace/contact-business-link';
 import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
+import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
 import { ensureContactForBusiness } from '@/features/workspace/workspace-service';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useAuth } from '@/providers/auth-provider';
 import type { Contact } from '@/types';
 
@@ -76,9 +78,19 @@ export function ContactPicker({
       : null;
   }, [value, selected, displayName]);
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ['party-picker-businesses-resolve'],
-    queryFn: () => fetchBusinesses(),
+    queryFn: async () => {
+      if (!isFirebaseConfigured) return [];
+      return fetchBusinesses();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData([]);
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses(onData, onError);
+    },
     enabled: usePartySheet && open && isFirebaseConfigured,
   });
 

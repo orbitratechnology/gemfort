@@ -1,5 +1,5 @@
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,10 +16,15 @@ import { canAccessModule, resolveProfileRole } from '@/constants/roles';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchBusinessByOwnerUid } from '@/features/marketplace/marketplace-service';
 import {
+  subscribeBusinessByOwnerUid,
+  subscribeLabCertificates,
+} from '@/features/workspace/firestore-subscriptions';
+import {
   fetchLabCertificates,
   publishCertificate,
 } from '@/features/marketplace/request-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { friendlyError } from '@/lib/errors';
 import { extensionForMedia, uploadLocalMedia, type LocalMedia } from '@/lib/firebase/storage-service';
 import { useAuth } from '@/providers/auth-provider';
@@ -43,15 +48,19 @@ export default function LabCertificatesScreen() {
   const [reportType, setReportType] = useState('full');
   const [file, setFile] = useState<LocalMedia | null>(null);
 
-  const { data: certificates = [] } = useQuery({
+  const { data: certificates = [] } = useFirestoreLiveQuery({
     queryKey: ['lab-certificates', user?.uid],
     queryFn: () => fetchLabCertificates(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeLabCertificates(user!.uid, onData, onError),
     enabled: !!user && canAccessModule(role, 'certificates'),
   });
 
-  const { data: business } = useQuery({
+  const { data: business } = useFirestoreLiveQuery({
     queryKey: ['my-business', user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user,
   });
 

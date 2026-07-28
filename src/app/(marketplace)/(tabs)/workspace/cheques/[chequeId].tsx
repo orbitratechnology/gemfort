@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,11 +13,16 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { CHEQUE_STATUS_LABELS, maturityLabel } from '@/features/workspace/cheque-utils';
 import {
+  subscribeCheque,
+  subscribeContacts,
+} from '@/features/workspace/firestore-subscriptions';
+import {
   fetchCheque,
   fetchContacts,
   updateChequeStatus,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { formatDate, formatRelativeDue, formatRelativeTime } from '@/lib/utils';
@@ -43,15 +48,18 @@ export default function ChequeDetailScreen() {
   const [bounceReason, setBounceReason] = useState('');
   const [showBounceForm, setShowBounceForm] = useState(false);
 
-  const { data: cheque, isLoading } = useQuery({
+  const { data: cheque, isLoading } = useFirestoreLiveQuery({
     queryKey: ['cheque', chequeId],
     queryFn: () => fetchCheque(chequeId!),
+    subscribe: (onData, onError) => subscribeCheque(chequeId!, onData, onError),
     enabled: !!chequeId,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts'],
     queryFn: () => fetchContacts(cheque!.ownerUid),
+    subscribe: (onData, onError) =>
+      subscribeContacts(cheque!.ownerUid, onData, onError),
     enabled: !!cheque?.ownerUid,
   });
 

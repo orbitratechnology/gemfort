@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,9 +17,15 @@ import {
   respondServiceRequest,
   updateLapidaryJobStatus,
  createClientNotification } from '@/features/marketplace/request-service';
+import {
+  subscribeIncomingServiceRequests,
+  subscribeLapidaryJobs,
+  subscribeProviderServices,
+} from '@/features/workspace/firestore-subscriptions';
 import { respondServiceCancellation } from '@/features/workspace/service-lifecycle-service';
 import { fetchProviderServices } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -31,21 +37,27 @@ export default function LapidaryJobsScreen() {
   const queryClient = useQueryClient();
   const role = resolveProfileRole(profile);
 
-  const { data: jobs = [], isLoading } = useQuery({
+  const { data: jobs = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ['lapidary-jobs', user?.uid],
     queryFn: () => fetchLapidaryJobs(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeLapidaryJobs(user!.uid, onData, onError),
     enabled: !!user && canAccessModule(role, 'jobs'),
   });
 
-  const { data: incoming = [] } = useQuery({
+  const { data: incoming = [] } = useFirestoreLiveQuery({
     queryKey: ['incoming-service-requests', user?.uid],
     queryFn: () => fetchIncomingServiceRequests(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeIncomingServiceRequests(user!.uid, onData, onError),
     enabled: !!user && canAccessModule(role, 'jobs'),
   });
 
-  const { data: providerServices = [] } = useQuery({
+  const { data: providerServices = [] } = useFirestoreLiveQuery({
     queryKey: ['provider-services', user?.uid],
     queryFn: () => fetchProviderServices(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeProviderServices(user!.uid, onData, onError),
     enabled: !!user && canAccessModule(role, 'jobs'),
   });
 

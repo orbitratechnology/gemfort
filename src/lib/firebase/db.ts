@@ -15,5 +15,6 @@ export {
   serverTimestamp,
   Timestamp,
   increment,
+  onSnapshot,
   getFirebaseDb,
 } from './db.native';

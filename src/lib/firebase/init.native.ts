@@ -1,18 +1,34 @@
-import { enableNetwork } from '@react-native-firebase/firestore';
-
-import { getFirebaseDb } from '@/lib/firebase/config';
+import { getApp } from '@react-native-firebase/app';
+import {
+  enableNetwork,
+  getFirestore,
+  initializeFirestore,
+} from '@react-native-firebase/firestore';
 
 let warmUpPromise: Promise<void> | null = null;
 
 /**
- * Completes RNFB's one-time native Firestore init before concurrent reads.
- * Avoids "settings can no longer be changed" when auth + queries race on Android.
+ * Boot Firestore with offline persistence before any reads/writes.
+ *
+ * RNFB: native persistence is on by default; we call `initializeFirestore`
+ * explicitly so settings are locked with persistence enabled before the first
+ * `getFirestore` / query (avoids "settings can no longer be changed" races).
+ * @see https://rnfirebase.io/firestore/usage#offline-capabilities
  */
 export function warmUpFirestore(): Promise<void> {
   if (!warmUpPromise) {
-    warmUpPromise = enableNetwork(getFirebaseDb())
-      .then(() => undefined)
-      .catch(() => undefined);
+    warmUpPromise = (async () => {
+      try {
+        await initializeFirestore(getApp(), { persistence: true });
+      } catch {
+        // Already initialized this process — keep existing settings.
+      }
+      try {
+        await enableNetwork(getFirestore(getApp()));
+      } catch {
+        // Network enable is best-effort; offline cache still works.
+      }
+    })();
   }
   return warmUpPromise;
 }

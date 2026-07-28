@@ -1,6 +1,6 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { router } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -22,6 +22,7 @@ import {
   effectiveReceivableStatus,
   getReceivableSummary,
 } from '@/features/workspace/payment-utils';
+import { subscribeContacts, subscribeReceivables } from '@/features/workspace/firestore-subscriptions';
 import {
   createReceivable,
   fetchContacts,
@@ -29,6 +30,7 @@ import {
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
@@ -64,15 +66,17 @@ export default function ReceivablesScreen() {
     currency: preferred,
   });
 
-  const { data: receivables = [], refetch, isRefetching } = useQuery({
+  const { data: receivables = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['receivables', user?.uid],
     queryFn: () => fetchReceivables(user!.uid),
+    subscribe: (onData, onError) => subscribeReceivables(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 

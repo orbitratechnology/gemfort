@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -17,12 +17,14 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
+import { subscribeGems, subscribeTransactions } from '@/features/workspace/firestore-subscriptions';
 import {
   createTransaction,
   fetchGems,
   fetchTransactions,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
@@ -49,15 +51,17 @@ export default function TransactionsScreen() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const { data: transactions = [], refetch, isRefetching } = useQuery({
+  const { data: transactions = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['transactions', user?.uid],
     queryFn: () => fetchTransactions(user!.uid),
+    subscribe: (onData, onError) => subscribeTransactions(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ['gems', user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 

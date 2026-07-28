@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +27,7 @@ import { ContactPicker } from "@/components/workspace/contact-picker";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
 import { bankHasBranches } from "@/constants/sri-lanka-branches";
+import { subscribeContacts } from "@/features/workspace/firestore-subscriptions";
 import {
     createCheque,
     fetchContacts,
@@ -34,6 +35,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { apPaymentReceived, apPaymentSent } from "@/features/workspace/ap-lifecycle-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
@@ -146,9 +148,10 @@ export default function AddChequeScreen() {
   const bankName = selectedBank?.name ?? "";
   const canPickBranch = bankHasBranches(bankCode);
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 

@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
@@ -32,12 +31,18 @@ import {
   demoListings,
   fetchBusinesses,
   fetchPublicListings,
+  filterBusinesses,
   filterListings,
   searchBusinesses,
   searchListings,
   type ListingFilters,
 } from "@/features/marketplace/marketplace-service";
+import {
+  subscribePublicListings,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import type { Business, MarketplaceListing } from "@/types";
@@ -123,12 +128,22 @@ export default function DirectoryScreen() {
     isLoading: businessesLoading,
     refetch: refetchBusinesses,
     isRefetching: businessesRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["businesses", tab],
     queryFn: async () => {
       const filters = { businessType };
       if (!isFirebaseConfigured) return demoBusinesses(filters);
       return fetchBusinesses(filters);
+    },
+    subscribe: (onData, onError) => {
+      const filters = { businessType };
+      if (!isFirebaseConfigured) {
+        onData(demoBusinesses(filters));
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses((all) => {
+        onData(filterBusinesses(all, filters));
+      }, onError);
     },
     enabled: tab !== "gems",
   });
@@ -138,11 +153,18 @@ export default function DirectoryScreen() {
     isLoading: listingsLoading,
     refetch: refetchListings,
     isRefetching: listingsRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["public-listings"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoListings();
       return fetchPublicListings();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoListings());
+        return () => undefined;
+      }
+      return subscribePublicListings(onData, onError);
     },
     enabled: tab === "gems",
   });

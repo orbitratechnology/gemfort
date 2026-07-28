@@ -5,7 +5,6 @@ import {
   useLocalSearchParams,
   type Href,
 } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,11 +34,13 @@ import {
   isTerminalOutcome,
   resolveGemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
+import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
 import {
   createListing,
   fetchGem,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
@@ -104,9 +105,10 @@ export default function CreateListingScreen() {
     data: gem,
     isLoading: gemLoading,
     isFetched: gemFetched,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["gem", gemId],
     queryFn: () => fetchGem(gemId!),
+    subscribe: (onData, onError) => subscribeGem(gemId!, onData, onError),
     enabled: !!user && !!gemId && isVerifiedSeller,
   });
 

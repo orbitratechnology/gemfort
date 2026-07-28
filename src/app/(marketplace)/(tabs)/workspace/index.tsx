@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -23,6 +23,20 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeApRecordsForUser,
+  subscribeBills,
+  subscribeCheques,
+  subscribeContacts,
+  subscribeGems,
+  subscribeIncomingServiceRequests,
+  subscribeLapidaryJobs,
+  subscribeLabCertificates,
+  subscribeServices,
+  subscribeTransactions,
+  subscribeTrips,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import {
     fetchIncomingServiceRequests,
     fetchLabCertificates,
@@ -106,33 +120,39 @@ export default function WorkspaceHub() {
   const userId = user?.uid;
   const role = resolveProfileRole(profile);
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", userId],
     queryFn: () => fetchGems(userId!),
+    subscribe: (onData, onError) => subscribeGems(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "gems"),
   });
 
-  const { data: services = [] } = useQuery({
+  const { data: services = [] } = useFirestoreLiveQuery({
     queryKey: ["services", userId],
     queryFn: () => fetchServices(userId!),
+    subscribe: (onData, onError) => subscribeServices(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "services"),
   });
 
-  const { data: apRecords = [] } = useQuery({
+  const { data: apRecords = [] } = useFirestoreLiveQuery({
     queryKey: ["ap", userId],
     queryFn: () => fetchApRecords(userId!),
+    subscribe: (onData, onError) =>
+      subscribeApRecordsForUser(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "ap"),
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", userId],
     queryFn: () => fetchContacts(userId!),
+    subscribe: (onData, onError) => subscribeContacts(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "contacts"),
   });
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
     enabled: !!userId,
   });
 
@@ -174,45 +194,56 @@ export default function WorkspaceHub() {
     [userId, contactPhoto, businessPhoto, ownerBusinessPhoto],
   );
 
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [] } = useFirestoreLiveQuery({
     queryKey: ["transactions", userId],
     queryFn: () => fetchTransactions(userId!),
+    subscribe: (onData, onError) =>
+      subscribeTransactions(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "money"),
   });
 
-  const { data: cheques = [] } = useQuery({
+  const { data: cheques = [] } = useFirestoreLiveQuery({
     queryKey: ["cheques", userId],
     queryFn: () => fetchCheques(userId!),
+    subscribe: (onData, onError) => subscribeCheques(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "cheques"),
   });
 
-  const { data: bills = [] } = useQuery({
+  const { data: bills = [] } = useFirestoreLiveQuery({
     queryKey: ["bills", userId],
     queryFn: () => fetchBills(userId!),
+    subscribe: (onData, onError) => subscribeBills(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "bills"),
   });
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [] } = useFirestoreLiveQuery({
     queryKey: ["trips", userId],
     queryFn: () => fetchTrips(userId!),
+    subscribe: (onData, onError) => subscribeTrips(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "trips"),
   });
 
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [] } = useFirestoreLiveQuery({
     queryKey: ["lapidary-jobs", userId],
     queryFn: () => fetchLapidaryJobs(userId!),
+    subscribe: (onData, onError) =>
+      subscribeLapidaryJobs(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "jobs"),
   });
 
-  const { data: certificates = [] } = useQuery({
+  const { data: certificates = [] } = useFirestoreLiveQuery({
     queryKey: ["lab-certificates", userId],
     queryFn: () => fetchLabCertificates(userId!),
+    subscribe: (onData, onError) =>
+      subscribeLabCertificates(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "certificates"),
   });
 
-  const { data: incomingServiceRequests = [] } = useQuery({
+  const { data: incomingServiceRequests = [] } = useFirestoreLiveQuery({
     queryKey: ["incoming-service-requests", userId],
     queryFn: () => fetchIncomingServiceRequests(userId!),
+    subscribe: (onData, onError) =>
+      subscribeIncomingServiceRequests(userId!, onData, onError),
     enabled: !!userId && role === "lapidary",
   });
 

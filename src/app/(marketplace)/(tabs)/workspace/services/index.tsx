@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -30,11 +30,16 @@ import {
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { requestServiceCancellation } from "@/features/workspace/service-lifecycle-service";
 import {
+  subscribeGems,
+  subscribeServices,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   deleteService,
   fetchGems,
   fetchServices,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
@@ -108,15 +113,17 @@ export default function ServicesListScreen() {
     data: services = [],
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],
     queryFn: () => fetchServices(user!.uid),
+    subscribe: (onData, onError) => subscribeServices(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 

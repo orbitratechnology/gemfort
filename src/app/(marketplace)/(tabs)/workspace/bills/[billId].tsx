@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -30,6 +30,12 @@ import {
   remainingAmount,
 } from "@/features/workspace/bill-utils";
 import {
+  subscribeBill,
+  subscribeContacts,
+  subscribeGems,
+  subscribeLapidaryJobs,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   fetchBill,
   fetchContacts,
   fetchGems,
@@ -37,6 +43,7 @@ import {
   updateBillStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatDate } from "@/lib/utils";
@@ -68,27 +75,34 @@ export default function BillDetailScreen() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
 
-  const { data: bill, isLoading } = useQuery({
+  const { data: bill, isLoading } = useFirestoreLiveQuery({
     queryKey: ["bill", billId],
     queryFn: () => fetchBill(billId!),
+    subscribe: (onData, onError) => subscribeBill(billId!, onData, onError),
     enabled: !!billId,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", bill?.ownerUid],
     queryFn: () => fetchContacts(bill!.ownerUid),
+    subscribe: (onData, onError) =>
+      subscribeContacts(bill!.ownerUid, onData, onError),
     enabled: !!bill?.ownerUid,
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", bill?.ownerUid],
     queryFn: () => fetchGems(bill!.ownerUid),
+    subscribe: (onData, onError) =>
+      subscribeGems(bill!.ownerUid, onData, onError),
     enabled: !!bill?.ownerUid && !bill?.jobId,
   });
 
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [] } = useFirestoreLiveQuery({
     queryKey: ["lapidary-jobs", bill?.ownerUid],
     queryFn: () => fetchLapidaryJobs(bill!.ownerUid),
+    subscribe: (onData, onError) =>
+      subscribeLapidaryJobs(bill!.ownerUid, onData, onError),
     enabled: !!bill?.ownerUid && !!bill?.jobId,
   });
 

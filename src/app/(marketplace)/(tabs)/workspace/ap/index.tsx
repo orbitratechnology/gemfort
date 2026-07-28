@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -25,6 +25,15 @@ import {
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinessByOwnerUid, fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeBusinessesByOwnerUids,
+  subscribeContacts,
+  subscribeGems,
+  subscribeGemsByIds,
+  subscribeGivenApRecords,
+  subscribeTakenApRecords,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import {
   apAgreedTotal,
   apStatusLabel,
@@ -54,6 +63,7 @@ import {
   fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
@@ -455,27 +465,33 @@ export default function ApListScreen() {
   const [side, setSide] = useState<ApSide>("given");
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const givenQ = useQuery({
+  const givenQ = useFirestoreLiveQuery({
     queryKey: ["ap", "given", user?.uid],
     queryFn: () => fetchGivenApRecords(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeGivenApRecords(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const takenQ = useQuery({
+  const takenQ = useFirestoreLiveQuery({
     queryKey: ["ap", "taken", user?.uid],
     queryFn: () => fetchTakenApRecords(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeTakenApRecords(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: ownedGems = [] } = useQuery({
+  const { data: ownedGems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -495,12 +511,14 @@ export default function ApListScreen() {
     return [...ids].sort();
   }, [allRecords, ownedGems]);
 
-  const { data: extraGems = [] } = useQuery({
+  const { data: extraGems = [] } = useFirestoreLiveQuery({
     queryKey: ["ap", "gem-photos", user?.uid, missingGemIds.join(",")],
     queryFn: async () => {
       const results = await Promise.all(missingGemIds.map((id) => fetchGem(id)));
       return results.filter((g): g is WorkspaceGem => !!g);
     },
+    subscribe: (onData, onError) =>
+      subscribeGemsByIds(missingGemIds, onData, onError),
     enabled: !!user && missingGemIds.length > 0,
   });
 
@@ -515,7 +533,7 @@ export default function ApListScreen() {
     return [...uids].sort();
   }, [givenQ.data, takenQ.data]);
 
-  const { data: logosByOwner = {} } = useQuery({
+  const { data: logosByOwner = {} } = useFirestoreLiveQuery({
     queryKey: ["ap", "party-logos", user?.uid, counterpartyUids.join(",")],
     queryFn: async () => {
       const entries = await Promise.all(
@@ -530,6 +548,18 @@ export default function ApListScreen() {
       }
       return map;
     },
+    subscribe: (onData, onError) =>
+      subscribeBusinessesByOwnerUids(
+        counterpartyUids,
+        (byUid) => {
+          const map: Record<string, string> = {};
+          for (const [uid, biz] of Object.entries(byUid)) {
+            if (biz?.logoUrl) map[uid] = biz.logoUrl;
+          }
+          onData(map);
+        },
+        onError,
+      ),
     enabled: !!user && counterpartyUids.length > 0,
   });
 
@@ -551,9 +581,10 @@ export default function ApListScreen() {
     return map;
   }, [ownedGems, extraGems]);
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 

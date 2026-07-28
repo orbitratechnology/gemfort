@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { BlurTargetView, BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -37,6 +37,12 @@ import {
   tripDurationDays,
 } from "@/features/workspace/trip-utils";
 import {
+  subscribeGems,
+  subscribeTrip,
+  subscribeTripExpenses,
+  subscribeTripGems,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   distributeTripOverhead,
   fetchGems,
   fetchTrip,
@@ -47,6 +53,7 @@ import {
   updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
@@ -65,27 +72,33 @@ export default function TripDetailScreen() {
   const [gemsOpen, setGemsOpen] = useState(false);
   const flagBlurTargetRef = useRef<View | null>(null);
 
-  const { data: trip, isLoading } = useQuery({
+  const { data: trip, isLoading } = useFirestoreLiveQuery({
     queryKey: ["trip", tripId],
     queryFn: () => fetchTrip(tripId!),
+    subscribe: (onData, onError) => subscribeTrip(tripId!, onData, onError),
     enabled: !!tripId,
   });
 
-  const { data: expenses = [] } = useQuery({
+  const { data: expenses = [] } = useFirestoreLiveQuery({
     queryKey: ["trip-expenses", tripId, user?.uid],
     queryFn: () => fetchTripExpenses(tripId!, user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeTripExpenses(tripId!, user!.uid, onData, onError),
     enabled: !!tripId && !!user,
   });
 
-  const { data: tripGems = [] } = useQuery({
+  const { data: tripGems = [] } = useFirestoreLiveQuery({
     queryKey: ["trip-gems", tripId, user?.uid],
     queryFn: () => fetchTripGems(tripId!, user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeTripGems(tripId!, user!.uid, onData, onError),
     enabled: !!tripId && !!user,
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 

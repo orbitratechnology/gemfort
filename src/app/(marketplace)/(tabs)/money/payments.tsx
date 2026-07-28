@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useQuery } from '@tanstack/react-query';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { subscribePayments } from '@/features/workspace/firestore-subscriptions';
 import { fetchPayments } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
@@ -19,9 +20,10 @@ export default function PaymentsScreen() {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
 
-  const { data: payments = [], refetch, isRefetching } = useQuery({
+  const { data: payments = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['payments', user?.uid],
     queryFn: () => fetchPayments(user!.uid),
+    subscribe: (onData, onError) => subscribePayments(user!.uid, onData, onError),
     enabled: !!user,
   });
 

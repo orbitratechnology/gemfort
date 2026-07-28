@@ -1,5 +1,5 @@
 import { Link, router, useLocalSearchParams } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   Linking,
@@ -28,15 +28,23 @@ import {
   Typography,
 } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeApRecordsForUser,
+  subscribeContacts,
+  subscribeServices,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import {
   deleteContact,
-  fetchContactHistory,
+  fetchApRecords,
   fetchContacts,
+  fetchServices,
   updateContact,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
@@ -59,23 +67,46 @@ export default function ContactDetailScreen() {
   const [contactTypes, setContactTypes] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 
-  const { data: history } = useQuery({
-    queryKey: ["contact-history", user?.uid, contactId],
-    queryFn: () => fetchContactHistory(user!.uid, contactId!),
+  const { data: services = [] } = useFirestoreLiveQuery({
+    queryKey: ["services", user?.uid],
+    queryFn: () => fetchServices(user!.uid),
+    subscribe: (onData, onError) => subscribeServices(user!.uid, onData, onError),
     enabled: !!user && !!contactId,
   });
+
+  const { data: apRecords = [] } = useFirestoreLiveQuery({
+    queryKey: ["ap", user?.uid],
+    queryFn: () => fetchApRecords(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeApRecordsForUser(user!.uid, onData, onError),
+    enabled: !!user && !!contactId,
+  });
+
+  const history = useMemo(() => {
+    if (!contactId) return { services: [], apRecords: [] };
+    return {
+      services: services.filter((s) => s.providerContactId === contactId),
+      apRecords: apRecords.filter(
+        (a) =>
+          a.receiverContactId === contactId ||
+          a.apHolderContactId === contactId,
+      ),
+    };
+  }, [contactId, services, apRecords]);
 
   const callLogsSupported = isCallLogsSupported();
   const { logs: allCallLogs } = useMatchedCallLogs({

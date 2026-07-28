@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -29,8 +29,10 @@ import {
   formatTripDates,
   getTripsByStatus,
 } from "@/features/workspace/trip-utils";
+import { subscribeTrips } from "@/features/workspace/firestore-subscriptions";
 import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
@@ -169,9 +171,10 @@ export default function TripsScreen() {
     data: trips = [],
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["trips", user?.uid],
     queryFn: () => fetchTrips(user!.uid),
+    subscribe: (onData, onError) => subscribeTrips(user!.uid, onData, onError),
     enabled: !!user,
   });
 

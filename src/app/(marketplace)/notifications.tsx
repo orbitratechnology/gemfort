@@ -18,12 +18,14 @@ import {
   resolveNotificationVisuals,
   type NotificationVisual,
 } from "@/features/workspace/notification-visuals";
+import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { navigateFromNotificationRef } from "@/lib/notification-navigation";
 import { useAuth } from "@/providers/auth-provider";
@@ -79,9 +81,11 @@ export default function NotificationsScreen() {
     refetch,
     isRefetching,
     isLoading,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["notifications", user?.uid],
     queryFn: () => fetchNotifications(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeNotifications(user!.uid, onData, onError),
     enabled: !!user,
   });
 

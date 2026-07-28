@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -13,8 +13,10 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { formatGemType } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
+import { subscribeGems, subscribeTripGems } from '@/features/workspace/firestore-subscriptions';
 import { addGemsToSellingTrip, fetchGems, fetchTripGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { formatCurrency } from '@/lib/utils';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
@@ -39,15 +41,18 @@ export default function AddGemsToTripScreen() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ['gems', user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: tripGems = [] } = useQuery({
+  const { data: tripGems = [] } = useFirestoreLiveQuery({
     queryKey: ['trip-gems', tripId, user?.uid],
     queryFn: () => fetchTripGems(tripId!, user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeTripGems(tripId!, user!.uid, onData, onError),
     enabled: !!tripId && !!user,
   });
 

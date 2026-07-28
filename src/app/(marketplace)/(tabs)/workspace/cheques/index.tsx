@@ -9,6 +9,11 @@ import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
+  subscribeCheques,
+  subscribeContacts,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
+import {
     CHEQUE_STATUS_LABELS,
     getChequeSummary,
     getUpcomingCheques,
@@ -21,13 +26,14 @@ import {
     fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque } from "@/types";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo } from "react";
 import {
@@ -188,21 +194,24 @@ export default function ChequesScreen() {
     data: cheques = [],
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["cheques", user?.uid],
     queryFn: () => fetchCheques(user!.uid),
+    subscribe: (onData, onError) => subscribeCheques(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: businesses = [] } = useQuery({
+  const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 
