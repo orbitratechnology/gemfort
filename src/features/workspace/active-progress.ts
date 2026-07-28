@@ -2,9 +2,18 @@ import { startOfDay } from "date-fns";
 
 import type { IconName } from "@/components/ui/icon";
 import { apAgreedTotal, isApOngoing } from "@/features/workspace/ap-normalize";
-import { isOpenBill, toDate as billToDate } from "@/features/workspace/bill-utils";
-import { isPendingCheque, toDate as chequeToDate } from "@/features/workspace/cheque-utils";
-import { toTripDate, tripScheduleProgressPercent } from "@/features/workspace/trip-utils";
+import {
+    toDate as billToDate,
+    isOpenBill,
+} from "@/features/workspace/bill-utils";
+import {
+    toDate as chequeToDate,
+    isPendingCheque,
+} from "@/features/workspace/cheque-utils";
+import {
+    toTripDate,
+    tripScheduleProgressPercent,
+} from "@/features/workspace/trip-utils";
 import { formatCurrency, formatDate, formatRelativeDue } from "@/lib/utils";
 import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
 
@@ -35,10 +44,7 @@ export type ActiveProgressItem = {
   imageShape?: "circle" | "rounded";
 };
 
-function scheduleProgress(
-  start: Date | null,
-  end: Date | null,
-): number {
+function scheduleProgress(start: Date | null, end: Date | null): number {
   if (!start || !end) return 0;
   const totalMs = end.getTime() - start.getTime();
   if (totalMs <= 0) return 100;
@@ -46,7 +52,9 @@ function scheduleProgress(
   return Math.min(100, Math.max(0, Math.round((elapsed / totalMs) * 100)));
 }
 
-function toJs(ts: { toDate?: () => Date } | Date | null | undefined): Date | null {
+function toJs(
+  ts: { toDate?: () => Date } | Date | null | undefined,
+): Date | null {
   if (!ts) return null;
   if (ts instanceof Date) return ts;
   return ts.toDate?.() ?? null;
@@ -101,7 +109,7 @@ export function buildActiveProgressItems(input: {
     items.push({
       id: `trip-${t.id}`,
       kind: "trip",
-      badge: "Ongoing",
+      badge: "Trip",
       title: t.tripName,
       subtitle: [t.destinationCity, t.destinationCountry]
         .filter(Boolean)
@@ -135,8 +143,7 @@ export function buildActiveProgressItems(input: {
         ? ownerBusinessPhoto(r.senderUid)
         : contactPhoto(r.receiverContactId || r.apHolderContactId) ||
           businessPhoto(r.receiverBusinessId));
-    const faceCurrency =
-      r.items?.[0]?.currency || r.currency || "LKR";
+    const faceCurrency = r.items?.[0]?.currency || r.currency || "LKR";
     const faceTotal = r.items?.length
       ? r.items.reduce((s, i) => s + (i.agreedPrice || 0), 0)
       : (r.ownerMinimumPrice ?? 0);
@@ -172,7 +179,9 @@ export function buildActiveProgressItems(input: {
     const endDay = end ? startOfDay(end) : null;
     const overdue = !!endDay && endDay < today;
     const who =
-      input.contactName(c.counterpartyContactId) || c.issuedBy || "Counterparty";
+      input.contactName(c.counterpartyContactId) ||
+      c.issuedBy ||
+      "Counterparty";
     const amountLabel = formatCurrency(c.amount, c.currency);
     items.push({
       id: `cheque-${c.id}`,
@@ -225,27 +234,20 @@ export function buildActiveProgressItems(input: {
     const start = toJs(s.dateGiven);
     const end = toJs(s.expectedReturnDate);
     const endDay = end ? startOfDay(end) : null;
-    const overdue =
-      s.status === "overdue" || (!!endDay && endDay < today);
+    const overdue = s.status === "overdue" || (!!endDay && endDay < today);
     const who =
       s.providerName?.trim() ||
       input.contactName(s.providerContactId) ||
       "Provider";
     const photo =
-      contactPhoto(s.providerContactId) ||
-      businessPhoto(s.providerBusinessId);
+      contactPhoto(s.providerContactId) || businessPhoto(s.providerBusinessId);
     const price =
       s.agreedPrice != null && s.agreedPrice > 0
-        ? formatCurrency(
-            s.agreedPrice,
-            s.agreedPriceCurrency || "LKR",
-          )
+        ? formatCurrency(s.agreedPrice, s.agreedPriceCurrency || "LKR")
         : null;
     const serviceType = s.serviceType.replace(/_/g, " ");
     const gemName = input.gemTitle?.(s.gemId)?.trim() || "";
-    const subtitle = gemName
-      ? `${serviceType}: ${gemName}`
-      : serviceType;
+    const subtitle = gemName ? `${serviceType}: ${gemName}` : serviceType;
     items.push({
       id: `service-${s.id}`,
       kind: "service",

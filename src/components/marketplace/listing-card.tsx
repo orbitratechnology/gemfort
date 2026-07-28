@@ -11,8 +11,9 @@ import {
 import { CountryFlag } from "@/components/ui/country-flag";
 import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
-import { Radius, Typography } from "@/constants/design-tokens";
-import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import type { MarketplaceListing } from "@/types";
@@ -45,6 +46,10 @@ export function ListingCard({
           amountBase: listing.priceMinBase,
         })
       : "Inquire";
+  const hasOriginFlag = !!resolveCountryCode(listing.origin);
+  const caratLabel = `${listing.caratWeight} ct`;
+  const ownerName = listing.sellerBusinessName?.trim() || "Seller";
+  const ownerAvatar = listing.sellerLogoUrl ?? null;
 
   const media = listing.photoUrls?.[0] ? (
     <Image
@@ -68,11 +73,39 @@ export function ListingCard({
     <ElevatedCard
       href={href}
       onPress={onPress}
-      accessibilityLabel={`${listing.title}, ${price}`}
+      accessibilityLabel={`${listing.title}, ${caratLabel}, ${price}, ${ownerName}`}
       style={[styles.card, style]}
     >
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
+
+        {hasOriginFlag ? (
+          <View
+            style={[
+              styles.overlayChip,
+              styles.flagChip,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            <CountryFlag country={listing.origin} size="xs" />
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.overlayChip,
+            styles.caratChip,
+            { backgroundColor: colors.surfaceContainerLowest },
+          ]}
+        >
+          <Text
+            style={[styles.caratText, { color: colors.onSurface }]}
+            numberOfLines={1}
+          >
+            {caratLabel}
+          </Text>
+        </View>
+
         {listing.isCertified ? (
           <View style={[styles.badge, { backgroundColor: colors.primary }]}>
             <Text style={[styles.badgeText, { color: colors.onPrimary }]}>
@@ -89,31 +122,29 @@ export function ListingCard({
         >
           {listing.title}
         </Text>
-        <Text
-          style={[styles.meta, { color: colors.onSurfaceVariant }]}
-          numberOfLines={1}
+        <View
+          style={[
+            styles.priceChip,
+            { backgroundColor: colors.primaryContainer },
+          ]}
         >
-          {formatGemType(listing.gemType)} · {listing.caratWeight} ct
-        </Text>
-        <View style={styles.originRow}>
-          {resolveCountryCode(listing.origin) ? (
-            <CountryFlag country={listing.origin} size="xs" />
-          ) : (
-            <Icon name="location-on" size={12} color={colors.textMuted} />
-          )}
           <Text
-            style={[styles.origin, { color: colors.textMuted }]}
+            style={[styles.price, { color: colors.onPrimaryContainer }]}
             numberOfLines={1}
           >
-            {listing.origin}
+            {price}
           </Text>
         </View>
-        <Text
-          style={[styles.price, { color: colors.primary }]}
-          numberOfLines={1}
-        >
-          {price}
-        </Text>
+
+        <View style={styles.ownerRow}>
+          <ContactAvatar name={ownerName} photoUrl={ownerAvatar} size={20} />
+          <Text
+            style={[styles.ownerName, { color: colors.onSurfaceVariant }]}
+            numberOfLines={1}
+          >
+            {ownerName}
+          </Text>
+        </View>
       </View>
     </ElevatedCard>
   );
@@ -139,10 +170,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  overlayChip: {
+    position: "absolute",
+    top: Spacing.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flagChip: {
+    left: Spacing.sm,
+  },
+  caratChip: {
+    right: Spacing.sm,
+  },
+  caratText: {
+    fontSize: 10,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
   badge: {
     position: "absolute",
-    top: 8,
-    left: 8,
+    bottom: Spacing.sm,
+    left: Spacing.sm,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Radius.full,
@@ -157,29 +208,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 10,
     paddingBottom: 12,
-    gap: 3,
+    gap: 6,
   },
   title: {
     ...Typography.bodyMd,
     fontWeight: "600",
     lineHeight: 18,
   },
-  meta: {
-    ...Typography.caption,
-  },
-  originRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  origin: {
-    ...Typography.caption,
-    flex: 1,
+  priceChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
   },
   price: {
     ...Typography.bodyMd,
-    fontWeight: "700",
-    marginTop: 4,
+    fontWeight: "800",
     fontVariant: ["tabular-nums"],
+  },
+  ownerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  ownerName: {
+    ...Typography.caption,
+    flexShrink: 1,
   },
 });

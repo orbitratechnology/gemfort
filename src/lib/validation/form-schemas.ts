@@ -46,6 +46,44 @@ const optionalPositiveNumber = (label: string, max = 99_999_999) =>
       `Enter a valid ${label.toLowerCase()}`,
     );
 
+const gemTreatmentEnum = z.enum([
+  'natural',
+  'chemical_diffusion',
+  'coating',
+  'diffusion',
+  'doublet',
+  'dyeing',
+  'glass_plastic_resin_impregnation',
+  'glass_plastic_resin_infilling',
+  'heat_treatment',
+  'oiling_waxing',
+  'reconstitution',
+  'smoke_diffusion',
+]);
+
+const gemStatusEnum = z.enum([
+  'rough',
+  'with_cutter',
+  'cut',
+  'with_heater',
+  'heated',
+  'with_polisher',
+  'polished',
+  'certified',
+  'ready_for_sale',
+  'on_ap',
+  'on_trip',
+  'listed',
+  'sold',
+  'returned',
+]);
+
+/** Empty string → undefined so optional picker fields stay optional. */
+const optionalTrimmed = z
+  .string()
+  .trim()
+  .transform((v) => (v === '' ? undefined : v));
+
 export const addGemSchema = z.object({
   title: z
     .string()
@@ -53,45 +91,20 @@ export const addGemSchema = z.object({
     .min(1, 'Enter a title')
     .max(80, 'Title must be 80 characters or less'),
   gemType: z.string().min(1, 'Choose a gem type'),
-  originCountry: z.string().min(1, 'Choose origin'),
   roughWeight: positiveNumber('Weight', 10_000),
   acquisitionCost: positiveNumber('Purchase price'),
-  treatment: z.enum([
-    'natural',
-    'chemical_diffusion',
-    'coating',
-    'diffusion',
-    'doublet',
-    'dyeing',
-    'glass_plastic_resin_impregnation',
-    'glass_plastic_resin_infilling',
-    'heat_treatment',
-    'oiling_waxing',
-    'reconstitution',
-    'smoke_diffusion',
-  ]),
-  colorPrimary: z.string().min(1, 'Choose a color'),
-  clarity: z.string().min(1, 'Choose clarity'),
-  shape: z.string().min(1, 'Choose a shape'),
-  status: z.enum(
-    [
-      'rough',
-      'with_cutter',
-      'cut',
-      'with_heater',
-      'heated',
-      'with_polisher',
-      'polished',
-      'certified',
-      'ready_for_sale',
-      'on_ap',
-      'on_trip',
-      'listed',
-      'sold',
-      'returned',
-    ],
-    { errorMap: () => ({ message: 'Choose a status' }) },
-  ),
+  originCountry: optionalTrimmed,
+  colorPrimary: optionalTrimmed,
+  clarity: optionalTrimmed,
+  shape: optionalTrimmed,
+  treatment: z
+    .string()
+    .transform((v) => (v === '' ? undefined : v))
+    .pipe(gemTreatmentEnum.optional()),
+  status: z
+    .string()
+    .transform((v) => (v === '' ? undefined : v))
+    .pipe(gemStatusEnum.optional()),
 });
 
 export type AddGemForm = z.infer<typeof addGemSchema>;

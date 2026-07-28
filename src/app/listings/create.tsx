@@ -31,6 +31,11 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOptionLabel } from "@/constants/gem-options";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import {
+  canListGem,
+  isTerminalOutcome,
+  resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
+import {
   createListing,
   fetchGem,
 } from "@/features/workspace/workspace-service";
@@ -198,6 +203,45 @@ export default function CreateListingScreen() {
             {gemLoading || !gemFetched ? "Loading gem…" : "Gem not found"}
           </Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  const life = resolveGemLifecycle(gem);
+  if (isTerminalOutcome(life.outcome) || !canListGem(gem)) {
+    const terminal = isTerminalOutcome(life.outcome);
+    return (
+      <SafeAreaView
+        style={[styles.safe, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
+        <StackHeader title="Create listing" />
+        <ThemedScrollView contentContainerStyle={styles.blocked}>
+          <EmptyState
+            icon={life.outcome === "sold" ? "check-circle" : "block"}
+            title={
+              life.outcome === "sold"
+                ? "Sold gems cannot be listed"
+                : life.outcome === "returned"
+                  ? "Returned gems cannot be listed"
+                  : "This gem cannot be listed"
+            }
+            subtitle={
+              terminal
+                ? "Change the outcome first if you need to list it again."
+                : "This gem is already listed or not ready for GemNet."
+            }
+          />
+          <Button
+            title="Back to gem"
+            icon="arrow-back"
+            onPress={() =>
+              router.replace(
+                `/(marketplace)/(tabs)/workspace/gems/${gem.id}` as Href,
+              )
+            }
+          />
+        </ThemedScrollView>
       </SafeAreaView>
     );
   }

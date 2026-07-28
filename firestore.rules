@@ -160,16 +160,20 @@ service cloud.firestore {
 
     match /businesses/{businessId} {
 
-      // Verified + active businesses are public
-      allow read: if resource.data.verificationStatus == 'verified'
+      // Directory queries: only verified + active appear in list results.
+      allow list: if resource.data.verificationStatus == 'verified'
                   && resource.data.isActive == true;
 
-      // Owner reads own (even pending)
-      allow read: if isSignedIn()
+      // Direct get by ID (e.g. from a public listing's businessId) — any active
+      // business is readable so listing cards show owner name/logo/contacts.
+      allow get: if resource.data.isActive == true;
+
+      // Owner reads own (even pending / inactive)
+      allow get, list: if isSignedIn()
                   && isBusinessOwner(resource.data);
 
       // Admin reads all
-      allow read: if isAdmin();
+      allow get, list: if isAdmin();
 
       // Verified members can create business profile
       allow create: if isAnySignedIn()
@@ -376,11 +380,39 @@ service cloud.firestore {
             && request.resource.data.type in [
               'service_request_received', 'service_request_accepted', 'service_request_rejected',
               'service_job_updated', 'cert_request_received', 'cert_request_accepted',
-              'cert_request_rejected', 'cert_ready'
+              'cert_request_rejected', 'cert_ready', 'listing_offer_received'
             ]
             && request.resource.data.isRead == false);
       allow delete: if isOwner(resource.data.recipientUid)
                     || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    // LISTING OFFERS (GemNet price offers)
+    // ═══════════════════════════════════════════════
+
+    match /listing_offers/{offerId} {
+      allow read: if isSignedIn()
+        && (resource.data.buyerUid == uid()
+            || resource.data.sellerUid == uid()
+            || isAdmin());
+
+      allow create: if isAnySignedIn()
+        && isNotSuspended()
+        && request.resource.data.buyerUid == uid()
+        && request.resource.data.sellerUid is string
+        && request.resource.data.sellerUid != uid()
+        && request.resource.data.listingId is string
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.status == 'pending';
+
+      allow update: if isSignedIn()
+        && (resource.data.sellerUid == uid() || resource.data.buyerUid == uid() || isAdmin())
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isAdmin();
     }
 
     // ═══════════════════════════════════════════════

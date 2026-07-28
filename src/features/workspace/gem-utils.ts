@@ -1,4 +1,10 @@
 import type { GemStatus, WorkspaceGem } from "@/types";
+import {
+  canListGem,
+  gemMatchesStatusFilter,
+  isTerminalOutcome,
+  resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 
 export type GemListFilters = {
   search?: string;
@@ -25,7 +31,7 @@ export function filterGems(
   }
 
   if (filters.status && filters.status !== "all") {
-    result = result.filter((g) => g.status === filters.status);
+    result = result.filter((g) => gemMatchesStatusFilter(g, filters.status!));
   }
 
   if (filters.gemType && filters.gemType !== "all") {
@@ -44,39 +50,29 @@ export type GemQuickAction = {
 export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
   const base = "/(marketplace)/(tabs)/workspace";
   const actions: GemQuickAction[] = [];
+  const life = resolveGemLifecycle(gem);
 
-  switch (gem.status) {
-    case "rough":
-      actions.push({
-        title: "Record Cutting",
-        href: `/(marketplace)/services/add?gemId=${gem.id}`,
-      });
-      break;
-    case "cut":
-    case "heated":
-    case "polished":
-    case "certified":
-    case "ready_for_sale":
-      actions.push({
-        title: "Give on AP",
-        href: `/(marketplace)/ap/add?gemId=${gem.id}`,
-      });
-      break;
-    case "on_ap":
-      actions.push({
-        title: "View AP Records",
-        href: `${base}/ap`,
-        variant: "secondary",
-      });
-      break;
-    default:
-      break;
+  if (life.stoneStage === "rough") {
+    actions.push({
+      title: "Record Cutting",
+      href: `/(marketplace)/services/add?gemId=${gem.id}`,
+    });
+  } else if (!life.custody) {
+    actions.push({
+      title: "Give on AP",
+      href: `/(marketplace)/ap/add?gemId=${gem.id}`,
+    });
   }
 
-  if (
-    (gem.status === "ready_for_sale" || gem.status === "certified") &&
-    !gem.isListedOnMarketplace
-  ) {
+  if (life.custody === "on_ap") {
+    actions.push({
+      title: "View AP Records",
+      href: `${base}/ap`,
+      variant: "secondary",
+    });
+  }
+
+  if (canListGem(gem)) {
     actions.push({
       title: "List on GemNet",
       href: `/listings/create?workspaceGemId=${gem.id}`,
@@ -84,7 +80,11 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     });
   }
 
-  if (gem.isListedOnMarketplace && gem.marketplaceListingId) {
+  if (
+    gem.isListedOnMarketplace &&
+    gem.marketplaceListingId &&
+    !isTerminalOutcome(life.outcome)
+  ) {
     actions.push({
       title: "View GemNet Listing",
       href: `/listing/${gem.marketplaceListingId}`,
@@ -92,7 +92,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     });
   }
 
-  if (gem.status !== "rough") {
+  if (life.stoneStage !== "rough") {
     actions.push({
       title: "Record Service",
       href: `/(marketplace)/services/add?gemId=${gem.id}`,

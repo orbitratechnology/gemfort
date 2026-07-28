@@ -29,6 +29,7 @@ import {
     fetchLapidaryJobs,
 } from "@/features/marketplace/request-service";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
+import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
 import {
     detectBillsDueToday,
     getBillSummary,
@@ -269,13 +270,27 @@ export default function WorkspaceHub() {
     0,
   );
 
-  const readyGems = gems.filter((g) =>
-    ["ready_for_sale", "certified", "polished", "listed"].includes(g.status),
-  ).length;
-  const inService = gems.filter((g) =>
-    ["with_cutter", "with_heater", "with_polisher"].includes(g.status),
-  ).length;
-  const listedGems = gems.filter((g) => g.status === "listed").length;
+  const readyGems = gems.filter((g) => {
+    const life = resolveGemLifecycle(g);
+    return (
+      life.stoneStage === "polished" ||
+      life.outcome === "listed" ||
+      g.status === "ready_for_sale" ||
+      g.status === "certified"
+    );
+  }).length;
+  const inService = gems.filter((g) => {
+    const life = resolveGemLifecycle(g);
+    return (
+      life.custody === "with_cutter" ||
+      life.custody === "with_heater" ||
+      life.custody === "with_polisher"
+    );
+  }).length;
+  const listedGems = gems.filter((g) => {
+    const life = resolveGemLifecycle(g);
+    return life.outcome === "listed";
+  }).length;
   const ongoingServices = services.filter((s) =>
     ["given", "in_progress", "overdue", "cancellation_requested"].includes(
       s.status,

@@ -1,7 +1,11 @@
 import { Stack } from "expo-router";
 
+import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { silkStackScreenOptions } from "@/navigation/silk-stack-options";
+import {
+  formSheetFitContentOptions,
+  silkStackScreenOptions,
+} from "@/navigation/silk-stack-options";
 
 /**
  * Action screens are siblings of `(tabs)` so they push above NativeTabs.
@@ -12,7 +16,6 @@ export const unstable_settings = {
 };
 
 const ACTION_SCREENS = [
-  "gems/add",
   "bills/add",
   "cheques/add",
   "contacts/add",
@@ -45,8 +48,19 @@ export default function MarketplaceLayout() {
           headerBackTitle: "Back",
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.primary,
-          headerTitleStyle: { fontWeight: "600", color: colors.text },
+          headerTitleStyle: {
+            fontFamily: FontFamily.semibold,
+            fontWeight: "600",
+            color: colors.text,
+          },
           headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="gems/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
         }}
       />
       {ACTION_SCREENS.map((name) => (

@@ -51,13 +51,37 @@ describe('registerSchema', () => {
 });
 
 describe('addGemSchema', () => {
-  it('parses numeric strings', () => {
+  it('parses required fields only', () => {
     const r = parseForm(addGemSchema, {
       title: 'Lot A blue',
       gemType: 'sapphire',
-      originCountry: 'Sri Lanka',
       roughWeight: '3.2',
       acquisitionCost: '150,000',
+      originCountry: '',
+      colorPrimary: '',
+      clarity: '',
+      shape: '',
+      treatment: '',
+      status: '',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.roughWeight).toBe(3.2);
+      expect(r.data.acquisitionCost).toBe(150000);
+      expect(r.data.title).toBe('Lot A blue');
+      expect(r.data.originCountry).toBeUndefined();
+      expect(r.data.treatment).toBeUndefined();
+      expect(r.data.status).toBeUndefined();
+    }
+  });
+
+  it('parses optional attribute fields when provided', () => {
+    const r = parseForm(addGemSchema, {
+      title: 'Lot A blue',
+      gemType: 'sapphire',
+      roughWeight: '3.2',
+      acquisitionCost: '150,000',
+      originCountry: 'Sri Lanka',
       treatment: 'natural',
       colorPrimary: 'royal_blue',
       clarity: 'eye_clean',
@@ -66,9 +90,9 @@ describe('addGemSchema', () => {
     });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.roughWeight).toBe(3.2);
-      expect(r.data.acquisitionCost).toBe(150000);
-      expect(r.data.title).toBe('Lot A blue');
+      expect(r.data.originCountry).toBe('Sri Lanka');
+      expect(r.data.shape).toBe('oval');
+      expect(r.data.status).toBe('rough');
     }
   });
 
@@ -76,14 +100,14 @@ describe('addGemSchema', () => {
     const r = parseForm(addGemSchema, {
       title: 'Lot A blue',
       gemType: 'sapphire',
-      originCountry: 'Sri Lanka',
       roughWeight: '0',
       acquisitionCost: '100',
-      treatment: 'natural',
-      colorPrimary: 'royal_blue',
-      clarity: 'eye_clean',
-      shape: 'oval',
-      status: 'rough',
+      originCountry: '',
+      colorPrimary: '',
+      clarity: '',
+      shape: '',
+      treatment: '',
+      status: '',
     });
     expect(r.success).toBe(false);
   });

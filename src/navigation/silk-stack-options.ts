@@ -16,7 +16,7 @@ export const silkStackScreenOptions = {
 };
 
 /**
- * Bottom-sheet presentation — reserved for verify-certificate only.
+ * Bottom-sheet presentation.
  * Present from a stack ABOVE NativeTabs (not inside a tab stack).
  * @see https://docs.expo.dev/router/advanced/modals/#form-sheet-presentation
  */
@@ -31,7 +31,10 @@ export const formSheetScreenOptions = {
   fullScreenGestureEnabled: false,
 };
 
-/** Compact sheet for verify-certificate (no flex:1 in screen content). */
+/**
+ * Compact sheet sized to content (`fitToContents`).
+ * Do not use `flex: 1` on the screen root — the sheet measures intrinsic height.
+ */
 export const formSheetFitContentOptions = {
   ...formSheetScreenOptions,
   sheetAllowedDetents: "fitToContents" as const,

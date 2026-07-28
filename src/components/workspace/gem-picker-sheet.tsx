@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
+import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -35,7 +36,13 @@ type GemPickerSheetProps = {
 };
 
 function isOnSaleGem(gem: WorkspaceGem): boolean {
-  return gem.isListedOnMarketplace === true || gem.status === "listed";
+  const life = resolveGemLifecycle(gem);
+  if (life.outcome === "sold" || life.outcome === "returned") return false;
+  return (
+    gem.isListedOnMarketplace === true ||
+    life.outcome === "listed" ||
+    gem.status === "listed"
+  );
 }
 
 function matchesQuery(gem: WorkspaceGem, q: string) {

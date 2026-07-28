@@ -1,28 +1,57 @@
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryLabel } from "@/components/ui/country-flag";
+import {
+  CurrencyAmountField,
+  type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ImagePager } from "@/components/ui/image-pager";
+import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { resolveCurrencyCode, type CurrencyCode } from "@/constants/currencies";
+import {
+  FontFamily,
+  Radius,
+  Spacing,
+  Typography,
+} from "@/constants/design-tokens";
 import {
   formatGemType,
   formatShapeLabel,
   formatTreatmentLabel,
 } from "@/constants/gem-options";
-import { fetchBusiness } from "@/features/marketplace/marketplace-service";
+import {
+  fetchBusiness,
+  isBusinessVerified,
+  submitListingOffer,
+} from "@/features/marketplace/marketplace-service";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { friendlyError } from "@/lib/errors";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
-import { openWhatsApp } from "@/lib/utils";
+import { openPhone, openWhatsApp } from "@/lib/utils";
+import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
+import { useToast } from "@/providers/toast-provider";
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
@@ -32,13 +61,43 @@ const SPEC_ICONS: Record<string, IconName> = {
   Treatment: "science",
   Origin: "location-on",
   Lab: "verified",
+  Cut: "content-cut",
 };
+
+function businessRoleLabel(type: string | undefined): string {
+  if (type === "gem_lab" || type === "lab") return "Gem Lab";
+  if (type === "lapidary") return "Lapidary";
+  return "Trader";
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
 export default function PublicListingScreen() {
   const params = useLocalSearchParams<{ slug: string | string[] }>();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
+  const { user, profile } = useAuth();
+  const toast = useToast();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerSaving, setOfferSaving] = useState(false);
+  const [offerAmount, setOfferAmount] = useState<CurrencyAmountValue>({
+    amount: "",
+    currency: "USD",
+  });
+  const [offerMessage, setOfferMessage] = useState("");
+  const [offerError, setOfferError] = useState<string | null>(null);
 
   const {
     data: listing,
@@ -60,23 +119,27 @@ export default function PublicListingScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
+      <View
+        style={[
+          styles.safe,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
       >
         <StackHeader title="Listing" />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>Loading…</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if ((isFetched && !listing) || isError) {
     return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
+      <View
+        style={[
+          styles.safe,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
       >
         <StackHeader title="Listing" />
         <View style={styles.center}>
@@ -92,55 +155,107 @@ export default function PublicListingScreen() {
             onPress={() => void refetch()}
           />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!listing) return null;
 
-  const photos = (listing.photoUrls ?? []).filter(
+  const activeListing = listing;
+
+  const photos = (activeListing.photoUrls ?? []).filter(
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
   const shareUrl =
-    listing.shareableUrl || listingShareUrl(listing.shareableSlug || slug!);
-  const listingTitle = listing.title;
+    activeListing.shareableUrl ||
+    listingShareUrl(activeListing.shareableSlug || slug!);
+  const listingTitle =
+    activeListing.title || formatGemType(activeListing.gemType);
   const sellerWhatsapp =
     business?.contacts?.whatsapp?.isVisible && business.contacts.whatsapp.value
       ? business.contacts.whatsapp.value
       : null;
-  const priceLabel =
-    listing.showPrice && listing.priceMin != null
-      ? `${formatStored({
-          amount: listing.priceMin,
-          currency: listing.currency ?? "USD",
-          amountBase: listing.priceMinBase,
-        })}${
-          listing.priceMax
-            ? ` – ${formatStored({
-                amount: listing.priceMax,
-                currency: listing.currency ?? "USD",
-                amountBase: listing.priceMaxBase,
-              })}`
-            : ""
-        }`
-      : "Contact for price";
+  const sellerPhone =
+    business?.contacts?.phone?.isVisible && business.contacts.phone.value
+      ? business.contacts.phone.value
+      : null;
 
-  const shapeLabel = formatShapeLabel(listing.shape);
-  const treatmentLabel = formatTreatmentLabel(listing.treatmentStatus);
+  const hasPrice = activeListing.showPrice && activeListing.priceMin != null;
+  const priceLabel = hasPrice
+    ? `${formatStored({
+        amount: activeListing.priceMin!,
+        currency: activeListing.currency ?? "USD",
+        amountBase: activeListing.priceMinBase,
+      })}${
+        activeListing.priceMax
+          ? ` – ${formatStored({
+              amount: activeListing.priceMax,
+              currency: activeListing.currency ?? "USD",
+              amountBase: activeListing.priceMaxBase,
+            })}`
+          : ""
+      }`
+    : "Contact for price";
+
+  const perCaratLabel =
+    hasPrice && activeListing.caratWeight > 0
+      ? `${formatStored({
+          amount: activeListing.priceMin! / activeListing.caratWeight,
+          currency: activeListing.currency ?? "USD",
+          amountBase:
+            activeListing.priceMinBase != null
+              ? activeListing.priceMinBase / activeListing.caratWeight
+              : null,
+        })} / ct`
+      : null;
+
+  const shapeLabel = formatShapeLabel(activeListing.shape);
+  const treatmentLabel = formatTreatmentLabel(activeListing.treatmentStatus);
   const specs = [
-    { label: "Weight", value: `${listing.caratWeight} ct` },
-    ...(listing.color ? [{ label: "Color", value: listing.color }] : []),
-    ...(listing.clarity ? [{ label: "Clarity", value: listing.clarity }] : []),
+    { label: "Weight", value: `${activeListing.caratWeight} ct` },
     ...(shapeLabel ? [{ label: "Shape", value: shapeLabel }] : []),
+    ...(activeListing.color
+      ? [{ label: "Color", value: activeListing.color }]
+      : []),
+    ...(activeListing.clarity
+      ? [{ label: "Clarity", value: activeListing.clarity }]
+      : []),
     {
       label: "Treatment",
       value: treatmentLabel || "None",
     },
-    { label: "Origin", value: listing.origin || "Unknown" },
-    ...(listing.isCertified && listing.certifyingLab
-      ? [{ label: "Lab", value: listing.certifyingLab }]
+    { label: "Origin", value: activeListing.origin || "Unknown" },
+    ...(activeListing.isCertified && activeListing.certifyingLab
+      ? [{ label: "Lab", value: activeListing.certifyingLab }]
       : []),
   ];
+
+  const tags: string[] = [];
+  if (activeListing.isCertified) tags.push("Certified");
+  if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
+  if (activeListing.clarity) tags.push(activeListing.clarity);
+
+  const ownerName =
+    business?.businessName?.trim() ||
+    activeListing.sellerBusinessName?.trim() ||
+    "Seller";
+  const ownerRole = businessRoleLabel(
+    business?.businessType ?? activeListing.sellerBusinessType ?? undefined,
+  );
+  const ownerVerified =
+    isBusinessVerified(business) || activeListing.sellerIsVerified === true;
+  const ownerAvatar = business?.logoUrl ?? activeListing.sellerLogoUrl ?? null;
+  const ownerInitials = initials(ownerName);
+  const yearsActive = business?.badges?.yearsActive;
+  const locationBits = [
+    business?.city ?? activeListing.sellerCity,
+    business?.country ?? activeListing.sellerCountry,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const heroHeight = windowWidth;
+  const bottomBarPad = Math.max(insets.bottom, 12);
 
   function handleShare() {
     void shareLink({
@@ -154,138 +269,300 @@ export default function PublicListingScreen() {
     void copyLink(shareUrl);
   }
 
-  return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader
-        title={listingTitle || formatGemType(listing.gemType)}
-        right={
-          <View style={styles.headerActions}>
-            <Pressable
-              onPress={handleCopyLink}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Copy listing link"
-              style={styles.headerBtn}
-            >
-              <Icon name="link" size={22} color={colors.onSurface} />
-            </Pressable>
-            <Pressable
-              onPress={handleShare}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Share listing"
-              style={styles.headerBtn}
-            >
-              <Icon name="share" size={22} color={colors.onSurface} />
-            </Pressable>
-          </View>
-        }
-      />
+  function inquireWhatsApp(prefix?: string) {
+    if (!sellerWhatsapp) return;
+    const msg = prefix
+      ? `${prefix} ${listingTitle}`
+      : `Hi, interested in ${listingTitle}`;
+    void Linking.openURL(openWhatsApp(sellerWhatsapp, msg));
+  }
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset style={styles.lead}>
-          <View style={styles.heroWrap}>
-            <ImagePager
-              urls={photos}
-              aspectRatio={1}
-              accessibilityLabel={`${listing.title} photos`}
-              wrapFirstPage={(node) => (
-                <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
-              )}
-            />
-            {listing.isCertified ? (
-              <View
+  function openOfferSheet() {
+    if (!user) {
+      toast.show("Sign in to make an offer.");
+      router.push("/(auth)/login" as never);
+      return;
+    }
+    if (user.uid === activeListing.sellerUid) {
+      toast.show("This is your listing.");
+      return;
+    }
+    setOfferError(null);
+    setOfferAmount({
+      amount:
+        activeListing.showPrice && activeListing.priceMin != null
+          ? String(activeListing.priceMin)
+          : "",
+      currency: resolveCurrencyCode(
+        (activeListing.currency as CurrencyCode) || "USD",
+        "USD",
+      ),
+    });
+    setOfferMessage("");
+    setOfferOpen(true);
+  }
+
+  async function handleSubmitOffer() {
+    if (!user || offerSaving) return;
+    const amount = Number(String(offerAmount.amount).replace(/,/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setOfferError("Enter a valid offer amount.");
+      return;
+    }
+    setOfferError(null);
+    setOfferSaving(true);
+    try {
+      await withLoading(async () => {
+        await submitListingOffer({
+          listing: activeListing,
+          buyerUid: user.uid,
+          buyerName: profile?.displayName?.trim() || user.email || "Buyer",
+          amount,
+          currency: offerAmount.currency,
+          message: offerMessage,
+        });
+      }, "Sending offer…");
+      setOfferOpen(false);
+      toast.success("Offer sent to the seller.");
+    } catch (e) {
+      setOfferError(friendlyError(e, "Could not send offer."));
+    } finally {
+      setOfferSaving(false);
+    }
+  }
+
+  return (
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={photos.length ? "light" : "auto"} />
+
+      <ThemedScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 88 + bottomBarPad },
+        ]}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Full-bleed hero + film strip */}
+        <View style={styles.heroBlock}>
+          <ImagePager
+            urls={photos}
+            aspectRatio={1}
+            edgeToEdge
+            style={{ height: heroHeight }}
+            accessibilityLabel={`${activeListing.title} photos`}
+            wrapFirstPage={(node) => (
+              <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
+            )}
+            overlay={
+              activeListing.isCertified ? (
+                <View
+                  style={[styles.heroBadge, { top: insets.top + 56 }]}
+                  pointerEvents="none"
+                >
+                  <Icon name="verified" size={12} color="#FFFFFF" />
+                  <Text style={styles.heroBadgeText}>VERIFIED</Text>
+                </View>
+              ) : null
+            }
+          />
+        </View>
+
+        {/* Overlapping detail sheet */}
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
+        >
+          {/* Title, then price on its own row */}
+          <View style={styles.titleBlock}>
+            <Text
+              style={[styles.gemName, { color: colors.onSurface }]}
+              selectable
+            >
+              {listingTitle}
+            </Text>
+            <Text
+              style={[styles.subtitle, { color: colors.onSurfaceVariant }]}
+              selectable
+            >
+              {formatGemType(activeListing.gemType)}
+              {activeListing.caratWeight
+                ? ` · ${activeListing.caratWeight} ct`
+                : ""}
+            </Text>
+          </View>
+
+          <View style={styles.priceRow}>
+            <Text
+              style={[
+                styles.priceHero,
+                {
+                  color: hasPrice ? colors.successEmerald : colors.textMuted,
+                  fontFamily: FontFamily.bold,
+                },
+              ]}
+              selectable
+            >
+              {priceLabel}
+            </Text>
+            {perCaratLabel ? (
+              <Text
                 style={[
-                  styles.certPill,
-                  { backgroundColor: colors.surfaceContainerLowest },
+                  styles.perCarat,
+                  {
+                    color: hasPrice
+                      ? colors.successEmerald
+                      : colors.onSurfaceVariant,
+                  },
                 ]}
-                pointerEvents="none"
+                selectable
               >
-                <Icon name="verified" size={14} color={colors.primary} />
-                <Text style={[styles.certPillText, { color: colors.primary }]}>
-                  Certified
-                </Text>
-              </View>
+                {perCaratLabel}
+              </Text>
             ) : null}
           </View>
 
-          <View style={styles.identity}>
-            <View style={styles.identityTitleRow}>
+          {/* Elevated owner profile */}
+          <Pressable
+            onPress={() =>
+              business
+                ? router.push(`/business/${business.id}` as never)
+                : undefined
+            }
+            disabled={!business}
+            accessibilityRole="button"
+            accessibilityLabel={`${ownerName}, ${ownerRole}`}
+            style={({ pressed }) => [
+              styles.ownerCard,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                borderColor: colors.outlineVariant,
+                opacity: pressed && business ? 0.92 : 1,
+              },
+            ]}
+          >
+            <View style={styles.ownerAvatarWrap}>
               <View
                 style={[
-                  styles.identityIcon,
+                  styles.ownerAvatar,
                   { backgroundColor: colors.primaryContainer },
                 ]}
               >
-                <Icon
-                  name="diamond"
-                  size={20}
-                  color={colors.onPrimaryContainer}
-                />
+                {ownerAvatar ? (
+                  <Image
+                    source={{ uri: ownerAvatar }}
+                    style={styles.ownerAvatarImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text
+                    style={[
+                      styles.ownerInitials,
+                      { color: colors.onPrimaryContainer },
+                    ]}
+                  >
+                    {ownerInitials || "?"}
+                  </Text>
+                )}
               </View>
-              <View style={styles.identityText}>
-                <Text style={[styles.gemName, { color: colors.onSurface }]}>
-                  {listingTitle || formatGemType(listing.gemType)}
-                </Text>
-                <Text
-                  style={[styles.skuLine, { color: colors.onSurfaceVariant }]}
+              {ownerVerified ? (
+                <View
+                  style={[
+                    styles.ownerVerifiedDot,
+                    {
+                      backgroundColor: colors.primary,
+                      borderColor: colors.surfaceContainerLowest,
+                    },
+                  ]}
                 >
-                  {formatGemType(listing.gemType)} · {listing.caratWeight} ct
-                </Text>
-              </View>
+                  <Icon name="verified" size={10} color={colors.onPrimary} />
+                </View>
+              ) : null}
             </View>
-
-            <View style={styles.priceRow}>
-              <Icon
-                name="sell"
-                size={18}
-                color={
-                  listing.showPrice && listing.priceMin != null
-                    ? colors.primary
-                    : colors.textMuted
-                }
-              />
+            <View style={styles.ownerText}>
               <Text
-                style={[
-                  listing.showPrice && listing.priceMin != null
-                    ? styles.askPrice
-                    : styles.askPriceMuted,
-                  {
-                    color:
-                      listing.showPrice && listing.priceMin != null
-                        ? colors.primary
-                        : colors.textMuted,
-                  },
-                ]}
+                style={[styles.ownerName, { color: colors.onSurface }]}
+                numberOfLines={1}
               >
-                {priceLabel}
+                {ownerName}
+              </Text>
+              {ownerVerified ? (
+                <View
+                  style={[
+                    styles.verifiedPill,
+                    { backgroundColor: colors.primaryContainer },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.verifiedPillText,
+                      { color: colors.onPrimaryContainer },
+                    ]}
+                  >
+                    VERIFIED SELLER
+                  </Text>
+                </View>
+              ) : null}
+              <Text
+                style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}
+                numberOfLines={1}
+              >
+                {[
+                  ownerRole,
+                  locationBits,
+                  yearsActive ? `${yearsActive}+ yrs` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </Text>
             </View>
-          </View>
+            {business ? (
+              <Icon
+                name="chevron-right"
+                size={20}
+                color={colors.onSurfaceVariant}
+              />
+            ) : null}
+          </Pressable>
 
+          {tags.length ? (
+            <View style={styles.tags}>
+              {tags.map((tag) => (
+                <View
+                  key={tag}
+                  style={[
+                    styles.tag,
+                    {
+                      backgroundColor: colors.surfaceContainerHigh,
+                      borderColor: colors.outlineVariant,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tagText, { color: colors.onSurface }]}>
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Spec grid */}
           <View style={styles.specGrid}>
             {specs.map((spec) => {
               const iconName = SPEC_ICONS[spec.label] ?? "info";
               return (
-                <View
-                  key={spec.label}
-                  style={[
-                    styles.specCell,
-                    { backgroundColor: colors.surfaceContainerLowest },
-                  ]}
-                >
+                <View key={spec.label} style={styles.specCell}>
                   <View style={styles.specHeader}>
-                    <View
-                      style={[
-                        styles.specIconWrap,
-                        { backgroundColor: colors.surfaceContainerHigh },
-                      ]}
-                    >
-                      <Icon name={iconName} size={16} color={colors.primary} />
-                    </View>
+                    <Icon
+                      name={iconName}
+                      size={14}
+                      color={colors.onSurfaceVariant}
+                    />
                     <Text
                       style={[
                         styles.specLabel,
@@ -299,13 +576,17 @@ export default function PublicListingScreen() {
                     <CountryLabel
                       country={spec.value}
                       size="sm"
-                      textStyle={[styles.specValue, { color: colors.onSurface }]}
+                      textStyle={[
+                        styles.specValue,
+                        { color: colors.onSurface },
+                      ]}
                       numberOfLines={2}
                     />
                   ) : (
                     <Text
                       style={[styles.specValue, { color: colors.onSurface }]}
                       numberOfLines={2}
+                      selectable
                     >
                       {spec.value}
                     </Text>
@@ -314,115 +595,185 @@ export default function PublicListingScreen() {
               );
             })}
           </View>
-        </ScreenInset>
 
-        {listing.description ? (
-          <FormSection title="About" icon="notes">
-            <Text style={[styles.notes, { color: colors.onSurfaceVariant }]}>
-              {listing.description}
-            </Text>
-          </FormSection>
+          {activeListing.description ? (
+            <View style={styles.descBlock}>
+              <Text
+                style={[styles.notes, { color: colors.onSurfaceVariant }]}
+                numberOfLines={descExpanded ? undefined : 3}
+                selectable
+              >
+                {activeListing.description}
+              </Text>
+              {activeListing.description.length > 120 ? (
+                <Pressable
+                  onPress={() => setDescExpanded((v) => !v)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={descExpanded ? "Show less" : "Read more"}
+                  style={styles.readMore}
+                >
+                  <Text style={[styles.readMoreText, { color: colors.primary }]}>
+                    {descExpanded ? "Show less" : "Read more"}
+                  </Text>
+                  <Icon
+                    name={descExpanded ? "expand-less" : "expand-more"}
+                    size={18}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          <Text style={[styles.footer, { color: colors.textMuted }]}>
+            Powered by GemFort — gemfort.app
+          </Text>
+        </View>
+      </ThemedScrollView>
+
+      {/* Floating header over hero */}
+      <View
+        pointerEvents="box-none"
+        style={[styles.headerOverlay, { paddingTop: insets.top }]}
+      >
+        <StackHeader
+          title=""
+          tintColor="#FFFFFF"
+          right={
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={handleCopyLink}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Copy listing link"
+                style={[styles.headerBtn, styles.headerChip]}
+              >
+                <Icon name="link" size={20} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                onPress={handleShare}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share listing"
+                style={[styles.headerBtn, styles.headerChip]}
+              >
+                <Icon name="share" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          }
+        />
+      </View>
+
+      {/* Sticky action bar: Make Offer + WhatsApp + Call */}
+      <View
+        style={[
+          styles.actionBar,
+          {
+            paddingBottom: bottomBarPad,
+            backgroundColor: colors.background,
+            borderTopColor: colors.outlineVariant,
+          },
+        ]}
+      >
+        <Pressable
+          onPress={openOfferSheet}
+          accessibilityRole="button"
+          accessibilityLabel="Make an offer"
+          style={({ pressed }) => [
+            styles.offerBtn,
+            {
+              backgroundColor: colors.primary,
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
+        >
+          <Icon name="sell" size={18} color={colors.onPrimary} />
+          <Text style={[styles.offerBtnText, { color: colors.onPrimary }]}>
+            Make Offer
+          </Text>
+        </Pressable>
+
+        {sellerWhatsapp ? (
+          <Pressable
+            onPress={() => inquireWhatsApp()}
+            accessibilityRole="button"
+            accessibilityLabel="WhatsApp seller"
+            style={({ pressed }) => [
+              styles.iconAction,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                borderColor: colors.outlineVariant,
+                opacity: pressed ? 0.88 : 1,
+              },
+            ]}
+          >
+            <Icon name="whatsapp" size={22} color={colors.onSurface} />
+          </Pressable>
         ) : null}
 
-        <FormSection title="Seller" icon="storefront">
-          {business ? (
-            <Pressable
-              onPress={() =>
-                router.push(`/business/${business.id}` as never)
-              }
-              style={({ pressed }) => [
-                styles.sellerRow,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  opacity: pressed ? 0.92 : 1,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.sellerIcon,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                <Icon
-                  name="storefront"
-                  size={20}
-                  color={colors.onPrimaryContainer}
-                />
-              </View>
-              <View style={styles.sellerText}>
-                <Text
-                  style={[styles.sellerName, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {business.businessName}
-                </Text>
-                {business.city ? (
-                  <Text
-                    style={[
-                      styles.sellerMeta,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {business.city}
-                  </Text>
-                ) : null}
-              </View>
-              <Icon
-                name="chevron-right"
-                size={22}
-                color={colors.onSurfaceVariant}
-              />
-            </Pressable>
-          ) : (
-            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-              Seller details unavailable
-            </Text>
-          )}
-        </FormSection>
+        {sellerPhone ? (
+          <Pressable
+            onPress={() => void Linking.openURL(openPhone(sellerPhone))}
+            accessibilityRole="button"
+            accessibilityLabel="Call seller"
+            style={({ pressed }) => [
+              styles.iconAction,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                borderColor: colors.outlineVariant,
+                opacity: pressed ? 0.88 : 1,
+              },
+            ]}
+          >
+            <Icon name="phone" size={22} color={colors.onSurface} />
+          </Pressable>
+        ) : null}
+      </View>
 
-        <ScreenInset style={styles.actions}>
-          {sellerWhatsapp ? (
-            <Button
-              title="WhatsApp to inquire"
-              icon="chat"
-              variant="whatsapp"
-              onPress={() =>
-                Linking.openURL(
-                  openWhatsApp(
-                    sellerWhatsapp,
-                    `Hi, interested in ${listing.title}`,
-                  ),
-                )
-              }
-            />
-          ) : null}
+      <BottomSheet
+        visible={offerOpen}
+        onClose={() => {
+          if (!offerSaving) setOfferOpen(false);
+        }}
+        title="Make an offer"
+        footer={
           <Button
-            title="Share listing"
-            icon="share"
-            variant="secondary"
-            onPress={handleShare}
+            title={offerSaving ? "Sending…" : "Send offer"}
+            icon="send"
+            loading={offerSaving}
+            disabled={offerSaving}
+            onPress={() => void handleSubmitOffer()}
           />
-        </ScreenInset>
-
-        <Text style={[styles.footer, { color: colors.textMuted }]}>
-          Powered by GemFort — gemfort.app
+        }
+      >
+        <Text style={[styles.offerHint, { color: colors.textMuted }]}>
+          The seller will receive your offer in GemFort notifications.
         </Text>
-      </ThemedScrollView>
-    </SafeAreaView>
+        <CurrencyAmountField
+          label="Your offer"
+          value={offerAmount}
+          onChange={(next) => {
+            setOfferAmount(next);
+            setOfferError(null);
+          }}
+          error={offerError ?? undefined}
+        />
+        <Input
+          label="Message (optional)"
+          value={offerMessage}
+          onChangeText={setOfferMessage}
+          placeholder="Condition, timeline, or questions…"
+          multiline
+          style={{ minHeight: 72, textAlignVertical: "top" }}
+        />
+      </BottomSheet>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
-  headerBtn: {
-    minWidth: 40,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   center: {
     flex: 1,
     alignItems: "center",
@@ -430,99 +781,225 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  content: {
-    paddingBottom: 48,
-    gap: Spacing.sectionGap,
-  },
-  lead: { gap: Spacing.sectionGap },
-  heroWrap: { position: "relative", width: "100%" },
-  certPill: {
+  content: { gap: 0 },
+  headerOverlay: {
     position: "absolute",
-    top: Spacing.md,
-    left: Spacing.md,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+  },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+  headerBtn: {
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerChip: {
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+  },
+
+  heroBlock: {
+    width: "100%",
+  },
+  heroBadge: {
+    position: "absolute",
+    right: Spacing.containerMargin,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    zIndex: 2,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.55)",
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
-  certPillText: { ...Typography.labelMd, fontWeight: "600" },
+  heroBadgeText: {
+    ...Typography.caption,
+    color: "#FFFFFF",
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
 
-  identity: { gap: Spacing.stackMd },
-  identityTitleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  identityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  sheet: {
+    // Sit below the film strip — negative margin was clipping thumb bottoms
+    // and exposing the old black heroBlock as a thick bar under the carousel.
+    marginTop: 0,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.lg,
+  },
+
+  titleBlock: { gap: 4 },
+  gemName: {
+    ...Typography.headlineMdMobile,
+    fontFamily: FontFamily.bold,
+    fontWeight: "700",
+  },
+  subtitle: { ...Typography.bodyMd },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginTop: -Spacing.xs,
+  },
+  priceHero: {
+    ...Typography.headlineSm,
+    fontVariant: ["tabular-nums"],
+  },
+  perCarat: {
+    ...Typography.labelMd,
+    fontVariant: ["tabular-nums"],
+    fontWeight: "600",
+  },
+
+  ownerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  ownerAvatarWrap: {
+    width: 52,
+    height: 52,
+    position: "relative",
+  },
+  ownerAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  ownerAvatarImg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
+  ownerVerifiedDot: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  identityText: { flex: 1, gap: 2, minWidth: 0 },
-  gemName: { ...Typography.headlineMdMobile },
-  skuLine: { ...Typography.bodyMd },
-
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  askPrice: {
-    ...Typography.headlineSmMobile,
-    fontVariant: ["tabular-nums"],
+  ownerText: { flex: 1, gap: 4, minWidth: 0 },
+  ownerName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
+  ownerRole: { ...Typography.caption },
+  verifiedPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
   },
-  askPriceMuted: { ...Typography.bodyMd },
+  verifiedPillText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    fontSize: 9,
+  },
+
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  tagText: { ...Typography.caption, fontWeight: "600" },
 
   specGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.stackMd,
+    gap: Spacing.md,
   },
   specCell: {
     width: "47%",
     flexGrow: 1,
     minWidth: "42%",
     maxWidth: "48%",
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    gap: 8,
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
+    gap: 6,
   },
-  specHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  specIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  specHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
   specLabel: { ...Typography.caption, flexShrink: 1 },
-  specValue: { ...Typography.bodyMd, fontWeight: "600" },
+  specValue: {
+    ...Typography.bodyMd,
+    fontWeight: "600",
+    fontFamily: FontFamily.semibold,
+  },
 
+  descBlock: { gap: 6 },
   notes: { ...Typography.bodyMd, lineHeight: 22 },
-  emptyHint: { ...Typography.bodyMd },
-
-  sellerRow: {
+  readMore: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
+    gap: 2,
+    alignSelf: "flex-start",
   },
-  sellerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sellerText: { flex: 1, gap: 2, minWidth: 0 },
-  sellerName: { ...Typography.bodyLg, fontWeight: "700" },
-  sellerMeta: { ...Typography.bodyMd },
+  readMoreText: { ...Typography.labelMd, fontWeight: "600" },
 
-  actions: { gap: Spacing.stackMd },
   footer: {
     ...Typography.caption,
     textAlign: "center",
-    marginHorizontal: Spacing.lg,
+  },
+
+  actionBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  iconAction: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  offerBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  offerBtnText: {
+    ...Typography.button,
+    fontFamily: FontFamily.semibold,
+  },
+  offerHint: {
+    ...Typography.bodyMd,
+    marginBottom: Spacing.stackMd,
   },
 });

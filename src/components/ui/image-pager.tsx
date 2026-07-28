@@ -1,6 +1,12 @@
-import { Image } from "expo-image";
 import PagerView from "@expo/ui/community/pager-view";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { Image } from "expo-image";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Modal,
   Pressable,
@@ -10,8 +16,8 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Icon } from "@/components/ui/icon";
@@ -22,10 +28,24 @@ type ImagePagerProps = {
   urls: string[];
   /** Aspect ratio for the inline hero (default 1). */
   aspectRatio?: number;
+  /**
+   * Full-viewport width, square corners — for edge-to-edge product heroes
+   * that bleed under the status bar (profile cover style).
+   */
+  edgeToEdge?: boolean;
+  /** Horizontal thumbnail film strip (default true when 2+ photos). */
+  filmStrip?: boolean;
+  /** Overlay content (e.g. badges) positioned over the main image only. */
+  overlay?: ReactNode;
   style?: StyleProp<ViewStyle>;
   /** Optional shared-element wrapper for the first page only. */
   wrapFirstPage?: (node: ReactNode) => ReactNode;
   accessibilityLabel?: string;
+};
+
+type PagerRef = {
+  setPage?: (index: number) => void;
+  setPageWithoutAnimation?: (index: number) => void;
 };
 
 function normalizeUrls(urls: string[]): string[] {
@@ -40,6 +60,9 @@ function normalizeUrls(urls: string[]): string[] {
 export function ImagePager({
   urls,
   aspectRatio = 1,
+  edgeToEdge = false,
+  filmStrip = true,
+  overlay,
   style,
   wrapFirstPage,
   accessibilityLabel = "Photo gallery",
@@ -51,17 +74,45 @@ export function ImagePager({
   const [index, setIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const pagerRef = useRef<PagerRef | null>(null);
+  const webScrollRef = useRef<ScrollView>(null);
+  const stripScrollRef = useRef<ScrollView>(null);
+  const pageWidth = edgeToEdge
+    ? windowWidth
+    : windowWidth - Spacing.containerMargin * 2;
+  const showStrip = filmStrip && photos.length > 1;
 
   const openViewer = useCallback((at: number) => {
     setViewerIndex(at);
     setViewerOpen(true);
   }, []);
 
+  const goToPage = useCallback(
+    (at: number) => {
+      if (at < 0 || at >= photos.length) return;
+      setIndex(at);
+      if (process.env.EXPO_OS === "web") {
+        webScrollRef.current?.scrollTo({ x: at * pageWidth, animated: true });
+      } else {
+        pagerRef.current?.setPage?.(at);
+      }
+      // Keep selected thumb roughly centered in the strip
+      const thumbStride = 64 + 8;
+      stripScrollRef.current?.scrollTo({
+        x: Math.max(0, at * thumbStride - pageWidth / 2 + thumbStride / 2),
+        animated: true,
+      });
+    },
+    [pageWidth, photos.length],
+  );
+
+  const heroSurface = edgeToEdge ? styles.heroEdge : styles.hero;
+
   if (photos.length === 0) {
     return (
       <View
         style={[
-          styles.hero,
+          heroSurface,
           { aspectRatio, backgroundColor: colors.surfaceContainerHigh },
           style,
         ]}
@@ -74,34 +125,37 @@ export function ImagePager({
     );
   }
 
-  const pager = (
+  return (
     <View
-      style={[
-        styles.hero,
-        { aspectRatio, backgroundColor: colors.surfaceContainerLowest },
-        style,
-      ]}
-      accessibilityLabel={accessibilityLabel}
+      style={[styles.root, { backgroundColor: colors.background }]}
     >
-      {process.env.EXPO_OS === "web" ? (
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={(e) => {
-            const w = e.nativeEvent.layoutMeasurement.width || 1;
-            setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
-          }}
-        >
-          {photos.map((uri, i) => {
-            const img = (
-              <Pressable
-                key={uri}
-                onPress={() => openViewer(i)}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
-                style={{ width: windowWidth - Spacing.containerMargin * 2 }}
-              >
+      <View
+        style={[
+          heroSurface,
+          {
+            aspectRatio,
+            // Keep image surface dark so any pager sub-pixel gap matches the photo,
+            // never a separate “thick black bar” under a light page bg.
+            backgroundColor: edgeToEdge ? "#0a0a0a" : colors.surfaceContainerLowest,
+          },
+          style,
+        ]}
+        accessibilityLabel={accessibilityLabel}
+      >
+        {process.env.EXPO_OS === "web" ? (
+          <ScrollView
+            ref={webScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.pager}
+            onMomentumScrollEnd={(e) => {
+              const w = e.nativeEvent.layoutMeasurement.width || 1;
+              setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
+            }}
+          >
+            {photos.map((uri, i) => {
+              const image = (
                 <Image
                   source={{ uri }}
                   style={styles.image}
@@ -109,80 +163,140 @@ export function ImagePager({
                   recyclingKey={uri}
                   transition={200}
                 />
+              );
+              const img = (
+                <Pressable
+                  key={uri}
+                  onPress={() => openViewer(i)}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
+                  style={{ width: pageWidth, height: "100%" }}
+                >
+                  {i === 0 && wrapFirstPage ? wrapFirstPage(image) : image}
+                </Pressable>
+              );
+              return img;
+            })}
+          </ScrollView>
+        ) : (
+          <PagerView
+            ref={pagerRef as never}
+            style={styles.pager}
+            initialPage={0}
+            onPageSelected={(e) => setIndex(e.nativeEvent.position)}
+          >
+            {photos.map((uri, i) => {
+              const image = (
+                <Image
+                  source={{ uri }}
+                  style={styles.image}
+                  contentFit="cover"
+                  recyclingKey={uri}
+                  transition={200}
+                />
+              );
+              return (
+                <View key={uri} style={styles.page} collapsable={false}>
+                  <Pressable
+                    onPress={() => openViewer(i)}
+                    accessibilityRole="imagebutton"
+                    accessibilityLabel={`Photo ${i + 1} of ${photos.length}. Double tap to view full screen`}
+                    style={styles.pagePressable}
+                  >
+                    {i === 0 && wrapFirstPage ? wrapFirstPage(image) : image}
+                  </Pressable>
+                </View>
+              );
+            })}
+          </PagerView>
+        )}
+
+        {!showStrip && photos.length > 1 ? (
+          <View
+            style={[styles.dots, edgeToEdge && styles.dotsEdge]}
+            pointerEvents="none"
+          >
+            {photos.map((uri, i) => (
+              <View
+                key={uri}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor:
+                      i === index ? "#FFFFFF" : "rgba(255,255,255,0.45)",
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {photos.length > 1 ? (
+          <View
+            style={[
+              showStrip || edgeToEdge ? styles.countPillEdge : styles.countPill,
+              { backgroundColor: "rgba(0,0,0,0.55)" },
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={styles.countText}>
+              {String(index + 1).padStart(2, "0")} /{" "}
+              {String(photos.length).padStart(2, "0")}
+            </Text>
+          </View>
+        ) : null}
+
+        {overlay ? (
+          <View style={styles.overlay} pointerEvents="box-none">
+            {overlay}
+          </View>
+        ) : null}
+      </View>
+
+      {showStrip ? (
+        <ScrollView
+          ref={stripScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          contentContainerStyle={[
+            styles.stripContent,
+            edgeToEdge
+              ? styles.stripContentEdge
+              : { paddingHorizontal: 0 },
+          ]}
+          style={[styles.strip, { backgroundColor: colors.background }]}
+        >
+          {photos.map((uri, i) => {
+            const selected = i === index;
+            return (
+              <Pressable
+                key={`thumb-${uri}`}
+                onPress={() => goToPage(i)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Show photo ${i + 1}`}
+                style={[
+                  styles.thumb,
+                  {
+                    borderColor: selected
+                      ? colors.primary
+                      : colors.outlineVariant,
+                    opacity: selected ? 1 : 0.72,
+                  },
+                ]}
+              >
+                <Image
+                  source={{ uri }}
+                  style={styles.thumbImage}
+                  contentFit="cover"
+                  recyclingKey={`thumb-${uri}`}
+                />
               </Pressable>
             );
-            return i === 0 && wrapFirstPage ? wrapFirstPage(img) : img;
           })}
         </ScrollView>
-      ) : (
-        <PagerView
-          style={styles.pager}
-          initialPage={0}
-          onPageSelected={(e) => setIndex(e.nativeEvent.position)}
-        >
-          {photos.map((uri, i) => {
-            const page = (
-              <Pressable
-                key={uri}
-                onPress={() => openViewer(i)}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={`Photo ${i + 1} of ${photos.length}. Double tap to view full screen`}
-                style={styles.page}
-              >
-                <Image
-                  source={{ uri }}
-                  style={styles.image}
-                  contentFit="cover"
-                  recyclingKey={uri}
-                  transition={200}
-                />
-              </Pressable>
-            );
-            return i === 0 && wrapFirstPage ? (
-              <View key={uri} style={styles.page} collapsable={false}>
-                {wrapFirstPage(page)}
-              </View>
-            ) : (
-              page
-            );
-          })}
-        </PagerView>
-      )}
-
-      {photos.length > 1 ? (
-        <View style={styles.dots} pointerEvents="none">
-          {photos.map((uri, i) => (
-            <View
-              key={uri}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor:
-                    i === index ? colors.onPrimary : "rgba(255,255,255,0.45)",
-                  opacity: i === index ? 1 : 0.9,
-                },
-              ]}
-            />
-          ))}
-        </View>
       ) : null}
-
-      {photos.length > 1 ? (
-        <View
-          style={[styles.countPill, { backgroundColor: "rgba(0,0,0,0.55)" }]}
-          pointerEvents="none"
-        >
-          <Text style={styles.countText}>
-            {index + 1}/{photos.length}
-          </Text>
-        </View>
-      ) : null}
-    </View>
-  );
-
-  return (
-    <>
-      {pager}
 
       <Modal
         visible={viewerOpen}
@@ -223,16 +337,11 @@ export function ImagePager({
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(e) => {
                 const w = e.nativeEvent.layoutMeasurement.width || 1;
-                setViewerIndex(
-                  Math.round(e.nativeEvent.contentOffset.x / w),
-                );
+                setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / w));
               }}
             >
               {photos.map((uri) => (
-                <View
-                  key={uri}
-                  style={{ width: windowWidth, height: "100%" }}
-                >
+                <View key={uri} style={{ width: windowWidth, height: "100%" }}>
                   <Image
                     source={{ uri }}
                     style={styles.viewerImage}
@@ -246,9 +355,7 @@ export function ImagePager({
             <PagerView
               style={styles.viewerPager}
               initialPage={viewerIndex}
-              onPageSelected={(e) =>
-                setViewerIndex(e.nativeEvent.position)
-              }
+              onPageSelected={(e) => setViewerIndex(e.nativeEvent.position)}
             >
               {photos.map((uri) => (
                 <View key={uri} style={styles.viewerPage}>
@@ -264,11 +371,14 @@ export function ImagePager({
           )}
         </View>
       </Modal>
-    </>
+    </View>
   );
 }
 
+const THUMB = 64;
+
 const styles = StyleSheet.create({
+  root: { width: "100%" },
   hero: {
     width: "100%",
     borderRadius: Radius.xl,
@@ -276,13 +386,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
   },
-  pager: { flex: 1 },
-  page: { flex: 1 },
+  heroEdge: {
+    width: "100%",
+    overflow: "hidden",
+  },
+  // flex:1 (not absoluteFill) — Android PagerView collapses images with absolute layout.
+  pager: { flex: 1, width: "100%", height: "100%" },
+  page: { flex: 1, width: "100%", height: "100%" },
+  pagePressable: { flex: 1, width: "100%", height: "100%" },
   image: { width: "100%", height: "100%" },
   placeholder: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
   },
   dots: {
     position: "absolute",
@@ -292,6 +412,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
+  },
+  dotsEdge: {
+    bottom: 20,
   },
   dot: {
     width: 7,
@@ -306,12 +429,43 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Radius.full,
   },
+  countPillEdge: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+  },
   countText: {
     ...Typography.caption,
     color: "#fff",
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
+  strip: {
+    marginTop: Spacing.stackSm,
+    marginBottom: Spacing.stackSm,
+  },
+  stripContent: {
+    gap: 8,
+    // Room for 2px selected borders so thumbs aren’t clipped vertically.
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  stripContentEdge: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.stackSm,
+  },
+  thumb: {
+    width: THUMB,
+    height: THUMB,
+    borderRadius: Radius.md,
+    borderCurve: "continuous",
+    borderWidth: 2,
+    overflow: "hidden",
+  },
+  thumbImage: { width: "100%", height: "100%" },
   viewer: { flex: 1 },
   viewerPager: { flex: 1 },
   viewerPage: { flex: 1 },
