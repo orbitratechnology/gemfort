@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,8 +16,13 @@ import {
 import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { fetchBusiness } from '@/features/marketplace/marketplace-service';
+import {
+  subscribeContacts,
+  subscribeGems,
+} from '@/features/workspace/firestore-subscriptions';
 import { createService, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
@@ -50,15 +54,17 @@ export default function AddServiceScreen() {
   const [providerSheetOpen, setProviderSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ['gems', user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 

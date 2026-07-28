@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -36,6 +36,12 @@ import {
     getRangeTotals,
 } from "@/features/workspace/money-utils";
 import {
+  subscribeCheques,
+  subscribePayables,
+  subscribeReceivables,
+  subscribeTransactions,
+} from "@/features/workspace/firestore-subscriptions";
+import {
     fetchCheques,
     fetchPayables,
     fetchReceivables,
@@ -57,24 +63,28 @@ export default function MoneyDashboard() {
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  const txQuery = useQuery({
+  const txQuery = useFirestoreLiveQuery({
     queryKey: ["transactions", uid],
     queryFn: () => fetchTransactions(uid!),
+    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
     enabled: !!uid,
   });
-  const recQuery = useQuery({
+  const recQuery = useFirestoreLiveQuery({
     queryKey: ["receivables", uid],
     queryFn: () => fetchReceivables(uid!),
+    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
-  const payQuery = useQuery({
+  const payQuery = useFirestoreLiveQuery({
     queryKey: ["payables", uid],
     queryFn: () => fetchPayables(uid!),
+    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
     enabled: !!uid,
   });
-  const chequeQuery = useQuery({
+  const chequeQuery = useFirestoreLiveQuery({
     queryKey: ["cheques", uid],
     queryFn: () => fetchCheques(uid!),
+    subscribe: (onData, onError) => subscribeCheques(uid!, onData, onError),
     enabled: !!uid,
   });
 

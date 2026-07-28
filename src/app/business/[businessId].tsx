@@ -1,5 +1,4 @@
 import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
-import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -32,7 +31,12 @@ import {
     sendEndorsement,
     trackBusinessAnalytics,
 } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeBusiness,
+  subscribeBusinessByOwnerUid,
+} from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
@@ -83,7 +87,7 @@ export default function BusinessProfileScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [endorsing, setEndorsing] = useState(false);
 
-  const { data: business, isLoading } = useQuery({
+  const { data: business, isLoading } = useFirestoreLiveQuery({
     queryKey: ["business", businessId],
     queryFn: async () => {
       if (!isFirebaseConfigured) {
@@ -95,12 +99,21 @@ export default function BusinessProfileScreen() {
         return demoBusinesses().find((b) => b.id === businessId) ?? null;
       }
     },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoBusinesses().find((b) => b.id === businessId) ?? null);
+        return () => undefined;
+      }
+      return subscribeBusiness(businessId!, onData, onError);
+    },
     enabled: !!businessId,
   });
 
-  const { data: myBusiness } = useQuery({
+  const { data: myBusiness } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user && isFirebaseConfigured,
   });
 

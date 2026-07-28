@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
@@ -55,12 +55,17 @@ import {
   type GemTreatmentValue,
 } from "@/constants/gem-options";
 import {
+  subscribeTrip,
+  subscribeTrips,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   createGem,
   createGemOnSourcingTrip,
   fetchTrip,
   fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -135,15 +140,18 @@ export default function AddGemScreen() {
   const [didApplyTripParam, setDidApplyTripParam] = useState(false);
   const [showOptional, setShowOptional] = useState(Boolean(tripIdParam));
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [] } = useFirestoreLiveQuery({
     queryKey: ["trips", user?.uid],
     queryFn: () => fetchTrips(user!.uid),
+    subscribe: (onData, onError) => subscribeTrips(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: paramTrip } = useQuery({
+  const { data: paramTrip } = useFirestoreLiveQuery({
     queryKey: ["trip", tripIdParam],
     queryFn: () => fetchTrip(tripIdParam!),
+    subscribe: (onData, onError) =>
+      subscribeTrip(tripIdParam!, onData, onError),
     enabled: !!tripIdParam && !didApplyTripParam,
   });
 

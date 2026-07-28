@@ -15,6 +15,7 @@ export {
   serverTimestamp,
   Timestamp,
   increment,
+  onSnapshot,
 } from '@react-native-firebase/firestore';
 
 export { getFirestore as getFirebaseDb } from '@react-native-firebase/firestore';

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -20,12 +20,17 @@ import {
   respondServiceCancellation,
 } from '@/features/workspace/service-lifecycle-service';
 import {
+  subscribeService,
+  subscribeServices,
+} from '@/features/workspace/firestore-subscriptions';
+import {
   completeService,
   deleteService,
   fetchService,
   fetchServices,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
@@ -61,18 +66,20 @@ export default function ServiceDetailScreen() {
   const [weightAfter, setWeightAfter] = useState('');
   const [finalCost, setFinalCost] = useState('');
 
-  const { data: services = [] } = useQuery({
+  const { data: services = [] } = useFirestoreLiveQuery({
     queryKey: ['services', user?.uid],
     queryFn: () => fetchServices(user!.uid),
+    subscribe: (onData, onError) => subscribeServices(user!.uid, onData, onError),
     enabled: !!user,
   });
 
   const ownedService = services.find((s) => s.id === serviceId);
 
   // Providers viewing their incoming service don't own it — fall back to a direct fetch.
-  const { data: fetchedService } = useQuery({
+  const { data: fetchedService } = useFirestoreLiveQuery({
     queryKey: ['service', serviceId],
     queryFn: () => fetchService(serviceId!),
+    subscribe: (onData, onError) => subscribeService(serviceId!, onData, onError),
     enabled: !!serviceId && !ownedService,
   });
 

@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   Pressable,
@@ -23,8 +23,10 @@ import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
+import { subscribeGems } from '@/features/workspace/firestore-subscriptions';
 import { deleteGem, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
@@ -54,9 +56,10 @@ export default function GemsListScreen() {
     type: 'all',
   });
 
-  const { data: gems = [], refetch, isRefetching } = useQuery({
+  const { data: gems = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['gems', user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 

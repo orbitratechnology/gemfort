@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,13 @@ import {
   buildReportHtml,
   exportReportPdf,
 } from '@/features/workspace/report-service';
+import {
+  subscribeCheques,
+  subscribeGems,
+  subscribePayables,
+  subscribeReceivables,
+  subscribeTransactions,
+} from '@/features/workspace/firestore-subscriptions';
 import {
   fetchCheques,
   fetchGems,
@@ -39,29 +46,34 @@ export default function ReportsScreen() {
   const [period, setPeriod] = useState<MoneyPeriod>('this_month');
   const [exporting, setExporting] = useState<FinancialReportType | null>(null);
 
-  const txQuery = useQuery({
+  const txQuery = useFirestoreLiveQuery({
     queryKey: ['transactions', uid],
     queryFn: () => fetchTransactions(uid!),
+    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
     enabled: !!uid,
   });
-  const gemsQuery = useQuery({
+  const gemsQuery = useFirestoreLiveQuery({
     queryKey: ['gems', uid],
     queryFn: () => fetchGems(uid!),
+    subscribe: (onData, onError) => subscribeGems(uid!, onData, onError),
     enabled: !!uid,
   });
-  const recQuery = useQuery({
+  const recQuery = useFirestoreLiveQuery({
     queryKey: ['receivables', uid],
     queryFn: () => fetchReceivables(uid!),
+    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
-  const payQuery = useQuery({
+  const payQuery = useFirestoreLiveQuery({
     queryKey: ['payables', uid],
     queryFn: () => fetchPayables(uid!),
+    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
     enabled: !!uid,
   });
-  const chequeQuery = useQuery({
+  const chequeQuery = useFirestoreLiveQuery({
     queryKey: ['cheques', uid],
     queryFn: () => fetchCheques(uid!),
+    subscribe: (onData, onError) => subscribeCheques(uid!, onData, onError),
     enabled: !!uid,
   });
 

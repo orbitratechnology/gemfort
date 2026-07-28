@@ -1,6 +1,6 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { router } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -19,6 +19,7 @@ import { ContactPicker } from '@/components/workspace/contact-picker';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
+import { subscribeContacts, subscribePayables } from '@/features/workspace/firestore-subscriptions';
 import {
   createPayable,
   fetchContacts,
@@ -26,6 +27,7 @@ import {
   recordPayablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
@@ -57,15 +59,17 @@ export default function PayablesScreen() {
   });
   const [paymentMethod, setPaymentMethod] = useState('');
 
-  const { data: payables = [], refetch, isRefetching } = useQuery({
+  const { data: payables = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['payables', user?.uid],
     queryFn: () => fetchPayables(user!.uid),
+    subscribe: (onData, onError) => subscribePayables(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 

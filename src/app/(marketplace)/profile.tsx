@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -34,7 +33,9 @@ import {
     resolveProfileRole,
 } from "@/constants/roles";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
+import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import {
     logoutUser,
@@ -120,9 +121,11 @@ export default function ProfileScreen() {
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
 
-  const { data: business } = useQuery({
+  const { data: business } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user,
   });
 

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -35,6 +35,7 @@ import {
   respondApRequest,
   returnApGem,
 } from "@/features/workspace/ap-lifecycle-service";
+import { subscribeApRecordsForUser, subscribeGemsByIds } from "@/features/workspace/firestore-subscriptions";
 import { isApOverdue } from "@/features/workspace/ap-utils";
 import {
   canDeleteAp,
@@ -44,6 +45,7 @@ import {
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -54,7 +56,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { ApGemLine, ApPaymentMethod } from "@/types";
+import type { ApGemLine, ApPaymentMethod, WorkspaceGem } from "@/types";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 
 const PAY_METHODS: {
@@ -83,9 +85,11 @@ export default function ApDetailScreen() {
   const [payAmount, setPayAmount] = useState("");
   const [receiveMethod, setReceiveMethod] = useState<ApPaymentMethod>("cash");
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data: records = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ["ap", "detail", user?.uid],
     queryFn: () => fetchApRecordsForUser(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeApRecordsForUser(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -101,7 +105,7 @@ export default function ApDetailScreen() {
     [ap?.items],
   );
 
-  const { data: gemPhotos = {} } = useQuery({
+  const { data: gemPhotos = {} } = useFirestoreLiveQuery({
     queryKey: ["ap", "detail-gem-photos", apId, gemIds.join(",")],
     queryFn: async () => {
       const entries = await Promise.all(
@@ -114,6 +118,19 @@ export default function ApDetailScreen() {
       for (const [id, url] of entries) map[id] = url;
       return map;
     },
+    subscribe: (onData, onError) =>
+      subscribeGemsByIds(
+        gemIds,
+        (gems: WorkspaceGem[]) => {
+          const map: Record<string, string | null> = {};
+          for (const id of gemIds) map[id] = null;
+          for (const gem of gems) {
+            map[gem.id] = gemPrimaryPhotoUrl(gem);
+          }
+          onData(map);
+        },
+        onError,
+      ),
     enabled: gemIds.length > 0,
   });
 

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -46,12 +46,19 @@ import {
 } from "@/features/workspace/gem-lifecycle";
 import { getGemQuickActions } from "@/features/workspace/gem-utils";
 import {
+  subscribeBusinessByOwnerUid,
+  subscribeGem,
+  subscribeGemCosts,
+  subscribeGemEvents,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   fetchGem,
   fetchGemCosts,
   fetchGemEvents,
   updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { shareFile, shareLink } from "@/lib/share";
@@ -137,28 +144,33 @@ export default function GemDetailScreen() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
 
-  const { data: gem, isLoading } = useQuery({
+  const { data: gem, isLoading } = useFirestoreLiveQuery({
     queryKey: ["gem", gemId],
     queryFn: () => fetchGem(gemId!),
+    subscribe: (onData, onError) => subscribeGem(gemId!, onData, onError),
     enabled: !!gemId,
   });
 
-  const { data: costs = [] } = useQuery({
+  const { data: costs = [] } = useFirestoreLiveQuery({
     queryKey: ["gem-costs", gemId],
     queryFn: () => fetchGemCosts(gemId!),
+    subscribe: (onData, onError) => subscribeGemCosts(gemId!, onData, onError),
     enabled: !!gemId,
   });
 
-  const { data: events = [] } = useQuery({
+  const { data: events = [] } = useFirestoreLiveQuery({
     queryKey: ["gem-events", gemId],
     queryFn: () => fetchGemEvents(gemId!),
+    subscribe: (onData, onError) => subscribeGemEvents(gemId!, onData, onError),
     enabled: !!gemId,
   });
 
   const ownerUid = gem?.ownerUid ?? user?.uid;
-  const { data: business } = useQuery({
+  const { data: business } = useFirestoreLiveQuery({
     queryKey: ["business-by-owner", ownerUid],
     queryFn: () => fetchBusinessByOwnerUid(ownerUid!),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(ownerUid!, onData, onError),
     enabled: !!ownerUid,
   });
 

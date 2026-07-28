@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -43,8 +42,13 @@ import {
   isBusinessVerified,
   submitListingOffer,
 } from "@/features/marketplace/marketplace-service";
+import {
+  subscribeBusiness,
+  subscribeListingBySlug,
+} from "@/features/workspace/firestore-subscriptions";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
@@ -105,15 +109,18 @@ export default function PublicListingScreen() {
     isFetched,
     isError,
     refetch,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["listing", slug],
     queryFn: () => fetchListingBySlug(slug!),
+    subscribe: (onData, onError) => subscribeListingBySlug(slug!, onData, onError),
     enabled: !!slug,
   });
 
-  const { data: business } = useQuery({
+  const { data: business } = useFirestoreLiveQuery({
     queryKey: ["business", listing?.businessId],
     queryFn: () => fetchBusiness(listing!.businessId),
+    subscribe: (onData, onError) =>
+      subscribeBusiness(listing!.businessId, onData, onError),
     enabled: !!listing?.businessId,
   });
 

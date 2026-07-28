@@ -1,5 +1,4 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -22,7 +21,12 @@ import {
   searchBusinesses,
   searchListings,
 } from "@/features/marketplace/marketplace-service";
+import {
+  subscribePublicListings,
+  subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import type { Business, MarketplaceListing } from "@/types";
@@ -51,11 +55,18 @@ export default function SearchScreen() {
     refetch: refetchListings,
     isRefetching: refreshingListings,
     isLoading: loadingListings,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["public-listings"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoListings();
       return fetchPublicListings();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoListings());
+        return () => undefined;
+      }
+      return subscribePublicListings(onData, onError);
     },
   });
 
@@ -64,11 +75,18 @@ export default function SearchScreen() {
     refetch: refetchBusinesses,
     isRefetching: refreshingBusinesses,
     isLoading: loadingBusinesses,
-  } = useQuery({
+  } = useFirestoreLiveQuery({
     queryKey: ["search-businesses"],
     queryFn: async () => {
       if (!isFirebaseConfigured) return demoBusinesses();
       return fetchBusinesses();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoBusinesses());
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses(onData, onError);
     },
   });
 

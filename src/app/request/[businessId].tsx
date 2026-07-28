@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -26,11 +25,17 @@ import {
   fetchBusinessByOwnerUid,
 } from "@/features/marketplace/marketplace-service";
 import {
+  subscribeBusiness,
+  subscribeBusinessByOwnerUid,
+  subscribeGems,
+} from "@/features/workspace/firestore-subscriptions";
+import {
   createClientNotification,
   createServiceRequest,
 } from "@/features/marketplace/request-service";
 import { fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
@@ -85,21 +90,26 @@ export default function RequestServiceScreen() {
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: business } = useQuery({
+  const { data: business } = useFirestoreLiveQuery({
     queryKey: ["business", businessId],
     queryFn: () => fetchBusiness(businessId!),
+    subscribe: (onData, onError) =>
+      subscribeBusiness(businessId!, onData, onError),
     enabled: !!businessId,
   });
 
-  const { data: gems = [] } = useQuery({
+  const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
+    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user && isVerifiedRole(profile, "trader"),
   });
 
-  const { data: myBusiness } = useQuery({
+  const { data: myBusiness } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user,
   });
 

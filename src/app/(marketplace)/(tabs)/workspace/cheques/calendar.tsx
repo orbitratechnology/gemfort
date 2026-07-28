@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { addMonths, format, subMonths } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,8 +15,13 @@ import {
   getDayTotal,
   getMonthGrid,
 } from '@/features/workspace/cheque-utils';
+import {
+  subscribeCheques,
+  subscribeContacts,
+} from '@/features/workspace/firestore-subscriptions';
 import { fetchCheques, fetchContacts } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -30,15 +34,17 @@ export default function ChequeCalendarScreen() {
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState<Date>(() => new Date());
 
-  const { data: cheques = [] } = useQuery({
+  const { data: cheques = [] } = useFirestoreLiveQuery({
     queryKey: ['cheques', user?.uid],
     queryFn: () => fetchCheques(user!.uid),
+    subscribe: (onData, onError) => subscribeCheques(user!.uid, onData, onError),
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
     queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 

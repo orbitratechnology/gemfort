@@ -1,6 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { Image } from 'expo-image';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -24,8 +23,10 @@ import {
 import { filterContacts } from '@/features/workspace/contact-utils';
 import { resolvePartyPhotoUrl } from '@/features/workspace/party-photo';
 import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
+import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
 import { syncContactBusinessLinks } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import type { Business, Contact } from '@/types';
@@ -417,20 +418,39 @@ export function PartyPickerSheet({
     }
   }, [visible, showDirectory, preferBusinesses]);
 
-  const { data: directoryBusinesses = [], isLoading } = useQuery({
+  const { data: directoryBusinesses = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ['party-picker-businesses', allowedBusinessKinds.join(',')],
     queryFn: async () => {
       if (!isFirebaseConfigured) return [];
       const all = await fetchBusinesses();
       return filterBusinessesByKinds(all, allowedBusinessKinds);
     },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData([]);
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses((all) => {
+        onData(filterBusinessesByKinds(all, allowedBusinessKinds));
+      }, onError);
+    },
     enabled: visible,
   });
 
   // Full directory for contact logo fallback (not filtered by picker kinds).
-  const { data: allBusinesses = [] } = useQuery({
+  const { data: allBusinesses = [] } = useFirestoreLiveQuery({
     queryKey: ['home-businesses'],
-    queryFn: () => fetchBusinesses(),
+    queryFn: async () => {
+      if (!isFirebaseConfigured) return [];
+      return fetchBusinesses();
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData([]);
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses(onData, onError);
+    },
     enabled: visible && isFirebaseConfigured,
   });
 

@@ -1,6 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 
+/**
+ * Query cache pairs with Firestore offline persistence + onSnapshot listeners
+ * (`useFirestoreLiveQuery`). `networkMode: 'offlineFirst'` lets cached/local
+ * Firestore data render while offline; live listeners keep keys fresh online.
+ */
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>

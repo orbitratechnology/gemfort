@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -37,8 +37,10 @@ import {
     isBusinessVerified,
     updateBusinessProfile,
 } from "@/features/marketplace/marketplace-service";
+import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
 import {
@@ -624,9 +626,11 @@ export default function MyBusinessProfileScreen() {
   const { colors } = useAppTheme();
   const { user, profile } = useAuth();
 
-  const { data: business, isLoading } = useQuery({
+  const { data: business, isLoading } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user,
   });
 
