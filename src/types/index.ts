@@ -171,21 +171,24 @@ export type Announcement = {
   createdAt: Timestamp;
 };
 
-export type GemStatus =
-  | "rough"
+export type GemStoneStage = "rough" | "cut" | "heated" | "polished";
+
+export type GemCustody =
   | "with_cutter"
-  | "cut"
   | "with_heater"
-  | "heated"
   | "with_polisher"
-  | "polished"
-  | "certified"
-  | "ready_for_sale"
   | "on_ap"
-  | "on_trip"
-  | "listed"
-  | "sold"
-  | "returned";
+  | "on_trip";
+
+export type GemOutcome = "listed" | "sold" | "returned";
+
+/** Legacy flat status union — prefer stoneStage / custody / outcome. */
+export type GemStatus =
+  | GemStoneStage
+  | GemCustody
+  | GemOutcome
+  | "certified"
+  | "ready_for_sale";
 
 export type WorkspaceGem = {
   id: string;
@@ -212,7 +215,17 @@ export type WorkspaceGem = {
   isNatural: boolean;
   treatmentStatus: string;
   treatmentDetails: string | null;
+  /**
+   * Derived primary status for older call sites.
+   * Prefer `stoneStage` + `custody` + `outcome` (can all be set together).
+   */
   status: GemStatus;
+  /** Physical stage of the stone. */
+  stoneStage?: GemStoneStage | null;
+  /** Who/where is holding it (`null` = with owner / in stock). */
+  custody?: GemCustody | null;
+  /** Marketplace / sale result (`null` = none). */
+  outcome?: GemOutcome | null;
   currentLocation: string | null;
   currentHolderContactId: string | null;
   totalCost: number;
@@ -646,6 +659,13 @@ export type MarketplaceListing = {
   id: string;
   sellerUid: string;
   businessId: string;
+  /** Denormalized seller snapshot for public listing cards (rules may block business reads). */
+  sellerBusinessName?: string | null;
+  sellerLogoUrl?: string | null;
+  sellerBusinessType?: string | null;
+  sellerCity?: string | null;
+  sellerCountry?: string | null;
+  sellerIsVerified?: boolean;
   workspaceGemId: string | null;
   title: string;
   description: string | null;
@@ -677,6 +697,25 @@ export type MarketplaceListing = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   publishedAt: Timestamp | null;
+};
+
+/** In-app price offer on a public marketplace listing. */
+export type ListingOffer = {
+  id: string;
+  listingId: string;
+  listingSlug: string;
+  listingTitle: string;
+  sellerUid: string;
+  businessId: string;
+  buyerUid: string;
+  buyerName: string;
+  amount: number;
+  currency: string;
+  amountBase: number;
+  message: string | null;
+  status: "pending" | "accepted" | "declined" | "withdrawn";
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 };
 
 export type AppNotification = {

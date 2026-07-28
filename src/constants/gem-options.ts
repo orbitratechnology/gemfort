@@ -332,37 +332,106 @@ export const GEM_TREATMENT_VALUES = GEM_TREATMENTS.map((t) => t.value) as [
   ...GemTreatmentValue[],
 ];
 
-export const GEM_STATUS_FILTERS: { value: GemStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'rough', label: 'Rough' },
-  { value: 'with_cutter', label: 'With Cutter' },
-  { value: 'cut', label: 'Cut' },
-  { value: 'ready_for_sale', label: 'Ready' },
-  { value: 'on_ap', label: 'On AP' },
-  { value: 'listed', label: 'Listed' },
-  { value: 'sold', label: 'Sold' },
-];
-
-export const MANUAL_STATUS_OPTIONS: {
+export type GemStatusOption = {
   value: GemStatus;
   label: string;
   icon: IconName;
-}[] = [
-  { value: 'rough', label: 'Rough', icon: 'spa' },
-  { value: 'with_cutter', label: 'With Cutter', icon: 'content-cut' },
-  { value: 'cut', label: 'Cut', icon: 'content-cut' },
-  { value: 'with_heater', label: 'With Heater', icon: 'local-fire-department' },
-  { value: 'heated', label: 'Heated', icon: 'local-fire-department' },
-  { value: 'with_polisher', label: 'With Polisher', icon: 'auto-awesome' },
-  { value: 'polished', label: 'Polished', icon: 'auto-awesome' },
-  { value: 'certified', label: 'Certified', icon: 'verified' },
-  { value: 'ready_for_sale', label: 'Ready for Sale', icon: 'sell' },
-  { value: 'on_ap', label: 'On AP', icon: 'handshake' },
-  { value: 'on_trip', label: 'On Trip', icon: 'flight' },
-  { value: 'listed', label: 'Listed', icon: 'storefront' },
-  { value: 'sold', label: 'Sold', icon: 'check-circle' },
-  { value: 'returned', label: 'Returned', icon: 'undo' },
+};
+
+export type GemStatusGroup = {
+  key: 'stone' | 'where' | 'outcome';
+  title: string;
+  hint: string;
+  /** Optional clear choice for custody / outcome (value stored as null). */
+  clearLabel?: string;
+  options: readonly GemStatusOption[];
+};
+
+/**
+ * Three independent axes — a gem can be Cut + On Trip + Listed at once.
+ * `certified` / `ready_for_sale` remain legacy display values only.
+ */
+export const GEM_STATUS_GROUPS: readonly GemStatusGroup[] = [
+  {
+    key: 'stone',
+    title: 'Stone',
+    hint: 'Physical stage',
+    options: [
+      { value: 'rough', label: 'Rough', icon: 'spa' },
+      { value: 'cut', label: 'Cut', icon: 'content-cut' },
+      { value: 'heated', label: 'Heated', icon: 'local-fire-department' },
+      { value: 'polished', label: 'Polished', icon: 'auto-awesome' },
+    ],
+  },
+  {
+    key: 'where',
+    title: 'Where',
+    hint: 'Who is holding it',
+    clearLabel: 'With me',
+    options: [
+      { value: 'with_cutter', label: 'Cutter', icon: 'content-cut' },
+      { value: 'with_heater', label: 'Heater', icon: 'local-fire-department' },
+      { value: 'with_polisher', label: 'Polisher', icon: 'auto-awesome' },
+      { value: 'on_ap', label: 'On AP', icon: 'handshake' },
+      { value: 'on_trip', label: 'Trip', icon: 'flight' },
+    ],
+  },
+  {
+    key: 'outcome',
+    title: 'Outcome',
+    hint: 'Listing / sale',
+    clearLabel: 'None',
+    options: [
+      { value: 'listed', label: 'Listed', icon: 'storefront' },
+      { value: 'sold', label: 'Sold', icon: 'check-circle' },
+      { value: 'returned', label: 'Returned', icon: 'undo' },
+    ],
+  },
 ];
+
+/** Flat list for pickers / labels — matches GEM_STATUS_GROUPS order. */
+export const MANUAL_STATUS_OPTIONS: GemStatusOption[] =
+  GEM_STATUS_GROUPS.flatMap((g) => [...g.options]);
+
+/** Labels for every GemStatus, including legacy values not in the updater. */
+export const GEM_STATUS_LABELS: Record<GemStatus, string> = {
+  rough: 'Rough',
+  cut: 'Cut',
+  heated: 'Heated',
+  polished: 'Polished',
+  with_cutter: 'Cutter',
+  with_heater: 'Heater',
+  with_polisher: 'Polisher',
+  on_ap: 'On AP',
+  on_trip: 'Trip',
+  listed: 'Listed',
+  sold: 'Sold',
+  returned: 'Returned',
+  certified: 'Certified',
+  ready_for_sale: 'Ready for Sale',
+};
+
+export const GEM_STATUS_FILTERS: { value: GemStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'rough', label: 'Rough' },
+  { value: 'cut', label: 'Cut' },
+  { value: 'heated', label: 'Heated' },
+  { value: 'polished', label: 'Polished' },
+  { value: 'with_cutter', label: 'Cutter' },
+  { value: 'with_heater', label: 'Heater' },
+  { value: 'with_polisher', label: 'Polisher' },
+  { value: 'on_ap', label: 'On AP' },
+  { value: 'on_trip', label: 'Trip' },
+  { value: 'listed', label: 'Listed' },
+  { value: 'sold', label: 'Sold' },
+  { value: 'returned', label: 'Returned' },
+];
+
+export function formatGemStatusLabel(status: string | null | undefined): string {
+  if (!status) return '';
+  const key = status.trim().toLowerCase().replace(/\s+/g, '_') as GemStatus;
+  return GEM_STATUS_LABELS[key] ?? status.replace(/_/g, ' ');
+}
 
 export function formatGemType(value: string): string {
   return GEM_TYPES.find((t) => t.value === value)?.label ?? value.replace(/_/g, ' ');

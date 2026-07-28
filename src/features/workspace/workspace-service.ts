@@ -5,6 +5,15 @@ import {
     matchBusinessForContact,
 } from "@/features/workspace/contact-business-link";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
+import {
+  applyLifecyclePatch,
+  derivePrimaryStatus,
+  isGemStoneStage,
+  isTerminalOutcome,
+  patchFromFlatStatus,
+  resolveGemLifecycle,
+  type GemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
@@ -73,7 +82,6 @@ export async function createGem(
   ownerUid: string,
   input: Partial<WorkspaceGem> & {
     gemType: string;
-    originCountry: string;
     roughWeight: number;
     acquisitionCost: number;
   },
@@ -83,6 +91,18 @@ export async function createGem(
   const now = Timestamp.now();
   const status: GemStatus =
     input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
+  const stoneStage = isGemStoneStage(status)
+    ? status
+    : status === "certified" || status === "ready_for_sale"
+      ? "polished"
+      : "rough";
+  const lifecycle = resolveGemLifecycle({
+    status,
+    stoneStage: input.stoneStage ?? stoneStage,
+    custody: input.custody ?? null,
+    outcome: input.outcome ?? null,
+    isListedOnMarketplace: false,
+  });
   const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
   const acquisitionCostBase = await convertToBase(
     input.acquisitionCost,
@@ -96,7 +116,7 @@ export async function createGem(
     title: input.title?.trim() || null,
     gemType: input.gemType,
     variety: input.variety ?? null,
-    originCountry: input.originCountry,
+    originCountry: input.originCountry?.trim() || "",
     originMine: input.originMine ?? null,
     acquisitionType: input.acquisitionType ?? "purchased",
     acquisitionDate: input.acquisitionDate ?? now,
@@ -112,7 +132,10 @@ export async function createGem(
     isNatural: input.isNatural ?? true,
     treatmentStatus: input.treatmentStatus ?? "natural",
     treatmentDetails: input.treatmentDetails ?? null,
-    status,
+    status: derivePrimaryStatus(lifecycle),
+    stoneStage: lifecycle.stoneStage,
+    custody: lifecycle.custody,
+    outcome: lifecycle.outcome,
     currentLocation: null,
     currentHolderContactId: null,
     totalCost: acquisitionCostBase,
@@ -208,21 +231,49 @@ export async function deleteGem(gemId: string, ownerUid: string) {
   await deleteDoc(doc(db, "gemtrack_gems", gemId));
 }
 
-export async function updateGemStatus(
+export async function updateGemLifecycle(
   gemId: string,
   ownerUid: string,
-  newStatus: GemStatus,
+  patch: {
+    stoneStage?: GemLifecycle["stoneStage"];
+    custody?: GemLifecycle["custody"];
+    outcome?: GemLifecycle["outcome"];
+  },
   description: string,
   sale?: { soldPrice: number; soldPriceCurrency: string },
 ) {
   const gem = await fetchGem(gemId);
   if (!gem) throw new Error("Gem not found");
   const now = Timestamp.now();
+  const current = resolveGemLifecycle(gem);
+
+  if (patch.outcome === "listed" && isTerminalOutcome(current.outcome)) {
+    throw new Error(
+      current.outcome === "sold"
+        ? "Sold gems cannot be listed."
+        : "Returned gems cannot be listed.",
+    );
+  }
+
+  const next = applyLifecyclePatch(current, patch);
+  const primary = derivePrimaryStatus(next);
+
   const updates: Record<string, unknown> = {
-    status: newStatus,
+    stoneStage: next.stoneStage,
+    custody: next.custody,
+    outcome: next.outcome,
+    status: primary,
     updatedAt: now,
   };
-  if (newStatus === "sold" && sale) {
+
+  if (next.outcome === "listed") {
+    updates.isListedOnMarketplace = true;
+  } else if (isTerminalOutcome(next.outcome) || patch.outcome !== undefined) {
+    // Sold / returned (or clearing outcome) always delists.
+    updates.isListedOnMarketplace = false;
+  }
+
+  if (next.outcome === "sold" && sale) {
     const soldPriceBase = await convertToBase(
       sale.soldPrice,
       sale.soldPriceCurrency,
@@ -232,13 +283,30 @@ export async function updateGemStatus(
     updates.soldPriceBase = soldPriceBase;
     updates.soldDate = now;
   }
+
   await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", gemId), updates);
+
+  // Pause/close the marketplace listing when the gem is sold or returned.
+  if (
+    isTerminalOutcome(next.outcome) &&
+    typeof gem.marketplaceListingId === "string" &&
+    gem.marketplaceListingId.length > 0
+  ) {
+    try {
+      await updateDoc(doc(getFirebaseDb(), "gems", gem.marketplaceListingId), {
+        status: next.outcome === "sold" ? "sold" : "paused",
+        updatedAt: now,
+      });
+    } catch {
+      // Listing may already be gone; gem update still succeeded.
+    }
+  }
   await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
     gemId,
     ownerUid,
     eventType: "status_change",
     fromStatus: gem.status,
-    toStatus: newStatus,
+    toStatus: primary,
     description,
     weightAtEvent: gem.currentWeight,
     photoUrl: null,
@@ -248,6 +316,23 @@ export async function updateGemStatus(
     createdByUid: ownerUid,
     createdAt: now,
   });
+}
+
+export async function updateGemStatus(
+  gemId: string,
+  ownerUid: string,
+  newStatus: GemStatus,
+  description: string,
+  sale?: { soldPrice: number; soldPriceCurrency: string },
+) {
+  // Flat status writes map onto one axis so Cut / Trip / Listed can coexist.
+  await updateGemLifecycle(
+    gemId,
+    ownerUid,
+    patchFromFlatStatus(newStatus),
+    description,
+    sale,
+  );
 }
 
 export async function fetchGemEvents(gemId: string): Promise<GemEvent[]> {
@@ -1627,11 +1712,16 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
       await deleteDoc(doc(getFirebaseDb(), "gemtrack_trip_gems", tg.id));
       if (tg.status === "on_trip") {
         const gem = await fetchGem(tg.gemId);
-        if (gem && gem.ownerUid === ownerUid && gem.status === "on_trip") {
-          await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", tg.gemId), {
-            status: "ready_for_sale",
-            updatedAt: Timestamp.now(),
-          });
+        if (gem && gem.ownerUid === ownerUid) {
+          const life = resolveGemLifecycle(gem);
+          if (life.custody === "on_trip" || gem.status === "on_trip") {
+            await updateGemLifecycle(
+              tg.gemId,
+              ownerUid,
+              { custody: null },
+              "Removed from trip",
+            );
+          }
         }
       }
     }),
@@ -1748,7 +1838,6 @@ export async function createGemOnSourcingTrip(
   tripId: string,
   input: Partial<WorkspaceGem> & {
     gemType: string;
-    originCountry: string;
     roughWeight: number;
     acquisitionCost: number;
   },
@@ -1947,14 +2036,25 @@ export async function createListing(
   const workspaceGemId =
     typeof input.workspaceGemId === "string" ? input.workspaceGemId : null;
 
-  if (workspaceGemId && photoUrls.length === 0) {
+  if (workspaceGemId) {
     const gemSnap = await getDoc(
       doc(getFirebaseDb(), "gemtrack_gems", workspaceGemId),
     );
     if (gemSnap.exists()) {
-      const gem = gemSnap.data();
-      if (Array.isArray(gem.photoUrls)) {
-        photoUrls = gem.photoUrls.filter(
+      const gemData = {
+        id: gemSnap.id,
+        ...gemSnap.data(),
+      } as import("@/types").WorkspaceGem;
+      const life = resolveGemLifecycle(gemData);
+      if (isTerminalOutcome(life.outcome)) {
+        throw new Error(
+          life.outcome === "sold"
+            ? "Sold gems cannot be listed."
+            : "Returned gems cannot be listed.",
+        );
+      }
+      if (photoUrls.length === 0 && Array.isArray(gemData.photoUrls)) {
+        photoUrls = gemData.photoUrls.filter(
           (u): u is string => typeof u === "string" && u.length > 0,
         );
       }
@@ -1975,6 +2075,33 @@ export async function createListing(
   const listingTitle =
     typeof input.title === "string" ? input.title.trim() : "";
 
+  // Snapshot seller onto the listing so public viewers see owner even when
+  // business docs are not listable (e.g. unverified but active).
+  let sellerBusinessName: string | null = null;
+  let sellerLogoUrl: string | null = null;
+  let sellerBusinessType: string | null = null;
+  let sellerCity: string | null = null;
+  let sellerCountry: string | null = null;
+  let sellerIsVerified = false;
+  try {
+    const bizSnap = await getDoc(doc(getFirebaseDb(), "businesses", businessId));
+    if (bizSnap.exists()) {
+      const biz = bizSnap.data();
+      sellerBusinessName =
+        typeof biz.businessName === "string" ? biz.businessName : null;
+      sellerLogoUrl = typeof biz.logoUrl === "string" ? biz.logoUrl : null;
+      sellerBusinessType =
+        typeof biz.businessType === "string" ? biz.businessType : null;
+      sellerCity = typeof biz.city === "string" ? biz.city : null;
+      sellerCountry = typeof biz.country === "string" ? biz.country : null;
+      sellerIsVerified =
+        biz.verificationStatus === "verified" ||
+        biz.badges?.isVerified === true;
+    }
+  } catch {
+    // Owner may still create the listing; snapshot can be backfilled later.
+  }
+
   const ref = await addDoc(collection(getFirebaseDb(), "gems"), {
     ...input,
     title: listingTitle || input.title,
@@ -1987,6 +2114,12 @@ export async function createListing(
     priceMaxBase,
     sellerUid,
     businessId,
+    sellerBusinessName,
+    sellerLogoUrl,
+    sellerBusinessType,
+    sellerCity,
+    sellerCountry,
+    sellerIsVerified,
     shareableSlug: slug,
     shareableUrl: `https://gemfort.app/l/${slug}`,
     status: "active",
@@ -2003,10 +2136,28 @@ export async function createListing(
     const gemSnap = await getDoc(gemRef);
     if (gemSnap.exists()) {
       const gem = gemSnap.data();
+      const life = resolveGemLifecycle({
+        status: (gem.status as GemStatus) ?? "polished",
+        stoneStage: gem.stoneStage ?? null,
+        custody: gem.custody ?? null,
+        outcome: gem.outcome ?? null,
+        isListedOnMarketplace: Boolean(gem.isListedOnMarketplace),
+      });
+      if (isTerminalOutcome(life.outcome)) {
+        throw new Error(
+          life.outcome === "sold"
+            ? "Sold gems cannot be listed."
+            : "Returned gems cannot be listed.",
+        );
+      }
+      const next = applyLifecyclePatch(life, { outcome: "listed" });
       const gemUpdates: Record<string, unknown> = {
         isListedOnMarketplace: true,
         marketplaceListingId: ref.id,
-        status: "listed" satisfies GemStatus,
+        stoneStage: next.stoneStage,
+        custody: next.custody,
+        outcome: next.outcome,
+        status: derivePrimaryStatus(next),
         updatedAt: now,
       };
       if (listingTitle) {

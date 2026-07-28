@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 
+import { FontFamily } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 
@@ -13,7 +14,11 @@ export default function AuthLayout() {
         headerShown: false,
         headerTintColor: colors.primary,
         headerStyle: { backgroundColor: colors.background },
-        headerTitleStyle: { color: colors.text, fontWeight: '600' },
+        headerTitleStyle: {
+          fontFamily: FontFamily.semibold,
+          color: colors.text,
+          fontWeight: '600',
+        },
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: 'transparent' },

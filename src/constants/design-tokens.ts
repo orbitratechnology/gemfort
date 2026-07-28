@@ -1,7 +1,5 @@
 /** GemFort design tokens — semantic light/dark theme (M3 Minimal Interface) */
 
-import { Platform } from "react-native";
-
 /** Shared brand & semantic action colors — same in light and dark */
 export const BrandPalette = {
   primary: "#171717",
@@ -300,33 +298,61 @@ export function getThemeColors(scheme: ColorScheme): ThemeColors {
   return scheme === "dark" ? darkTheme : lightTheme;
 }
 
+/** Poppins faces loaded via `@expo-google-fonts/poppins` in root layout */
+export const FontFamily = {
+  regular: "Poppins_400Regular",
+  medium: "Poppins_500Medium",
+  semibold: "Poppins_600SemiBold",
+  bold: "Poppins_700Bold",
+} as const;
+
 export const Typography = {
   displayLg: {
+    fontFamily: FontFamily.bold,
     fontSize: 32,
     lineHeight: 40,
     fontWeight: "700" as const,
     letterSpacing: -0.64,
   },
   headlineMd: {
+    fontFamily: FontFamily.semibold,
     fontSize: 24,
     lineHeight: 32,
     fontWeight: "600" as const,
     letterSpacing: -0.24,
   },
-  headlineSm: { fontSize: 20, lineHeight: 28, fontWeight: "600" as const },
+  headlineSm: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "600" as const,
+  },
   headlineSmMobile: {
+    fontFamily: FontFamily.semibold,
     fontSize: 18,
     lineHeight: 24,
     fontWeight: "600" as const,
   },
   headlineMdMobile: {
+    fontFamily: FontFamily.semibold,
     fontSize: 20,
     lineHeight: 28,
     fontWeight: "600" as const,
   },
-  bodyLg: { fontSize: 16, lineHeight: 24, fontWeight: "400" as const },
-  bodyMd: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
+  bodyLg: {
+    fontFamily: FontFamily.regular,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "400" as const,
+  },
+  bodyMd: {
+    fontFamily: FontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400" as const,
+  },
   labelMd: {
+    fontFamily: FontFamily.semibold,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "600" as const,
@@ -335,63 +361,77 @@ export const Typography = {
 
   // Keep legacy typography for backward compatibility during migration
   display: {
+    fontFamily: FontFamily.bold,
     fontSize: 32,
     lineHeight: 40,
     fontWeight: "700" as const,
     letterSpacing: -0.5,
   },
   h1: {
+    fontFamily: FontFamily.semibold,
     fontSize: 24,
     lineHeight: 32,
     fontWeight: "600" as const,
     letterSpacing: -0.3,
   },
   h2: {
+    fontFamily: FontFamily.semibold,
     fontSize: 20,
     lineHeight: 28,
     fontWeight: "600" as const,
     letterSpacing: -0.2,
   },
-  h3: { fontSize: 18, lineHeight: 24, fontWeight: "500" as const },
-  bodyLarge: { fontSize: 16, lineHeight: 24, fontWeight: "400" as const },
-  body: { fontSize: 14, lineHeight: 20, fontWeight: "400" as const },
-  bodySmall: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
+  h3: {
+    fontFamily: FontFamily.medium,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "500" as const,
+  },
+  bodyLarge: {
+    fontFamily: FontFamily.regular,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "400" as const,
+  },
+  body: {
+    fontFamily: FontFamily.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400" as const,
+  },
+  bodySmall: {
+    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "400" as const,
+  },
   caption: {
+    fontFamily: FontFamily.medium,
     fontSize: 11,
     lineHeight: 16,
     fontWeight: "500" as const,
     letterSpacing: 0.2,
   },
-  button: { fontSize: 15, lineHeight: 20, fontWeight: "600" as const },
-  label: { fontSize: 12, lineHeight: 16, fontWeight: "500" as const },
+  button: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600" as const,
+  },
+  label: {
+    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "500" as const,
+  },
   story: {
+    fontFamily: FontFamily.semibold,
     fontSize: 28,
     lineHeight: 34,
     fontWeight: "600" as const,
     letterSpacing: -0.4,
   },
 };
-
-export const FontFamily = Platform.select({
-  ios: {
-    regular: "System",
-    medium: "System",
-    semibold: "System",
-    bold: "System",
-  },
-  android: {
-    regular: "sans-serif",
-    medium: "sans-serif-medium",
-    semibold: "sans-serif-medium",
-    bold: "sans-serif",
-  },
-  default: {
-    regular: "System",
-    medium: "System",
-    semibold: "System",
-    bold: "System",
-  },
-})!;
 
 export const Spacing = {
   stackSm: 8,

@@ -6,9 +6,14 @@ import type {
   Trip,
   WorkspaceGem,
 } from "@/types";
+import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
 
 /** Gems locked in marketplace / AP / trip flows cannot be hard-deleted. */
 export function canDeleteGem(gem: WorkspaceGem): boolean {
+  const life = resolveGemLifecycle(gem);
+  if (life.custody === "on_ap" || life.custody === "on_trip") return false;
+  if (life.outcome === "listed" || life.outcome === "sold") return false;
+  if (gem.isListedOnMarketplace) return false;
   return !["on_ap", "on_trip", "listed", "sold"].includes(gem.status);
 }
 

@@ -1,9 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { CountryField } from "@/components/ui/country-field";
 import { CountryFlag } from "@/components/ui/country-flag";
@@ -41,6 +48,7 @@ import {
   MANUAL_STATUS_OPTIONS,
   findColorShade,
   formatColorLabel,
+  formatGemStatusLabel,
   formatGemType,
   formatOptionLabel,
   formatShapeLabel,
@@ -98,6 +106,7 @@ export default function AddGemScreen() {
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { height: windowHeight } = useWindowDimensions();
   const { sharedImageUris, tripId: tripIdParam } = useLocalSearchParams<{
     sharedImageUris?: string;
     tripId?: string;
@@ -106,7 +115,7 @@ export default function AddGemScreen() {
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");
   const [gemType, setGemType] = useState("sapphire");
-  const [originCountry, setOriginCountry] = useState("Sri Lanka");
+  const [originCountry, setOriginCountry] = useState("");
   const [colorShade, setColorShade] = useState("");
   const [clarity, setClarity] = useState("");
   const [shape, setShape] = useState("");
@@ -115,7 +124,7 @@ export default function AddGemScreen() {
     amount: "",
     currency: preferred,
   });
-  const [treatment, setTreatment] = useState<GemTreatmentValue>("natural");
+  const [treatment, setTreatment] = useState<GemTreatmentValue | "">("");
   const [status, setStatus] = useState<GemStatus | "">("");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
@@ -124,6 +133,7 @@ export default function AddGemScreen() {
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [didApplyShared, setDidApplyShared] = useState(false);
   const [didApplyTripParam, setDidApplyTripParam] = useState(false);
+  const [showOptional, setShowOptional] = useState(Boolean(tripIdParam));
 
   const { data: trips = [] } = useQuery({
     queryKey: ["trips", user?.uid],
@@ -206,6 +216,26 @@ export default function AddGemScreen() {
     [clarity],
   );
 
+  const optionalFilledCount = useMemo(() => {
+    let n = 0;
+    if (shape) n += 1;
+    if (clarity) n += 1;
+    if (originCountry) n += 1;
+    if (treatment) n += 1;
+    if (colorShade) n += 1;
+    if (selectedTripId) n += 1;
+    if (!selectedTripId && status) n += 1;
+    return n;
+  }, [
+    shape,
+    clarity,
+    originCountry,
+    treatment,
+    colorShade,
+    selectedTripId,
+    status,
+  ]);
+
   function clearField(key: string) {
     setErrors((prev) => {
       if (!prev[key]) return prev;
@@ -271,6 +301,13 @@ export default function AddGemScreen() {
     void handleSubmit();
   }
 
+  async function toggleOptional() {
+    if (process.env.EXPO_OS === "ios") {
+      await Haptics.selectionAsync();
+    }
+    setShowOptional((prev) => !prev);
+  }
+
   async function handleSubmit() {
     if (!user) return;
     const data = validateDetails();
@@ -294,21 +331,26 @@ export default function AddGemScreen() {
             );
           }),
         );
-        const colorLabel = formatColorLabel(data.colorPrimary);
+        const colorLabel = data.colorPrimary
+          ? formatColorLabel(data.colorPrimary)
+          : "";
         const gemPayload = {
           title: data.title,
           gemType: data.gemType,
-          originCountry: data.originCountry,
+          originCountry: data.originCountry ?? "",
           roughWeight: data.roughWeight,
           acquisitionCost: data.acquisitionCost,
           acquisitionCurrency: acquisition.currency,
-          colorPrimary: colorLabel || data.colorPrimary,
-          clarity:
-            formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity,
+          colorPrimary: colorLabel || data.colorPrimary || null,
+          clarity: data.clarity
+            ? formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity
+            : null,
           cutType: null,
-          shape: formatOptionLabel(GEM_SHAPES, data.shape) || data.shape,
-          isNatural: data.treatment === "natural",
-          treatmentStatus: data.treatment,
+          shape: data.shape
+            ? formatOptionLabel(GEM_SHAPES, data.shape) || data.shape
+            : null,
+          isNatural: !data.treatment || data.treatment === "natural",
+          treatmentStatus: data.treatment ?? "natural",
           status: data.status,
           photoUrls,
         };
@@ -341,15 +383,14 @@ export default function AddGemScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
       <StackHeader title="Add gem" closeIcon />
 
       <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <ScreenInset>
           <View style={styles.stepRow}>
@@ -432,126 +473,6 @@ export default function AddGemScreen() {
               }
             />
 
-            <AttributePickerField
-              label="Color"
-              valueLabel={formatColorLabel(colorShade)}
-              placeholder="Select color"
-              onPress={() => setSheet("color")}
-              error={errors.colorPrimary}
-              leading={
-                colorHit ? (
-                  <ColorSwatch
-                    hex={colorHit.shade.hex}
-                    size={36}
-                    border={colors.outlineVariant}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.placeholderIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="palette"
-                      size={18}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                )
-              }
-            />
-
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <AttributePickerField
-                  label="Shape"
-                  valueLabel={formatShapeLabel(shape)}
-                  placeholder="Select"
-                  onPress={() => setSheet("shape")}
-                  error={errors.shape}
-                  leading={
-                    <View
-                      style={[
-                        styles.placeholderIcon,
-                        {
-                          backgroundColor: selectedShape
-                            ? colors.primaryContainer
-                            : colors.surfaceContainerHigh,
-                        },
-                      ]}
-                    >
-                      <Icon
-                        name={selectedShape?.icon ?? "category"}
-                        size={18}
-                        color={
-                          selectedShape
-                            ? colors.onPrimaryContainer
-                            : colors.outline
-                        }
-                      />
-                    </View>
-                  }
-                />
-              </View>
-              <View style={styles.flex}>
-                <AttributePickerField
-                  label="Clarity"
-                  valueLabel={formatOptionLabel(GEM_CLARITIES, clarity)}
-                  placeholder="Select"
-                  onPress={() => setSheet("clarity")}
-                  error={errors.clarity}
-                  leading={
-                    <View
-                      style={[
-                        styles.placeholderIcon,
-                        {
-                          backgroundColor: selectedClarity
-                            ? colors.primaryContainer
-                            : colors.surfaceContainerHigh,
-                        },
-                      ]}
-                    >
-                      <Icon
-                        name={selectedClarity?.icon ?? "visibility"}
-                        size={18}
-                        color={
-                          selectedClarity
-                            ? colors.onPrimaryContainer
-                            : colors.outline
-                        }
-                      />
-                    </View>
-                  }
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={styles.flex}>
-                <CountryField
-                  label="Origin"
-                  value={originCountry}
-                  onChange={(name) => {
-                    setOriginCountry(name);
-                    clearField("originCountry");
-                  }}
-                  placeholder="Select"
-                  sheetTitle="Origin"
-                  error={errors.originCountry}
-                />
-              </View>
-              <View style={styles.flex}>
-                <AttributePickerField
-                  label="Treatment"
-                  valueLabel={formatOptionLabel(GEM_TREATMENTS, treatment)}
-                  placeholder="Select"
-                  onPress={() => setSheet("treatment")}
-                  error={errors.treatment}
-                />
-              </View>
-            </View>
-
             <Input
               label="Weight (ct)"
               value={roughWeight}
@@ -575,46 +496,209 @@ export default function AddGemScreen() {
               error={errors.acquisitionCost}
             />
 
-            <TripSelectField
-              label="Trip"
-              trip={selectedTrip}
-              placeholder="Optional — link to a trip"
-              onPress={() => setSheet("trip")}
-              onClear={
-                tripIdParam
-                  ? undefined
-                  : () => {
-                      setSelectedTripId("");
-                    }
-              }
-            />
+            <Pressable
+              onPress={() => void toggleOptional()}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showOptional }}
+              style={[
+                styles.moreToggle,
+                { borderTopColor: colors.outlineVariant },
+              ]}
+            >
+              <View style={styles.moreToggleText}>
+                <Text
+                  style={[styles.moreTitle, { color: colors.primary }]}
+                >
+                  {showOptional ? "Hide details" : "More details"}
+                </Text>
+                <Text
+                  style={[styles.moreHint, { color: colors.textMuted }]}
+                >
+                  {optionalFilledCount > 0
+                    ? `${optionalFilledCount} filled · optional`
+                    : "Shape, clarity, origin…"}
+                </Text>
+              </View>
+              <Icon
+                name={showOptional ? "expand-less" : "expand-more"}
+                size={22}
+                color={colors.primary}
+              />
+            </Pressable>
 
-            {selectedTripId ? null : (
-              <AttributePickerField
-                label="Status"
-                valueLabel={formatOptionLabel(MANUAL_STATUS_OPTIONS, status)}
-                placeholder="Select status"
-                onPress={() => setSheet("status")}
-                error={errors.status}
-                leading={
-                  <View
-                    style={[
-                      styles.placeholderIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name={
-                        MANUAL_STATUS_OPTIONS.find((s) => s.value === status)
-                          ?.icon ?? "flag"
+            {showOptional ? (
+              <Animated.View
+                entering={FadeIn.duration(180)}
+                exiting={FadeOut.duration(120)}
+                style={styles.optionalBlock}
+              >
+                <View style={styles.row}>
+                  <View style={styles.flex}>
+                    <AttributePickerField
+                      label="Shape"
+                      valueLabel={formatShapeLabel(shape)}
+                      placeholder="Optional"
+                      onPress={() => setSheet("shape")}
+                      error={errors.shape}
+                      leading={
+                        <View
+                          style={[
+                            styles.placeholderIcon,
+                            {
+                              backgroundColor: selectedShape
+                                ? colors.primaryContainer
+                                : colors.surfaceContainerHigh,
+                            },
+                          ]}
+                        >
+                          <Icon
+                            name={selectedShape?.icon ?? "category"}
+                            size={18}
+                            color={
+                              selectedShape
+                                ? colors.onPrimaryContainer
+                                : colors.outline
+                            }
+                          />
+                        </View>
                       }
-                      size={18}
-                      color={colors.onPrimaryContainer}
                     />
                   </View>
-                }
-              />
-            )}
+                  <View style={styles.flex}>
+                    <AttributePickerField
+                      label="Clarity"
+                      valueLabel={formatOptionLabel(GEM_CLARITIES, clarity)}
+                      placeholder="Optional"
+                      onPress={() => setSheet("clarity")}
+                      error={errors.clarity}
+                      leading={
+                        <View
+                          style={[
+                            styles.placeholderIcon,
+                            {
+                              backgroundColor: selectedClarity
+                                ? colors.primaryContainer
+                                : colors.surfaceContainerHigh,
+                            },
+                          ]}
+                        >
+                          <Icon
+                            name={selectedClarity?.icon ?? "visibility"}
+                            size={18}
+                            color={
+                              selectedClarity
+                                ? colors.onPrimaryContainer
+                                : colors.outline
+                            }
+                          />
+                        </View>
+                      }
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.row}>
+                  <View style={styles.flex}>
+                    <CountryField
+                      label="Origin"
+                      value={originCountry}
+                      onChange={(name) => {
+                        setOriginCountry(name);
+                        clearField("originCountry");
+                      }}
+                      placeholder="Optional"
+                      sheetTitle="Origin"
+                      error={errors.originCountry}
+                    />
+                  </View>
+                  <View style={styles.flex}>
+                    <AttributePickerField
+                      label="Treatment"
+                      valueLabel={
+                        treatment
+                          ? formatOptionLabel(GEM_TREATMENTS, treatment)
+                          : ""
+                      }
+                      placeholder="Optional"
+                      onPress={() => setSheet("treatment")}
+                      error={errors.treatment}
+                    />
+                  </View>
+                </View>
+
+                <AttributePickerField
+                  label="Color"
+                  valueLabel={formatColorLabel(colorShade)}
+                  placeholder="Optional"
+                  onPress={() => setSheet("color")}
+                  error={errors.colorPrimary}
+                  leading={
+                    colorHit ? (
+                      <ColorSwatch
+                        hex={colorHit.shade.hex}
+                        size={36}
+                        border={colors.outlineVariant}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.placeholderIcon,
+                          { backgroundColor: colors.primaryContainer },
+                        ]}
+                      >
+                        <Icon
+                          name="palette"
+                          size={18}
+                          color={colors.onPrimaryContainer}
+                        />
+                      </View>
+                    )
+                  }
+                />
+
+                <TripSelectField
+                  label="Trip"
+                  trip={selectedTrip}
+                  placeholder="Optional — link to a trip"
+                  onPress={() => setSheet("trip")}
+                  onClear={
+                    tripIdParam
+                      ? undefined
+                      : () => {
+                          setSelectedTripId("");
+                        }
+                  }
+                />
+
+                {selectedTripId ? null : (
+                  <AttributePickerField
+                    label="Status"
+                    valueLabel={formatGemStatusLabel(status)}
+                    placeholder="Optional"
+                    onPress={() => setSheet("status")}
+                    error={errors.status}
+                    leading={
+                      <View
+                        style={[
+                          styles.placeholderIcon,
+                          { backgroundColor: colors.primaryContainer },
+                        ]}
+                      >
+                        <Icon
+                          name={
+                            MANUAL_STATUS_OPTIONS.find(
+                              (s) => s.value === status,
+                            )?.icon ?? "flag"
+                          }
+                          size={18}
+                          color={colors.onPrimaryContainer}
+                        />
+                      </View>
+                    }
+                  />
+                )}
+              </Animated.View>
+            ) : null}
           </FormSection>
         ) : null}
 
@@ -635,17 +719,21 @@ export default function AddGemScreen() {
             <View style={styles.reviewList}>
               <ReviewRow label="Title" value={title.trim() || "—"} />
               <ReviewRow label="Type" value={formatGemType(gemType)} />
+              <ReviewRow label="Weight" value={`${roughWeight} ct`} />
               <ReviewRow
-                label="Color"
-                value={formatColorLabel(colorShade) || "—"}
-              />
-              <ReviewRow
-                label="Clarity"
-                value={formatOptionLabel(GEM_CLARITIES, clarity) || "—"}
+                label="Price"
+                value={formatCurrency(
+                  parseFloat(acquisition.amount) || 0,
+                  acquisition.currency,
+                )}
               />
               <ReviewRow
                 label="Shape"
                 value={formatShapeLabel(shape) || "—"}
+              />
+              <ReviewRow
+                label="Clarity"
+                value={formatOptionLabel(GEM_CLARITIES, clarity) || "—"}
               />
               <ReviewRow
                 label="Origin"
@@ -658,15 +746,15 @@ export default function AddGemScreen() {
               />
               <ReviewRow
                 label="Treatment"
-                value={formatOptionLabel(GEM_TREATMENTS, treatment) || "—"}
+                value={
+                  treatment
+                    ? formatOptionLabel(GEM_TREATMENTS, treatment) || "—"
+                    : "—"
+                }
               />
-              <ReviewRow label="Weight" value={`${roughWeight} ct`} />
               <ReviewRow
-                label="Price"
-                value={formatCurrency(
-                  parseFloat(acquisition.amount) || 0,
-                  acquisition.currency,
-                )}
+                label="Color"
+                value={formatColorLabel(colorShade) || "—"}
               />
               <ReviewRow
                 label="Trip"
@@ -676,8 +764,8 @@ export default function AddGemScreen() {
                 label="Status"
                 value={
                   selectedTripId
-                    ? "On trip"
-                    : formatOptionLabel(MANUAL_STATUS_OPTIONS, status) || "—"
+                    ? "Trip"
+                    : formatGemStatusLabel(status) || "Rough (default)"
                 }
               />
               <ReviewRow
@@ -764,7 +852,7 @@ export default function AddGemScreen() {
           setSelectedTripId(trip.id);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -787,7 +875,10 @@ function ReviewRow({
       </Text>
       <View style={styles.reviewValueRow}>
         {leading}
-        <Text style={[styles.reviewValue, { color: colors.onSurface }]}>
+        <Text
+          selectable
+          style={[styles.reviewValue, { color: colors.onSurface }]}
+        >
           {value}
         </Text>
       </View>
@@ -796,10 +887,11 @@ function ReviewRow({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: {
     paddingTop: Spacing.stackSm,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.md,
     gap: Spacing.lg,
   },
   stepRow: {
@@ -821,16 +913,31 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
+    borderCurve: "continuous",
   },
   placeholderIcon: {
     width: 36,
     height: 36,
     borderRadius: 12,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
   },
   row: { flexDirection: "row", gap: Spacing.md },
   flex: { flex: 1 },
+  moreToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: 44,
+  },
+  moreToggleText: { flex: 1, gap: 2 },
+  moreTitle: { ...Typography.bodyLg, fontWeight: "600" },
+  moreHint: { ...Typography.caption },
+  optionalBlock: { gap: Spacing.md },
   reviewList: { gap: 0 },
   reviewRow: {
     flexDirection: "row",

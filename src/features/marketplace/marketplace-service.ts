@@ -22,7 +22,19 @@ import {
   reportTypesFromOfferings,
   sanitizeLabCertificateOfferings,
 } from '@/features/marketplace/lab-certificate-offerings';
-import type { Announcement, Business, BusinessType, FraudReportType, LabCertificateOffering, MarketplaceListing, UserRole } from '@/types';
+import { createClientNotification } from '@/features/marketplace/request-service';
+import { convertToBase } from '@/lib/exchange-rates';
+import { formatMoney } from '@/lib/money';
+import type {
+  Announcement,
+  Business,
+  BusinessType,
+  FraudReportType,
+  LabCertificateOffering,
+  ListingOffer,
+  MarketplaceListing,
+  UserRole,
+} from '@/types';
 
 export type DirectoryBusinessFilter = 'trader' | 'lapidary' | 'gem_lab' | 'seller' | 'provider';
 
@@ -673,4 +685,56 @@ export async function sendEndorsement(input: {
     fromUid: input.fromUid,
     createdAt: serverTimestamp(),
   });
+}
+
+/** Submit an in-app price offer on a listing; notifies the seller. */
+export async function submitListingOffer(input: {
+  listing: MarketplaceListing;
+  buyerUid: string;
+  buyerName: string;
+  amount: number;
+  currency: string;
+  message?: string;
+}): Promise<string> {
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Enter a valid offer amount.');
+  }
+  if (input.buyerUid === input.listing.sellerUid) {
+    throw new Error('You cannot offer on your own listing.');
+  }
+
+  const amountBase = await convertToBase(amount, input.currency);
+  const message = input.message?.trim() || null;
+  const now = serverTimestamp();
+
+  const ref = await addDoc(collection(getFirebaseDb(), 'listing_offers'), {
+    listingId: input.listing.id,
+    listingSlug: input.listing.shareableSlug,
+    listingTitle: input.listing.title,
+    sellerUid: input.listing.sellerUid,
+    businessId: input.listing.businessId,
+    buyerUid: input.buyerUid,
+    buyerName: input.buyerName.trim() || 'Buyer',
+    amount,
+    currency: input.currency,
+    amountBase,
+    message,
+    status: 'pending' satisfies ListingOffer['status'],
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const amountLabel = formatMoney(amount, input.currency);
+  await createClientNotification({
+    recipientUid: input.listing.sellerUid,
+    type: 'listing_offer_received',
+    title: 'New offer received',
+    message: `${input.buyerName.trim() || 'A buyer'} offered ${amountLabel} on “${input.listing.title}”.`,
+    referenceType: 'listing_offer',
+    referenceId: ref.id,
+    priority: 'high',
+  });
+
+  return ref.id;
 }

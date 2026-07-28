@@ -1,3 +1,4 @@
+import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
@@ -13,6 +14,13 @@ import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ToastProvider } from "@/providers/toast-provider";
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+  useFonts,
+} from "@expo-google-fonts/poppins";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
@@ -47,7 +55,11 @@ function RootNavigator() {
         headerShown: false,
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.primary,
-        headerTitleStyle: { fontWeight: "600", color: colors.text },
+        headerTitleStyle: {
+          fontFamily: FontFamily.semibold,
+          fontWeight: "600",
+          color: colors.text,
+        },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
       }}
@@ -89,22 +101,23 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
   const [firebaseReady, setFirebaseReady] = useState(!isFirebaseConfigured);
+  const fontsReady = fontsLoaded || fontError != null;
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      void SplashScreen.hideAsync();
-      return;
-    }
+    if (!isFirebaseConfigured) return;
 
     let cancelled = false;
     void warmUpFirestore()
       .catch(() => undefined)
       .finally(() => {
-        if (!cancelled) {
-          setFirebaseReady(true);
-          void SplashScreen.hideAsync();
-        }
+        if (!cancelled) setFirebaseReady(true);
       });
 
     return () => {
@@ -112,7 +125,13 @@ export default function RootLayout() {
     };
   }, []);
 
-  if (!firebaseReady) {
+  useEffect(() => {
+    if (fontsReady && firebaseReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [fontsReady, firebaseReady]);
+
+  if (!fontsReady || !firebaseReady) {
     return <BootPlaceholder />;
   }
 

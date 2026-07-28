@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Icon } from "@/components/ui/icon";
 import {
   ContextActionsLink,
@@ -15,10 +16,13 @@ import {
 } from "@/components/workspace/context-actions-link";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-  MANUAL_STATUS_OPTIONS,
   formatGemType,
-  formatOptionLabel,
+  resolveCountryCode,
 } from "@/constants/gem-options";
+import {
+  formatLifecycleSummary,
+  resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
@@ -41,7 +45,7 @@ type GemCardProps = {
 /**
  * Workspace inventory tile for 2-column ecommerce grids.
  */
-export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
+export function GemCard({ gem, href, onDelete, style }: GemCardProps) {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
@@ -55,9 +59,10 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
       : "No price set";
 
   const gemTitle = gem.title?.trim() || formatGemType(gem.gemType);
-  const statusLabel =
-    formatOptionLabel(MANUAL_STATUS_OPTIONS, gem.status) ||
-    gem.status.replace(/_/g, " ");
+  const lifecycle = resolveGemLifecycle(gem);
+  const statusLabel = formatLifecycleSummary(lifecycle);
+  const hasOriginFlag = !!resolveCountryCode(gem.originCountry);
+  const caratLabel = `${gem.currentWeight} ct`;
 
   const media = photo ? (
     <Image source={{ uri: photo }} style={styles.image} contentFit="cover" />
@@ -77,6 +82,34 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
     <>
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
+
+        {hasOriginFlag ? (
+          <View
+            style={[
+              styles.overlayChip,
+              styles.flagChip,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            <CountryFlag country={gem.originCountry} size="xs" />
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.overlayChip,
+            styles.caratChip,
+            { backgroundColor: colors.surfaceContainerLowest },
+          ]}
+        >
+          <Text
+            style={[styles.caratText, { color: colors.onSurface }]}
+            numberOfLines={1}
+          >
+            {caratLabel}
+          </Text>
+        </View>
+
         <View style={[styles.statusPill, { backgroundColor: colors.primary }]}>
           <Text
             style={[styles.statusText, { color: colors.onPrimary }]}
@@ -94,18 +127,19 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
         >
           {gemTitle}
         </Text>
-        <Text
-          style={[styles.meta, { color: colors.onSurfaceVariant }]}
-          numberOfLines={1}
+        <View
+          style={[
+            styles.priceChip,
+            { backgroundColor: colors.primaryContainer },
+          ]}
         >
-          {gem.currentWeight} ct · {formatGemType(gem.gemType)}
-        </Text>
-        <Text
-          style={[styles.price, { color: colors.primary }]}
-          numberOfLines={1}
-        >
-          {price}
-        </Text>
+          <Text
+            style={[styles.price, { color: colors.onPrimaryContainer }]}
+            numberOfLines={1}
+          >
+            {price}
+          </Text>
+        </View>
       </View>
     </>
   );
@@ -119,7 +153,7 @@ export function GemCard({ gem, href, onPress, onDelete, style }: GemCardProps) {
     style,
   ]);
 
-  const label = `${gemTitle}, ${price}`;
+  const label = `${gemTitle}, ${caratLabel}, ${price}`;
 
   const actions: ContextMenuAction[] = onDelete
     ? [
@@ -188,9 +222,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statusPill: {
+  overlayChip: {
     position: "absolute",
     top: Spacing.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flagChip: {
+    left: Spacing.sm,
+  },
+  caratChip: {
+    right: Spacing.sm,
+  },
+  caratText: {
+    fontSize: 10,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  statusPill: {
+    position: "absolute",
+    bottom: Spacing.sm,
     left: Spacing.sm,
     maxWidth: "78%",
     paddingHorizontal: 8,
@@ -207,20 +261,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 10,
     paddingBottom: 12,
-    gap: 3,
+    gap: 6,
   },
   type: {
     ...Typography.bodyMd,
     fontWeight: "600",
     lineHeight: 18,
   },
-  meta: {
-    ...Typography.caption,
+  priceChip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
   },
   price: {
     ...Typography.bodyMd,
-    fontWeight: "700",
-    marginTop: 4,
+    fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
 });

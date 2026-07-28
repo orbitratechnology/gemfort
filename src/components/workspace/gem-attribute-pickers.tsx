@@ -23,9 +23,9 @@ import {
     GEM_CUTS,
     GEM_ORIGINS,
     GEM_SHAPES,
+    GEM_STATUS_GROUPS,
     GEM_TREATMENTS,
     GEM_TYPES,
-    MANUAL_STATUS_OPTIONS,
     formatColorLabel,
     formatOptionLabel,
     formatOriginLabel,
@@ -886,11 +886,15 @@ export function TreatmentPickerSheet(
 export function StatusPickerSheet(
   props: Omit<OptionPickerSheetProps, "title" | "options">,
 ) {
+  // Add-gem only needs stone stage; custody/outcome are set later in flows.
+  const stoneOptions =
+    GEM_STATUS_GROUPS.find((g) => g.key === "stone")?.options ?? [];
   return (
     <OptionPickerSheet
       {...props}
-      title="Status"
-      options={MANUAL_STATUS_OPTIONS}
+      title="Stone stage"
+      options={stoneOptions}
+      searchable={false}
     />
   );
 }
@@ -975,6 +979,12 @@ const styles = StyleSheet.create({
   colorPanel: { height: "100%", minHeight: 0, overflow: "hidden" },
   colorList: { flex: 1, minHeight: 0 },
   hint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
+  statusHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
+  statusGroups: { gap: Spacing.lg, paddingBottom: Spacing.lg },
+  statusGroup: { gap: Spacing.stackSm },
+  statusGroupHeader: { gap: 2, marginBottom: 2 },
+  statusGroupTitle: { ...Typography.labelMd, fontWeight: "700" },
+  statusGroupHint: { ...Typography.caption },
   row: {
     flexDirection: "row",
     alignItems: "center",
