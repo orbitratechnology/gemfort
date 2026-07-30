@@ -14,6 +14,7 @@ import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
@@ -334,8 +335,10 @@ export default function AddBillScreen() {
             }}
             error={errors.amount}
           />
-          <Input
+          <MaskedInput
             label="Due in (days)"
+            mode="custom"
+            mask="999"
             value={dueDays}
             onChangeText={(t) => {
               setDueDays(t);
@@ -354,14 +357,14 @@ export default function AddBillScreen() {
             }
           />
           {!isLapidary ? (
-            <Input
+            <MaskedInput
               label="Commission %"
+              mode="percent"
               value={commissionPercent}
               onChangeText={(t) => {
                 setCommissionPercent(t);
                 clearField("commissionPercent");
               }}
-              keyboardType="decimal-pad"
               placeholder="Optional"
               leftIcon="percent"
               error={errors.commissionPercent}

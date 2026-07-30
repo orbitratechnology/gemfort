@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
@@ -36,6 +36,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
+import { completeServiceSchema, parseForm } from '@/lib/validation/form-schemas';
 import type { ServiceRecord } from '@/types';
 
 function timelineSteps(status: ServiceRecord['status']) {
@@ -65,6 +66,7 @@ export default function ServiceDetailScreen() {
   const queryClient = useQueryClient();
   const [weightAfter, setWeightAfter] = useState('');
   const [finalCost, setFinalCost] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: services = [] } = useFirestoreLiveQuery({
     queryKey: ['services', user?.uid],
@@ -105,11 +107,18 @@ export default function ServiceDetailScreen() {
 
   async function handleComplete() {
     if (!user) return;
+    const result = parseForm(completeServiceSchema, { weightAfter, finalCost });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
+      return;
+    }
+    setErrors({});
     try {
       await withLoading(async () => {
         await completeService(serviceId!, user.uid, {
-          weightAfter: parseFloat(weightAfter),
-          finalCost: parseFloat(finalCost),
+          weightAfter: result.data.weightAfter,
+          finalCost: result.data.finalCost,
         });
         await queryClient.invalidateQueries({ queryKey: ['gems'] });
         await invalidate();
@@ -304,8 +313,38 @@ export default function ServiceDetailScreen() {
 
         {actionable ? (
           <FormSection title="Mark as received">
-            <Input label="Weight After (ct)" value={weightAfter} onChangeText={setWeightAfter} keyboardType="decimal-pad" leftIcon="scale" />
-            <Input label="Final Cost (LKR)" value={finalCost} onChangeText={setFinalCost} keyboardType="decimal-pad" leftIcon="payments" />
+            <MaskedInput
+              label="Weight After (ct)"
+              mode="weight"
+              value={weightAfter}
+              onChangeText={(v) => {
+                setWeightAfter(v);
+                setErrors((e) => {
+                  if (!e.weightAfter) return e;
+                  const next = { ...e };
+                  delete next.weightAfter;
+                  return next;
+                });
+              }}
+              leftIcon="scale"
+              error={errors.weightAfter}
+            />
+            <MaskedInput
+              label="Final Cost"
+              mode="currency"
+              value={finalCost}
+              onChangeText={(v) => {
+                setFinalCost(v);
+                setErrors((e) => {
+                  if (!e.finalCost) return e;
+                  const next = { ...e };
+                  delete next.finalCost;
+                  return next;
+                });
+              }}
+              leftIcon="payments"
+              error={errors.finalCost}
+            />
             <Button title="Mark Received & Complete" icon="check-circle" onPress={handleComplete} />
           </FormSection>
         ) : null}

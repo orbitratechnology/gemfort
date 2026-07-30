@@ -13,6 +13,7 @@ import {
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -365,8 +366,10 @@ export default function AddChequeScreen() {
             }}
             error={errors.amount}
           />
-          <Input
+          <MaskedInput
             label="Maturity in days"
+            mode="custom"
+            mask="999"
             value={maturityDays}
             onChangeText={(v) => {
               setMaturityDays(v);

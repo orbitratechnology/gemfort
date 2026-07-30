@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
@@ -229,12 +229,12 @@ export function TripGemsSheet({
                         },
                       ]}
                     >
-                      <Input
+                      <MaskedInput
                         label="Sale price (LKR)"
+                        mode="currency"
                         value={salePrice}
                         onChangeText={setSalePrice}
-                        keyboardType="decimal-pad"
-                        placeholder="0.00"
+                        placeholder="0"
                         leftIcon="payments"
                       />
                       <View style={styles.saleActions}>

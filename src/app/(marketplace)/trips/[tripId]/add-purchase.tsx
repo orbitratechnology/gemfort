@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/currency-amount-field';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -20,6 +21,7 @@ import { createGemOnSourcingTrip } from '@/features/workspace/workspace-service'
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
+import { addTripPurchaseSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
@@ -41,25 +43,33 @@ export default function AddTripPurchaseScreen() {
     currency: preferred,
   });
   const [notes, setNotes] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function handleSubmit() {
     if (!user || !tripId) return;
-    const weight = parseFloat(roughWeight);
-    const cost = parseFloat(acquisition.amount);
-    if (!weight || weight <= 0 || !cost || cost <= 0) {
-      toast.error('Enter valid weight and purchase price.');
+    const result = parseForm(addTripPurchaseSchema, {
+      gemType,
+      originCountry,
+      roughWeight,
+      acquisitionCost: acquisition.amount,
+      notes: notes || undefined,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
       return;
     }
+    setErrors({});
 
     try {
       await withLoading(async () => {
         const gemId = await createGemOnSourcingTrip(user.uid, tripId, {
-          gemType,
-          originCountry: originCountry.trim() || 'Unknown',
-          roughWeight: weight,
-          acquisitionCost: cost,
+          gemType: result.data.gemType,
+          originCountry: result.data.originCountry,
+          roughWeight: result.data.roughWeight,
+          acquisitionCost: result.data.acquisitionCost,
           acquisitionCurrency: acquisition.currency,
-          notes: notes || null,
+          notes: result.data.notes ?? null,
         });
         await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
         await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
@@ -110,18 +120,36 @@ export default function AddTripPurchaseScreen() {
           onChange={(name) => setOriginCountry(name)}
           sheetTitle="Origin"
         />
-        <Input
+        <MaskedInput
           label="Rough weight (ct)"
+          mode="weight"
           value={roughWeight}
-          onChangeText={setRoughWeight}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
+          onChangeText={(v) => {
+            setRoughWeight(v);
+            setErrors((e) => {
+              if (!e.roughWeight) return e;
+              const next = { ...e };
+              delete next.roughWeight;
+              return next;
+            });
+          }}
+          placeholder="0"
           leftIcon="scale"
+          error={errors.roughWeight}
         />
         <CurrencyAmountField
           label="Purchase price"
           value={acquisition}
-          onChange={setAcquisition}
+          onChange={(next) => {
+            setAcquisition(next);
+            setErrors((e) => {
+              if (!e.acquisitionCost) return e;
+              const nextErr = { ...e };
+              delete nextErr.acquisitionCost;
+              return nextErr;
+            });
+          }}
+          error={errors.acquisitionCost}
         />
         <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 

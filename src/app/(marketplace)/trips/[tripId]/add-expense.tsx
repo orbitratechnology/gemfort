@@ -31,6 +31,7 @@ import {
   type LocalMedia,
 } from '@/lib/firebase/storage-service';
 import { friendlyError } from '@/lib/errors';
+import { addTripExpenseSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -51,14 +52,22 @@ export default function AddTripExpenseScreen() {
   const [description, setDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<TripPaymentMethod>('cash');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function handleSubmit() {
     if (!user || !tripId) return;
-    const parsed = parseFloat(money.amount);
-    if (!parsed || parsed <= 0) {
-      toast.error('Enter a valid amount.');
+    const result = parseForm(addTripExpenseSchema, {
+      category,
+      amount: money.amount,
+      description: description || undefined,
+      paymentMethod,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
       return;
     }
+    setErrors({});
 
     try {
       await withLoading(async () => {
@@ -72,11 +81,11 @@ export default function AddTripExpenseScreen() {
         }
 
         await addTripExpense(user.uid, tripId, {
-          category,
-          amount: parsed,
+          category: result.data.category,
+          amount: result.data.amount,
           currency: money.currency,
-          description: description || null,
-          paymentMethod,
+          description: result.data.description ?? null,
+          paymentMethod: result.data.paymentMethod,
           receiptPhotoUrl,
         });
         await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
@@ -137,7 +146,16 @@ export default function AddTripExpenseScreen() {
         <CurrencyAmountField
           label="Amount"
           value={money}
-          onChange={setMoney}
+          onChange={(next) => {
+            setMoney(next);
+            setErrors((e) => {
+              if (!e.amount) return e;
+              const nextErr = { ...e };
+              delete nextErr.amount;
+              return nextErr;
+            });
+          }}
+          error={errors.amount}
         />
         <Input
           label="Description"

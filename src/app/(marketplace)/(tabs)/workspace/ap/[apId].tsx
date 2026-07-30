@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
@@ -53,6 +54,7 @@ import {
   formatRelativeDue,
   formatRelativeTime,
 } from "@/lib/utils";
+import { parseForm, recordPaymentSchema, sellApGemSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -429,11 +431,11 @@ export default function ApDetailScreen() {
 
                 {selling ? (
                   <View style={styles.sellBox}>
-                    <Input
+                    <MaskedInput
                       label="Sold price"
+                      mode="currency"
                       value={soldPrice}
                       onChangeText={setSoldPrice}
-                      keyboardType="decimal-pad"
                       leftIcon="payments"
                     />
                     <Input
@@ -442,8 +444,10 @@ export default function ApDetailScreen() {
                       onChangeText={setSoldToName}
                       leftIcon="person"
                     />
-                    <Input
+                    <MaskedInput
                       label="Payment due (days)"
+                      mode="custom"
+                      mask="999"
                       value={paymentDueDays}
                       onChangeText={setPaymentDueDays}
                       keyboardType="number-pad"
@@ -470,21 +474,24 @@ export default function ApDetailScreen() {
                       <Button
                         title="Confirm sale"
                         onPress={() => {
-                          const price = parseFloat(soldPrice);
-                          if (!price || Number.isNaN(price)) {
-                            toast.error("Enter sale price");
+                          const result = parseForm(sellApGemSchema, {
+                            soldPrice,
+                            soldToName: soldToName || undefined,
+                            paymentDueDays,
+                          });
+                          if (!result.success) {
+                            toast.error(Object.values(result.errors)[0]!);
                             return;
                           }
-                          const days = parseInt(paymentDueDays, 10) || 14;
                           const due = new Date();
-                          due.setDate(due.getDate() + days);
+                          due.setDate(due.getDate() + result.data.paymentDueDays);
                           run(
                             () =>
                               recordApGemSale({
                                 apId: ap.id,
                                 gemId: line.gemId,
-                                soldPrice: price,
-                                soldToName: soldToName.trim() || undefined,
+                                soldPrice: result.data.soldPrice,
+                                soldToName: result.data.soldToName,
                                 paymentDueDateIso: due.toISOString(),
                               }),
                             "Sale recorded",
@@ -608,11 +615,11 @@ export default function ApDetailScreen() {
               onChange={setPayMethod}
               layout="split"
             />
-            <Input
+            <MaskedInput
               label="Amount"
-              value={payAmount || String(owed || "")}
+              mode="currency"
+              value={payAmount || (owed > 0 ? String(owed) : "")}
               onChangeText={setPayAmount}
-              keyboardType="decimal-pad"
               leftIcon="payments"
             />
             <Button
@@ -623,11 +630,18 @@ export default function ApDetailScreen() {
               }
               icon={payMethod === "cheque" ? "money-check-dollar" : "send"}
               onPress={() => {
-                const amount = parseFloat(payAmount || String(owed));
-                if (!amount || Number.isNaN(amount)) {
-                  toast.error("Enter payment amount");
+                const amountToValidate =
+                  payAmount || (owed > 0 ? String(owed) : "");
+                const result = parseForm(recordPaymentSchema, {
+                  amount: amountToValidate,
+                });
+                if (!result.success) {
+                  toast.error(
+                    result.errors.amount ?? "Enter payment amount",
+                  );
                   return;
                 }
+                const amount = result.data.amount;
                 if (payMethod === "cheque") {
                   router.push({
                     pathname: "/(marketplace)/cheques/add",

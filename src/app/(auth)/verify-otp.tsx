@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -120,18 +120,19 @@ export default function VerifyOtpScreen() {
         </ScreenInset>
 
         <FormSection title="Enter code">
-          <Input
+          <MaskedInput
             label="6-digit code"
+            mode="custom"
+            mask="999999"
             leftIcon="pin"
             value={code}
-            onChangeText={(v) => {
-              setCode(v.replace(/\D/g, '').slice(0, 6));
+            onChangeText={(v, raw) => {
+              setCode(raw.slice(0, 6));
               setErrors({});
             }}
             keyboardType="number-pad"
             textContentType="oneTimeCode"
             autoComplete="sms-otp"
-            maxLength={6}
             placeholder="000000"
             returnKeyType="done"
             blurOnSubmit

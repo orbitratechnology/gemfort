@@ -28,10 +28,11 @@ import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
+import { friendlyError } from '@/lib/errors';
+import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
@@ -49,6 +50,7 @@ export default function TransactionsScreen() {
   const [gemId, setGemId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const { data: transactions = [], refetch, isRefetching } = useFirestoreLiveQuery({
@@ -78,15 +80,28 @@ export default function TransactionsScreen() {
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
 
   async function handleAdd() {
-    if (!user || !money.amount) return;
+    if (!user) return;
+    const result = parseForm(addTransactionSchema, {
+      type,
+      amount: money.amount,
+      description: description || undefined,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
+      return;
+    }
+    setErrors({});
     try {
       await withLoading(async () => {
         await createTransaction(user.uid, {
-          type,
-          amount: parseFloat(money.amount),
+          type: result.data.type,
+          amount: result.data.amount,
           currency: money.currency,
           category: 'general',
-          description: description || (type === 'income' ? 'Income' : 'Expense'),
+          description:
+            result.data.description ||
+            (type === 'income' ? 'Income' : 'Expense'),
           gemId,
           contactId: null,
           date: Timestamp.now(),
@@ -145,7 +160,20 @@ export default function TransactionsScreen() {
                 <Text style={[styles.typeText, { color: type === 'expense' ? colors.error : colors.onSurfaceVariant }]}>Expense</Text>
               </Pressable>
             </View>
-            <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
+            <CurrencyAmountField
+              label="Amount"
+              value={money}
+              onChange={(next) => {
+                setMoney(next);
+                setErrors((e) => {
+                  if (!e.amount) return e;
+                  const nextErr = { ...e };
+                  delete nextErr.amount;
+                  return nextErr;
+                });
+              }}
+              error={errors.amount}
+            />
             <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
             <Button title="Add Transaction" icon="add" onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>
