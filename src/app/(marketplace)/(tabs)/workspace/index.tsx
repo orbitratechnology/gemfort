@@ -568,7 +568,6 @@ export default function WorkspaceHub() {
     })),
   ];
 
-  const showRequests = canAccessModule(role, "requests");
   const showNeedsAttention = alerts.length > 0;
   const showGemsHero = canAccessModule(role, "gems");
   const showJobsHero = canAccessModule(role, "jobs");
@@ -966,32 +965,7 @@ export default function WorkspaceHub() {
         onLayout={(e) => setChromeHeight(e.nativeEvent.layout.height)}
       >
         <SafeAreaView edges={["top"]}>
-          <StackHeader
-            title="Workspace"
-            showBack={false}
-            right={
-              showRequests ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Requests"
-                  onPress={() => router.push(`${WORKSPACE}/requests` as never)}
-                  style={({ pressed }) => [
-                    styles.headerIconBtn,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      opacity: pressed ? 0.85 : 1,
-                    },
-                  ]}
-                >
-                  <Icon
-                    name="outgoing-mail"
-                    size={20}
-                    color={colors.onSurfaceVariant}
-                  />
-                </Pressable>
-              ) : null
-            }
-          />
+          <StackHeader title="Workspace" showBack={false} />
         </SafeAreaView>
       </View>
     </View>

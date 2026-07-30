@@ -74,7 +74,7 @@ const BUSINESS_SORT_OPTIONS: { id: BusinessSortBy; label: string }[] = [
   { id: "name", label: "Name (A–Z)" },
 ];
 
-export default function DirectoryScreen() {
+export default function MarketScreen() {
   const { colors } = useAppTheme();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const initialTab =
@@ -186,7 +186,7 @@ export default function DirectoryScreen() {
     const sorted = [...result];
     if (businessSort === "rating") {
       sorted.sort(
-        (a, b) => b.badges.endorsementCount - a.badges.endorsementCount,
+        (a, b) => b.badges.likeCount - a.badges.likeCount,
       );
     } else if (businessSort === "name") {
       sorted.sort((a, b) => a.businessName.localeCompare(b.businessName));
@@ -275,6 +275,7 @@ export default function DirectoryScreen() {
         <View
           style={[
             styles.searchBox,
+            styles.contentInset,
             { backgroundColor: colors.surfaceContainerLow },
           ]}
         >
@@ -298,6 +299,7 @@ export default function DirectoryScreen() {
         <View
           style={[
             styles.segmentTrack,
+            styles.contentInset,
             { backgroundColor: colors.surfaceContainerLow },
           ]}
         >
@@ -332,7 +334,6 @@ export default function DirectoryScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.hBleed}
             contentContainerStyle={styles.filterRow}
           >
             <Pressable
@@ -404,7 +405,6 @@ export default function DirectoryScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.hBleed}
             contentContainerStyle={styles.filterRow}
           >
             <Pressable
@@ -502,7 +502,9 @@ export default function DirectoryScreen() {
 
         <View style={styles.grid}>
           {isLoading ? (
-            <SkeletonList />
+            <View style={styles.contentInset}>
+              <SkeletonList />
+            </View>
           ) : tab === "gems" ? (
             filteredGems.length ? (
               <>
@@ -516,23 +518,27 @@ export default function DirectoryScreen() {
                   ))}
                 </ProductGrid>
                 {visibleCount < filteredGems.length ? (
-                  <Button
-                    title={`Load more (${filteredGems.length - visibleCount} remaining)`}
-                    variant="secondary"
-                    onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                  />
+                  <View style={styles.contentInset}>
+                    <Button
+                      title={`Load more (${filteredGems.length - visibleCount} remaining)`}
+                      variant="secondary"
+                      onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                    />
+                  </View>
                 ) : null}
               </>
             ) : (
-              <EmptyState
-                icon="diamond"
-                title="No gems match"
-                subtitle={
-                  gemType === "all"
-                    ? "Try a different search."
-                    : "Try clearing gem type filters."
-                }
-              />
+              <View style={styles.contentInset}>
+                <EmptyState
+                  icon="diamond"
+                  title="No gems match"
+                  subtitle={
+                    gemType === "all"
+                      ? "Try a different search."
+                      : "Try clearing gem type filters."
+                  }
+                />
+              </View>
             )
           ) : filteredBusinesses.length ? (
             <>
@@ -553,31 +559,35 @@ export default function DirectoryScreen() {
                 ))}
               </ProductGrid>
               {visibleCount < filteredBusinesses.length ? (
-                <Button
-                  title={`Load more (${filteredBusinesses.length - visibleCount} remaining)`}
-                  variant="secondary"
-                  onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                />
+                <View style={styles.contentInset}>
+                  <Button
+                    title={`Load more (${filteredBusinesses.length - visibleCount} remaining)`}
+                    variant="secondary"
+                    onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  />
+                </View>
               ) : null}
             </>
           ) : (
-            <EmptyState
-              icon="business"
-              title={
-                tab === "labs"
-                  ? "No gem labs yet"
-                  : tab === "lapidaries"
-                    ? "No lapidaries yet"
-                    : "No traders match"
-              }
-              subtitle={
-                tab === "labs"
-                  ? "Verified gem labs will appear here."
-                  : tab === "lapidaries"
-                    ? "Verified lapidaries will appear here."
-                    : "Try clearing filters or check back after verification."
-              }
-            />
+            <View style={styles.contentInset}>
+              <EmptyState
+                icon="business"
+                title={
+                  tab === "labs"
+                    ? "No gem labs yet"
+                    : tab === "lapidaries"
+                      ? "No lapidaries yet"
+                      : "No traders match"
+                }
+                subtitle={
+                  tab === "labs"
+                    ? "Verified gem labs will appear here."
+                    : tab === "lapidaries"
+                      ? "Verified lapidaries will appear here."
+                      : "Try clearing filters or check back after verification."
+                }
+              />
+            </View>
           )}
         </View>
       </ScrollView>
@@ -585,7 +595,7 @@ export default function DirectoryScreen() {
       <BottomSheet
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}
-        title={tab === "gems" ? "Filter Gems" : "Filter Directory"}
+        title={tab === "gems" ? "Filter Gems" : "Filter Market"}
         footer={
           <>
             <Button
@@ -696,9 +706,12 @@ export default function DirectoryScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    padding: Spacing.containerMargin,
+    paddingTop: Spacing.containerMargin,
     paddingBottom: 100,
     gap: Spacing.gutterMd,
+  },
+  contentInset: {
+    marginHorizontal: Spacing.containerMargin,
   },
   searchBox: {
     flexDirection: "row",
@@ -709,9 +722,6 @@ const styles = StyleSheet.create({
     height: 48,
   },
   searchInput: { flex: 1, ...Typography.bodyMd },
-  hBleed: {
-    marginHorizontal: -Spacing.containerMargin,
-  },
   segmentTrack: {
     alignSelf: "stretch",
     borderRadius: Radius.full,

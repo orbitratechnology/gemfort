@@ -2,23 +2,21 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import {
-  ContextActionsLink,
-} from "@/components/workspace/context-actions-link";
+import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
-import {
-  subscribeCheques,
-  subscribeContacts,
-  subscribeVerifiedBusinesses,
-} from "@/features/workspace/firestore-subscriptions";
 import {
     CHEQUE_STATUS_LABELS,
     getChequeSummary,
     getUpcomingCheques,
     maturityLabel,
 } from "@/features/workspace/cheque-utils";
+import {
+    subscribeCheques,
+    subscribeContacts,
+    subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
     deleteCheque,
@@ -37,13 +35,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChequeRow({
@@ -135,9 +133,7 @@ function ChequeRow({
               >
                 {cheque.chequeNumber} · {cheque.bankName}
               </Text>
-              <Text
-                style={[styles.rowAmount, { color: colors.primary }]}
-              >
+              <Text style={[styles.rowAmount, { color: colors.primary }]}>
                 {formatStored({
                   amount: cheque.amount,
                   currency: cheque.currency,
@@ -152,7 +148,9 @@ function ChequeRow({
               {isReceived ? "From" : "To"} {partyLabel}
             </Text>
             <View style={styles.rowMeta}>
-              <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
+              <Text
+                style={[styles.rowDate, { color: colors.onSurfaceVariant }]}
+              >
                 {maturityLabel(cheque)}
               </Text>
               <View
@@ -168,7 +166,9 @@ function ChequeRow({
                 <Text
                   style={[
                     styles.badgeText,
-                    { color: isBounced ? colors.error : colors.onSurfaceVariant },
+                    {
+                      color: isBounced ? colors.error : colors.onSurfaceVariant,
+                    },
                   ]}
                 >
                   {CHEQUE_STATUS_LABELS[cheque.status]}
@@ -197,21 +197,24 @@ export default function ChequesScreen() {
   } = useFirestoreLiveQuery({
     queryKey: ["cheques", user?.uid],
     queryFn: () => fetchCheques(user!.uid),
-    subscribe: (onData, onError) => subscribeCheques(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeCheques(user!.uid, onData, onError),
     enabled: !!user,
   });
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
   const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
-    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 
@@ -272,10 +275,6 @@ export default function ChequesScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
       >
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Track post-dated cheques, maturity dates, and clearance status.
-        </Text>
-
         {/* Summary strip */}
         <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
           <View style={styles.summaryRow}>
@@ -288,9 +287,7 @@ export default function ChequesScreen() {
               >
                 HOLDING
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
                 {summary.holdingCount} · {formatBase(summary.holdingTotal)}
               </Text>
             </View>
@@ -309,9 +306,7 @@ export default function ChequesScreen() {
               >
                 THIS MONTH
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
                 {formatBase(summary.clearingThisMonth)}
               </Text>
             </View>
@@ -392,9 +387,7 @@ export default function ChequesScreen() {
           { backgroundColor: colors.primary },
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
-        onPress={() =>
-          router.push("/(marketplace)/cheques/add" as never)
-        }
+        onPress={() => router.push("/(marketplace)/cheques/add" as never)}
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>

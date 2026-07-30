@@ -207,8 +207,6 @@ export default function HomeScreen() {
       ? "Member"
       : "Sign in";
   const initials = initialsFromName(displayName);
-  const showRequests = !!user && canAccessModule(role, "requests");
-
   const { data: myBusiness } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
@@ -384,9 +382,9 @@ export default function HomeScreen() {
     }
   }
 
-  function browseDirectory(tab?: string) {
+  function browseMarket(tab?: string) {
     router.push({
-      pathname: "/(marketplace)/(tabs)/directory",
+      pathname: "/(marketplace)/(tabs)/market",
       params: tab ? { tab } : undefined,
     });
   }
@@ -518,7 +516,7 @@ export default function HomeScreen() {
               data: traders,
               tab: "traders" as const,
               role: "Trader" as const,
-              empty: "Browse traders in the directory",
+              empty: "Browse traders in the market",
             },
             {
               title: "Popular labs",
@@ -544,7 +542,7 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`See all ${block.tab}`}
-                onPress={() => browseDirectory(block.tab)}
+                onPress={() => browseMarket(block.tab)}
                 hitSlop={8}
               >
                 <Text style={[styles.seeAll, { color: colors.primary }]}>
@@ -560,23 +558,23 @@ export default function HomeScreen() {
               <HomeBusinessRail
                 businesses={block.data}
                 emptyLabel={block.empty}
-                onBrowse={() => browseDirectory(block.tab)}
+                onBrowse={() => browseMarket(block.tab)}
                 roleHint={block.role}
               />
             )}
           </View>
         ))}
 
-        {/* New listings */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+        {/* New listings — full-bleed masonry grid */}
+        <View style={styles.sectionBleed}>
+          <View style={[styles.sectionHeader, styles.sectionInset]}>
             <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
               New listings
             </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="See all gems"
-              onPress={() => router.push("/(marketplace)/(tabs)/directory")}
+              onPress={() => router.push("/(marketplace)/(tabs)/market")}
               hitSlop={8}
             >
               <Text style={[styles.seeAll, { color: colors.primary }]}>
@@ -586,7 +584,9 @@ export default function HomeScreen() {
           </View>
 
           {listingsLoading ? (
-            <SkeletonList />
+            <View style={styles.sectionInset}>
+              <SkeletonList />
+            </View>
           ) : featured.length ? (
             <ProductGrid>
               {featured.map((gem) => (
@@ -598,17 +598,19 @@ export default function HomeScreen() {
               ))}
             </ProductGrid>
           ) : (
-            <View
-              style={[
-                styles.quietCard,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              <EmptyState
-                icon="diamond"
-                title="No listings yet"
-                subtitle="When traders publish stones, they show up here."
-              />
+            <View style={styles.sectionInset}>
+              <View
+                style={[
+                  styles.quietCard,
+                  { backgroundColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <EmptyState
+                  icon="diamond"
+                  title="No listings yet"
+                  subtitle="When traders publish stones, they show up here."
+                />
+              </View>
             </View>
           )}
         </View>
@@ -668,27 +670,6 @@ export default function HomeScreen() {
               </View>
             </Pressable>
             <View style={styles.headerActions}>
-              {showRequests ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Requests"
-                  style={[
-                    styles.iconBtn,
-                    { backgroundColor: colors.surfaceContainerLowest },
-                  ]}
-                  onPress={() =>
-                    pushWithAnchor(
-                      "/(marketplace)/(tabs)/workspace/requests" as never,
-                    )
-                  }
-                >
-                  <Icon
-                    name="outgoing-mail"
-                    size={20}
-                    color={colors.onSurfaceVariant}
-                  />
-                </Pressable>
-              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={

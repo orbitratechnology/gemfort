@@ -64,7 +64,7 @@ export const OnboardingChapters: readonly OnboardingChapter[] = [
     id: "roles",
     title: "GemFort. By Orbitra Tech",
     subtitle: "Traders, Lapidaries & Labs.",
-    body: "Choose your role when you create an account. Or browse the directory as a guest.",
+    body: "Choose your role when you create an account. Or browse the market as a guest.",
     cta: "Create account",
     roles: [
       {
@@ -95,8 +95,8 @@ export const HomeStory = {
   chapters: [
     {
       title: "Discover",
-      body: "Find verified businesses in the directory.",
-      route: "/(marketplace)/(tabs)/directory" as const,
+      body: "Find verified businesses in the market.",
+      route: "/(marketplace)/(tabs)/market" as const,
     },
     {
       title: "Track",

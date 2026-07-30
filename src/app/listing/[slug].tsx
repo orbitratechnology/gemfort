@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Linking,
   Pressable,
@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { CountryLabel } from "@/components/ui/country-flag";
+import { CountryFlag, CountryLabel } from "@/components/ui/country-flag";
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -25,6 +25,7 @@ import { ImagePager } from "@/components/ui/image-pager";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { resolveCurrencyCode, type CurrencyCode } from "@/constants/currencies";
 import {
   FontFamily,
@@ -38,25 +39,40 @@ import {
   formatTreatmentLabel,
 } from "@/constants/gem-options";
 import {
+  clearListingOffers,
   fetchBusiness,
+  fetchBusinessByOwnerUid,
+  fetchBuyerOffersForListing,
+  fetchOffersForListing,
   isBusinessVerified,
+  isListingOfferUnread,
+  LISTING_OFFER_LIMITS,
+  markListingOffersRead,
+  removeListingOffers,
   submitListingOffer,
+  withdrawListingOffer,
 } from "@/features/marketplace/marketplace-service";
 import {
   subscribeBusiness,
+  subscribeBusinessByOwnerUid,
+  subscribeBuyerOffersForListing,
   subscribeListingBySlug,
+  subscribeOffersForListing,
 } from "@/features/workspace/firestore-subscriptions";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
+import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
+import type { ListingOffer } from "@/types";
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
@@ -96,6 +112,7 @@ export default function PublicListingScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const [descExpanded, setDescExpanded] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [offersInboxOpen, setOffersInboxOpen] = useState(false);
   const [offerSaving, setOfferSaving] = useState(false);
   const [offerAmount, setOfferAmount] = useState<CurrencyAmountValue>({
     amount: "",
@@ -103,6 +120,7 @@ export default function PublicListingScreen() {
   });
   const [offerMessage, setOfferMessage] = useState("");
   const [offerError, setOfferError] = useState<string | null>(null);
+  const lastOfferSubmitAt = useRef(0);
 
   const {
     data: listing,
@@ -124,6 +142,46 @@ export default function PublicListingScreen() {
       subscribeBusiness(listing!.businessId, onData, onError),
     enabled: !!listing?.businessId,
   });
+
+  const { data: myBusiness } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user && isFirebaseConfigured,
+  });
+
+  const isOwner = !!user && !!listing && user.uid === listing.sellerUid;
+
+  const { data: receivedOffers = [] } = useFirestoreLiveQuery({
+    queryKey: ["listing-offers", listing?.id],
+    queryFn: () => fetchOffersForListing(listing!.id),
+    subscribe: (onData, onError) =>
+      subscribeOffersForListing(listing!.id, onData, onError),
+    enabled: !!listing?.id && isOwner,
+  });
+
+  const { data: myOffers = [] } = useFirestoreLiveQuery({
+    queryKey: ["my-listing-offers", user?.uid, listing?.id],
+    queryFn: () => fetchBuyerOffersForListing(user!.uid, listing!.id),
+    subscribe: (onData, onError) =>
+      subscribeBuyerOffersForListing(user!.uid, listing!.id, onData, onError),
+    enabled: !!user && !!listing?.id && !isOwner,
+  });
+
+  const pendingMine = useMemo(
+    () => myOffers.find((o) => o.status === "pending") ?? null,
+    [myOffers],
+  );
+  const unreadOfferCount = useMemo(
+    () => receivedOffers.filter(isListingOfferUnread).length,
+    [receivedOffers],
+  );
+
+  useEffect(() => {
+    if (!offersInboxOpen || receivedOffers.length === 0) return;
+    void markListingOffersRead(receivedOffers).catch(() => undefined);
+  }, [offersInboxOpen, receivedOffers]);
 
   if (isLoading) {
     return (
@@ -295,6 +353,10 @@ export default function PublicListingScreen() {
       toast.show("This is your listing.");
       return;
     }
+    if (pendingMine) {
+      toast.show("You already have a pending offer. Withdraw it to send a new one.");
+      return;
+    }
     setOfferError(null);
     setOfferAmount({
       amount:
@@ -312,6 +374,12 @@ export default function PublicListingScreen() {
 
   async function handleSubmitOffer() {
     if (!user || offerSaving) return;
+    const now = Date.now();
+    if (now - lastOfferSubmitAt.current < LISTING_OFFER_LIMITS.submitDebounceMs) {
+      return;
+    }
+    lastOfferSubmitAt.current = now;
+
     const result = parseForm(listingOfferSchema, {
       amount: offerAmount.amount,
       message: offerMessage || undefined,
@@ -327,19 +395,63 @@ export default function PublicListingScreen() {
         await submitListingOffer({
           listing: activeListing,
           buyerUid: user.uid,
-          buyerName: profile?.displayName?.trim() || user.email || "Buyer",
+          buyerName:
+            myBusiness?.businessName?.trim() ||
+            profile?.displayName?.trim() ||
+            user.email ||
+            "Buyer",
+          buyerBusiness: myBusiness,
           amount: result.data.amount,
           currency: offerAmount.currency,
           message: result.data.message ?? "",
         });
       }, "Sending offer…");
       setOfferOpen(false);
-      toast.success("Offer sent to the seller.");
+      toast.success("Offer sent. The seller was notified.");
     } catch (e) {
       setOfferError(friendlyError(e, "Could not send offer."));
     } finally {
       setOfferSaving(false);
     }
+  }
+
+  async function handleWithdrawMine() {
+    if (!pendingMine) return;
+    try {
+      await withLoading(async () => {
+        await withdrawListingOffer(pendingMine.id);
+      }, "Withdrawing…");
+      toast.success("Offer withdrawn.");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not withdraw offer."));
+    }
+  }
+
+  async function handleClearOffers() {
+    if (receivedOffers.length === 0) return;
+    const ok = await confirm({
+      title: "Clear offers",
+      message: "Hide all offers from this gem? You won’t see them again.",
+      confirmLabel: "Clear all",
+      onConfirm: () => clearListingOffers(receivedOffers),
+    });
+    if (!ok) return;
+    setOffersInboxOpen(false);
+    toast.success("Offers cleared.");
+  }
+
+  async function handleRemoveOffers() {
+    if (receivedOffers.length === 0) return;
+    const ok = await confirm({
+      title: "Remove all offers",
+      message: "Permanently delete all offers on this gem?",
+      confirmLabel: "Remove all",
+      tone: "destructive",
+      onConfirm: () => removeListingOffers(receivedOffers),
+    });
+    if (!ok) return;
+    setOffersInboxOpen(false);
+    toast.success("Offers removed.");
   }
 
   return (
@@ -676,7 +788,7 @@ export default function PublicListingScreen() {
         />
       </View>
 
-      {/* Sticky action bar: Make Offer + WhatsApp + Call */}
+      {/* Sticky action bar */}
       <View
         style={[
           styles.actionBar,
@@ -687,25 +799,89 @@ export default function PublicListingScreen() {
           },
         ]}
       >
-        <Pressable
-          onPress={openOfferSheet}
-          accessibilityRole="button"
-          accessibilityLabel="Make an offer"
-          style={({ pressed }) => [
-            styles.offerBtn,
-            {
-              backgroundColor: colors.primary,
-              opacity: pressed ? 0.9 : 1,
-            },
-          ]}
-        >
-          <Icon name="sell" size={18} color={colors.onPrimary} />
-          <Text style={[styles.offerBtnText, { color: colors.onPrimary }]}>
-            Make Offer
-          </Text>
-        </Pressable>
+        {isOwner ? (
+          <Pressable
+            onPress={() => setOffersInboxOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadOfferCount > 0
+                ? `Offers, ${unreadOfferCount} unread`
+                : "Offers"
+            }
+            style={({ pressed }) => [
+              styles.offerBtn,
+              {
+                backgroundColor: colors.primary,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <Icon name="local-offer" size={18} color={colors.onPrimary} />
+            <Text style={[styles.offerBtnText, { color: colors.onPrimary }]}>
+              Offers
+            </Text>
+            {unreadOfferCount > 0 ? (
+              <View
+                style={[styles.offerCountBadge, { backgroundColor: colors.error }]}
+              >
+                <Text style={styles.offerCountBadgeText}>
+                  {unreadOfferCount > 99 ? "99+" : String(unreadOfferCount)}
+                </Text>
+              </View>
+            ) : receivedOffers.length > 0 ? (
+              <View
+                style={[
+                  styles.offerCountBadge,
+                  { backgroundColor: colors.onPrimary + "33" },
+                ]}
+              >
+                <Text
+                  style={[styles.offerCountBadgeText, { color: colors.onPrimary }]}
+                >
+                  {receivedOffers.length}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        ) : pendingMine ? (
+          <Pressable
+            onPress={() => void handleWithdrawMine()}
+            accessibilityRole="button"
+            accessibilityLabel="Withdraw offer"
+            style={({ pressed }) => [
+              styles.offerBtn,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <Icon name="undo" size={18} color={colors.onSurface} />
+            <Text style={[styles.offerBtnText, { color: colors.onSurface }]}>
+              Withdraw offer
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={openOfferSheet}
+            accessibilityRole="button"
+            accessibilityLabel="Make an offer"
+            style={({ pressed }) => [
+              styles.offerBtn,
+              {
+                backgroundColor: colors.primary,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+          >
+            <Icon name="sell" size={18} color={colors.onPrimary} />
+            <Text style={[styles.offerBtnText, { color: colors.onPrimary }]}>
+              Make Offer
+            </Text>
+          </Pressable>
+        )}
 
-        {sellerWhatsapp ? (
+        {!isOwner && sellerWhatsapp ? (
           <Pressable
             onPress={() => inquireWhatsApp()}
             accessibilityRole="button"
@@ -723,7 +899,7 @@ export default function PublicListingScreen() {
           </Pressable>
         ) : null}
 
-        {sellerPhone ? (
+        {!isOwner && sellerPhone ? (
           <Pressable
             onPress={() => void Linking.openURL(openPhone(sellerPhone))}
             accessibilityRole="button"
@@ -759,7 +935,9 @@ export default function PublicListingScreen() {
         }
       >
         <Text style={[styles.offerHint, { color: colors.textMuted }]}>
-          The seller will receive your offer in GemFort notifications.
+          The seller gets a notification. One pending offer per gem · max{" "}
+          {LISTING_OFFER_LIMITS.maxOffersPerDay}/day ·{" "}
+          {LISTING_OFFER_LIMITS.cooldownHoursPerListing}h cooldown after withdraw.
         </Text>
         <CurrencyAmountField
           label="Your offer"
@@ -779,6 +957,104 @@ export default function PublicListingScreen() {
           style={{ minHeight: 72, textAlignVertical: "top" }}
         />
       </BottomSheet>
+
+      <BottomSheet
+        visible={offersInboxOpen}
+        onClose={() => setOffersInboxOpen(false)}
+        title="Offers"
+        footer={
+          receivedOffers.length > 0 ? (
+            <View style={styles.offersFooter}>
+              <Button
+                title="Clear all"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => void handleClearOffers()}
+              />
+              <Button
+                title="Remove all"
+                variant="secondary"
+                style={{ flex: 1 }}
+                onPress={() => void handleRemoveOffers()}
+              />
+            </View>
+          ) : undefined
+        }
+      >
+        {receivedOffers.length === 0 ? (
+          <Text style={[styles.offerHint, { color: colors.textMuted }]}>
+            No offers yet on this gem.
+          </Text>
+        ) : (
+          <View style={styles.offersList}>
+            {receivedOffers.map((offer) => (
+              <ReceivedOfferRow
+                key={offer.id}
+                offer={offer}
+                unread={isListingOfferUnread(offer)}
+              />
+            ))}
+          </View>
+        )}
+      </BottomSheet>
+    </View>
+  );
+}
+
+function ReceivedOfferRow({
+  offer,
+  unread,
+}: {
+  offer: ListingOffer;
+  unread: boolean;
+}) {
+  const { colors } = useAppTheme();
+  const name =
+    offer.buyerBusinessName?.trim() || offer.buyerName?.trim() || "Buyer";
+  const note = offer.message?.trim();
+
+  return (
+    <View
+      style={[
+        styles.receivedRow,
+        {
+          backgroundColor: unread
+            ? colors.primaryContainer + "55"
+            : colors.surfaceContainerLowest,
+          borderColor: colors.outlineVariant,
+        },
+      ]}
+    >
+      <ContactAvatar
+        name={name}
+        photoUrl={offer.buyerLogoUrl}
+        size={44}
+      />
+      <View style={styles.receivedBody}>
+        <View style={styles.receivedTitleRow}>
+          <Text
+            style={[styles.receivedName, { color: colors.onSurface }]}
+            numberOfLines={1}
+          >
+            {name}
+          </Text>
+          {offer.buyerCountry ? (
+            <CountryFlag country={offer.buyerCountry} size="xs" />
+          ) : null}
+        </View>
+        {note ? (
+          <Text
+            style={[styles.receivedNote, { color: colors.onSurfaceVariant }]}
+            numberOfLines={3}
+          >
+            {note}
+          </Text>
+        ) : (
+          <Text style={[styles.receivedNote, { color: colors.textMuted }]}>
+            No note
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -1009,8 +1285,58 @@ const styles = StyleSheet.create({
     ...Typography.button,
     fontFamily: FontFamily.semibold,
   },
+  offerCountBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+    marginLeft: 2,
+  },
+  offerCountBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
   offerHint: {
     ...Typography.bodyMd,
     marginBottom: Spacing.stackMd,
+  },
+  offersFooter: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  offersList: {
+    gap: 10,
+  },
+  receivedRow: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "flex-start",
+  },
+  receivedBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  receivedTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  receivedName: {
+    ...Typography.bodyMd,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  receivedNote: {
+    ...Typography.bodyMd,
+    lineHeight: 20,
   },
 });

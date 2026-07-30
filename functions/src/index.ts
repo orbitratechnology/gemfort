@@ -30,6 +30,7 @@ export {
   onCertRequestCreated,
   onCertRequestUpdated,
 } from './gemnet/requests';
+export { onListingOfferCreated } from './gemnet/listing-offers';
 
 export { onNotificationCreated } from './notifications/on-created';
 

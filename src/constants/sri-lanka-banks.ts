@@ -1,5 +1,5 @@
 /**
- * Static Sri Lankan bank directory for app-wide selection.
+ * Static Sri Lankan bank list for app-wide selection.
  *
  * Bank codes & names sourced from:
  * - https://github.com/samma89/Sri-Lanka-Bank-and-Branch-List (banks.json)

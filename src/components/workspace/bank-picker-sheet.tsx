@@ -114,7 +114,7 @@ export function BankAvatar({
   return <BankAvatarInner key={bank.code} bank={bank} size={size} />;
 }
 
-/** Universal searchable Sri Lankan bank picker (static directory). */
+/** Universal searchable Sri Lankan bank picker (static list). */
 export function BankPickerSheet({
   visible,
   onClose,

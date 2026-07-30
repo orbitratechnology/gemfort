@@ -1,46 +1,57 @@
-import { FlashList } from '@/components/ui/gesture-lists';
+import { FlashList } from "@/components/ui/gesture-lists";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
-  ContextActionsLink,
-  type ContextMenuAction,
+    ContextActionsLink,
+    type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { formatGemType } from "@/constants/gem-options";
+import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-  canDeleteService,
-  canRequestServiceCancellation,
+    canDeleteService,
+    canRequestServiceCancellation,
 } from "@/features/workspace/delete-gates";
-import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
-import { requestServiceCancellation } from "@/features/workspace/service-lifecycle-service";
 import {
-  subscribeGems,
-  subscribeServices,
+    subscribeContacts,
+    subscribeGems,
+    subscribeServices,
+    subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-  deleteService,
-  fetchGems,
-  fetchServices,
+    gemPrimaryPhotoUrl,
+    resolveBusinessPhotoById,
+    resolvePartyPhotoUrl,
+} from "@/features/workspace/party-photo";
+import { requestServiceCancellation } from "@/features/workspace/service-lifecycle-service";
+import {
+    deleteService,
+    fetchContacts,
+    fetchGems,
+    fetchServices,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -100,9 +111,69 @@ function statusMeta(status: ServiceRecord["status"]) {
   }
 }
 
+function statusTone(
+  status: ServiceRecord["status"],
+  colors: ReturnType<typeof useAppTheme>["colors"],
+): { bg: string; fg: string; accent: string; icon: IconName; label: string } {
+  const meta = statusMeta(status);
+  if (status === "overdue") {
+    return {
+      bg: colors.errorContainer,
+      fg: colors.error,
+      accent: colors.error,
+      icon: "warning",
+      label: "Overdue",
+    };
+  }
+  if (status === "given") {
+    return {
+      bg: colors.secondaryContainer,
+      fg: colors.onSecondaryContainer,
+      accent: colors.secondary,
+      icon: "hourglass-top",
+      label: meta.label,
+    };
+  }
+  if (status === "completed" || status === "received_back") {
+    return {
+      bg: colors.successEmerald + "22",
+      fg: colors.successEmerald,
+      accent: colors.successEmerald,
+      icon: "check-circle",
+      label: meta.label,
+    };
+  }
+  if (status === "cancellation_requested") {
+    return {
+      bg: colors.errorContainer,
+      fg: colors.error,
+      accent: colors.error,
+      icon: "hourglass-top",
+      label: meta.label,
+    };
+  }
+  if (status === "cancelled") {
+    return {
+      bg: colors.surfaceContainerHighest,
+      fg: colors.onSurfaceVariant,
+      accent: colors.outline,
+      icon: "cancel",
+      label: meta.label,
+    };
+  }
+  return {
+    bg: colors.primaryContainer,
+    fg: colors.onPrimaryContainer,
+    accent: colors.primary,
+    icon: meta.icon,
+    label: meta.label,
+  };
+}
+
 export default function ServicesListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -116,7 +187,8 @@ export default function ServicesListScreen() {
   } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],
     queryFn: () => fetchServices(user!.uid),
-    subscribe: (onData, onError) => subscribeServices(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeServices(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -127,14 +199,57 @@ export default function ServicesListScreen() {
     enabled: !!user,
   });
 
-  const gemPhotoById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of gems) {
-      const url = gemPrimaryPhotoUrl(g);
-      if (url) map.set(g.id, url);
-    }
+  const { data: contacts = [] } = useFirestoreLiveQuery({
+    queryKey: ["contacts", user?.uid],
+    queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+
+  const { data: businesses = [] } = useFirestoreLiveQuery({
+    queryKey: ["home-businesses"],
+    queryFn: () => fetchBusinesses(),
+    subscribe: (onData, onError) =>
+      subscribeVerifiedBusinesses(onData, onError),
+    enabled: !!user,
+  });
+
+  const gemById = useMemo(() => {
+    const map = new Map<string, (typeof gems)[number]>();
+    for (const g of gems) map.set(g.id, g);
     return map;
   }, [gems]);
+
+  const contactById = useMemo(() => {
+    const map = new Map(contacts.map((c) => [c.id, c]));
+    return map;
+  }, [contacts]);
+
+  function gemTitleFor(gemId: string) {
+    const gem = gemById.get(gemId);
+    return (
+      gem?.title?.trim() || (gem ? formatGemType(gem.gemType) : null) || "Gem"
+    );
+  }
+
+  function providerPhotoFor(service: ServiceRecord) {
+    const contact = contactById.get(service.providerContactId) ?? null;
+    return (
+      resolvePartyPhotoUrl(contact, businesses) ||
+      resolveBusinessPhotoById(service.providerBusinessId, businesses)
+    );
+  }
+
+  function providerLabelFor(service: ServiceRecord) {
+    return (
+      service.providerName?.trim() ||
+      contactById.get(service.providerContactId)?.displayName ||
+      (service.providerContactId
+        ? `Contact · ${service.providerContactId.slice(0, 8)}`
+        : "Provider")
+    );
+  }
 
   const filtered = useMemo(() => {
     let list = services;
@@ -147,28 +262,24 @@ export default function ServicesListScreen() {
     }
     if (debouncedSearch.trim()) {
       const q = debouncedSearch.toLowerCase();
-      list = list.filter(
-        (s) =>
+      list = list.filter((s) => {
+        const gem = gemById.get(s.gemId);
+        const gemTitle =
+          gem?.title?.trim() || (gem ? formatGemType(gem.gemType) : "") || "";
+        return (
+          gemTitle.toLowerCase().includes(q) ||
           s.serviceType.toLowerCase().includes(q) ||
           (s.providerName ?? "").toLowerCase().includes(q) ||
           s.providerContactId.toLowerCase().includes(q) ||
           (s.providerBusinessId ?? "").toLowerCase().includes(q) ||
-          s.gemId.toLowerCase().includes(q),
-      );
+          s.gemId.toLowerCase().includes(q)
+        );
+      });
     }
     return [...list].sort(
       (a, b) => b.dateGiven.toMillis() - a.dateGiven.toMillis(),
     );
-  }, [services, filter, debouncedSearch]);
-
-  const toneColor = (tone: "warning" | "success" | "error" | "neutral") =>
-    tone === "warning"
-      ? colors.warningAmber
-      : tone === "success"
-        ? colors.successEmerald
-        : tone === "error"
-          ? colors.error
-          : colors.onSurfaceVariant;
+  }, [services, filter, debouncedSearch, gemById]);
 
   async function handleDelete(serviceId: string) {
     if (!user) return;
@@ -278,8 +389,34 @@ export default function ServicesListScreen() {
           />
         }
         renderItem={({ item }) => {
-          const meta = statusMeta(item.status);
-          const tone = toneColor(meta.tone);
+          const tone = statusTone(item.status, colors);
+          const gemTitle = gemTitleFor(item.gemId);
+          const providerName = providerLabelFor(item);
+          const providerPhoto = providerPhotoFor(item);
+          const serviceTypeLabel = item.serviceType.replace(/_/g, " ");
+          const overdue = item.status === "overdue";
+          const dueLabel =
+            item.status === "completed" ||
+            item.status === "received_back" ||
+            item.status === "cancelled"
+              ? null
+              : formatRelativeDue(item.expectedReturnDate);
+          const amountLabel =
+            item.finalCost != null
+              ? formatFace(item.finalCost, item.finalCostCurrency)
+              : item.agreedPrice != null
+                ? formatFace(item.agreedPrice, item.agreedPriceCurrency)
+                : null;
+          const amountColor = overdue
+            ? colors.error
+            : item.status === "completed" || item.status === "received_back"
+              ? colors.successEmerald
+              : colors.primary;
+          const cardBg = overdue
+            ? colors.errorContainer + "66"
+            : item.status === "given"
+              ? colors.secondaryContainer + "55"
+              : colors.surfaceContainerLowest;
           const actions: ContextMenuAction[] = canDeleteService(item)
             ? [
                 {
@@ -289,7 +426,7 @@ export default function ServicesListScreen() {
                   onPress: () =>
                     confirmDelete(
                       "Delete service",
-                      `Remove this ${item.serviceType.replace(/_/g, " ")} record? This cannot be undone.`,
+                      `Remove this ${serviceTypeLabel} record? This cannot be undone.`,
                       () => handleDelete(item.id),
                     ),
                 },
@@ -305,75 +442,111 @@ export default function ServicesListScreen() {
               : [];
           return (
             <ContextActionsLink
-              href={`/(marketplace)/(tabs)/workspace/services/${item.id}` as never}
-              accessibilityLabel={`${item.serviceType.replace(/_/g, " ")}, ${meta.label}`}
+              href={
+                `/(marketplace)/(tabs)/workspace/services/${item.id}` as never
+              }
+              accessibilityLabel={`${gemTitle}, ${serviceTypeLabel}, to ${providerName}, ${tone.label}`}
               actions={actions}
-              style={[
-                styles.card,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
             >
-              <GemThumb
-                uri={gemPhotoById.get(item.gemId) ?? null}
-                label={item.serviceType}
-                size={56}
-                radius={12}
-              />
-              <View style={styles.cardBody}>
-                <View style={styles.cardTopRow}>
-                  <Text
-                    style={[styles.cardTitle, { color: colors.primary }]}
-                    numberOfLines={1}
-                  >
-                    {item.serviceType.replace(/_/g, " ")}
-                  </Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: tone + "1A" },
-                    ]}
-                  >
-                    <Icon name={meta.icon} size={14} color={tone} />
-                    <Text style={[styles.statusText, { color: tone }]}>
-                      {meta.label}
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  style={[styles.cardSub, { color: colors.onSurfaceVariant }]}
-                  numberOfLines={1}
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.row,
+                    {
+                      backgroundColor: cardBg,
+                      borderColor: overdue
+                        ? colors.error + "66"
+                        : colors.outlineVariant,
+                      opacity: pressed ? 0.88 : 1,
+                    },
+                  ]}
                 >
-                  Gem: {item.gemId.slice(0, 8)}
-                </Text>
-                <View style={styles.cardMetaRow}>
-                  <View style={styles.metaLeft}>
-                    <Icon name="person" size={16} color={colors.textMuted} />
+                  <View style={styles.mediaCol}>
+                    <View style={styles.mediaStack}>
+                      <GemThumb
+                        uri={gemPrimaryPhotoUrl(gemById.get(item.gemId)) ?? null}
+                        label={gemTitle}
+                        size={56}
+                        radius={12}
+                      />
+                      <View
+                        style={[
+                          styles.partyBadge,
+                          { borderColor: colors.surfaceContainerLowest },
+                        ]}
+                      >
+                        <ContactAvatar
+                          name={providerName}
+                          photoUrl={providerPhoto}
+                          size={28}
+                        />
+                      </View>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+                      <Icon name={tone.icon} size={11} color={tone.fg} />
+                      <Text
+                        style={[styles.badgeText, { color: tone.fg }]}
+                        numberOfLines={1}
+                      >
+                        {tone.label}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.rowBody}>
+                    <View style={styles.rowTop}>
+                      <Text
+                        style={[styles.rowTitle, { color: colors.onSurface }]}
+                        numberOfLines={1}
+                      >
+                        {gemTitle}
+                      </Text>
+                      {amountLabel ? (
+                        <Text
+                          style={[styles.rowAmount, { color: amountColor }]}
+                        >
+                          {amountLabel}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.partyRow}>
+                      <Icon
+                        name="call-made"
+                        size={14}
+                        color={colors.onSurfaceVariant}
+                      />
+                      <Text
+                        style={[
+                          styles.rowSub,
+                          { color: colors.onSurfaceVariant },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        To {providerName}
+                      </Text>
+                    </View>
                     <Text
-                      style={[styles.metaText, { color: colors.textMuted }]}
+                      style={[styles.rowSub, { color: colors.textMuted }]}
                       numberOfLines={1}
                     >
-                      {item.providerName ||
-                        (item.providerContactId
-                          ? `Contact · ${item.providerContactId.slice(0, 8)}`
-                          : "Provider")}
+                      {serviceTypeLabel}
+                      {dueLabel ? ` · ${dueLabel}` : ""}
                     </Text>
                   </View>
-                  <Text style={[styles.metaText, { color: colors.textMuted }]}>
-                    {formatRelativeDue(item.expectedReturnDate)}
-                  </Text>
+                  <Icon
+                    name="chevron-right"
+                    size={20}
+                    color={colors.outline}
+                  />
                 </View>
-              </View>
+              )}
             </ContextActionsLink>
           );
         }}
       />
 
-      {/* FAB */}
       <Pressable
         style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() =>
-          router.push("/(marketplace)/services/add")
-        }
+        onPress={() => router.push("/(marketplace)/services/add")}
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
@@ -383,39 +556,13 @@ export default function ServicesListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.stackMd,
-  },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brand: { ...Typography.headlineMdMobile },
-  brandSub: { ...Typography.labelMd, fontWeight: "400" },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   content: {
     padding: Spacing.containerMargin,
     paddingBottom: 100,
     gap: Spacing.gutterMd,
   },
-  listHeader: { gap: Spacing.gutterMd, marginBottom: Spacing.stackSm },
-  title: { ...Typography.displayLg },
+  listHeader: { gap: Spacing.gutterMd },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -444,57 +591,64 @@ const styles = StyleSheet.create({
   },
   filterText: { ...Typography.labelMd },
 
-  card: {
+  row: {
     flexDirection: "row",
-    gap: 16,
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
-    elevation: 3,
-  },
-  thumb: {
-    width: 80,
-    height: 80,
-    borderRadius: Radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardBody: { flex: 1, minWidth: 0 },
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 4,
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
+  },
+  mediaCol: {
+    width: 72,
+    alignItems: "center",
     gap: 8,
   },
-  cardTitle: { ...Typography.headlineSm, flex: 1, textTransform: "capitalize" },
-  statusBadge: {
+  mediaStack: {
+    width: 56,
+    height: 56,
+  },
+  partyBadge: {
+    position: "absolute",
+    right: -4,
+    bottom: -4,
+    borderRadius: 16,
+    borderWidth: 2,
+  },
+  rowBody: { flex: 1, gap: 4, minWidth: 0, paddingTop: 2 },
+  rowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  rowTitle: { ...Typography.bodyMd, fontWeight: "700", flex: 1 },
+  rowAmount: {
+    ...Typography.bodyMd,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  partyRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  },
+  rowSub: { ...Typography.caption },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    maxWidth: "100%",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: Radius.full,
   },
-  statusText: { ...Typography.labelMd },
-  cardSub: { ...Typography.bodyMd, marginBottom: 8 },
-  cardMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  metaLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flex: 1,
-    minWidth: 0,
-  },
-  metaText: { ...Typography.labelMd },
+  badgeText: { fontSize: 10, fontWeight: "700" },
 
   fab: {
     position: "absolute",
@@ -505,10 +659,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 5,
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.18)",
   },
 });

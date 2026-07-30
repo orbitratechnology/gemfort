@@ -67,11 +67,10 @@ export type WorkspaceModule =
   | 'money'
   | 'cheques'
   | 'bills'
-  | 'contacts'
-  | 'requests';
+  | 'contacts';
 
 const MODULES_BY_ROLE: Record<Exclude<UserRole, 'admin'>, WorkspaceModule[]> = {
-  trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'contacts', 'requests'],
+  trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'contacts'],
   // Lapidaries run jobs/services and need contacts + bills — not AP or inventory trips.
   lapidary: ['services', 'jobs', 'money', 'bills', 'contacts'],
   gem_lab: ['certificates', 'money'],
@@ -122,7 +121,6 @@ export function modulesForRole(role: UserRole): WorkspaceModule[] {
       'cheques',
       'bills',
       'contacts',
-      'requests',
     ];
   }
   return MODULES_BY_ROLE[role] ?? [];
@@ -135,7 +133,7 @@ export function businessTypeFromRole(role: UserRole): 'trader' | 'lapidary' | 'g
   return null;
 }
 
-export function directoryTabFromBusinessType(
+export function marketTabFromBusinessType(
   businessType: string | null | undefined,
 ): 'traders' | 'lapidaries' | 'labs' {
   if (businessType === 'gem_lab' || businessType === 'lab') return 'labs';

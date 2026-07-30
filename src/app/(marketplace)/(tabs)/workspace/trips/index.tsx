@@ -2,34 +2,32 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { PlaceLabel } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
-import { PlaceLabel } from "@/components/ui/country-flag";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import {
-  ContextActionsLink,
-} from "@/components/workspace/context-actions-link";
-import {
-  TripStatusTabs,
-  type TripListTab,
+    TripStatusTabs,
+    type TripListTab,
 } from "@/components/workspace/trip-status-tabs";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
-import {
-  formatTripDates,
-  getTripsByStatus,
-} from "@/features/workspace/trip-utils";
 import { subscribeTrips } from "@/features/workspace/firestore-subscriptions";
+import {
+    formatTripDates,
+    getTripsByStatus,
+} from "@/features/workspace/trip-utils";
 import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -117,10 +115,7 @@ function TripRow({
                 ]}
               >
                 <Text
-                  style={[
-                    styles.badgeText,
-                    { color: colors.onSurfaceVariant },
-                  ]}
+                  style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
                 >
                   {TRIP_STATUS_LABELS[trip.status]}
                 </Text>
@@ -132,9 +127,7 @@ function TripRow({
               size="xs"
               textStyle={[styles.rowSub, { color: colors.textMuted }]}
             />
-            <Text
-              style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}
-            >
+            <Text style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}>
               {formatTripDates(trip)} · {typeMeta.label}
             </Text>
             {trip.summary.netResult !== 0 || trip.summary.totalExpenses > 0 ? (
@@ -178,10 +171,7 @@ export default function TripsScreen() {
     enabled: !!user,
   });
 
-  const { active, completed } = useMemo(
-    () => getTripsByStatus(trips),
-    [trips],
-  );
+  const { active, completed } = useMemo(() => getTripsByStatus(trips), [trips]);
   const visible = tab === "active" ? active : completed;
 
   async function handleDelete(tripId: string) {
@@ -217,12 +207,6 @@ export default function TripsScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
       >
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          {tab === "active"
-            ? "Planning and ongoing trips — expenses, purchases, and sales in one place."
-            : "Finished trips and their results."}
-        </Text>
-
         {tab === "active" ? (
           <Pressable
             onPress={haptics.wrap("light", () =>

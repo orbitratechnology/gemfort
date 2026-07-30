@@ -16,7 +16,7 @@ const AndroidIconKey = {
   bill: "bill",
   certificates: "certificates",
   money: "money",
-  directory: "directory",
+  market: "market",
   search: "search",
   news: "news",
 } as const;
@@ -67,10 +67,10 @@ function guestActions(scheme: "light" | "dark"): RouterAction[] {
       "Check a lab certificate",
     ),
     action(
-      "directory",
-      "Directory",
-      "/(marketplace)/(tabs)/directory",
-      icon("symbol:person.2", AndroidIconKey.directory, scheme),
+      "market",
+      "Market",
+      "/(marketplace)/(tabs)/market",
+      icon("symbol:person.2", AndroidIconKey.market, scheme),
       "Find traders, lapidaries & labs",
     ),
     action(

@@ -213,7 +213,7 @@ export function GemPickerSheet({
                 : query.trim()
                   ? "Try a different search."
                   : tab === "on_sale"
-                    ? "List a gem on GemNet to see it here."
+                    ? "Sell a gem on Market to see it here."
                     : "Private inventory gems will show here."
             }
           />

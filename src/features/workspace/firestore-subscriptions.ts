@@ -21,6 +21,7 @@ import type {
   GemCost,
   GemEvent,
   LapidaryJob,
+  ListingOffer,
   MarketplaceListing,
   Payable,
   Payment,
@@ -605,7 +606,7 @@ export function subscribeNotifications(
   );
 }
 
-// ─── Marketplace / directory ────────────────────────
+// ─── Marketplace / market ────────────────────────
 
 export function subscribeAnnouncements(
   onData: (rows: Announcement[]) => void,
@@ -905,6 +906,70 @@ export function subscribeExchangeRates(
         provider: (data.provider as string) ?? 'firestore',
       };
     },
+    onData,
+    onError,
+  );
+}
+
+// ─── Listing offers ─────────────────────────────────
+
+export function subscribeSellerListingOffers(
+  sellerUid: string,
+  onData: (rows: ListingOffer[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'listing_offers'),
+      where('sellerUid', '==', sellerUid),
+      orderBy('createdAt', 'desc'),
+      limit(100),
+    ),
+    (docs) =>
+      docs
+        .map((d) => ({ id: d.id, ...d.data() }) as ListingOffer)
+        .filter((o) => !o.sellerCleared),
+    onData,
+    onError,
+  );
+}
+
+export function subscribeOffersForListing(
+  listingId: string,
+  onData: (rows: ListingOffer[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'listing_offers'),
+      where('listingId', '==', listingId),
+      orderBy('createdAt', 'desc'),
+      limit(50),
+    ),
+    (docs) =>
+      docs
+        .map((d) => ({ id: d.id, ...d.data() }) as ListingOffer)
+        .filter((o) => !o.sellerCleared),
+    onData,
+    onError,
+  );
+}
+
+export function subscribeBuyerOffersForListing(
+  buyerUid: string,
+  listingId: string,
+  onData: (rows: ListingOffer[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'listing_offers'),
+      where('buyerUid', '==', buyerUid),
+      where('listingId', '==', listingId),
+      orderBy('createdAt', 'desc'),
+      limit(10),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as ListingOffer),
     onData,
     onError,
   );

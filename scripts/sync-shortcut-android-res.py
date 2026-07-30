@@ -31,7 +31,7 @@ KEYS = [
     "bill",
     "certificates",
     "money",
-    "directory",
+    "market",
     "search",
     "news",
 ]

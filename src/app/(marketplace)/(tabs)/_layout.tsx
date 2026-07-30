@@ -3,12 +3,14 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Platform } from "react-native";
 
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useUnreadListingOfferCount } from "@/hooks/use-unread-listing-offers";
 import { useUnreadNotificationCount } from "@/hooks/use-unread-notifications";
 import { MONEY_HUB, WORKSPACE_HUB } from "@/navigation/tab-stack-nav";
 
 export default function MarketplaceTabLayout() {
   const { colors } = useAppTheme();
   const unread = useUnreadNotificationCount();
+  const unreadOffers = useUnreadListingOfferCount();
 
   return (
     <NativeTabs
@@ -32,12 +34,12 @@ export default function MarketplaceTabLayout() {
         ) : null}
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="directory">
+      <NativeTabs.Trigger name="market">
         <NativeTabs.Trigger.Icon
           sf={{ default: "building.2", selected: "building.2.fill" }}
           md="storefront"
         />
-        <NativeTabs.Trigger.Label>Directory</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Market</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger
@@ -58,6 +60,11 @@ export default function MarketplaceTabLayout() {
           md="diamond"
         />
         <NativeTabs.Trigger.Label>Workspace</NativeTabs.Trigger.Label>
+        {unreadOffers > 0 ? (
+          <NativeTabs.Trigger.Badge>
+            {unreadOffers > 99 ? "99+" : String(unreadOffers)}
+          </NativeTabs.Trigger.Badge>
+        ) : null}
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger

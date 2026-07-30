@@ -150,7 +150,7 @@ export default function AddApScreen() {
     }
     if (holder && !holder.linkedBusinessId) {
       next.holderId =
-        "Holder must be a GemFort trader linked by phone. Pick a trader from the directory.";
+        "Holder must be a GemFort trader linked by phone. Pick a trader from the market.";
     }
     for (const line of lines) {
       const priceErr = amountFieldError("AP price", line.price.amount);
@@ -295,7 +295,7 @@ export default function AddApScreen() {
           {holder && !holder.linkedBusinessId ? (
             <Text style={[styles.warn, { color: colors.error }]}>
               This contact is not linked to a GemFort trader. Choose a trader
-              from the directory.
+              from the market.
             </Text>
           ) : null}
         </FormSection>

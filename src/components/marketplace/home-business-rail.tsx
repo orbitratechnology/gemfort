@@ -15,7 +15,7 @@ type HomeBusinessRailProps = {
   roleHint?: "Trader" | "Lapidary" | "Gem Lab";
 };
 
-/** Horizontal rail of the same BusinessCard used in directory / search. */
+/** Horizontal rail of the same BusinessCard used in market / search. */
 export function HomeBusinessRail({
   businesses,
   emptyLabel,

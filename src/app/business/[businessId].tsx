@@ -1,18 +1,28 @@
 import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { Image } from "expo-image";
-import { Link, router, useLocalSearchParams } from "expo-router";
+import { Link, router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    Linking,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
+import { ListingCard } from "@/components/marketplace/listing-card";
 import { Button } from "@/components/ui/button";
-import { CountryLabel, PlaceLabel } from "@/components/ui/country-flag";
+import { PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
+import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -21,19 +31,24 @@ import {
     Spacing,
     Typography,
 } from "@/constants/design-tokens";
-import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
+import { formatGemType } from "@/constants/gem-options";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
 import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import {
     demoBusinesses,
+    demoListings,
     fetchBusiness,
     fetchBusinessByOwnerUid,
-    sendEndorsement,
+    fetchBusinesses,
+    fetchPublicListings,
+    sendLike,
     trackBusinessAnalytics,
 } from "@/features/marketplace/marketplace-service";
 import {
-  subscribeBusiness,
-  subscribeBusinessByOwnerUid,
+    subscribeBusiness,
+    subscribeBusinessByOwnerUid,
+    subscribePublicListings,
+    subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -44,7 +59,7 @@ import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { BusinessType } from "@/types";
+import type { Business, BusinessType, MarketplaceListing } from "@/types";
 
 function initials(name: string) {
   return name
@@ -71,11 +86,8 @@ function labelize(value: string): string {
   }
 }
 
-type StatItem = {
-  label: string;
-  value: string;
-  icon: React.ComponentProps<typeof Icon>["name"];
-};
+const SUGGEST_LIMIT = 8;
+const AVATAR_SIZE = 86;
 
 export default function BusinessProfileScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
@@ -84,8 +96,11 @@ export default function BusinessProfileScreen() {
   const { user, profile } = useAuth();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const [reportOpen, setReportOpen] = useState(false);
-  const [endorsing, setEndorsing] = useState(false);
+  const [liking, setLiking] = useState(false);
+  const [showSuggested, setShowSuggested] = useState(true);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   const { data: business, isLoading } = useFirestoreLiveQuery({
     queryKey: ["business", businessId],
@@ -117,13 +132,50 @@ export default function BusinessProfileScreen() {
     enabled: !!user && isFirebaseConfigured,
   });
 
+  const { data: allListings = [] } = useFirestoreLiveQuery({
+    queryKey: ["public-listings"],
+    queryFn: async () => {
+      if (!isFirebaseConfigured) return demoListings();
+      try {
+        return await fetchPublicListings();
+      } catch {
+        return demoListings();
+      }
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoListings());
+        return () => undefined;
+      }
+      return subscribePublicListings(onData, onError);
+    },
+  });
+
+  const { data: allBusinesses = [] } = useFirestoreLiveQuery({
+    queryKey: ["verified-businesses"],
+    queryFn: async () => {
+      if (!isFirebaseConfigured) return demoBusinesses();
+      try {
+        return await fetchBusinesses();
+      } catch {
+        return demoBusinesses();
+      }
+    },
+    subscribe: (onData, onError) => {
+      if (!isFirebaseConfigured) {
+        onData(demoBusinesses());
+        return () => undefined;
+      }
+      return subscribeVerifiedBusinesses(onData, onError);
+    },
+  });
+
   useEffect(() => {
     if (business?.id)
       void trackBusinessAnalytics(business.id, "profileViewsTotal");
   }, [business?.id]);
 
   const isProvider = !!business?.providerProfile;
-  const isSeller = !!business?.sellerProfile;
   const specs = useMemo(
     () =>
       business?.sellerProfile?.gemSpecializations ??
@@ -148,7 +200,7 @@ export default function BusinessProfileScreen() {
       profile?.role === "gem_lab");
   const isVerifiedTrader =
     profile?.verificationStatus === "verified" && profile?.role === "trader";
-  const canEndorse =
+  const canLike =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
   const isLab =
     business?.businessType === "gem_lab" ||
@@ -157,65 +209,56 @@ export default function BusinessProfileScreen() {
   const canRequestService =
     isVerifiedTrader && isProvider && !isOwnBusiness && !isLab;
 
-  const stats: StatItem[] = useMemo(() => {
-    if (!business) return [];
-    const items: StatItem[] = [
-      {
-        label: "Years",
-        value: String(
-          business.badges.yearsActive || business.yearEstablished || "-",
-        ),
-        icon: "schedule",
-      },
-      {
-        label: "Endorsed",
-        value: String(business.badges.endorsementCount),
-        icon: "thumb-up",
-      },
-    ];
-    if (business.badges.isNgjaRegistered) {
-      items.push({ label: "NGJA", value: "Yes", icon: "workspace-premium" });
-    }
-    if (isProvider) {
-      items.push({
-        label: "Orders",
-        value: business.providerProfile?.isAcceptingOrders ? "Open" : "Closed",
-        icon: business.providerProfile?.isAcceptingOrders
-          ? "lock-open"
-          : "lock",
-      });
-    } else if (business.sellerProfile?.priceRangeMin != null) {
-      items.push({
-        label: "From",
-        value: formatFace(
-          business.sellerProfile.priceRangeMin,
-          business.sellerProfile.preferredCurrencies?.[0] ?? "LKR",
-        ).replace(/\.00$/, ""),
-        icon: "payments",
-      });
-    }
-    return items.slice(0, 4);
-  }, [business, isProvider, formatFace]);
+  const gems = useMemo(() => {
+    if (!business) return [] as MarketplaceListing[];
+    return allListings.filter(
+      (l) => l.businessId === business.id && l.status === "active",
+    );
+  }, [allListings, business]);
 
-  async function handleEndorse() {
+  const suggested = useMemo(() => {
+    if (!business) return [] as Business[];
+    const sameType = allBusinesses.filter(
+      (b) =>
+        b.id !== business.id &&
+        !dismissedIds.includes(b.id) &&
+        b.businessType === business.businessType,
+    );
+    const others = allBusinesses.filter(
+      (b) =>
+        b.id !== business.id &&
+        !dismissedIds.includes(b.id) &&
+        b.businessType !== business.businessType,
+    );
+    return [...sameType, ...others].slice(0, SUGGEST_LIMIT);
+  }, [allBusinesses, business, dismissedIds]);
+
+  const yearsValue = business
+    ? String(business.badges.yearsActive || business.yearEstablished || "—")
+    : "—";
+  const likesValue = business
+    ? String(business.badges.likeCount)
+    : "0";
+
+  async function handleLike() {
     if (!user || !myBusiness || !business) return;
-    setEndorsing(true);
+    setLiking(true);
     try {
-      await sendEndorsement({
+      await sendLike({
         fromUid: user.uid,
         fromBusinessId: myBusiness.id,
         toBusinessId: business.id,
       });
-      toast.success(`You endorsed ${business.businessName}.`);
+      toast.success(`You liked ${business.businessName}.`);
     } catch (e) {
-      const msg = friendlyError(e, "Could not send endorsement.");
+      const msg = friendlyError(e, "Could not send like.");
       toast.error(
         msg.includes("PERMISSION") || msg.includes("already")
-          ? "You already endorsed this business."
+          ? "You already liked this business."
           : msg,
       );
     } finally {
-      setEndorsing(false);
+      setLiking(false);
     }
   }
 
@@ -249,6 +292,11 @@ export default function BusinessProfileScreen() {
   );
   const profileUrl = businessShareUrl(business.id);
   const businessName = business.businessName;
+  const bizId = business.id;
+  const whatsappValue = business.contacts?.whatsapp?.value;
+  const phoneValue = business.contacts?.phone?.value;
+  const emailValue = business.contacts?.email?.value;
+  const suggestCardWidth = Math.min(148, Math.round(windowWidth * 0.38));
 
   function handleShareProfile() {
     void shareLink({
@@ -258,6 +306,35 @@ export default function BusinessProfileScreen() {
     });
   }
 
+  function handlePrimaryAction() {
+    if (isOwnBusiness) {
+      router.push("/profile/business" as Href);
+      return;
+    }
+    if (canLike) {
+      void handleLike();
+      return;
+    }
+    if (hasWhatsApp && whatsappValue) {
+      void trackBusinessAnalytics(bizId, "whatsappTapsTotal");
+      Linking.openURL(openWhatsApp(whatsappValue));
+    }
+  }
+
+  const primaryLabel = isOwnBusiness
+    ? "Edit profile"
+    : canLike
+      ? liking
+        ? "Liking…"
+        : "Likes"
+      : hasWhatsApp
+        ? "Message"
+        : hasPhone
+          ? "Call"
+          : "Share";
+
+  const primaryDisabled = canLike && liking;
+
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
       <StatusBar style={business.coverPhotoUrl ? "light" : "auto"} />
@@ -266,310 +343,193 @@ export default function BusinessProfileScreen() {
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero — cover bleeds under the status bar */}
-        <View style={styles.hero}>
-          <CoverBanner
-            uri={business.coverPhotoUrl}
-            height={COVER_BANNER_HEIGHT + insets.top}
-          />
+        {/* Banner */}
+        <CoverBanner
+          uri={business.coverPhotoUrl}
+          height={COVER_BANNER_HEIGHT + insets.top}
+        />
 
-          <View style={styles.avatarBlock}>
-            <View style={styles.logoWrap}>
-              <Link.AppleZoomTarget>
-                <View
-                  style={StyleSheet.flatten([
-                    styles.logo,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      borderColor: colors.background,
-                    },
-                  ])}
-                >
-                  {business.logoUrl ? (
-                    <Image
-                      source={{ uri: business.logoUrl }}
-                      style={styles.logoImg}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <Text
-                      style={[styles.logoInitials, { color: colors.primary }]}
-                    >
-                      {initials(business.businessName)}
-                    </Text>
-                  )}
-                </View>
-              </Link.AppleZoomTarget>
-              {business.badges.isVerified ||
-              business.verificationStatus === "verified" ? (
-                <View
-                  style={[
-                    styles.verifiedBadge,
-                    {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.background,
-                    },
-                  ]}
-                  accessibilityLabel="Verified business"
-                >
-                  <Icon name="verified" size={16} color={colors.onSecondary} />
-                </View>
-              ) : null}
-            </View>
-
-            <Text
-              style={[styles.name, { color: colors.onSurface }]}
-              numberOfLines={2}
-            >
-              {business.businessName}
-            </Text>
-            <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
-              {role}
-              {business.ownerName ? ` · ${business.ownerName}` : ""}
-            </Text>
-            {hasLocation ? (
-              <PlaceLabel
-                parts={[business.city, business.district]}
-                country={business.country}
-                size="xs"
-                style={styles.locRow}
-                textStyle={[styles.locText, { color: colors.textMuted }]}
-              />
-            ) : null}
-            {business.shortDescription?.trim() ? (
-              <Text style={[styles.bio, { color: colors.onSurfaceVariant }]}>
-                {business.shortDescription.trim()}
-              </Text>
-            ) : null}
-            {specs.length > 0 ? (
-              <View style={styles.tagRowCentered}>
-                {specs.map((s) => (
-                  <View
-                    key={s}
-                    style={[
-                      styles.tag,
-                      { backgroundColor: colors.surfaceContainerLow },
-                    ]}
+        {/* Avatar + stats (Instagram header) */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarWrap}>
+            <Link.AppleZoomTarget>
+              <View
+                style={StyleSheet.flatten([
+                  styles.avatar,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.background,
+                  },
+                ])}
+              >
+                {business.logoUrl ? (
+                  <Image
+                    source={{ uri: business.logoUrl }}
+                    style={styles.avatarImg}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text
+                    style={[styles.avatarInitials, { color: colors.primary }]}
                   >
-                    <Text
-                      style={[
-                        styles.tagText,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {labelize(s)}
-                    </Text>
-                  </View>
-                ))}
+                    {initials(business.businessName)}
+                  </Text>
+                )}
+              </View>
+            </Link.AppleZoomTarget>
+            {business.badges.isVerified ||
+            business.verificationStatus === "verified" ? (
+              <View
+                style={[
+                  styles.verifiedBadge,
+                  {
+                    backgroundColor: colors.accent,
+                    borderColor: colors.background,
+                  },
+                ]}
+                accessibilityLabel="Verified business"
+              >
+                <Icon name="verified" size={14} color={colors.onSecondary} />
               </View>
             ) : null}
+          </View>
+
+          <View style={styles.statsRow}>
+            <StatCell
+              value={String(gems.length)}
+              label="Gems"
+              color={colors.onSurface}
+              muted={colors.textMuted}
+            />
+            <StatCell
+              value={yearsValue}
+              label="Years"
+              color={colors.onSurface}
+              muted={colors.textMuted}
+            />
+            <StatCell
+              value={likesValue}
+              label="Likes"
+              color={colors.onSurface}
+              muted={colors.textMuted}
+            />
           </View>
         </View>
 
-        {/* Trust chips — no verified pill (badge stays on avatar) */}
-        {(business.badges.isNgjaRegistered ||
-          (isProvider && business.providerProfile) ||
-          business.isFeatured) && (
-          <View style={styles.chipRow}>
-            {business.badges.isNgjaRegistered ? (
-              <View
-                style={[
-                  styles.chip,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ]}
-              >
-                <Text
-                  style={[styles.chipText, { color: colors.onSurfaceVariant }]}
-                >
-                  NGJA
-                </Text>
-              </View>
-            ) : null}
-            {isProvider && business.providerProfile ? (
-              <View
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: business.providerProfile.isAcceptingOrders
-                      ? colors.primaryContainer
-                      : colors.surfaceContainerHigh,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor: business.providerProfile
-                        .isAcceptingOrders
-                        ? colors.successEmerald
-                        : colors.outline,
-                    },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.chipText,
-                    {
-                      color: business.providerProfile.isAcceptingOrders
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  {business.providerProfile.isAcceptingOrders
-                    ? "Accepting orders"
-                    : "Not accepting"}
-                </Text>
-              </View>
-            ) : null}
-            {business.isFeatured ? (
-              <View
-                style={[
-                  styles.chip,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                <Icon name="star" size={14} color={colors.onPrimaryContainer} />
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: colors.onPrimaryContainer },
-                  ]}
-                >
-                  Featured
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        )}
+        {/* Name + bio */}
+        <View style={styles.bioBlock}>
+          <Text style={[styles.name, { color: colors.onSurface }]}>
+            {business.businessName}
+          </Text>
+          <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
+            {role}
+            {business.ownerName ? ` · ${business.ownerName}` : ""}
+          </Text>
+          {business.shortDescription?.trim() ? (
+            <Text style={[styles.bio, { color: colors.onSurface }]}>
+              {business.shortDescription.trim()}
+            </Text>
+          ) : null}
+          {hasLocation ? (
+            <PlaceLabel
+              parts={[business.city, business.district]}
+              country={business.country}
+              size="xs"
+              style={styles.locRow}
+              textStyle={[styles.locText, { color: colors.textMuted }]}
+            />
+          ) : null}
+          {specs.length > 0 ? (
+            <Text
+              style={[styles.specsLine, { color: colors.onSurfaceVariant }]}
+              numberOfLines={2}
+            >
+              {specs.map(labelize).join(" · ")}
+            </Text>
+          ) : null}
+          {hasSocial ? (
+            <BusinessSocialLinksRow
+              links={business.socialLinks}
+              style={styles.socialRow}
+            />
+          ) : null}
+        </View>
 
-        {/* Stats */}
-        {stats.length > 0 ? (
-          <>
-            <FormSectionLabel title="AT A GLANCE" />
-            <FormSection padded={false}>
-              <View style={styles.statsRow}>
-                {stats.map((stat, index) => (
-                  <View
-                    key={stat.label}
-                    style={[
-                      styles.statCell,
-                      index < stats.length - 1 && {
-                        borderRightWidth: StyleSheet.hairlineWidth,
-                        borderRightColor: colors.outlineVariant,
-                      },
-                    ]}
-                  >
-                    <Icon name={stat.icon} size={18} color={colors.primary} />
-                    <Text
-                      style={[styles.statValue, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {stat.value}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-                      {stat.label}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </FormSection>
-          </>
-        ) : null}
+        {/* Action buttons */}
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={primaryLabel}
+            disabled={primaryDisabled}
+            onPress={() => {
+              if (!isOwnBusiness && !canLike && !hasWhatsApp && hasPhone) {
+                void trackBusinessAnalytics(bizId, "phoneTapsTotal");
+                if (phoneValue) Linking.openURL(openPhone(phoneValue));
+                return;
+              }
+              if (!isOwnBusiness && !canLike && !hasWhatsApp && !hasPhone) {
+                handleShareProfile();
+                return;
+              }
+              handlePrimaryAction();
+            }}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                opacity: pressed || primaryDisabled ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Text style={[styles.primaryBtnText, { color: colors.onSurface }]}>
+              {primaryLabel}
+            </Text>
+          </Pressable>
 
-        {/* Contact — WhatsApp + Call */}
-        {(hasWhatsApp || hasPhone) && !isOwnBusiness ? (
-          <View style={styles.contactRow}>
-            {hasWhatsApp ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="WhatsApp"
-                style={({ pressed }) => [
-                  styles.contactBtn,
-                  {
-                    backgroundColor: BrandPalette.whatsapp,
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  void trackBusinessAnalytics(business.id, "whatsappTapsTotal");
-                  const wa = business.contacts?.whatsapp?.value;
-                  if (wa) Linking.openURL(openWhatsApp(wa));
-                }}
-              >
-                <FontAwesome6
-                  name="whatsapp"
-                  iconStyle="brand"
-                  size={18}
-                  color={BrandPalette.white}
-                />
-                <Text
-                  style={[styles.contactBtnText, { color: BrandPalette.white }]}
-                >
-                  WhatsApp
-                </Text>
-              </Pressable>
-            ) : null}
-            {hasPhone ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Call"
-                style={({ pressed }) => [
-                  styles.contactBtn,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity: pressed ? 0.9 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  void trackBusinessAnalytics(business.id, "phoneTapsTotal");
-                  const phone = business.contacts?.phone?.value;
-                  if (phone) Linking.openURL(openPhone(phone));
-                }}
-              >
-                <Icon name="call" size={18} color={colors.onPrimary} />
-                <Text
-                  style={[styles.contactBtnText, { color: colors.onPrimary }]}
-                >
-                  Call
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {hasEmail && !isOwnBusiness && !hasWhatsApp && !hasPhone ? (
-          <View style={styles.contactRow}>
+          {!isOwnBusiness && hasWhatsApp && (canLike || hasPhone) ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Email"
+              accessibilityLabel="WhatsApp"
+              onPress={() => {
+                void trackBusinessAnalytics(bizId, "whatsappTapsTotal");
+                if (whatsappValue) Linking.openURL(openWhatsApp(whatsappValue));
+              }}
               style={({ pressed }) => [
-                styles.contactBtn,
+                styles.secondaryBtn,
                 {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                  borderWidth: 1,
-                  opacity: pressed ? 0.9 : 1,
+                  backgroundColor: colors.surfaceContainerHigh,
+                  opacity: pressed ? 0.75 : 1,
                 },
               ]}
-              onPress={() =>
-                Linking.openURL(`mailto:${business.contacts.email.value}`)
-              }
             >
-              <Icon name="mail-outline" size={18} color={colors.primary} />
-              <Text style={[styles.contactBtnText, { color: colors.primary }]}>
-                Email
-              </Text>
+              <FontAwesome6
+                name="whatsapp"
+                iconStyle="brand"
+                size={18}
+                color={BrandPalette.whatsapp}
+              />
             </Pressable>
-          </View>
-        ) : null}
+          ) : null}
 
-        {hasSocial ? (
-          <View style={styles.socialWrap}>
-            <BusinessSocialLinksRow links={business.socialLinks} />
-          </View>
-        ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              showSuggested
+                ? "Hide suggested profiles"
+                : "Show suggested profiles"
+            }
+            onPress={() => setShowSuggested((v) => !v)}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Icon name="person-add" size={20} color={colors.onSurface} />
+          </Pressable>
+        </View>
 
         {canRequestService ? (
           <View style={styles.requestWrap}>
@@ -586,98 +546,76 @@ export default function BusinessProfileScreen() {
           </View>
         ) : null}
 
-        {/* Seller details */}
-        {isSeller && business.sellerProfile ? (
-          <>
-            <FormSectionLabel title="TRADING FOCUS" />
-            <FormSection>
-              <View style={styles.detailList}>
-                {business.sellerProfile.sourceOrigins.length > 0 ? (
-                  <View style={styles.detailRow}>
-                    <View
-                      style={[
-                        styles.detailIcon,
-                        { backgroundColor: colors.surfaceContainerLow },
-                      ]}
-                    >
-                      <Icon
-                        name="public"
-                        size={16}
-                        color={colors.onSurfaceVariant}
-                      />
-                    </View>
-                    <View style={styles.detailBody}>
-                      <Text
-                        style={[styles.detailLabel, { color: colors.textMuted }]}
-                      >
-                        Origins
-                      </Text>
-                      <View style={styles.originChips}>
-                        {business.sellerProfile.sourceOrigins.map((origin) => (
-                          <CountryLabel
-                            key={origin}
-                            country={formatOriginLabel(origin)}
-                            size="xs"
-                            textStyle={[
-                              styles.detailValue,
-                              { color: colors.onSurface },
-                            ]}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                ) : null}
-                {business.sellerProfile.stoneTypes.length > 0 ? (
-                  <DetailRow
-                    icon="diamond"
-                    label="Stone types"
-                    value={business.sellerProfile.stoneTypes
-                      .map(labelize)
-                      .join(", ")}
-                    colors={colors}
-                  />
-                ) : null}
-                {business.sellerProfile.priceRangeMin != null ||
-                business.sellerProfile.priceRangeMax != null ? (
-                  <DetailRow
-                    icon="payments"
-                    label="Price range"
-                    value={[
-                      business.sellerProfile.priceRangeMin != null
-                        ? formatFace(
-                            business.sellerProfile.priceRangeMin,
-                            business.sellerProfile.preferredCurrencies?.[0] ??
-                              "LKR",
-                          )
-                        : null,
-                      business.sellerProfile.priceRangeMax != null
-                        ? formatFace(
-                            business.sellerProfile.priceRangeMax,
-                            business.sellerProfile.preferredCurrencies?.[0] ??
-                              "LKR",
-                          )
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" - ")}
-                    colors={colors}
-                  />
-                ) : null}
-                {business.sellerProfile.preferredCurrencies.length > 0 ? (
-                  <DetailRow
-                    icon="currency-exchange"
-                    label="Currencies"
-                    value={business.sellerProfile.preferredCurrencies.join(", ")}
-                    colors={colors}
-                  />
-                ) : null}
-              </View>
-            </FormSection>
-          </>
+        {/* Discover people */}
+        {showSuggested && suggested.length > 0 ? (
+          <View style={styles.discoverSection}>
+            <View style={styles.discoverHeader}>
+              <Text style={[styles.discoverTitle, { color: colors.onSurface }]}>
+                Suggested profiles
+              </Text>
+              <Pressable
+                onPress={() => router.push("/(marketplace)/(tabs)/market")}
+                hitSlop={8}
+                accessibilityRole="link"
+                accessibilityLabel="See all businesses"
+              >
+                <Text style={[styles.seeAll, { color: colors.primary }]}>
+                  See All
+                </Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.discoverRail}
+            >
+              {suggested.map((b) => (
+                <SuggestedCard
+                  key={b.id}
+                  business={b}
+                  width={suggestCardWidth}
+                  onDismiss={() =>
+                    setDismissedIds((ids) =>
+                      ids.includes(b.id) ? ids : [...ids, b.id],
+                    )
+                  }
+                />
+              ))}
+            </ScrollView>
+          </View>
         ) : null}
 
-        {/* Provider services */}
+        {/* Gems tab + 2-col grid */}
+        <View
+          style={[styles.tabBar, { borderBottomColor: colors.outlineVariant }]}
+        >
+          <View
+            style={[styles.tabActive, { borderBottomColor: colors.onSurface }]}
+          >
+            <Icon name="grid-view" size={22} color={colors.onSurface} />
+          </View>
+        </View>
+
+        {gems.length > 0 ? (
+          <ProductGrid style={styles.gemsGrid}>
+            {gems.map((listing) => (
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                href={`/listing/${listing.shareableSlug}`}
+              />
+            ))}
+          </ProductGrid>
+        ) : (
+          <View style={styles.emptyGems}>
+            <Icon name="diamond" size={36} color={colors.outlineVariant} />
+            <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
+              No public gems yet
+            </Text>
+          </View>
+        )}
+
+        {/* Lapidary services */}
         {isProvider && services.length > 0 ? (
           <>
             <FormSectionLabel title="SERVICES" />
@@ -739,7 +677,7 @@ export default function BusinessProfileScreen() {
           </>
         ) : null}
 
-        {/* Gem Lab certificate offerings */}
+        {/* Gem Lab certificates */}
         {isLab && certificateOfferings.length > 0 ? (
           <>
             <FormSectionLabel title="CERTIFICATES" />
@@ -792,62 +730,29 @@ export default function BusinessProfileScreen() {
           </>
         ) : null}
 
-        {/* Location */}
-        <FormSectionLabel title="LOCATION" />
-        <FormSection>
-          <View style={styles.locationRow}>
-            <View
-              style={[
-                styles.serviceIcon,
-                { backgroundColor: colors.primaryContainer },
+        {/* Email-only contact fallback */}
+        {hasEmail && !isOwnBusiness && !hasWhatsApp && !hasPhone ? (
+          <View style={styles.emailWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Email"
+              style={({ pressed }) => [
+                styles.emailBtn,
+                {
+                  backgroundColor: colors.surfaceContainerHigh,
+                  opacity: pressed ? 0.85 : 1,
+                },
               ]}
+              onPress={() =>
+                emailValue ? Linking.openURL(`mailto:${emailValue}`) : undefined
+              }
             >
-              <Icon
-                name="location-on"
-                size={20}
-                color={colors.onPrimaryContainer}
-              />
-            </View>
-            <View style={styles.serviceBody}>
-              <Text
-                style={[styles.serviceName, { color: colors.onSurface }]}
-              >
-                {business.address || "Showroom / workshop"}
+              <Icon name="mail-outline" size={18} color={colors.primary} />
+              <Text style={[styles.emailBtnText, { color: colors.primary }]}>
+                Email
               </Text>
-              {hasLocation ? (
-                <PlaceLabel
-                  parts={[business.city, business.district]}
-                  country={business.country}
-                  size="xs"
-                  textStyle={[
-                    styles.serviceDesc,
-                    { color: colors.onSurfaceVariant },
-                  ]}
-                />
-              ) : null}
-            </View>
+            </Pressable>
           </View>
-        </FormSection>
-
-        {/* Endorse */}
-        {canEndorse ? (
-          <Pressable
-            onPress={handleEndorse}
-            disabled={endorsing}
-            style={({ pressed }) => [
-              styles.endorseBtn,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.outlineVariant,
-                opacity: pressed || endorsing ? 0.85 : 1,
-              },
-            ]}
-          >
-            <Icon name="thumb-up" size={18} color={colors.accent} />
-            <Text style={[styles.endorseText, { color: colors.accent }]}>
-              {endorsing ? "Sending…" : "Endorse this business"}
-            </Text>
-          </Pressable>
         ) : null}
       </ThemedScrollView>
 
@@ -908,35 +813,112 @@ export default function BusinessProfileScreen() {
   );
 }
 
-function DetailRow({
-  icon,
-  label,
+function StatCell({
   value,
-  colors,
+  label,
+  color,
+  muted,
 }: {
-  icon: React.ComponentProps<typeof Icon>["name"];
-  label: string;
   value: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
+  label: string;
+  color: string;
+  muted: string;
 }) {
   return (
-    <View style={styles.detailRow}>
-      <View
-        style={[
-          styles.detailIcon,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
+    <View style={styles.statCell}>
+      <Text style={[styles.statValue, { color }]} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, { color: muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SuggestedCard({
+  business,
+  width,
+  onDismiss,
+}: {
+  business: Business;
+  width: number;
+  onDismiss: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const role = roleLabel(business.businessType, !!business.providerProfile);
+  const verified =
+    business.badges.isVerified || business.verificationStatus === "verified";
+
+  return (
+    <View
+      style={[
+        styles.suggestCard,
+        {
+          width,
+          backgroundColor: colors.surfaceContainerLowest,
+          borderColor: colors.outlineVariant,
+        },
+      ]}
+    >
+      <Pressable
+        onPress={onDismiss}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss suggestion"
+        style={styles.suggestDismiss}
       >
-        <Icon name={icon} size={16} color={colors.onSurfaceVariant} />
-      </View>
-      <View style={styles.detailBody}>
-        <Text style={[styles.detailLabel, { color: colors.textMuted }]}>
-          {label}
-        </Text>
-        <Text style={[styles.detailValue, { color: colors.onSurface }]}>
-          {value}
-        </Text>
-      </View>
+        <Icon name="close" size={16} color={colors.textMuted} />
+      </Pressable>
+
+      <Link href={`/business/${business.id}`} asChild>
+        <Pressable style={styles.suggestBody}>
+          <View
+            style={[
+              styles.suggestAvatar,
+              { backgroundColor: colors.surfaceContainerHigh },
+            ]}
+          >
+            {business.logoUrl ? (
+              <Image
+                source={{ uri: business.logoUrl }}
+                style={styles.suggestAvatarImg}
+                contentFit="cover"
+              />
+            ) : (
+              <Text style={[styles.suggestInitials, { color: colors.primary }]}>
+                {initials(business.businessName)}
+              </Text>
+            )}
+          </View>
+          <Text
+            style={[styles.suggestName, { color: colors.onSurface }]}
+            numberOfLines={1}
+          >
+            {business.businessName}
+          </Text>
+          <Text
+            style={[styles.suggestMeta, { color: colors.textMuted }]}
+            numberOfLines={1}
+          >
+            {verified ? "Verified" : "Suggested for you"} · {role}
+          </Text>
+        </Pressable>
+      </Link>
+
+      <Link href={`/business/${business.id}`} asChild>
+        <Pressable
+          style={({ pressed }) => [
+            styles.suggestFollow,
+            {
+              backgroundColor: colors.primary,
+              opacity: pressed ? 0.88 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.suggestFollowText, { color: colors.onPrimary }]}>
+            View
+          </Text>
+        </Pressable>
+      </Link>
     </View>
   );
 }
@@ -968,105 +950,52 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 48,
-    gap: Spacing.gutterMd,
   },
 
-  hero: { marginBottom: 4 },
-  avatarBlock: {
+  profileHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: -48,
     paddingHorizontal: Spacing.containerMargin,
-    gap: 6,
+    marginTop: -AVATAR_SIZE / 2,
+    gap: 12,
   },
-  logoWrap: {
-    width: 96,
-    height: 96,
+  avatarWrap: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
     position: "relative",
-    marginBottom: 4,
   },
-  logo: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     borderWidth: 3,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-  logoImg: { width: "100%", height: "100%" },
-  logoInitials: { fontSize: 28, fontWeight: "700" },
+  avatarImg: { width: "100%", height: "100%" },
+  avatarInitials: { fontSize: 26, fontWeight: "700" },
   verifiedBadge: {
     position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    right: 0,
+    bottom: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2.5,
     alignItems: "center",
     justifyContent: "center",
   },
-  name: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  roleLine: { ...Typography.bodyMd, textAlign: "center" },
-  locRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    marginTop: 2,
-  },
-  locText: { ...Typography.caption, flexShrink: 1, textAlign: "center" },
-  bio: {
-    ...Typography.bodyMd,
-    textAlign: "center",
-    lineHeight: 22,
-    marginTop: Spacing.stackSm,
-  },
-  tagRowCentered: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: Spacing.stackSm,
-  },
-
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: Spacing.containerMargin,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-  },
-  chipText: { ...Typography.labelMd, fontSize: 11 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-  tagText: { ...Typography.caption, textTransform: "capitalize" },
-
   statsRow: {
+    flex: 1,
     flexDirection: "row",
-    paddingVertical: 14,
+    justifyContent: "space-around",
+    paddingTop: AVATAR_SIZE / 2 + 4,
   },
   statCell: {
-    flex: 1,
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 4,
+    minWidth: 56,
+    gap: 2,
   },
   statValue: {
     ...Typography.bodyLg,
@@ -1075,49 +1004,172 @@ const styles = StyleSheet.create({
   },
   statLabel: { ...Typography.caption },
 
-  contactRow: {
-    flexDirection: "row",
-    gap: 10,
+  bioBlock: {
     paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackMd,
+    gap: 4,
   },
-  contactBtn: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  name: {
+    ...Typography.bodyLg,
+    fontWeight: "700",
   },
-  contactBtnText: { ...Typography.button },
-  socialWrap: {
-    paddingHorizontal: Spacing.containerMargin,
-    alignItems: "center",
-  },
-  requestWrap: {
-    gap: 8,
-    paddingHorizontal: Spacing.containerMargin,
-  },
-
-  detailList: { gap: 12 },
-  detailRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  detailIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  detailBody: { flex: 1, gap: 2 },
-  detailLabel: { ...Typography.caption },
-  detailValue: { ...Typography.bodyMd, fontWeight: "500" },
-  originChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+  roleLine: { ...Typography.caption },
+  bio: {
+    ...Typography.bodyMd,
+    lineHeight: 20,
     marginTop: 2,
   },
+  locRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginTop: 2,
+  },
+  locText: { ...Typography.caption, flexShrink: 1 },
+  specsLine: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  socialRow: {
+    justifyContent: "flex-start",
+    marginTop: Spacing.stackSm,
+  },
+
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.gutterMd,
+  },
+  primaryBtn: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: Radius.md,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  primaryBtnText: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+  },
+  secondaryBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.md,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestWrap: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackMd,
+  },
+
+  discoverSection: {
+    paddingTop: Spacing.gutterMd,
+    gap: Spacing.stackSm,
+  },
+  discoverHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.containerMargin,
+  },
+  discoverTitle: {
+    ...Typography.bodyMd,
+    fontWeight: "700",
+  },
+  seeAll: {
+    ...Typography.labelMd,
+    fontWeight: "600",
+  },
+  discoverRail: {
+    paddingHorizontal: Spacing.containerMargin,
+    gap: 10,
+    paddingBottom: 4,
+  },
+  suggestCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    padding: 12,
+    paddingTop: 28,
+    alignItems: "center",
+    gap: 8,
+  },
+  suggestDismiss: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestBody: {
+    alignItems: "center",
+    gap: 6,
+    width: "100%",
+  },
+  suggestAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestAvatarImg: { width: "100%", height: "100%" },
+  suggestInitials: { fontSize: 18, fontWeight: "700" },
+  suggestName: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    textAlign: "center",
+    width: "100%",
+  },
+  suggestMeta: {
+    ...Typography.caption,
+    fontSize: 11,
+    textAlign: "center",
+  },
+  suggestFollow: {
+    width: "100%",
+    minHeight: 32,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  suggestFollowText: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.gutterMd,
+  },
+  tabActive: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1.5,
+  },
+  gemsGrid: {
+    paddingTop: Spacing.stackMd,
+  },
+  emptyGems: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    gap: 10,
+  },
+  emptyGemsText: { ...Typography.bodyMd },
 
   serviceRow: {
     flexDirection: "row",
@@ -1144,17 +1196,17 @@ const styles = StyleSheet.create({
   serviceMeta: { ...Typography.labelMd, fontWeight: "700", flexShrink: 1 },
   serviceMetaMuted: { ...Typography.caption },
 
-  locationRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-
-  endorseBtn: {
-    marginHorizontal: Spacing.containerMargin,
-    minHeight: 48,
+  emailWrap: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.gutterMd,
+  },
+  emailBtn: {
+    minHeight: 44,
     borderRadius: Radius.lg,
-    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  endorseText: { ...Typography.button },
+  emailBtnText: { ...Typography.button },
 });

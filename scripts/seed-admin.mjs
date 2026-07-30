@@ -71,7 +71,7 @@ await db.collection('businesses').doc('kamal-gem-cutting').set(
       yearsActive: 17,
       hasRepeatBusiness: true,
       listingMilestone: 5,
-      endorsementCount: 3,
+      likeCount: 3,
     },
     sellerProfile: null,
     providerProfile: {

@@ -208,10 +208,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "./assets/images/shortcuts/shortcut_money_light.png",
           shortcut_money_dark:
             "./assets/images/shortcuts/shortcut_money_dark.png",
-          shortcut_directory_light:
-            "./assets/images/shortcuts/shortcut_directory_light.png",
-          shortcut_directory_dark:
-            "./assets/images/shortcuts/shortcut_directory_dark.png",
+          shortcut_market_light:
+            "./assets/images/shortcuts/shortcut_market_light.png",
+          shortcut_market_dark:
+            "./assets/images/shortcuts/shortcut_market_dark.png",
           shortcut_search_light:
             "./assets/images/shortcuts/shortcut_search_light.png",
           shortcut_search_dark:
@@ -232,11 +232,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             params: { href: "/verify-certificate" },
           },
           {
-            id: "directory",
-            title: "Directory",
+            id: "market",
+            title: "Market",
             subtitle: "Find traders, lapidaries & labs",
             icon: "symbol:person.2",
-            params: { href: "/(marketplace)/(tabs)/directory" },
+            params: { href: "/(marketplace)/(tabs)/market" },
           },
           {
             id: "news",

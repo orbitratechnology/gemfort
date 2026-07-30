@@ -51,7 +51,7 @@ ICONS: dict[str, tuple[str, str]] = {
     "shortcut_bill": ("mi", "receipt-long"),
     "shortcut_certificates": ("mi", "workspace-premium"),
     "shortcut_money": ("mi", "payments"),
-    "shortcut_directory": ("mi", "storefront"),
+    "shortcut_market": ("mi", "storefront"),
     "shortcut_search": ("mi", "search"),
     "shortcut_news": ("mi", "newspaper"),
 }

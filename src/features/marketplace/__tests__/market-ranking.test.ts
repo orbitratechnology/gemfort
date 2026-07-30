@@ -13,7 +13,7 @@ function rankBusinesses<T extends { isFeatured?: boolean; badges?: { isVerified?
   });
 }
 
-describe('directory ranking', () => {
+describe('market ranking', () => {
   it('puts featured before verified-only before unverified, then A–Z', () => {
     const ranked = rankBusinesses([
       { businessName: 'Zebra Gems', badges: { isVerified: true } },

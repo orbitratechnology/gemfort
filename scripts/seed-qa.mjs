@@ -130,7 +130,7 @@ function businessBase(uid, p) {
       yearsActive: 11,
       hasRepeatBusiness: true,
       listingMilestone: 5,
-      endorsementCount: 2,
+      likeCount: 2,
     },
     contacts: {
       whatsapp: { value: p.phone, isVisible: true },
@@ -270,7 +270,7 @@ async function main() {
     {
       type: 'platform',
       title: 'Welcome to GemFort QA',
-      content: 'Seeded announcement for dogfood. Find verified businesses in Directory.',
+      content: 'Seeded announcement for dogfood. Find verified businesses in Market.',
       externalUrl: null,
       linkedBusinessId: 'qa-trader-biz',
       linkedGemId: null,
@@ -440,7 +440,7 @@ async function main() {
       recipientUid: uids.trader,
       type: 'announcement_platform',
       title: 'Welcome to GemFort QA',
-      message: 'Seeded announcement for dogfood. Find verified businesses in Directory.',
+      message: 'Seeded announcement for dogfood. Find verified businesses in Market.',
       referenceType: 'announcement',
       referenceId: 'welcome',
       priority: 'low',

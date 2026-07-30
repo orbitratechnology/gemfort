@@ -38,7 +38,7 @@ type BusinessCardProps = {
 };
 
 /**
- * Directory tile — banner, logo, role, name, country flag, specialties.
+ * Market tile — banner, logo, role, name, country flag, specialties.
  */
 export function BusinessCard({
   business,
@@ -207,7 +207,7 @@ export function BusinessCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    width: "100%",
   },
   media: {
     position: "relative",

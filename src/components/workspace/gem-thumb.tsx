@@ -56,7 +56,11 @@ export function GemThumb({
       ]}
       accessibilityLabel={`${label} photo placeholder`}
     >
-      <Icon name="diamond" size={Math.round(size * 0.45)} color={colors.outlineVariant} />
+      <Icon
+        name="diamond"
+        size={Math.round(size * 0.45)}
+        color={colors.outlineVariant}
+      />
     </View>
   );
 }

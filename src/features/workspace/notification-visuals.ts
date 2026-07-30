@@ -81,6 +81,7 @@ export function fallbackIconForType(type: string): IconName {
   if (type.startsWith("announcement_")) return "campaign";
   if (type.startsWith("report_")) return "flag";
   if (type.startsWith("account_")) return "manage-accounts";
+  if (type.startsWith("listing_offer")) return "sell";
   return "notifications";
 }
 
