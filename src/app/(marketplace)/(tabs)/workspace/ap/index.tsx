@@ -3,13 +3,13 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -19,48 +19,51 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
-  ContextActionsLink,
-  type ContextMenuAction,
+    ContextActionsLink,
+    type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusinessByOwnerUid, fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-  subscribeBusinessesByOwnerUids,
-  subscribeContacts,
-  subscribeGems,
-  subscribeGemsByIds,
-  subscribeGivenApRecords,
-  subscribeTakenApRecords,
-  subscribeVerifiedBusinesses,
-} from "@/features/workspace/firestore-subscriptions";
+    fetchBusinessByOwnerUid,
+    fetchBusinesses,
+} from "@/features/marketplace/marketplace-service";
 import {
-  apAgreedTotal,
-  apStatusLabel,
-  isApOngoing,
-} from "@/features/workspace/ap-normalize";
-import {
-  deleteApRecord,
-  fetchGivenApRecords,
-  fetchTakenApRecords,
-  requestApCancellation,
-  respondApCancellation,
-  respondApRequest,
+    deleteApRecord,
+    fetchGivenApRecords,
+    fetchTakenApRecords,
+    requestApCancellation,
+    respondApCancellation,
+    respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
+import {
+    apAgreedTotal,
+    apStatusLabel,
+    isApOngoing,
+} from "@/features/workspace/ap-normalize";
 import { getApSummary, isApOverdue } from "@/features/workspace/ap-utils";
 import {
-  canDeleteAp,
-  canRequestApCancellation,
-  canRespondApCancellation,
+    canDeleteAp,
+    canRequestApCancellation,
+    canRespondApCancellation,
 } from "@/features/workspace/delete-gates";
 import {
-  gemPrimaryPhotoUrl,
-  resolvePartyPhotoUrl,
+    subscribeBusinessesByOwnerUids,
+    subscribeContacts,
+    subscribeGems,
+    subscribeGemsByIds,
+    subscribeGivenApRecords,
+    subscribeTakenApRecords,
+    subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
+import {
+    gemPrimaryPhotoUrl,
+    resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
 import {
-  fetchContacts,
-  fetchGem,
-  fetchGems,
+    fetchContacts,
+    fetchGem,
+    fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -72,21 +75,16 @@ import { confirmDelete } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
-  ApLifecycleStatus,
-  ApRecord,
-  Business,
-  Contact,
-  WorkspaceGem,
+    ApLifecycleStatus,
+    ApRecord,
+    Business,
+    Contact,
+    WorkspaceGem,
 } from "@/types";
 
 type ApSide = "given" | "taken";
 
-type SectionKey =
-  | "pending"
-  | "accepted"
-  | "payment_sent"
-  | "done"
-  | "closed";
+type SectionKey = "pending" | "accepted" | "payment_sent" | "done" | "closed";
 
 const SECTION_ORDER: SectionKey[] = [
   "pending",
@@ -335,83 +333,83 @@ function ApRow({
         actions={menuActions}
       >
         {({ pressed }) => (
-        <View
-          style={[
-            styles.row,
-            {
-              backgroundColor: cardBg,
-              borderColor: overdue
-                ? colors.error + "66"
-                : colors.outlineVariant,
-              opacity: pressed ? 0.88 : 1,
-            },
-          ]}
-        >
-          <View style={[styles.accent, { backgroundColor: tone.accent }]} />
-          <View style={styles.mediaStack}>
-            <GemThumb
-              uri={gemPhotoUrl}
-              label={gemHeadline(record)}
-              colors={colors}
-            />
             <View
               style={[
-                styles.partyBadge,
-                { borderColor: colors.surfaceContainerLowest },
+                styles.row,
+                {
+                  backgroundColor: cardBg,
+                  borderColor: overdue
+                    ? colors.error + "66"
+                    : colors.outlineVariant,
+                  opacity: pressed ? 0.88 : 1,
+                },
               ]}
             >
-              <ContactAvatar
-                name={party}
-                photoUrl={partyPhotoUrl}
-                size={28}
-              />
-            </View>
-          </View>
-          <View style={styles.rowBody}>
-            <View style={styles.rowTop}>
-              <Text
-                style={[styles.rowTitle, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {gemHeadline(record)}
-              </Text>
-              <Text
-                style={[styles.rowAmount, { color: amountColor }]}
-              >
-                {formatBase(total)}
-              </Text>
-            </View>
-            <View style={styles.partyRow}>
-              <Icon
-                name={side === "given" ? "call-made" : "call-received"}
-                size={14}
-                color={colors.onSurfaceVariant}
-              />
-              <Text
-                style={[styles.rowSub, { color: colors.onSurfaceVariant }]}
-                numberOfLines={1}
-              >
-                {side === "given" ? "To" : "From"} {party}
-              </Text>
-            </View>
-            <Text
-              style={[styles.rowSub, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {gemBreakdown(record)}
-              {dueLabel ? ` · ${dueLabel}` : ""}
-            </Text>
-            <View style={styles.rowMeta}>
-              <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                <Icon name={tone.icon} size={12} color={tone.fg} />
-                <Text style={[styles.badgeText, { color: tone.fg }]}>
-                  {overdue ? "Overdue" : apStatusLabel(record.status)}
+              <View style={styles.mediaCol}>
+                <View style={styles.mediaStack}>
+                  <GemThumb
+                    uri={gemPhotoUrl}
+                    label={gemHeadline(record)}
+                    colors={colors}
+                  />
+                  <View
+                    style={[
+                      styles.partyBadge,
+                      { borderColor: colors.surfaceContainerLowest },
+                    ]}
+                  >
+                    <ContactAvatar
+                      name={party}
+                      photoUrl={partyPhotoUrl}
+                      size={28}
+                    />
+                  </View>
+                </View>
+                <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+                  <Icon name={tone.icon} size={11} color={tone.fg} />
+                  <Text
+                    style={[styles.badgeText, { color: tone.fg }]}
+                    numberOfLines={1}
+                  >
+                    {overdue ? "Overdue" : apStatusLabel(record.status)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.rowBody}>
+                <View style={styles.rowTop}>
+                  <Text
+                    style={[styles.rowTitle, { color: colors.onSurface }]}
+                    numberOfLines={1}
+                  >
+                    {gemHeadline(record)}
+                  </Text>
+                  <Text style={[styles.rowAmount, { color: amountColor }]}>
+                    {formatBase(total)}
+                  </Text>
+                </View>
+                <View style={styles.partyRow}>
+                  <Icon
+                    name={side === "given" ? "call-made" : "call-received"}
+                    size={14}
+                    color={colors.onSurfaceVariant}
+                  />
+                  <Text
+                    style={[styles.rowSub, { color: colors.onSurfaceVariant }]}
+                    numberOfLines={1}
+                  >
+                    {side === "given" ? "To" : "From"} {party}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.rowSub, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {gemBreakdown(record)}
+                  {dueLabel ? ` · ${dueLabel}` : ""}
                 </Text>
               </View>
+              <Icon name="chevron-right" size={20} color={colors.outline} />
             </View>
-          </View>
-          <Icon name="chevron-right" size={20} color={colors.outline} />
-        </View>
         )}
       </ContextActionsLink>
 
@@ -484,7 +482,8 @@ export default function ApListScreen() {
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -514,7 +513,9 @@ export default function ApListScreen() {
   const { data: extraGems = [] } = useFirestoreLiveQuery({
     queryKey: ["ap", "gem-photos", user?.uid, missingGemIds.join(",")],
     queryFn: async () => {
-      const results = await Promise.all(missingGemIds.map((id) => fetchGem(id)));
+      const results = await Promise.all(
+        missingGemIds.map((id) => fetchGem(id)),
+      );
       return results.filter((g): g is WorkspaceGem => !!g);
     },
     subscribe: (onData, onError) =>
@@ -584,7 +585,8 @@ export default function ApListScreen() {
   const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
-    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 
@@ -702,12 +704,6 @@ export default function ApListScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
       >
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          {side === "given"
-            ? "Stones you sent on approval."
-            : "Stones traders sent you on approval."}
-        </Text>
-
         <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
           <View style={styles.summaryRow}>
             <View style={styles.summaryCol}>
@@ -719,9 +715,7 @@ export default function ApListScreen() {
               >
                 {side === "given" ? "OUT" : "HOLDING"}
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
                 {summary.totalOut}
                 {summary.pendingRequests > 0
                   ? ` · ${summary.pendingRequests} pending`
@@ -743,9 +737,7 @@ export default function ApListScreen() {
               >
                 AGREED
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
                 {formatBase(summary.totalValue)}
               </Text>
             </View>
@@ -773,9 +765,7 @@ export default function ApListScreen() {
                 <Button
                   title="Give on AP"
                   icon="add"
-                  onPress={() =>
-                    router.push("/(marketplace)/ap/add")
-                  }
+                  onPress={() => router.push("/(marketplace)/ap/add")}
                 />
               ) : undefined
             }
@@ -783,9 +773,7 @@ export default function ApListScreen() {
         ) : (
           sections.map((section) => (
             <View key={section.key} style={styles.section}>
-              <Text
-                style={[styles.sectionTitle, { color: colors.onSurface }]}
-              >
+              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
                 {section.title}
               </Text>
               <View style={styles.list}>
@@ -837,9 +825,7 @@ export default function ApListScreen() {
             { backgroundColor: colors.primary },
             pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
           ]}
-          onPress={() =>
-            router.push("/(marketplace)/ap/add" as never)
-          }
+          onPress={() => router.push("/(marketplace)/ap/add" as never)}
         >
           <Icon name="add" size={28} color={colors.onPrimary} />
         </Pressable>
@@ -878,25 +864,24 @@ const styles = StyleSheet.create({
   rowWrap: { gap: Spacing.sm },
   row: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12,
     paddingVertical: 14,
-    paddingRight: 12,
-    paddingLeft: 0,
+    paddingHorizontal: 12,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
     boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
   },
-  accent: {
-    width: 4,
-    alignSelf: "stretch",
+  mediaCol: {
+    width: 72,
+    alignItems: "center",
+    gap: 8,
   },
   mediaStack: {
     width: 56,
     height: 56,
-    marginLeft: 10,
   },
   gemPhoto: {
     width: 56,
@@ -915,7 +900,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
   },
-  rowBody: { flex: 1, gap: 4, minWidth: 0 },
+  rowBody: { flex: 1, gap: 4, minWidth: 0, paddingTop: 2 },
   rowTop: {
     flexDirection: "row",
     alignItems: "center",
@@ -934,20 +919,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rowSub: { ...Typography.caption },
-  rowMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-  },
   badge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    justifyContent: "center",
+    gap: 3,
+    maxWidth: "100%",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: Radius.full,
   },
-  badgeText: { fontSize: 11, fontWeight: "700" },
+  badgeText: { fontSize: 10, fontWeight: "700" },
   actions: { flexDirection: "row", gap: Spacing.sm },
   actionBtn: { flex: 1 },
   fab: {

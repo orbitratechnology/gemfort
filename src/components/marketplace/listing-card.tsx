@@ -152,7 +152,7 @@ export function ListingCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    width: "100%",
   },
   media: {
     width: "100%",

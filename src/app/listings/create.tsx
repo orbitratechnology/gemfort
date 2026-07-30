@@ -152,12 +152,12 @@ export default function CreateListingScreen() {
         style={[styles.safe, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <StackHeader title="Create listing" />
+        <StackHeader title="Sell on Market" />
         <ThemedScrollView contentContainerStyle={styles.blocked}>
           <EmptyState
             icon="verified-user"
             title="Verified sellers only"
-            subtitle="Apply for verification from your profile to create gem listings."
+            subtitle="Apply for verification from your profile to sell gems on Market."
           />
           <Button
             title="Go to Profile"
@@ -175,12 +175,12 @@ export default function CreateListingScreen() {
         style={[styles.safe, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <StackHeader title="Create listing" />
+        <StackHeader title="Sell on Market" />
         <ThemedScrollView contentContainerStyle={styles.blocked}>
           <EmptyState
             icon="diamond"
             title="No gem selected"
-            subtitle="Open a gem in Workspace, then use Create Listing."
+            subtitle="Open a gem in Workspace, then use Sell on Market."
           />
           <Button
             title="Back to gems"
@@ -200,7 +200,7 @@ export default function CreateListingScreen() {
         style={[styles.safe, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <StackHeader title="Create listing" />
+        <StackHeader title="Sell on Market" />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>
             {gemLoading || !gemFetched ? "Loading gem…" : "Gem not found"}
@@ -218,21 +218,21 @@ export default function CreateListingScreen() {
         style={[styles.safe, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
-        <StackHeader title="Create listing" />
+        <StackHeader title="Sell on Market" />
         <ThemedScrollView contentContainerStyle={styles.blocked}>
           <EmptyState
             icon={life.outcome === "sold" ? "check-circle" : "block"}
             title={
               life.outcome === "sold"
-                ? "Sold gems cannot be listed"
+                ? "Sold gems cannot be sold on Market"
                 : life.outcome === "returned"
-                  ? "Returned gems cannot be listed"
-                  : "This gem cannot be listed"
+                  ? "Returned gems cannot be sold on Market"
+                  : "This gem cannot be sold on Market"
             }
             subtitle={
               terminal
-                ? "Change the outcome first if you need to list it again."
-                : "This gem is already listed or not ready for GemNet."
+                ? "Change the outcome first if you need to sell it again."
+                : "This gem is already on Market or not ready to sell."
             }
           />
           <Button
@@ -271,7 +271,7 @@ export default function CreateListingScreen() {
         if (!business) {
           await confirm({
             title: "Business profile required",
-            message: "Set up your business profile before publishing listings.",
+            message: "Set up your business profile before selling on Market.",
             confirmLabel: "Set Up",
             cancelLabel: "Cancel",
             icon: "storefront",
@@ -306,9 +306,9 @@ export default function CreateListingScreen() {
         const url = listingShareUrl(slug);
         await copyLink(url, { silent: true });
         const whatsapp = business.contacts?.whatsapp?.value;
-        toast.success("Listing published — link copied.");
+        toast.success("On Market — link copied.");
         showActions({
-          title: "Published",
+          title: "On Market",
           message: `Link copied:\n${url}`,
           actions: [
             ...(whatsapp
@@ -319,7 +319,7 @@ export default function CreateListingScreen() {
                       void Linking.openURL(
                         openWhatsApp(
                           whatsapp,
-                          `Check out my gem listing: ${url}`,
+                          `Check out my gem on Market: ${url}`,
                         ),
                       ),
                   },
@@ -330,7 +330,7 @@ export default function CreateListingScreen() {
               onPress: () => {
                 void shareLink({
                   url,
-                  message: `Check out my gem listing: ${parsed.data.title}`,
+                  message: `Check out my gem on Market: ${parsed.data.title}`,
                   title: parsed.data.title,
                 });
               },
@@ -341,9 +341,9 @@ export default function CreateListingScreen() {
             },
           ],
         });
-      }, "Creating listing…");
+      }, "Selling on Market…");
     } catch (e) {
-      toast.error(friendlyError(e, "Could not publish listing."));
+      toast.error(friendlyError(e, "Could not sell on Market."));
     }
   }
 
@@ -354,7 +354,7 @@ export default function CreateListingScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Create listing" />
+      <StackHeader title="Sell on Market" />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
@@ -408,7 +408,7 @@ export default function CreateListingScreen() {
           </View>
         </FormSection>
 
-        <FormSection title="Listing">
+        <FormSection title="Sale">
           <Input
             label="Title"
             value={title}
@@ -430,7 +430,7 @@ export default function CreateListingScreen() {
               clearField("price");
             }}
             error={errors.price}
-            helperText="Shown on the public listing"
+            helperText="Shown on the public Market listing"
           />
 
           <AttributePickerField
@@ -466,8 +466,8 @@ export default function CreateListingScreen() {
       </ThemedScrollView>
 
       <FormFooter
-        title="Publish listing"
-        icon="publish"
+        title="Sell on Market"
+        icon="storefront"
         onPress={() => void handlePublish()}
       />
 

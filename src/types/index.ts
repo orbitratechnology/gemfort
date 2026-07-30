@@ -86,7 +86,7 @@ export type Business = {
     yearsActive: number;
     hasRepeatBusiness: boolean;
     listingMilestone: number;
-    endorsementCount: number;
+    likeCount: number;
   };
   sellerProfile: {
     gemSpecializations: string[];
@@ -117,7 +117,7 @@ export type Business = {
   } | null;
   labProfile?: {
     accreditations: string[];
-    /** @deprecated Prefer certificateOfferings; kept for directory chips / legacy. */
+    /** @deprecated Prefer certificateOfferings; kept for market chips / legacy. */
     reportTypes: string[];
     /** Public certificate menu with prices — edited by the lab. */
     certificateOfferings?: LabCertificateOffering[];
@@ -558,7 +558,7 @@ export type Cheque = {
   direction: ChequeDirection;
   chequeNumber: string;
   bankName: string;
-  /** LankaClear / CEFTS bank code when selected from directory */
+  /** LankaClear / CEFTS bank code when selected from bank list */
   bankCode?: string | null;
   branch: string | null;
   amount: number;
@@ -706,14 +706,24 @@ export type ListingOffer = {
   listingSlug: string;
   listingTitle: string;
   sellerUid: string;
+  /** Seller's business id (listing owner). */
   businessId: string;
   buyerUid: string;
   buyerName: string;
+  /** Buyer's business snapshot for seller inbox cards. */
+  buyerBusinessId: string | null;
+  buyerBusinessName: string | null;
+  buyerLogoUrl: string | null;
+  buyerCountry: string | null;
   amount: number;
   currency: string;
   amountBase: number;
   message: string | null;
   status: "pending" | "accepted" | "declined" | "withdrawn";
+  /** Seller dismissed this offer from their inbox. */
+  sellerCleared: boolean;
+  /** When the seller first opened the offers sheet containing this offer. */
+  sellerReadAt: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -758,7 +768,7 @@ export type FraudReport = {
   resolvedAt: Timestamp | null;
 };
 
-export type Endorsement = {
+export type Like = {
   id: string;
   fromBusinessId: string;
   toBusinessId: string;

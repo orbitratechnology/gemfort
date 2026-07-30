@@ -37,7 +37,7 @@ type ContactPickerProps = {
 };
 
 /**
- * Universal party selector — contacts, optionally with GemFort directory profiles.
+ * Universal party selector — contacts, optionally with GemFort market profiles.
  */
 export function ContactPicker({
   label,

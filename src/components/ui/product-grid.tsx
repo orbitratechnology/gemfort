@@ -7,34 +7,34 @@ type ProductGridProps = {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   gap?: number;
+  /** Edge inset so tiles sit near the viewport edge (ecommerce-style). */
+  edgeInset?: number;
 };
 
 /**
- * Full-width 2-column ecommerce product grid.
- * Children should be flex:1 tiles (ListingCard, BusinessCard, GemCard).
+ * Full-width 2-column masonry product grid (column-flow).
+ * Items stack top-to-bottom in each column so variable heights don't leave
+ * row gaps. Children should be width:100% tiles (ListingCard, BusinessCard, GemCard).
  */
-export function ProductGrid({ children, style, gap = Spacing.stackMd }: ProductGridProps) {
-  const rows = useMemo(() => {
+export function ProductGrid({
+  children,
+  style,
+  gap = Spacing.stackSm,
+  edgeInset = Spacing.stackSm,
+}: ProductGridProps) {
+  const [left, right] = useMemo(() => {
     const items = Children.toArray(children).filter(Boolean);
-    const pairs: ReactNode[][] = [];
-    for (let i = 0; i < items.length; i += 2) {
-      pairs.push(items.slice(i, i + 2));
-    }
-    return pairs;
+    const cols: [ReactNode[], ReactNode[]] = [[], []];
+    items.forEach((child, i) => {
+      cols[i % 2].push(child);
+    });
+    return cols;
   }, [children]);
 
   return (
-    <View style={[styles.grid, { gap }, style]}>
-      {rows.map((row, rowIndex) => (
-        <View key={rowIndex} style={[styles.row, { gap }]}>
-          {row.map((child, colIndex) => (
-            <View key={colIndex} style={styles.cell}>
-              {child}
-            </View>
-          ))}
-          {row.length === 1 ? <View style={styles.cell} /> : null}
-        </View>
-      ))}
+    <View style={[styles.grid, { gap, paddingHorizontal: edgeInset }, style]}>
+      <View style={[styles.column, { gap }]}>{left}</View>
+      <View style={[styles.column, { gap }]}>{right}</View>
     </View>
   );
 }
@@ -42,12 +42,10 @@ export function ProductGrid({ children, style, gap = Spacing.stackMd }: ProductG
 const styles = StyleSheet.create({
   grid: {
     width: '100%',
-  },
-  row: {
     flexDirection: 'row',
-    width: '100%',
+    alignItems: 'flex-start',
   },
-  cell: {
+  column: {
     flex: 1,
     minWidth: 0,
   },

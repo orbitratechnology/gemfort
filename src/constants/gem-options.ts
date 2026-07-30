@@ -348,7 +348,7 @@ export type GemStatusGroup = {
 };
 
 /**
- * Three independent axes — a gem can be Cut + On Trip + Listed at once.
+ * Three independent axes — a gem can be Cut + On Trip + On Market at once.
  * `certified` / `ready_for_sale` remain legacy display values only.
  */
 export const GEM_STATUS_GROUPS: readonly GemStatusGroup[] = [
@@ -379,10 +379,10 @@ export const GEM_STATUS_GROUPS: readonly GemStatusGroup[] = [
   {
     key: 'outcome',
     title: 'Outcome',
-    hint: 'Listing / sale',
+    hint: 'Market / sale',
     clearLabel: 'None',
     options: [
-      { value: 'listed', label: 'Listed', icon: 'storefront' },
+      { value: 'listed', label: 'On Market', icon: 'storefront' },
       { value: 'sold', label: 'Sold', icon: 'check-circle' },
       { value: 'returned', label: 'Returned', icon: 'undo' },
     ],
@@ -404,7 +404,7 @@ export const GEM_STATUS_LABELS: Record<GemStatus, string> = {
   with_polisher: 'Polisher',
   on_ap: 'On AP',
   on_trip: 'Trip',
-  listed: 'Listed',
+  listed: 'On Market',
   sold: 'Sold',
   returned: 'Returned',
   certified: 'Certified',
@@ -422,7 +422,7 @@ export const GEM_STATUS_FILTERS: { value: GemStatus | 'all'; label: string }[] =
   { value: 'with_polisher', label: 'Polisher' },
   { value: 'on_ap', label: 'On AP' },
   { value: 'on_trip', label: 'Trip' },
-  { value: 'listed', label: 'Listed' },
+  { value: 'listed', label: 'On Market' },
   { value: 'sold', label: 'Sold' },
   { value: 'returned', label: 'Returned' },
 ];

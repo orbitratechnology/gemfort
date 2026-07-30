@@ -1,43 +1,41 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import {
-  ContextActionsLink,
-} from "@/components/workspace/context-actions-link";
+import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-  BILL_DIRECTION_LABELS,
-  BILL_STATUS_LABELS,
-  dueLabel,
-  getBillSummary,
-  isOpenBill,
-  remainingAmount,
+    BILL_DIRECTION_LABELS,
+    BILL_STATUS_LABELS,
+    dueLabel,
+    getBillSummary,
+    isOpenBill,
+    remainingAmount,
 } from "@/features/workspace/bill-utils";
+import {
+    subscribeBills,
+    subscribeContacts,
+    subscribeVerifiedBusinesses,
+} from "@/features/workspace/firestore-subscriptions";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
-  subscribeBills,
-  subscribeContacts,
-  subscribeVerifiedBusinesses,
-} from "@/features/workspace/firestore-subscriptions";
-import {
-  deleteBill,
-  fetchBills,
-  fetchContacts,
+    deleteBill,
+    fetchBills,
+    fetchContacts,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -55,7 +53,9 @@ function billRemainingStored(bill: Bill) {
     amount: remaining,
     currency: bill.currency,
     amountBase:
-      bill.amount > 0 ? (remaining / bill.amount) * bill.amountBase : bill.amountBase,
+      bill.amount > 0
+        ? (remaining / bill.amount) * bill.amountBase
+        : bill.amountBase,
   };
 }
 
@@ -107,73 +107,71 @@ function BillRow({
             pressed && { opacity: 0.85 },
           ]}
         >
-        {contactPhotoUrl ? (
-          <ContactAvatar
-            name={partyLabel}
-            photoUrl={contactPhotoUrl}
-            size={44}
-          />
-        ) : (
-          <View
-            style={[
-              styles.rowIcon,
-              {
-                backgroundColor: isPayable
-                  ? colors.errorContainer
-                  : colors.secondaryContainer,
-              },
-            ]}
-          >
-            <Icon
-              name={isPayable ? "call-made" : "call-received"}
-              size={20}
-              color={
-                isPayable ? colors.error : colors.onSecondaryContainer
-              }
+          {contactPhotoUrl ? (
+            <ContactAvatar
+              name={partyLabel}
+              photoUrl={contactPhotoUrl}
+              size={44}
             />
-          </View>
-        )}
-        <View style={styles.rowBody}>
-          <View style={styles.rowTop}>
-            <Text
-              style={[styles.rowTitle, { color: colors.onSurface }]}
-              numberOfLines={1}
-            >
-              {partyLabel}
-            </Text>
-            <Text
-              style={[styles.rowAmount, { color: colors.primary }]}
-            >
-              {formatStored(remainingStored)}
-            </Text>
-          </View>
-          <Text
-            style={[styles.rowSub, { color: colors.textMuted }]}
-            numberOfLines={1}
-          >
-            {BILL_DIRECTION_LABELS[bill.direction]}
-            {bill.commissionPercent != null
-              ? ` · ${bill.commissionPercent}% commission`
-              : ""}
-          </Text>
-          <View style={styles.rowMeta}>
-            <Text style={[styles.rowDate, { color: colors.onSurfaceVariant }]}>
-              {dueLabel(bill)}
-            </Text>
+          ) : (
             <View
               style={[
-                styles.badge,
-                { backgroundColor: colors.surfaceContainerHighest },
+                styles.rowIcon,
+                {
+                  backgroundColor: isPayable
+                    ? colors.errorContainer
+                    : colors.secondaryContainer,
+                },
               ]}
             >
+              <Icon
+                name={isPayable ? "call-made" : "call-received"}
+                size={20}
+                color={isPayable ? colors.error : colors.onSecondaryContainer}
+              />
+            </View>
+          )}
+          <View style={styles.rowBody}>
+            <View style={styles.rowTop}>
               <Text
-                style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
+                style={[styles.rowTitle, { color: colors.onSurface }]}
+                numberOfLines={1}
               >
-                {BILL_STATUS_LABELS[bill.status]}
+                {partyLabel}
+              </Text>
+              <Text style={[styles.rowAmount, { color: colors.primary }]}>
+                {formatStored(remainingStored)}
               </Text>
             </View>
+            <Text
+              style={[styles.rowSub, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {BILL_DIRECTION_LABELS[bill.direction]}
+              {bill.commissionPercent != null
+                ? ` · ${bill.commissionPercent}% commission`
+                : ""}
+            </Text>
+            <View style={styles.rowMeta}>
+              <Text
+                style={[styles.rowDate, { color: colors.onSurfaceVariant }]}
+              >
+                {dueLabel(bill)}
+              </Text>
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: colors.surfaceContainerHighest },
+                ]}
+              >
+                <Text
+                  style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
+                >
+                  {BILL_STATUS_LABELS[bill.status]}
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
         </View>
       )}
     </ContextActionsLink>
@@ -201,14 +199,16 @@ export default function BillsIndexScreen() {
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
   const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
-    subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeVerifiedBusinesses(onData, onError),
     enabled: !!user,
   });
 
@@ -251,10 +251,6 @@ export default function BillsIndexScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
       >
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Track amounts to pay or receive, due dates, and commission.
-        </Text>
-
         <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
           <View style={styles.summaryRow}>
             <View style={styles.summaryCol}>
@@ -266,11 +262,8 @@ export default function BillsIndexScreen() {
               >
                 TO PAY
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
-                {summary.payableCount} ·{" "}
-                {formatBase(summary.payableTotal)}
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                {summary.payableCount} · {formatBase(summary.payableTotal)}
               </Text>
             </View>
             <View
@@ -288,9 +281,7 @@ export default function BillsIndexScreen() {
               >
                 TO RECEIVE
               </Text>
-              <Text
-                style={[styles.summaryValue, { color: colors.onPrimary }]}
-              >
+              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
                 {summary.receivableCount} ·{" "}
                 {formatBase(summary.receivableTotal)}
               </Text>

@@ -27,6 +27,7 @@ function typeLabel(type: string): string {
   if (type.startsWith("cert_")) return "Certificate";
   if (type.startsWith("report_")) return "Report";
   if (type.startsWith("account_")) return "Account";
+  if (type.startsWith("listing_offer")) return "Offer";
   return "Alert";
 }
 

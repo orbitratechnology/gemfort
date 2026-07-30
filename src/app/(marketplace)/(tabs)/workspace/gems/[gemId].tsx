@@ -102,7 +102,7 @@ function eventIcon(eventType: string): IconName {
   if (t.includes("cert")) return "verified";
   if (t.includes("ap") || t.includes("consign")) return "handshake";
   if (t.includes("sale") || t.includes("sold")) return "sell";
-  if (t.includes("list")) return "storefront";
+  if (t.includes("list") || t.includes("market")) return "storefront";
   if (t.includes("service")) return "build";
   if (t.includes("status")) return "swap-horiz";
   if (t.includes("cost") || t.includes("purchase")) return "payments";
@@ -113,7 +113,8 @@ function actionIcon(title: string): IconName {
   const t = title.toLowerCase();
   if (t.includes("cutting") || t.includes("cut")) return "content-cut";
   if (t.includes("ap")) return "handshake";
-  if (t.includes("list") || t.includes("gemnet")) return "storefront";
+  if (t.includes("market") || t.includes("list") || t.includes("gemnet"))
+    return "storefront";
   if (t.includes("service")) return "build";
   if (t.includes("sale") || t.includes("sell")) return "sell";
   return "arrow-forward";
@@ -978,7 +979,7 @@ export default function GemDetailScreen() {
                 )
               }
               accessibilityRole="button"
-              accessibilityLabel="Create listing"
+              accessibilityLabel="Sell on Market"
               style={({ pressed }) => [
                 styles.primaryBtn,
                 {
@@ -991,7 +992,7 @@ export default function GemDetailScreen() {
               <Text
                 style={[styles.primaryBtnText, { color: colors.onPrimary }]}
               >
-                Create Listing
+                Sell on Market
               </Text>
             </Pressable>
           ) : null}

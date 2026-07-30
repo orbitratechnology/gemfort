@@ -64,6 +64,15 @@ export function navigateFromNotificationRef(
     router.navigate('/(marketplace)/(tabs)/home' as Href);
     return;
   }
+  if (type === 'listing' && id) {
+    go(`/listing/${id}` as Href, options);
+    return;
+  }
+  if (type === 'listing_offer' && id) {
+    // Legacy notifications referenced the offer doc; open inbox fallback.
+    go('/notifications' as Href, options);
+    return;
+  }
   if (type === 'account') {
     go('/(marketplace)/profile' as Href, options);
     return;

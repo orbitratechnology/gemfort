@@ -1,6 +1,6 @@
 import { addDays, startOfDay } from 'date-fns';
 
-import { directoryTabFromBusinessType } from '@/constants/roles';
+import { marketTabFromBusinessType } from '@/constants/roles';
 import { isApOngoing } from '@/features/workspace/ap-normalize';
 import { isPendingCheque, toDate as chequeToDate } from '@/features/workspace/cheque-utils';
 import { formatCurrency, formatRelativeDue } from '@/lib/utils';
@@ -196,14 +196,14 @@ export function popularityScore(b: Business): number {
   const views = b.analytics?.profileViewsTotal ?? 0;
   const listings = b.analytics?.listingViewsTotal ?? 0;
   const taps = (b.analytics?.whatsappTapsTotal ?? 0) + (b.analytics?.phoneTapsTotal ?? 0);
-  const endorsements = b.badges.endorsementCount ?? 0;
+  const likes = b.badges.likeCount ?? 0;
   return (
     (b.isFeatured ? 10_000 : 0) +
     (b.badges.isVerified ? 1_000 : 0) +
     views * 3 +
     listings * 2 +
     taps * 4 +
-    endorsements * 50
+    likes * 50
   );
 }
 
@@ -213,7 +213,7 @@ export function popularByRole(
   limit = 6,
 ): Business[] {
   return businesses
-    .filter((b) => directoryTabFromBusinessType(b.businessType) === role)
+    .filter((b) => marketTabFromBusinessType(b.businessType) === role)
     .sort((a, b) => popularityScore(b) - popularityScore(a) || a.businessName.localeCompare(b.businessName))
     .slice(0, limit);
 }

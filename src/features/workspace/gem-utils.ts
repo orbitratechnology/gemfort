@@ -1,10 +1,10 @@
-import type { GemStatus, WorkspaceGem } from "@/types";
 import {
-  canListGem,
-  gemMatchesStatusFilter,
-  isTerminalOutcome,
-  resolveGemLifecycle,
+    canListGem,
+    gemMatchesStatusFilter,
+    isTerminalOutcome,
+    resolveGemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
+import type { GemStatus, WorkspaceGem } from "@/types";
 
 export type GemListFilters = {
   search?: string;
@@ -74,7 +74,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
 
   if (canListGem(gem)) {
     actions.push({
-      title: "List on GemNet",
+      title: "Sell on Market",
       href: `/listings/create?workspaceGemId=${gem.id}`,
       variant: actions.length ? "secondary" : "primary",
     });
@@ -86,7 +86,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     !isTerminalOutcome(life.outcome)
   ) {
     actions.push({
-      title: "View GemNet Listing",
+      title: "View on Market",
       href: `/listing/${gem.marketplaceListingId}`,
       variant: "secondary",
     });

@@ -73,14 +73,14 @@ export type PartyPickerSheetProps = {
   value: PartySelection | null;
   onSelect: (selection: PartySelection) => void;
   title?: string;
-  /** Which GemFort directory roles to show. Empty = contacts only. */
+  /** Which GemFort market roles to show. Empty = contacts only. */
   allowedBusinessKinds?: BusinessKind[];
   contactTypeFilter?: string | null;
   emptyContactsHint?: string;
   preferBusinesses?: boolean;
 };
 
-type TabId = 'directory' | 'contacts';
+type TabId = 'market' | 'contacts';
 
 function businessMatches(b: Business, q: string) {
   if (!q) return true;
@@ -108,14 +108,14 @@ function roleLabelForBusiness(b: Business): string {
   return b.businessType.replace(/_/g, ' ');
 }
 
-function directoryIcon(b: Business): IconName {
+function marketIcon(b: Business): IconName {
   const kind = businessKindOf(b);
   if (kind === 'labs') return 'workspace-premium';
   if (kind === 'lapidaries') return 'handyman';
   return 'storefront';
 }
 
-function directoryTabLabel(kinds: BusinessKind[]): string {
+function marketTabLabel(kinds: BusinessKind[]): string {
   if (kinds.length === 1) {
     if (kinds[0] === 'traders') return 'Traders';
     if (kinds[0] === 'lapidaries') return 'Lapidaries';
@@ -124,7 +124,7 @@ function directoryTabLabel(kinds: BusinessKind[]): string {
   return 'GemFort';
 }
 
-function directorySearchPlaceholder(kinds: BusinessKind[]): string {
+function marketSearchPlaceholder(kinds: BusinessKind[]): string {
   if (kinds.length === 1 && kinds[0] === 'traders') return 'Search traders…';
   if (kinds.length === 1 && kinds[0] === 'lapidaries') return 'Search lapidaries…';
   if (kinds.length === 1 && kinds[0] === 'labs') return 'Search labs…';
@@ -250,7 +250,7 @@ function BusinessRow({
         {business.logoUrl ? (
           <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
         ) : (
-          <Icon name={directoryIcon(business)} size={20} color={colors.primary} />
+          <Icon name={marketIcon(business)} size={20} color={colors.primary} />
         )}
       </View>
       <View style={styles.rowBody}>
@@ -382,8 +382,8 @@ export function ContactPickerSheet({
 }
 
 /**
- * Unified party picker: GemFort directory (traders / labs / lapidaries)
- * + local Contacts. Directory kinds are filtered per flow.
+ * Unified party picker: GemFort market (traders / labs / lapidaries)
+ * + local Contacts. Market kinds are filtered per flow.
  */
 export function PartyPickerSheet({
   visible,
@@ -398,9 +398,9 @@ export function PartyPickerSheet({
   preferBusinesses = true,
 }: PartyPickerSheetProps) {
   const { colors } = useAppTheme();
-  const showDirectory = allowedBusinessKinds.length > 0;
+  const showMarket = allowedBusinessKinds.length > 0;
   const [tab, setTab] = useState<TabId>(
-    showDirectory && preferBusinesses ? 'directory' : 'contacts',
+    showMarket && preferBusinesses ? 'market' : 'contacts',
   );
   const [query, setQuery] = useState('');
   const [contacts, setContacts] = useState(contactsProp);
@@ -411,14 +411,14 @@ export function PartyPickerSheet({
   }, [contactsProp]);
 
   useEffect(() => {
-    if (visible && showDirectory) {
-      setTab(preferBusinesses ? 'directory' : 'contacts');
+    if (visible && showMarket) {
+      setTab(preferBusinesses ? 'market' : 'contacts');
     } else if (visible) {
       setTab('contacts');
     }
-  }, [visible, showDirectory, preferBusinesses]);
+  }, [visible, showMarket, preferBusinesses]);
 
-  const { data: directoryBusinesses = [], isLoading } = useFirestoreLiveQuery({
+  const { data: marketBusinesses = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ['party-picker-businesses', allowedBusinessKinds.join(',')],
     queryFn: async () => {
       if (!isFirebaseConfigured) return [];
@@ -437,7 +437,7 @@ export function PartyPickerSheet({
     enabled: visible,
   });
 
-  // Full directory for contact logo fallback (not filtered by picker kinds).
+  // Full market for contact logo fallback (not filtered by picker kinds).
   const { data: allBusinesses = [] } = useFirestoreLiveQuery({
     queryKey: ['home-businesses'],
     queryFn: async () => {
@@ -454,7 +454,7 @@ export function PartyPickerSheet({
     enabled: visible && isFirebaseConfigured,
   });
 
-  const businesses = directoryBusinesses;
+  const businesses = marketBusinesses;
 
   useEffect(() => {
     if (!visible || allBusinesses.length === 0) return;
@@ -486,11 +486,11 @@ export function PartyPickerSheet({
     return map;
   }, [contacts]);
 
-  const tabs: { id: TabId; label: string; icon: IconName }[] = showDirectory
+  const tabs: { id: TabId; label: string; icon: IconName }[] = showMarket
     ? [
         {
-          id: 'directory',
-          label: directoryTabLabel(allowedBusinessKinds),
+          id: 'market',
+          label: marketTabLabel(allowedBusinessKinds),
           icon: 'storefront',
         },
         { id: 'contacts', label: 'Contacts', icon: 'contacts' },
@@ -504,7 +504,7 @@ export function PartyPickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={closeSheet} title={title} scrollable={false}>
-      {showDirectory ? (
+      {showMarket ? (
         <View style={[styles.tabs, { backgroundColor: colors.surfaceContainerLow }]}>
           {tabs.map((t) => {
             const active = tab === t.id;
@@ -535,13 +535,13 @@ export function PartyPickerSheet({
         value={query}
         onChange={setQuery}
         placeholder={
-          tab === 'directory'
-            ? directorySearchPlaceholder(allowedBusinessKinds)
+          tab === 'market'
+            ? marketSearchPlaceholder(allowedBusinessKinds)
             : 'Search your contacts…'
         }
       />
 
-      {tab === 'directory' && showDirectory ? (
+      {tab === 'market' && showMarket ? (
         <FlashList
           data={filteredBusinesses}
           keyExtractor={(item) => item.id}

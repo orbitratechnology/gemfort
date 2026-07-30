@@ -39,13 +39,15 @@ type GemCardProps = {
   href?: Href;
   onPress?: () => void;
   onDelete?: () => void | Promise<void>;
+  /** Unread marketplace offer count for this gem's listing. */
+  offerBadge?: number;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Workspace inventory tile for 2-column ecommerce grids.
  */
-export function GemCard({ gem, href, onDelete, style }: GemCardProps) {
+export function GemCard({ gem, href, onDelete, offerBadge = 0, style }: GemCardProps) {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
@@ -118,6 +120,17 @@ export function GemCard({ gem, href, onDelete, style }: GemCardProps) {
             {statusLabel}
           </Text>
         </View>
+
+        {offerBadge > 0 ? (
+          <View
+            style={[styles.offerBadge, { backgroundColor: colors.error }]}
+            accessibilityLabel={`${offerBadge} unread offers`}
+          >
+            <Text style={styles.offerBadgeText}>
+              {offerBadge > 99 ? "99+" : String(offerBadge)}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.body}>
@@ -256,6 +269,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "capitalize",
+  },
+  offerBadge: {
+    position: "absolute",
+    bottom: Spacing.sm,
+    right: Spacing.sm,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  offerBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
   },
   body: {
     paddingHorizontal: 10,

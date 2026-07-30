@@ -18,7 +18,11 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'verification_applications', field: 'applicantUid' },
   { collection: 'notifications', field: 'recipientUid' },
   { collection: 'reports', field: 'reporterUid' },
+  { collection: 'likes', field: 'fromUid' },
+  // Remove records created by app versions released before the Likes rename.
   { collection: 'endorsements', field: 'fromUid' },
+  { collection: 'listing_offers', field: 'buyerUid' },
+  { collection: 'listing_offers', field: 'sellerUid' },
   { collection: 'service_requests', field: 'traderUid' },
   { collection: 'service_requests', field: 'lapidaryUid' },
   { collection: 'certification_requests', field: 'traderUid' },

@@ -1,48 +1,57 @@
 import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  setDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  updateDoc,
-  increment,
-  serverTimestamp,
-  Timestamp,
-} from '@/lib/firebase/db';
-import { getFirebaseDb } from '@/lib/firebase/config';
-import { normalizePhoneForStorage } from '@/lib/firebase/phone-utils';
-import { businessTypeFromRole, directoryTabFromBusinessType, normalizeUserRole, ROLE_LABELS } from '@/constants/roles';
+    businessTypeFromRole,
+    marketTabFromBusinessType,
+    normalizeUserRole,
+    ROLE_LABELS,
+} from "@/constants/roles";
 import {
-  defaultLabCertificateOfferings,
-  reportTypesFromOfferings,
-  sanitizeLabCertificateOfferings,
-} from '@/features/marketplace/lab-certificate-offerings';
-import { createClientNotification } from '@/features/marketplace/request-service';
-import { convertToBase } from '@/lib/exchange-rates';
-import { formatMoney } from '@/lib/money';
+    defaultLabCertificateOfferings,
+    reportTypesFromOfferings,
+    sanitizeLabCertificateOfferings,
+} from "@/features/marketplace/lab-certificate-offerings";
+import { convertToBase } from "@/lib/exchange-rates";
+import { getFirebaseDb } from "@/lib/firebase/config";
+import {
+    addDoc,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    increment,
+    limit,
+    orderBy,
+    query,
+    serverTimestamp,
+    setDoc,
+    Timestamp,
+    updateDoc,
+    where,
+} from "@/lib/firebase/db";
+import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import type {
-  Announcement,
-  Business,
-  BusinessType,
-  FraudReportType,
-  LabCertificateOffering,
-  ListingOffer,
-  MarketplaceListing,
-  UserRole,
-} from '@/types';
+    Announcement,
+    Business,
+    BusinessType,
+    FraudReportType,
+    LabCertificateOffering,
+    ListingOffer,
+    MarketplaceListing,
+    UserRole,
+} from "@/types";
 
-export type DirectoryBusinessFilter = 'trader' | 'lapidary' | 'gem_lab' | 'seller' | 'provider';
+export type MarketBusinessFilter =
+  | "trader"
+  | "lapidary"
+  | "gem_lab"
+  | "seller"
+  | "provider";
 
 export async function fetchAnnouncements(): Promise<Announcement[]> {
   const q = query(
-    collection(getFirebaseDb(), 'announcements'),
-    where('isVisible', '==', true),
-    orderBy('publishedAt', 'desc'),
+    collection(getFirebaseDb(), "announcements"),
+    where("isVisible", "==", true),
+    orderBy("publishedAt", "desc"),
     limit(50),
   );
   const snap = await getDocs(q);
@@ -50,14 +59,14 @@ export async function fetchAnnouncements(): Promise<Announcement[]> {
 }
 
 export async function fetchBusinesses(filters?: {
-  businessType?: DirectoryBusinessFilter;
+  businessType?: MarketBusinessFilter;
   city?: string;
   verifiedOnly?: boolean;
 }): Promise<Business[]> {
   const q = query(
-    collection(getFirebaseDb(), 'businesses'),
-    where('verificationStatus', '==', 'verified'),
-    where('isActive', '==', true),
+    collection(getFirebaseDb(), "businesses"),
+    where("verificationStatus", "==", "verified"),
+    where("isActive", "==", true),
   );
   const snap = await getDocs(q);
   const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Business);
@@ -67,26 +76,44 @@ export async function fetchBusinesses(filters?: {
 export function filterBusinesses(
   items: Business[],
   filters?: {
-    businessType?: DirectoryBusinessFilter;
+    businessType?: MarketBusinessFilter;
     city?: string;
     verifiedOnly?: boolean;
   },
 ): Business[] {
   let result = items;
 
-  if (filters?.businessType === 'trader' || filters?.businessType === 'seller') {
-    result = result.filter((b) => directoryTabFromBusinessType(b.businessType) === 'traders' || b.sellerProfile != null);
-  }
-  if (filters?.businessType === 'lapidary' || filters?.businessType === 'provider') {
-    result = result.filter((b) => directoryTabFromBusinessType(b.businessType) === 'lapidaries' || b.providerProfile != null);
-  }
-  if (filters?.businessType === 'gem_lab') {
+  if (
+    filters?.businessType === "trader" ||
+    filters?.businessType === "seller"
+  ) {
     result = result.filter(
-      (b) => directoryTabFromBusinessType(b.businessType) === 'labs' || b.labProfile != null,
+      (b) =>
+        marketTabFromBusinessType(b.businessType) === "traders" ||
+        b.sellerProfile != null,
+    );
+  }
+  if (
+    filters?.businessType === "lapidary" ||
+    filters?.businessType === "provider"
+  ) {
+    result = result.filter(
+      (b) =>
+        marketTabFromBusinessType(b.businessType) === "lapidaries" ||
+        b.providerProfile != null,
+    );
+  }
+  if (filters?.businessType === "gem_lab") {
+    result = result.filter(
+      (b) =>
+        marketTabFromBusinessType(b.businessType) === "labs" ||
+        b.labProfile != null,
     );
   }
   if (filters?.city) {
-    result = result.filter((b) => b.city.toLowerCase() === filters.city!.toLowerCase());
+    result = result.filter(
+      (b) => b.city.toLowerCase() === filters.city!.toLowerCase(),
+    );
   }
   if (filters?.verifiedOnly) {
     result = result.filter((b) => b.badges.isVerified);
@@ -101,16 +128,21 @@ export function filterBusinesses(
   });
 }
 
-export async function fetchBusiness(businessId: string): Promise<Business | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), 'businesses', businessId));
+export async function fetchBusiness(
+  businessId: string,
+): Promise<Business | null> {
+  const snap = await getDoc(doc(getFirebaseDb(), "businesses", businessId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as Business;
 }
 
 function businessUpdatedAtMs(business: Business): number {
-  const raw = business.updatedAt as { toMillis?: () => number; seconds?: number } | null | undefined;
-  if (raw && typeof raw.toMillis === 'function') return raw.toMillis();
-  if (raw && typeof raw.seconds === 'number') return raw.seconds * 1000;
+  const raw = business.updatedAt as
+    | { toMillis?: () => number; seconds?: number }
+    | null
+    | undefined;
+  if (raw && typeof raw.toMillis === "function") return raw.toMillis();
+  if (raw && typeof raw.seconds === "number") return raw.seconds * 1000;
   return 0;
 }
 
@@ -119,18 +151,24 @@ export function pickPrimaryBusiness(businesses: Business[]): Business | null {
   if (businesses.length === 0) return null;
   return [...businesses].sort((a, b) => {
     const aVerified =
-      a.verificationStatus === 'verified' || a.badges?.isVerified === true ? 1 : 0;
+      a.verificationStatus === "verified" || a.badges?.isVerified === true
+        ? 1
+        : 0;
     const bVerified =
-      b.verificationStatus === 'verified' || b.badges?.isVerified === true ? 1 : 0;
+      b.verificationStatus === "verified" || b.badges?.isVerified === true
+        ? 1
+        : 0;
     if (bVerified !== aVerified) return bVerified - aVerified;
     return businessUpdatedAtMs(b) - businessUpdatedAtMs(a);
   })[0]!;
 }
 
-export async function fetchBusinessByOwnerUid(ownerUid: string): Promise<Business | null> {
+export async function fetchBusinessByOwnerUid(
+  ownerUid: string,
+): Promise<Business | null> {
   const q = query(
-    collection(getFirebaseDb(), 'businesses'),
-    where('ownerUid', '==', ownerUid),
+    collection(getFirebaseDb(), "businesses"),
+    where("ownerUid", "==", ownerUid),
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
@@ -149,26 +187,35 @@ export async function syncBusinessVerificationFromProfile(
   return business;
 }
 
-export function isBusinessVerified(business: Business | null | undefined): boolean {
+export function isBusinessVerified(
+  business: Business | null | undefined,
+): boolean {
   if (!business) return false;
-  return business.verificationStatus === 'verified' || business.badges?.isVerified === true;
+  return (
+    business.verificationStatus === "verified" ||
+    business.badges?.isVerified === true
+  );
 }
 
 /** Map registration role → business document type. */
-export function businessTypeFromRegistration(profile: {
-  role?: string | null;
-  roleIntent?: string | null;
-} | null): BusinessType | null {
+export function businessTypeFromRegistration(
+  profile: {
+    role?: string | null;
+    roleIntent?: string | null;
+  } | null,
+): BusinessType | null {
   const role = normalizeUserRole(profile?.role || profile?.roleIntent);
   return businessTypeFromRole(role as UserRole);
 }
 
-export function accountTypeLabelFromRegistration(profile: {
-  role?: string | null;
-  roleIntent?: string | null;
-} | null): string {
+export function accountTypeLabelFromRegistration(
+  profile: {
+    role?: string | null;
+    roleIntent?: string | null;
+  } | null,
+): string {
   const role = normalizeUserRole(profile?.role || profile?.roleIntent);
-  return ROLE_LABELS[role] ?? 'Member';
+  return ROLE_LABELS[role] ?? "Member";
 }
 
 export async function createBusinessProfile(
@@ -210,30 +257,35 @@ export async function createBusinessProfile(
   }
 
   const now = Timestamp.now();
-  const type = input.businessType === 'seller' ? 'trader' : input.businessType === 'cutter' || input.businessType === 'provider' ? 'lapidary' : input.businessType;
-  const isTrader = type === 'trader';
-  const isLapidary = type === 'lapidary';
-  const isLab = type === 'gem_lab';
-  const wa = normalizePhoneForStorage(input.whatsapp) ?? '';
-  const ph = normalizePhoneForStorage(input.phone) ?? '';
-  const ref = await addDoc(collection(getFirebaseDb(), 'businesses'), {
+  const type =
+    input.businessType === "seller"
+      ? "trader"
+      : input.businessType === "cutter" || input.businessType === "provider"
+        ? "lapidary"
+        : input.businessType;
+  const isTrader = type === "trader";
+  const isLapidary = type === "lapidary";
+  const isLab = type === "gem_lab";
+  const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
+  const ph = normalizePhoneForStorage(input.phone) ?? "";
+  const ref = await addDoc(collection(getFirebaseDb(), "businesses"), {
     ownerUid,
     businessType: type,
     businessName: input.businessName.trim(),
     ownerName: ownerName.trim(),
-    brNumber: '',
-    ngjaNumber: '',
-    gemLicenseNumber: '',
-    tinNumber: '',
+    brNumber: "",
+    ngjaNumber: "",
+    gemLicenseNumber: "",
+    tinNumber: "",
     yearEstablished: null,
     shortDescription: input.shortDescription.trim(),
-    address: input.address?.trim() ?? '',
+    address: input.address?.trim() ?? "",
     city: input.city.trim(),
-    district: 'Kalutara',
-    province: 'Western',
-    country: (input.country?.trim() || 'Sri Lanka'),
-    verificationStatus: 'none',
-    verificationTier: 'none',
+    district: "Kalutara",
+    province: "Western",
+    country: input.country?.trim() || "Sri Lanka",
+    verificationStatus: "none",
+    verificationTier: "none",
     badges: {
       isVerified: false,
       isBasicVerified: false,
@@ -243,16 +295,16 @@ export async function createBusinessProfile(
       yearsActive: 0,
       hasRepeatBusiness: false,
       listingMilestone: 0,
-      endorsementCount: 0,
+      likeCount: 0,
     },
     sellerProfile: isTrader
       ? {
           gemSpecializations: [],
-          sourceOrigins: ['sri_lanka'],
+          sourceOrigins: ["sri_lanka"],
           stoneTypes: [],
           priceRangeMin: null,
           priceRangeMax: null,
-          preferredCurrencies: ['LKR', 'USD'],
+          preferredCurrencies: ["LKR", "USD"],
         }
       : null,
     providerProfile: isLapidary
@@ -281,11 +333,11 @@ export async function createBusinessProfile(
       phone: { value: ph, isVisible: !!ph },
     },
     socialLinks: {
-      website: input.socialLinks?.website?.trim() ?? '',
-      instagram: input.socialLinks?.instagram?.trim() ?? '',
-      tiktok: input.socialLinks?.tiktok?.trim() ?? '',
-      facebook: input.socialLinks?.facebook?.trim() ?? '',
-      wechat: input.socialLinks?.wechat?.trim() ?? '',
+      website: input.socialLinks?.website?.trim() ?? "",
+      instagram: input.socialLinks?.instagram?.trim() ?? "",
+      tiktok: input.socialLinks?.tiktok?.trim() ?? "",
+      facebook: input.socialLinks?.facebook?.trim() ?? "",
+      wechat: input.socialLinks?.wechat?.trim() ?? "",
     },
     logoUrl: null,
     coverPhotoUrl: null,
@@ -328,42 +380,48 @@ export async function updateBusinessProfile(
   },
 ) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
-  if (data.businessName !== undefined) updates.businessName = data.businessName.trim();
-  if (data.shortDescription !== undefined) updates.shortDescription = data.shortDescription.trim();
+  if (data.businessName !== undefined)
+    updates.businessName = data.businessName.trim();
+  if (data.shortDescription !== undefined)
+    updates.shortDescription = data.shortDescription.trim();
   if (data.city !== undefined) updates.city = data.city.trim();
   if (data.country !== undefined) updates.country = data.country.trim();
   if (data.address !== undefined) updates.address = data.address.trim();
   if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
-  if (data.coverPhotoUrl !== undefined) updates.coverPhotoUrl = data.coverPhotoUrl;
+  if (data.coverPhotoUrl !== undefined)
+    updates.coverPhotoUrl = data.coverPhotoUrl;
   if (data.whatsapp !== undefined) {
-    const value = normalizePhoneForStorage(data.whatsapp) ?? '';
-    updates['contacts.whatsapp'] = { value, isVisible: !!value };
+    const value = normalizePhoneForStorage(data.whatsapp) ?? "";
+    updates["contacts.whatsapp"] = { value, isVisible: !!value };
   }
   if (data.phone !== undefined) {
-    const value = normalizePhoneForStorage(data.phone) ?? '';
-    updates['contacts.phone'] = { value, isVisible: !!value };
+    const value = normalizePhoneForStorage(data.phone) ?? "";
+    updates["contacts.phone"] = { value, isVisible: !!value };
   }
   if (data.socialLinks !== undefined) {
     updates.socialLinks = {
-      website: data.socialLinks.website?.trim() ?? '',
-      instagram: data.socialLinks.instagram?.trim() ?? '',
-      tiktok: data.socialLinks.tiktok?.trim() ?? '',
-      facebook: data.socialLinks.facebook?.trim() ?? '',
-      wechat: data.socialLinks.wechat?.trim() ?? '',
+      website: data.socialLinks.website?.trim() ?? "",
+      instagram: data.socialLinks.instagram?.trim() ?? "",
+      tiktok: data.socialLinks.tiktok?.trim() ?? "",
+      facebook: data.socialLinks.facebook?.trim() ?? "",
+      wechat: data.socialLinks.wechat?.trim() ?? "",
     };
   }
   if (data.certificateOfferings !== undefined) {
     const certificateOfferings = sanitizeLabCertificateOfferings(
       data.certificateOfferings,
     );
-    updates['labProfile.certificateOfferings'] = certificateOfferings;
-    updates['labProfile.reportTypes'] =
+    updates["labProfile.certificateOfferings"] = certificateOfferings;
+    updates["labProfile.reportTypes"] =
       reportTypesFromOfferings(certificateOfferings);
   }
-  await updateDoc(doc(getFirebaseDb(), 'businesses', businessId), updates);
+  await updateDoc(doc(getFirebaseDb(), "businesses", businessId), updates);
 }
 
-type BusinessAnalyticsField = 'profileViewsTotal' | 'whatsappTapsTotal' | 'phoneTapsTotal';
+type BusinessAnalyticsField =
+  | "profileViewsTotal"
+  | "whatsappTapsTotal"
+  | "phoneTapsTotal";
 
 /** Best-effort analytics bump (guests allowed via Firestore rules for verified businesses). */
 export async function trackBusinessAnalytics(
@@ -371,12 +429,12 @@ export async function trackBusinessAnalytics(
   field: BusinessAnalyticsField,
 ): Promise<void> {
   try {
-    await updateDoc(doc(getFirebaseDb(), 'businesses', businessId), {
+    await updateDoc(doc(getFirebaseDb(), "businesses", businessId), {
       [`analytics.${field}`]: increment(1),
       updatedAt: serverTimestamp(),
     });
   } catch {
-    // Non-blocking — directory still works if rules reject the write
+    // Non-blocking — market still works if rules reject the write
   }
 }
 
@@ -402,21 +460,21 @@ export function searchBusinesses(
 }
 
 export function demoBusinesses(filters?: {
-  businessType?: DirectoryBusinessFilter;
+  businessType?: MarketBusinessFilter;
   verifiedOnly?: boolean;
 }): Business[] {
   const now = Timestamp.now();
   const base = {
-    ownerUid: 'demo',
-    brNumber: 'BR-001',
-    ngjaNumber: 'NGJA-001',
+    ownerUid: "demo",
+    brNumber: "BR-001",
+    ngjaNumber: "NGJA-001",
     yearEstablished: 2010,
-    address: 'Main Street',
-    district: 'Kalutara',
-    province: 'Western',
-    country: 'Sri Lanka',
-    verificationStatus: 'verified' as const,
-    verificationTier: 'full' as const,
+    address: "Main Street",
+    district: "Kalutara",
+    province: "Western",
+    country: "Sri Lanka",
+    verificationStatus: "verified" as const,
+    verificationTier: "full" as const,
     badges: {
       isVerified: true,
       isBasicVerified: false,
@@ -426,11 +484,11 @@ export function demoBusinesses(filters?: {
       yearsActive: 15,
       hasRepeatBusiness: true,
       listingMilestone: 10,
-      endorsementCount: 5,
+      likeCount: 5,
     },
     contacts: {
-      whatsapp: { value: '+94771234001', isVisible: true },
-      phone: { value: '+94342256789', isVisible: true },
+      whatsapp: { value: "+94771234001", isVisible: true },
+      phone: { value: "+94342256789", isVisible: true },
     },
     logoUrl: null,
     coverPhotoUrl: null,
@@ -444,73 +502,88 @@ export function demoBusinesses(filters?: {
   const all: Business[] = [
     {
       ...base,
-      id: 'demo-trader-1',
-      businessType: 'trader',
-      businessName: 'Beruwala Sapphire House',
-      ownerName: 'Demo Trader',
-      shortDescription: 'Ceylon sapphires',
-      city: 'Beruwala',
+      id: "demo-trader-1",
+      businessType: "trader",
+      businessName: "Beruwala Sapphire House",
+      ownerName: "Demo Trader",
+      shortDescription: "Ceylon sapphires",
+      city: "Beruwala",
       sellerProfile: {
-        gemSpecializations: ['blue_sapphire'],
-        sourceOrigins: ['sri_lanka'],
-        stoneTypes: ['rough', 'cut'],
+        gemSpecializations: ["blue_sapphire"],
+        sourceOrigins: ["sri_lanka"],
+        stoneTypes: ["rough", "cut"],
         priceRangeMin: 100,
         priceRangeMax: 50000,
-        preferredCurrencies: ['LKR', 'USD'],
+        preferredCurrencies: ["LKR", "USD"],
       },
       providerProfile: null,
       labProfile: null,
-      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
+      analytics: {
+        profileViewsTotal: 0,
+        listingViewsTotal: 0,
+        whatsappTapsTotal: 0,
+        phoneTapsTotal: 0,
+      },
     },
     {
       ...base,
-      id: 'demo-lapidary-1',
-      businessType: 'lapidary',
-      businessName: 'Kamal Gem Cutting',
-      ownerName: 'Demo Lapidary',
-      shortDescription: 'Precision cutting',
-      city: 'Beruwala',
+      id: "demo-lapidary-1",
+      businessType: "lapidary",
+      businessName: "Kamal Gem Cutting",
+      ownerName: "Demo Lapidary",
+      shortDescription: "Precision cutting",
+      city: "Beruwala",
       sellerProfile: null,
       providerProfile: {
         services: [],
-        servicesOffered: ['cutting', 'polishing'],
-        gemSpecializations: ['blue_sapphire'],
+        servicesOffered: ["cutting", "polishing"],
+        gemSpecializations: ["blue_sapphire"],
         isAcceptingOrders: true,
         portfolioCount: 12,
       },
       labProfile: null,
-      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
+      analytics: {
+        profileViewsTotal: 0,
+        listingViewsTotal: 0,
+        whatsappTapsTotal: 0,
+        phoneTapsTotal: 0,
+      },
     },
     {
       ...base,
-      id: 'demo-lab-1',
-      businessType: 'gem_lab',
-      businessName: 'Ceylon Gem Lab',
-      ownerName: 'Demo Lab',
-      shortDescription: 'Independent gem reports',
-      city: 'Colombo',
+      id: "demo-lab-1",
+      businessType: "gem_lab",
+      businessName: "Ceylon Gem Lab",
+      ownerName: "Demo Lab",
+      shortDescription: "Independent gem reports",
+      city: "Colombo",
       sellerProfile: null,
       providerProfile: null,
       labProfile: {
-        accreditations: ['NGJA'],
-        reportTypes: ['standard_photo_certificate', 'gem_brief_memo'],
+        accreditations: ["NGJA"],
+        reportTypes: ["standard_photo_certificate", "gem_brief_memo"],
         certificateOfferings: defaultLabCertificateOfferings().map((o) => ({
           ...o,
           isActive:
-            o.id === 'standard_photo_certificate' || o.id === 'gem_brief_memo',
+            o.id === "standard_photo_certificate" || o.id === "gem_brief_memo",
           price:
-            o.id === 'gem_brief_memo'
+            o.id === "gem_brief_memo"
               ? 3500
-              : o.id === 'standard_photo_certificate'
+              : o.id === "standard_photo_certificate"
                 ? 8500
-                : o.id === 'advanced_origin_certificate'
+                : o.id === "advanced_origin_certificate"
                   ? 18000
                   : 22000,
         })),
         isAcceptingOrders: true,
         certificatesIssued: 120,
       },
-      analytics: { profileViewsTotal: 0, listingViewsTotal: 0, whatsappTapsTotal: 0, phoneTapsTotal: 0 },
+      analytics: {
+        profileViewsTotal: 0,
+        listingViewsTotal: 0,
+        whatsappTapsTotal: 0,
+        phoneTapsTotal: 0,
+      },
     },
   ];
 
@@ -522,19 +595,21 @@ export function demoBusinesses(filters?: {
 export type ListingFilters = {
   gemType?: string | null;
   verifiedOnly?: boolean;
-  sort?: 'recent' | 'price_low' | 'price_high';
+  sort?: "recent" | "price_low" | "price_high";
 };
 
 /** Public, active gem listings — readable by guests per Firestore rules. */
 export async function fetchPublicListings(): Promise<MarketplaceListing[]> {
   const q = query(
-    collection(getFirebaseDb(), 'gems'),
-    where('visibility', '==', 'public'),
-    where('status', '==', 'active'),
+    collection(getFirebaseDb(), "gems"),
+    where("visibility", "==", "public"),
+    where("status", "==", "active"),
     limit(50),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MarketplaceListing);
+  return snap.docs.map(
+    (d) => ({ id: d.id, ...d.data() }) as MarketplaceListing,
+  );
 }
 
 export function filterListings(
@@ -542,21 +617,27 @@ export function filterListings(
   filters?: ListingFilters,
 ): MarketplaceListing[] {
   let result = items;
-  if (filters?.gemType && filters.gemType !== 'all') {
+  if (filters?.gemType && filters.gemType !== "all") {
     result = result.filter((l) => l.gemType === filters.gemType);
   }
   const sorted = [...result];
-  if (filters?.sort === 'price_low') {
+  if (filters?.sort === "price_low") {
     sorted.sort((a, b) => (a.priceMin ?? Infinity) - (b.priceMin ?? Infinity));
-  } else if (filters?.sort === 'price_high') {
+  } else if (filters?.sort === "price_high") {
     sorted.sort((a, b) => (b.priceMin ?? 0) - (a.priceMin ?? 0));
   } else {
-    sorted.sort((a, b) => (b.publishedAt?.toMillis?.() ?? 0) - (a.publishedAt?.toMillis?.() ?? 0));
+    sorted.sort(
+      (a, b) =>
+        (b.publishedAt?.toMillis?.() ?? 0) - (a.publishedAt?.toMillis?.() ?? 0),
+    );
   }
   return sorted;
 }
 
-export function searchListings(search: string, items: MarketplaceListing[]): MarketplaceListing[] {
+export function searchListings(
+  search: string,
+  items: MarketplaceListing[],
+): MarketplaceListing[] {
   const term = search.toLowerCase().trim();
   if (!term) return items;
   return items.filter(
@@ -570,19 +651,19 @@ export function searchListings(search: string, items: MarketplaceListing[]): Mar
 export function demoListings(): MarketplaceListing[] {
   const now = Timestamp.now();
   const base = {
-    sellerUid: 'demo',
-    businessId: 'demo-seller-1',
+    sellerUid: "demo",
+    businessId: "demo-trader-1",
     workspaceGemId: null,
     description: null,
-    visibility: 'public' as const,
-    clarity: 'VS',
-    shape: 'Oval',
+    visibility: "public" as const,
+    clarity: "VS",
+    shape: "Oval",
     isCertified: true,
-    certifyingLab: 'GIA',
+    certifyingLab: "GIA",
     certificateNumber: null,
     showPrice: true,
-    currency: 'USD',
-    status: 'active' as const,
+    currency: "USD",
+    status: "active" as const,
     analytics: { totalViews: 0, whatsappTaps: 0 },
     createdAt: now,
     updatedAt: now,
@@ -591,37 +672,37 @@ export function demoListings(): MarketplaceListing[] {
   return [
     {
       ...base,
-      id: 'demo-listing-1',
-      title: 'Natural Blue Sapphire',
-      gemType: 'blue_sapphire',
+      id: "demo-listing-1",
+      title: "Natural Blue Sapphire",
+      gemType: "blue_sapphire",
       caratWeight: 2.4,
-      color: 'Royal Blue',
-      origin: 'Ceylon, Sri Lanka',
-      treatmentStatus: 'unheated',
+      color: "Royal Blue",
+      origin: "Ceylon, Sri Lanka",
+      treatmentStatus: "unheated",
       priceMin: 2300,
       priceMax: null,
       photoUrls: [
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuC_7OK_3UypEsNQwZgFXed6mI302725BO5QYFtofpbY8PzSm0dEMgGn54C6ym8vcSee6QXTw0g8Z6QU8_OBltA7gLcCeJ4kKFCFOupuVgLA93mmVDwqpxn7RHgD51EFt_nfNONxJ8W0mD2MXxTTSfbepmKUi2HN1p34G4HIfEVddJGuuYIVj0dS-jRlotHtTEWA3B8HbOXVkWB3z1_VpTgc_qNslfs4GY3HmzQHKipxkV3v8LwmE2pD-1wjEXnKy-yn5iw',
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuC_7OK_3UypEsNQwZgFXed6mI302725BO5QYFtofpbY8PzSm0dEMgGn54C6ym8vcSee6QXTw0g8Z6QU8_OBltA7gLcCeJ4kKFCFOupuVgLA93mmVDwqpxn7RHgD51EFt_nfNONxJ8W0mD2MXxTTSfbepmKUi2HN1p34G4HIfEVddJGuuYIVj0dS-jRlotHtTEWA3B8HbOXVkWB3z1_VpTgc_qNslfs4GY3HmzQHKipxkV3v8LwmE2pD-1wjEXnKy-yn5iw",
       ],
-      shareableSlug: 'GF-L-00001',
-      shareableUrl: 'https://gemfort.app/l/GF-L-00001',
+      shareableSlug: "GF-L-00001",
+      shareableUrl: "https://gemfort.app/l/GF-L-00001",
     },
     {
       ...base,
-      id: 'demo-listing-2',
-      title: 'Pigeon Blood Ruby',
-      gemType: 'ruby',
+      id: "demo-listing-2",
+      title: "Pigeon Blood Ruby",
+      gemType: "ruby",
       caratWeight: 1.8,
-      color: 'Pigeon Blood',
-      origin: 'Mogok, Myanmar',
-      treatmentStatus: 'heated',
+      color: "Pigeon Blood",
+      origin: "Mogok, Myanmar",
+      treatmentStatus: "heated",
       priceMin: 5500,
       priceMax: null,
       photoUrls: [
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuAnxTKk7Lh3v8VRIiVT16UI-WibWqYAYWYptNYrqza3yY8wTHL_v-2aw6XRG4BZHj3R-uVySUjExAGUwSOcA7QO1tFoxcJToAb-1tZh-DxfSuLUud96jxa3xaKZnzxWGxox981P5jRQ6kUIr7f10n7mpdN3aPRZ1WGiM9W6b8gxlblPu9qP5lkdoTlhcI-Yr6M7HR-QCb8-58Fs9emGEYkKhvx0oSDCOppcYSq_yRMooh1CXQ45fIUC8g',
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuAnxTKk7Lh3v8VRIiVT16UI-WibWqYAYWYptNYrqza3yY8wTHL_v-2aw6XRG4BZHj3R-uVySUjExAGUwSOcA7QO1tFoxcJToAb-1tZh-DxfSuLUud96jxa3xaKZnzxWGxox981P5jRQ6kUIr7f10n7mpdN3aPRZ1WGiM9W6b8gxlblPu9qP5lkdoTlhcI-Yr6M7HR-QCb8-58Fs9emGEYkKhvx0oSDCOppcYSq_yRMooh1CXQ45fIUC8g",
       ],
-      shareableSlug: 'GF-L-00002',
-      shareableUrl: 'https://gemfort.app/l/GF-L-00002',
+      shareableSlug: "GF-L-00002",
+      shareableUrl: "https://gemfort.app/l/GF-L-00002",
     },
   ];
 }
@@ -630,10 +711,11 @@ export function demoAnnouncements(): Announcement[] {
   const now = Timestamp.now();
   return [
     {
-      id: 'demo-1',
-      type: 'platform',
-      title: 'Welcome to GemFort',
-      content: 'Find verified gem businesses and track your private inventory in one app.',
+      id: "demo-1",
+      type: "platform",
+      title: "Welcome to GemFort",
+      content:
+        "Find verified gem businesses and track your private inventory in one app.",
       externalUrl: null,
       linkedBusinessId: null,
       linkedGemId: null,
@@ -654,14 +736,14 @@ export async function submitFraudReport(input: {
   description: string;
   evidenceUrls?: string[];
 }): Promise<string> {
-  const ref = await addDoc(collection(getFirebaseDb(), 'reports'), {
+  const ref = await addDoc(collection(getFirebaseDb(), "reports"), {
     reporterUid: input.reporterUid,
     reportedBusinessId: input.reportedBusinessId,
     reportedUserUid: input.reportedUserUid,
     reportType: input.reportType,
     description: input.description.trim(),
     evidenceUrls: input.evidenceUrls ?? [],
-    status: 'pending',
+    status: "pending",
     adminUid: null,
     adminNotes: null,
     resolution: null,
@@ -673,13 +755,13 @@ export async function submitFraudReport(input: {
   return ref.id;
 }
 
-export async function sendEndorsement(input: {
+export async function sendLike(input: {
   fromUid: string;
   fromBusinessId: string;
   toBusinessId: string;
 }): Promise<void> {
-  const endorsementId = `${input.fromBusinessId}_${input.toBusinessId}`;
-  await setDoc(doc(getFirebaseDb(), 'endorsements', endorsementId), {
+  const likeId = `${input.fromBusinessId}_${input.toBusinessId}`;
+  await setDoc(doc(getFirebaseDb(), "likes", likeId), {
     fromBusinessId: input.fromBusinessId,
     toBusinessId: input.toBusinessId,
     fromUid: input.fromUid,
@@ -687,54 +769,220 @@ export async function sendEndorsement(input: {
   });
 }
 
-/** Submit an in-app price offer on a listing; notifies the seller. */
+/** Gem-trade offer limits — deliberate pricing, not chat spam. */
+export const LISTING_OFFER_LIMITS = {
+  /** One open offer per stone; withdraw before sending a new one. */
+  maxPendingPerListing: 1,
+  /** Hours after withdraw/decline before re-offering the same listing. */
+  cooldownHoursPerListing: 12,
+  /** Max offers a buyer may create across all listings in 24h. */
+  maxOffersPerDay: 5,
+  /** Client debounce on the Send button. */
+  submitDebounceMs: 1500,
+} as const;
+
+function offerCreatedAtMs(offer: ListingOffer): number {
+  const raw = offer.createdAt as
+    | { toMillis?: () => number; seconds?: number }
+    | null
+    | undefined;
+  if (raw && typeof raw.toMillis === "function") return raw.toMillis();
+  if (raw && typeof raw.seconds === "number") return raw.seconds * 1000;
+  return 0;
+}
+
+export function isListingOfferUnread(offer: ListingOffer): boolean {
+  return (
+    offer.status === "pending" &&
+    !offer.sellerCleared &&
+    offer.sellerReadAt == null
+  );
+}
+
+export async function fetchSellerListingOffers(
+  sellerUid: string,
+): Promise<ListingOffer[]> {
+  const q = query(
+    collection(getFirebaseDb(), "listing_offers"),
+    where("sellerUid", "==", sellerUid),
+    orderBy("createdAt", "desc"),
+    limit(100),
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ListingOffer)
+    .filter((o) => !o.sellerCleared);
+}
+
+export async function fetchOffersForListing(
+  listingId: string,
+): Promise<ListingOffer[]> {
+  const q = query(
+    collection(getFirebaseDb(), "listing_offers"),
+    where("listingId", "==", listingId),
+    orderBy("createdAt", "desc"),
+    limit(50),
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ListingOffer)
+    .filter((o) => !o.sellerCleared);
+}
+
+export async function fetchBuyerOffersForListing(
+  buyerUid: string,
+  listingId: string,
+): Promise<ListingOffer[]> {
+  const q = query(
+    collection(getFirebaseDb(), "listing_offers"),
+    where("buyerUid", "==", buyerUid),
+    where("listingId", "==", listingId),
+    orderBy("createdAt", "desc"),
+    limit(10),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ListingOffer);
+}
+
+/** Submit an in-app price offer on a listing; Cloud Function notifies the seller. */
 export async function submitListingOffer(input: {
   listing: MarketplaceListing;
   buyerUid: string;
   buyerName: string;
+  buyerBusiness?: Business | null;
   amount: number;
   currency: string;
   message?: string;
 }): Promise<string> {
   const amount = Number(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('Enter a valid offer amount.');
+    throw new Error("Enter a valid offer amount.");
   }
   if (input.buyerUid === input.listing.sellerUid) {
-    throw new Error('You cannot offer on your own listing.');
+    throw new Error("You cannot offer on your own listing.");
+  }
+
+  const existing = await fetchBuyerOffersForListing(
+    input.buyerUid,
+    input.listing.id,
+  );
+  const pending = existing.find((o) => o.status === "pending");
+  if (pending) {
+    throw new Error(
+      "You already have a pending offer on this gem. Withdraw it first to send a new one.",
+    );
+  }
+
+  const cooldownMs =
+    LISTING_OFFER_LIMITS.cooldownHoursPerListing * 60 * 60 * 1000;
+  const recentSame = existing.find((o) => {
+    if (o.status !== "withdrawn" && o.status !== "declined") return false;
+    return Date.now() - offerCreatedAtMs(o) < cooldownMs;
+  });
+  if (recentSame) {
+    throw new Error(
+      `Wait ${LISTING_OFFER_LIMITS.cooldownHoursPerListing} hours after withdrawing before offering on this gem again.`,
+    );
+  }
+
+  const dayAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
+  const dayQ = query(
+    collection(getFirebaseDb(), "listing_offers"),
+    where("buyerUid", "==", input.buyerUid),
+    where("createdAt", ">=", dayAgo),
+    orderBy("createdAt", "desc"),
+    limit(LISTING_OFFER_LIMITS.maxOffersPerDay + 1),
+  );
+  const daySnap = await getDocs(dayQ);
+  if (daySnap.size >= LISTING_OFFER_LIMITS.maxOffersPerDay) {
+    throw new Error(
+      `Offer limit reached (${LISTING_OFFER_LIMITS.maxOffersPerDay} per day). Try again tomorrow.`,
+    );
   }
 
   const amountBase = await convertToBase(amount, input.currency);
   const message = input.message?.trim() || null;
   const now = serverTimestamp();
+  const biz = input.buyerBusiness;
 
-  const ref = await addDoc(collection(getFirebaseDb(), 'listing_offers'), {
+  const ref = await addDoc(collection(getFirebaseDb(), "listing_offers"), {
     listingId: input.listing.id,
     listingSlug: input.listing.shareableSlug,
     listingTitle: input.listing.title,
     sellerUid: input.listing.sellerUid,
     businessId: input.listing.businessId,
     buyerUid: input.buyerUid,
-    buyerName: input.buyerName.trim() || 'Buyer',
+    buyerName: input.buyerName.trim() || "Buyer",
+    buyerBusinessId: biz?.id ?? null,
+    buyerBusinessName: biz?.businessName?.trim() || null,
+    buyerLogoUrl: biz?.logoUrl ?? null,
+    buyerCountry: biz?.country?.trim() || null,
     amount,
     currency: input.currency,
     amountBase,
     message,
-    status: 'pending' satisfies ListingOffer['status'],
+    status: "pending" satisfies ListingOffer["status"],
+    sellerCleared: false,
+    sellerReadAt: null,
     createdAt: now,
     updatedAt: now,
   });
 
-  const amountLabel = formatMoney(amount, input.currency);
-  await createClientNotification({
-    recipientUid: input.listing.sellerUid,
-    type: 'listing_offer_received',
-    title: 'New offer received',
-    message: `${input.buyerName.trim() || 'A buyer'} offered ${amountLabel} on “${input.listing.title}”.`,
-    referenceType: 'listing_offer',
-    referenceId: ref.id,
-    priority: 'high',
-  });
-
   return ref.id;
+}
+
+export async function withdrawListingOffer(offerId: string): Promise<void> {
+  await updateDoc(doc(getFirebaseDb(), "listing_offers", offerId), {
+    status: "withdrawn",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteListingOffer(offerId: string): Promise<void> {
+  await deleteDoc(doc(getFirebaseDb(), "listing_offers", offerId));
+}
+
+export async function markListingOffersRead(
+  offers: ListingOffer[],
+): Promise<void> {
+  const unread = offers.filter((o) => isListingOfferUnread(o));
+  if (unread.length === 0) return;
+  const db = getFirebaseDb();
+  const batch = db.batch();
+  const now = serverTimestamp();
+  for (const o of unread) {
+    batch.update(doc(db, "listing_offers", o.id), {
+      sellerReadAt: now,
+      updatedAt: now,
+    });
+  }
+  await batch.commit();
+}
+
+export async function clearListingOffers(
+  offers: ListingOffer[],
+): Promise<void> {
+  if (offers.length === 0) return;
+  const db = getFirebaseDb();
+  const batch = db.batch();
+  const now = serverTimestamp();
+  for (const o of offers) {
+    batch.update(doc(db, "listing_offers", o.id), {
+      sellerCleared: true,
+      updatedAt: now,
+    });
+  }
+  await batch.commit();
+}
+
+export async function removeListingOffers(
+  offers: ListingOffer[],
+): Promise<void> {
+  if (offers.length === 0) return;
+  const db = getFirebaseDb();
+  const batch = db.batch();
+  for (const o of offers) {
+    batch.delete(doc(db, "listing_offers", o.id));
+  }
+  await batch.commit();
 }

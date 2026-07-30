@@ -23,6 +23,8 @@ type SocialLinksRowProps = {
   links: BusinessSocialLinks | null | undefined;
   /** Show a website chip with favicon when set. Default true. */
   showWebsite?: boolean;
+  /** Override row layout (e.g. left-align on Instagram-style profiles). */
+  style?: ComponentProps<typeof View>['style'];
 };
 
 type PlatformDef = {
@@ -89,7 +91,11 @@ function Favicon({
 }
 
 /** Tappable social / website icons for public business profiles. */
-export function BusinessSocialLinksRow({ links, showWebsite = true }: SocialLinksRowProps) {
+export function BusinessSocialLinksRow({
+  links,
+  showWebsite = true,
+  style,
+}: SocialLinksRowProps) {
   const { colors } = useAppTheme();
   const toast = useToast();
 
@@ -105,7 +111,7 @@ export function BusinessSocialLinksRow({ links, showWebsite = true }: SocialLink
   }
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, style]}>
       {showWebsite && websiteUrl && host ? (
         <Pressable
           accessibilityRole="link"

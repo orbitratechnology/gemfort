@@ -28,6 +28,7 @@ import { deleteGem, fetchGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useUnreadOffersByListingId } from '@/hooks/use-unread-listing-offers';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -62,6 +63,8 @@ export default function GemsListScreen() {
     subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
+
+  const unreadByListing = useUnreadOffersByListingId();
 
   const filtered = useMemo(
     () => filterGems(gems, { search: debouncedSearch, status: statusFilter, gemType: typeFilter }),
@@ -208,6 +211,11 @@ export default function GemsListScreen() {
             <GemCard
               gem={item}
               href={`/(marketplace)/(tabs)/workspace/gems/${item.id}`}
+              offerBadge={
+                item.marketplaceListingId
+                  ? (unreadByListing[item.marketplaceListingId] ?? 0)
+                  : 0
+              }
               onDelete={
                 canDeleteGem(item)
                   ? () => handleDeleteGem(item.id)

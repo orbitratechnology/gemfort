@@ -64,7 +64,7 @@ async function seed() {
       yearsActive: 15,
       hasRepeatBusiness: true,
       listingMilestone: 10,
-      endorsementCount: 5,
+      likeCount: 5,
     },
     sellerProfile: {
       gemSpecializations: ['blue_sapphire', 'ruby'],
@@ -119,7 +119,7 @@ async function seed() {
       yearsActive: 17,
       hasRepeatBusiness: true,
       listingMilestone: 5,
-      endorsementCount: 3,
+      likeCount: 3,
     },
     sellerProfile: null,
     providerProfile: {

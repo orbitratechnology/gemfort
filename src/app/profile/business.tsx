@@ -613,7 +613,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
                 Apply for verification
               </Text>
               <Text style={[styles.linkSub, { color: colors.textMuted }]}>
-                Get listed in the GemFort directory
+                Get listed in the GemFort market
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.outline} />

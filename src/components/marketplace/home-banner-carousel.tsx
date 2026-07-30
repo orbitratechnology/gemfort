@@ -48,13 +48,13 @@ const BANNERS: BannerSlide[] = [
     tone: 'primary',
   },
   {
-    id: 'directory',
+    id: 'market',
     eyebrow: 'Marketplace',
     title: 'Browse gems & traders',
     subtitle: 'Discover verified traders, labs, and new listings.',
-    cta: 'Open directory',
+    cta: 'Open market',
     icon: 'diamond',
-    href: '/(marketplace)/(tabs)/directory',
+    href: '/(marketplace)/(tabs)/market',
     tone: 'deep',
   },
   {

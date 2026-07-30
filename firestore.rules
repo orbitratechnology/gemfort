@@ -160,7 +160,7 @@ service cloud.firestore {
 
     match /businesses/{businessId} {
 
-      // Directory queries: only verified + active appear in list results.
+      // Market queries: only verified + active appear in list results.
       allow list: if resource.data.verificationStatus == 'verified'
                   && resource.data.isActive == true;
 
@@ -182,7 +182,9 @@ service cloud.firestore {
         && request.resource.data.isActive == true
         && request.resource.data.isFeatured == false
         && request.resource.data.badges.isVerified == false
-        && request.resource.data.badges.endorsementCount == 0
+        // Accept both app generations during the Directory/Endorse migration.
+        && request.resource.data.badges.get('likeCount', 0) == 0
+        && request.resource.data.badges.get('endorsementCount', 0) == 0
         && request.resource.data.analytics.profileViewsTotal == 0;
 
       // Owner updates own (not protected fields)
@@ -284,24 +286,38 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════
-    // ENDORSEMENTS
+    // LIKES
     // ═══════════════════════════════════════════════
 
-    match /endorsements/{endorsementId} {
+    match /likes/{likeId} {
 
-      // Only admin reads individual endorsements (privacy)
+      // Only admin reads individual likes (privacy)
       allow read: if isAdmin();
 
-      // Verified members can endorse others
+      // Verified members can like others
       allow create: if isVerifiedMember()
         && isOwner(request.resource.data.fromUid)
-        // Cannot endorse self
+        // Cannot like self
         && request.resource.data.fromBusinessId
            != request.resource.data.toBusinessId
-        // Cannot update existing endorsements
+        // Neither current nor legacy clients can create a duplicate.
+        && !exists(/databases/$(database)/documents/likes/$(request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId))
         && !exists(/databases/$(database)/documents/endorsements/$(request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId));
 
-      // Endorsements are permanent (no update or user delete)
+      // Likes are permanent (no update or user delete)
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Temporary compatibility for installed clients that predate the Likes rename.
+    match /endorsements/{endorsementId} {
+      allow read: if isAdmin();
+      allow create: if isVerifiedMember()
+        && isOwner(request.resource.data.fromUid)
+        && request.resource.data.fromBusinessId
+           != request.resource.data.toBusinessId
+        && !exists(/databases/$(database)/documents/endorsements/$(request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId))
+        && !exists(/databases/$(database)/documents/likes/$(request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId));
       allow update: if false;
       allow delete: if isAdmin();
     }
@@ -405,14 +421,36 @@ service cloud.firestore {
         && request.resource.data.listingId is string
         && request.resource.data.amount is number
         && request.resource.data.amount > 0
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.sellerCleared == false;
 
+      // Buyer: withdraw. Seller: mark read / clear. Admin: any.
       allow update: if isSignedIn()
-        && (resource.data.sellerUid == uid() || resource.data.buyerUid == uid() || isAdmin())
-        && request.resource.data.diff(resource.data)
-           .affectedKeys().hasOnly(['status', 'updatedAt']);
+        && (
+          (
+            resource.data.buyerUid == uid()
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'withdrawn'
+            && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          || (
+            resource.data.sellerUid == uid()
+            && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['sellerCleared', 'sellerReadAt', 'updatedAt'])
+          )
+          || isAdmin()
+        );
 
-      allow delete: if isAdmin();
+      // Buyer may delete own pending/withdrawn offer; seller may remove received offers.
+      allow delete: if isSignedIn()
+        && (
+          (resource.data.buyerUid == uid()
+            && resource.data.status in ['pending', 'withdrawn'])
+          || resource.data.sellerUid == uid()
+          || isAdmin()
+        );
     }
 
     // ═══════════════════════════════════════════════

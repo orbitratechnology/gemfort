@@ -250,8 +250,8 @@ export async function updateGemLifecycle(
   if (patch.outcome === "listed" && isTerminalOutcome(current.outcome)) {
     throw new Error(
       current.outcome === "sold"
-        ? "Sold gems cannot be listed."
-        : "Returned gems cannot be listed.",
+        ? "Sold gems cannot be sold on Market."
+        : "Returned gems cannot be sold on Market.",
     );
   }
 
@@ -2049,8 +2049,8 @@ export async function createListing(
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"
-            ? "Sold gems cannot be listed."
-            : "Returned gems cannot be listed.",
+            ? "Sold gems cannot be sold on Market."
+            : "Returned gems cannot be sold on Market.",
         );
       }
       if (photoUrls.length === 0 && Array.isArray(gemData.photoUrls)) {
@@ -2146,8 +2146,8 @@ export async function createListing(
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"
-            ? "Sold gems cannot be listed."
-            : "Returned gems cannot be listed.",
+            ? "Sold gems cannot be sold on Market."
+            : "Returned gems cannot be sold on Market.",
         );
       }
       const next = applyLifecyclePatch(life, { outcome: "listed" });
@@ -2180,8 +2180,8 @@ export async function createListing(
         fromStatus: gem.status ?? null,
         toStatus: "listed",
         description: listingTitle
-          ? `Listed on marketplace as “${listingTitle}”`
-          : "Listed on marketplace",
+          ? `On Market as “${listingTitle}”`
+          : "On Market",
         weightAtEvent: gem.currentWeight ?? null,
         photoUrl: null,
         costAdded: null,

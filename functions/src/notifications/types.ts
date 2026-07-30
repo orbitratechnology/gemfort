@@ -46,6 +46,7 @@ export const GEMNET_NOTIFICATION_TYPES = [
   'account_suspended',
   'account_reinstated',
   'account_banned',
+  'listing_offer_received',
 ] as const;
 
 export type GemTrackNotificationType = (typeof GEMTRACK_NOTIFICATION_TYPES)[number];
@@ -74,7 +75,8 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   if (
     type === 'cheque_bounced' ||
     type.startsWith('account_') ||
-    type === 'verification_revoked'
+    type === 'verification_revoked' ||
+    type === 'listing_offer_received'
   ) {
     return 'high';
   }
