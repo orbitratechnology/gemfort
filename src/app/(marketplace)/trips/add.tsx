@@ -14,6 +14,7 @@ import {
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { cityBelongsToCountry } from '@/constants/cities';
@@ -171,8 +172,10 @@ export default function AddTripScreen() {
             sheetTitle="Destination city"
             error={errors.destinationCity}
           />
-          <Input
+          <MaskedInput
             label="Duration (days)"
+            mode="custom"
+            mask="999"
             value={durationDays}
             onChangeText={(v) => {
               setDurationDays(v);

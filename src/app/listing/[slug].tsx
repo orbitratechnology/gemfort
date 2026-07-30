@@ -53,6 +53,7 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
+import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -311,9 +312,12 @@ export default function PublicListingScreen() {
 
   async function handleSubmitOffer() {
     if (!user || offerSaving) return;
-    const amount = Number(String(offerAmount.amount).replace(/,/g, ""));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setOfferError("Enter a valid offer amount.");
+    const result = parseForm(listingOfferSchema, {
+      amount: offerAmount.amount,
+      message: offerMessage || undefined,
+    });
+    if (!result.success) {
+      setOfferError(result.errors.amount ?? Object.values(result.errors)[0]!);
       return;
     }
     setOfferError(null);
@@ -324,9 +328,9 @@ export default function PublicListingScreen() {
           listing: activeListing,
           buyerUid: user.uid,
           buyerName: profile?.displayName?.trim() || user.email || "Buyer",
-          amount,
+          amount: result.data.amount,
           currency: offerAmount.currency,
-          message: offerMessage,
+          message: result.data.message ?? "",
         });
       }, "Sending offer…");
       setOfferOpen(false);

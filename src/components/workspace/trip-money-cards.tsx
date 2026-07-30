@@ -17,6 +17,7 @@ import {
 import { resolveCurrencyCode } from "@/constants/currencies";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
+import { parseAmountInput } from "@/lib/money/mask";
 
 type TripResultsCardProps = {
   expenses: string;
@@ -116,7 +117,7 @@ export function TripBudgetCard({
   }
 
   async function handleSave() {
-    const parsed = parseFloat(draft.amount);
+    const parsed = parseAmountInput(draft.amount);
     if (!Number.isFinite(parsed) || parsed < 0) return;
     setSaving(true);
     try {
@@ -270,7 +271,7 @@ export function TripBudgetCard({
             label="Trip budget"
             value={draft}
             onChange={setDraft}
-            placeholder="0.00"
+            placeholder="0"
           />
         </View>
       </BottomSheet>

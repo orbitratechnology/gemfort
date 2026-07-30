@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
+import { parseAmountInput } from "@/lib/money/mask";
 
 /** Map Zod flatten errors into a field → message record for inline UI. */
 export function fieldErrorsFromZod(error: z.ZodError): Record<string, string> {
@@ -29,10 +30,10 @@ const positiveNumber = (label: string, max = 99_999_999) =>
     .trim()
     .min(1, `${label} is required`)
     .refine(
-      (v) => !Number.isNaN(Number(v.replace(/,/g, ""))),
+      (v) => !Number.isNaN(parseAmountInput(v)),
       `Enter a valid ${label.toLowerCase()}`,
     )
-    .transform((v) => Number(v.replace(/,/g, "")))
+    .transform((v) => parseAmountInput(v))
     .refine((n) => n > 0, `${label} must be greater than 0`)
     .refine((n) => n <= max, `${label} is too large`);
 
@@ -40,11 +41,24 @@ const optionalPositiveNumber = (label: string, max = 99_999_999) =>
   z
     .string()
     .trim()
-    .transform((v) => (v === "" ? undefined : Number(v.replace(/,/g, ""))))
+    .transform((v) => {
+      if (v === "") return undefined;
+      const n = parseAmountInput(v);
+      return Number.isNaN(n) ? Number.NaN : n;
+    })
     .refine(
       (n) => n === undefined || (!Number.isNaN(n) && n >= 0 && n <= max),
       `Enter a valid ${label.toLowerCase()}`,
     );
+
+const wholeDays = (label: string, min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .refine((v) => /^\d+$/.test(v), "Enter whole days only")
+    .transform((v) => Number(v))
+    .refine((n) => n >= min && n <= max, `${label} must be ${min}-${max} days`);
 
 const gemTreatmentEnum = z.enum([
   'natural',
@@ -126,13 +140,7 @@ export const addTripSchema = z.object({
     .trim()
     .min(2, "Select country")
     .max(60, "Country name is too long"),
-  durationDays: z
-    .string()
-    .trim()
-    .min(1, "Duration is required")
-    .refine((v) => /^\d+$/.test(v), "Enter whole days only")
-    .transform((v) => Number(v))
-    .refine((n) => n >= 1 && n <= 365, "Duration must be 1-365 days"),
+  durationDays: wholeDays("Duration", 1, 365),
   budget: optionalPositiveNumber("Budget"),
   cashCarried: optionalPositiveNumber("Cash carried"),
   notes: z.string().trim().max(500, "Notes are too long").optional(),
@@ -154,13 +162,7 @@ export const addChequeSchema = z.object({
     .max(80, "Bank name is too long"),
   branch: z.string().trim().max(80, "Branch is too long").optional(),
   amount: positiveNumber("Amount"),
-  maturityDays: z
-    .string()
-    .trim()
-    .min(1, "Maturity days required")
-    .refine((v) => /^\d+$/.test(v), "Enter whole days only")
-    .transform((v) => Number(v))
-    .refine((n) => n >= 1 && n <= 730, "Maturity must be 1-730 days"),
+  maturityDays: wholeDays("Maturity", 1, 730),
   contactId: z.string().min(1, "Select a counterparty contact"),
   issuedBy: z.string().trim().max(80, "Name is too long").optional(),
   notes: z.string().trim().max(500, "Notes are too long").optional(),
@@ -171,13 +173,7 @@ export type AddChequeForm = z.infer<typeof addChequeSchema>;
 export const addBillSchema = z.object({
   direction: z.enum(["payable", "receivable"]),
   amount: positiveNumber("Amount"),
-  dueDays: z
-    .string()
-    .trim()
-    .min(1, "Due days required")
-    .refine((v) => /^\d+$/.test(v), "Enter whole days only")
-    .transform((v) => Number(v))
-    .refine((n) => n >= 0 && n <= 730, "Due must be 0-730 days from today"),
+  dueDays: wholeDays("Due", 0, 730),
   contactId: z.string().min(1, "Select who the bill is for"),
   commissionPercent: z
     .string()
@@ -185,7 +181,7 @@ export const addBillSchema = z.object({
     .optional()
     .transform((v) => {
       if (v == null || v === "") return null;
-      const n = Number(v.replace(/,/g, ""));
+      const n = parseAmountInput(v);
       return Number.isNaN(n) ? Number.NaN : n;
     })
     .refine(
@@ -205,6 +201,145 @@ export const recordSaleSchema = z.object({
 });
 
 export type RecordSaleForm = z.infer<typeof recordSaleSchema>;
+
+export const addApSchema = z.object({
+  holderId: z.string().min(1, "Select an AP holder"),
+  days: wholeDays("Expected days", 1, 365),
+  gemCount: z
+    .number()
+    .min(1, "Add at least one gem"),
+});
+
+export type AddApForm = z.infer<typeof addApSchema>;
+
+/** Validate a single currency/weight face-amount string; returns error message or null. */
+export function amountFieldError(
+  label: string,
+  value: string,
+  opts?: { required?: boolean; max?: number },
+): string | null {
+  const required = opts?.required !== false;
+  const max = opts?.max ?? 99_999_999;
+  const trimmed = value.trim();
+  if (!trimmed) return required ? `${label} is required` : null;
+  const n = parseAmountInput(trimmed);
+  if (Number.isNaN(n)) return `Enter a valid ${label.toLowerCase()}`;
+  if (n <= 0 && required) return `${label} must be greater than 0`;
+  if (n < 0) return `Enter a valid ${label.toLowerCase()}`;
+  if (n > max) return `${label} is too large`;
+  return null;
+}
+
+export const addServiceSchema = z.object({
+  gemId: z.string().min(1, "Select a gem"),
+  hasProvider: z.literal(true, {
+    errorMap: () => ({ message: "Select a provider" }),
+  }),
+  weightBefore: positiveNumber("Weight", 10_000),
+  daysUntilReturn: wholeDays("Return days", 1, 365),
+  serviceType: z.enum([
+    "cutting",
+    "heating",
+    "polishing",
+    "certification",
+    "recutting",
+    "appraisal",
+  ]),
+});
+
+export type AddServiceForm = z.infer<typeof addServiceSchema>;
+
+export const addTripPurchaseSchema = z.object({
+  gemType: z.string().min(1, "Choose a gem type"),
+  originCountry: z
+    .string()
+    .trim()
+    .min(2, "Select origin country")
+    .max(60, "Country name is too long"),
+  roughWeight: positiveNumber("Weight", 10_000),
+  acquisitionCost: positiveNumber("Purchase price"),
+  notes: z.string().trim().max(500, "Notes are too long").optional(),
+});
+
+export type AddTripPurchaseForm = z.infer<typeof addTripPurchaseSchema>;
+
+export const addTripExpenseSchema = z.object({
+  category: z.string().min(1, "Choose a category"),
+  amount: positiveNumber("Amount"),
+  description: z.string().trim().max(200, "Description is too long").optional(),
+  paymentMethod: z.enum(["cash", "card", "transfer"]),
+});
+
+export type AddTripExpenseForm = z.infer<typeof addTripExpenseSchema>;
+
+export const addTransactionSchema = z.object({
+  type: z.enum(["income", "expense"]),
+  amount: positiveNumber("Amount"),
+  description: z
+    .string()
+    .trim()
+    .max(200, "Description is too long")
+    .optional(),
+});
+
+export type AddTransactionForm = z.infer<typeof addTransactionSchema>;
+
+export const addPayableSchema = z.object({
+  contactId: z.string().min(1, "Select a contact"),
+  amount: positiveNumber("Amount"),
+  description: z
+    .string()
+    .trim()
+    .max(200, "Description is too long")
+    .optional(),
+});
+
+export type AddPayableForm = z.infer<typeof addPayableSchema>;
+
+export const addReceivableSchema = z.object({
+  contactId: z.string().min(1, "Select a contact"),
+  amount: positiveNumber("Amount"),
+  description: z
+    .string()
+    .trim()
+    .max(200, "Description is too long")
+    .optional(),
+  commission: optionalPositiveNumber("Commission"),
+});
+
+export type AddReceivableForm = z.infer<typeof addReceivableSchema>;
+
+export const recordPaymentSchema = z.object({
+  amount: positiveNumber("Payment amount"),
+});
+
+export type RecordPaymentForm = z.infer<typeof recordPaymentSchema>;
+
+export const completeServiceSchema = z.object({
+  weightAfter: positiveNumber("Weight after", 10_000),
+  finalCost: positiveNumber("Final cost"),
+});
+
+export type CompleteServiceForm = z.infer<typeof completeServiceSchema>;
+
+export const sellApGemSchema = z.object({
+  soldPrice: positiveNumber("Sold price"),
+  soldToName: z
+    .string()
+    .trim()
+    .max(80, "Name is too long")
+    .optional(),
+  paymentDueDays: wholeDays("Payment due", 0, 730),
+});
+
+export type SellApGemForm = z.infer<typeof sellApGemSchema>;
+
+export const listingOfferSchema = z.object({
+  amount: positiveNumber("Offer amount"),
+  message: z.string().trim().max(500, "Message is too long").optional(),
+});
+
+export type ListingOfferForm = z.infer<typeof listingOfferSchema>;
 
 export const loginSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),

@@ -19,6 +19,7 @@ import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -43,6 +44,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
+import { parseAmountInput } from "@/lib/money/mask";
 import {
     extensionForMedia,
     pickLocalMedia,
@@ -79,7 +81,7 @@ function draftsFromBusiness(business: Business | null | undefined): CertDraft[] 
 
 function offeringsFromDrafts(drafts: CertDraft[]): LabCertificateOffering[] {
   return drafts.map((d) => {
-    const parsed = Number(d.priceText.replace(/,/g, "").trim());
+    const parsed = parseAmountInput(d.priceText);
     return {
       id: d.id,
       title: d.title,
@@ -502,14 +504,14 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
                   </View>
                 </Pressable>
                 {cert.isActive ? (
-                  <Input
+                  <MaskedInput
                     label={`Price (${cert.currency})`}
+                    mode="currency"
                     value={cert.priceText}
                     onChangeText={(priceText) =>
                       updateCertDraft(cert.id, { priceText })
                     }
-                    placeholder="e.g. 8500"
-                    keyboardType="decimal-pad"
+                    placeholder="0"
                     leftIcon="payments"
                   />
                 ) : null}

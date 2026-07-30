@@ -43,6 +43,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
+import { parseAmountInput } from "@/lib/money/mask";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { openWhatsApp } from "@/lib/utils";
 import { parseForm } from "@/lib/validation/form-schemas";
@@ -64,10 +65,10 @@ const createListingSchema = z.object({
     .trim()
     .min(1, "Enter a price")
     .refine(
-      (v) => !Number.isNaN(Number(v.replace(/,/g, ""))),
+      (v) => !Number.isNaN(parseAmountInput(v)),
       "Enter a valid price",
     )
-    .transform((v) => Number(v.replace(/,/g, "")))
+    .transform((v) => parseAmountInput(v))
     .refine((n) => n > 0, "Price must be greater than 0"),
   visibility: z.enum(["public", "contacts"], {
     errorMap: () => ({ message: "Choose visibility" }),

@@ -12,7 +12,7 @@ import {
   ScreenInset,
 } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { JOB_STATUS_LABELS } from "@/components/workspace/job-picker-sheet";
@@ -47,6 +47,7 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatDate } from "@/lib/utils";
+import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
@@ -74,6 +75,7 @@ export default function BillDetailScreen() {
   const [showPayForm, setShowPayForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const { data: bill, isLoading } = useFirestoreLiveQuery({
     queryKey: ["bill", billId],
@@ -121,7 +123,8 @@ export default function BillDetailScreen() {
   }
 
   function openPayForm(amount: number) {
-    setPaymentAmount(String(amount));
+    setPaymentAmount(amount > 0 ? String(amount) : "");
+    setPaymentError(null);
     setShowPayForm(true);
   }
 
@@ -144,25 +147,26 @@ export default function BillDetailScreen() {
   async function handleRecordPayment() {
     if (!user || !bill) return;
     const remaining = remainingAmount(bill);
-    const parsed = paymentAmount
-      ? parseFloat(paymentAmount)
-      : remaining;
-    if (!parsed || parsed <= 0 || Number.isNaN(parsed)) {
-      toast.error("Enter a valid payment amount");
+    const amountToValidate = paymentAmount || String(remaining);
+    const result = parseForm(recordPaymentSchema, { amount: amountToValidate });
+    if (!result.success) {
+      setPaymentError(result.errors.amount ?? "Enter a valid payment amount");
+      toast.error(result.errors.amount ?? "Enter a valid payment amount");
       return;
     }
+    setPaymentError(null);
     if (!payMethod) {
       toast.error("Select how it was paid");
       return;
     }
     if (payMethod === "cheque") {
-      goToCheque(parsed);
+      goToCheque(result.data.amount);
       return;
     }
 
     try {
       await withLoading(async () => {
-        await recordBillPayment(user.uid, bill.id, parsed, {
+        await recordBillPayment(user.uid, bill.id, result.data.amount, {
           currency: bill.currency,
           paymentMethod: payMethod,
         });
@@ -433,13 +437,17 @@ export default function BillDetailScreen() {
             <ScreenInset>
               {showPayForm ? (
                 <View style={styles.payForm}>
-                  <Input
+                  <MaskedInput
                     label="Amount"
+                    mode="currency"
                     value={paymentAmount}
-                    onChangeText={setPaymentAmount}
-                    keyboardType="decimal-pad"
+                    onChangeText={(v) => {
+                      setPaymentAmount(v);
+                      setPaymentError(null);
+                    }}
                     placeholder={String(remaining)}
                     leftIcon="payments"
+                    error={paymentError ?? undefined}
                   />
                   <ChipSelect
                     label="How was it paid?"

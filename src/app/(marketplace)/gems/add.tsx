@@ -22,6 +22,7 @@ import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -481,15 +482,15 @@ export default function AddGemScreen() {
               }
             />
 
-            <Input
+            <MaskedInput
               label="Weight (ct)"
+              mode="weight"
               value={roughWeight}
               onChangeText={(v) => {
                 setRoughWeight(v);
                 clearField("roughWeight");
               }}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
+              placeholder="0"
               leftIcon="scale"
               error={errors.roughWeight}
             />

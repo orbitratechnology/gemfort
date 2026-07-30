@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import {
@@ -25,6 +25,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
+import { addServiceSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
@@ -78,15 +79,25 @@ export default function AddServiceScreen() {
 
   async function handleSubmit() {
     if (!user) return;
-    const nextErrors: Record<string, string> = {};
-    if (!gemId) nextErrors.gemId = 'Select a gem.';
-    if (!provider) nextErrors.provider = 'Select a provider.';
-    if (Object.keys(nextErrors).length) {
-      setErrors(nextErrors);
-      toast.error(Object.values(nextErrors)[0]);
+    const result = parseForm(addServiceSchema, {
+      gemId,
+      hasProvider: provider ? true : false,
+      weightBefore: weightBeforeValue,
+      daysUntilReturn,
+      serviceType,
+    });
+    if (!result.success) {
+      const mapped = { ...result.errors };
+      if (mapped.hasProvider) {
+        mapped.provider = mapped.hasProvider;
+        delete mapped.hasProvider;
+      }
+      setErrors(mapped);
+      toast.error(Object.values(mapped)[0]!);
       return;
     }
     if (!provider) return;
+    setErrors({});
 
     try {
       await withLoading(async () => {
@@ -96,18 +107,18 @@ export default function AddServiceScreen() {
           providerUid = biz?.ownerUid ?? null;
         }
         const expectedReturn = Timestamp.fromDate(
-          new Date(Date.now() + parseInt(daysUntilReturn, 10) * 86400000),
+          new Date(Date.now() + result.data.daysUntilReturn * 86400000),
         );
         const id = await createService(user.uid, {
-          gemId,
-          serviceType,
+          gemId: result.data.gemId,
+          serviceType: result.data.serviceType,
           providerContactId: provider.source === 'contact' ? provider.contactId : '',
           providerBusinessId: provider.source === 'business' ? provider.businessId : null,
           providerUid,
           providerName: provider.label,
           dateGiven: Timestamp.now(),
           expectedReturnDate: expectedReturn,
-          weightBefore: parseFloat(weightBeforeValue) || selectedGem?.currentWeight || 0,
+          weightBefore: result.data.weightBefore,
           photoBeforeUrls: [],
           instructions: null,
           agreedPrice: null,
@@ -166,19 +177,39 @@ export default function AddServiceScreen() {
         </FormSection>
 
         <FormSection title="Details">
-          <Input
+          <MaskedInput
             label="Weight Before (ct)"
+            mode="weight"
             value={weightBeforeValue}
-            onChangeText={setWeightBefore}
-            keyboardType="decimal-pad"
+            onChangeText={(v) => {
+              setWeightBefore(v);
+              setErrors((e) => {
+                if (!e.weightBefore) return e;
+                const next = { ...e };
+                delete next.weightBefore;
+                return next;
+              });
+            }}
             leftIcon="scale"
+            error={errors.weightBefore}
           />
-          <Input
+          <MaskedInput
             label="Days Until Return"
+            mode="custom"
+            mask="999"
             value={daysUntilReturn}
-            onChangeText={setDaysUntilReturn}
+            onChangeText={(v) => {
+              setDaysUntilReturn(v);
+              setErrors((e) => {
+                if (!e.daysUntilReturn) return e;
+                const next = { ...e };
+                delete next.daysUntilReturn;
+                return next;
+              });
+            }}
             keyboardType="number-pad"
             leftIcon="schedule"
+            error={errors.daysUntilReturn}
           />
         </FormSection>
 

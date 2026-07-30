@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/currency-amount-field";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
@@ -35,6 +35,11 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
+import {
+  addApSchema,
+  amountFieldError,
+  parseForm,
+} from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
@@ -131,31 +136,39 @@ export default function AddApScreen() {
 
   async function handleSubmit() {
     if (!user) return;
-    const next: Record<string, string> = {};
-    if (lines.length === 0) next.gems = "Add at least one gem.";
-    if (!holderId) next.holderId = "Select an AP holder.";
+    const result = parseForm(addApSchema, {
+      holderId,
+      days,
+      gemCount: lines.length,
+    });
+    const next: Record<string, string> = result.success
+      ? {}
+      : { ...result.errors };
+    if (next.gemCount) {
+      next.gems = next.gemCount;
+      delete next.gemCount;
+    }
     if (holder && !holder.linkedBusinessId) {
       next.holderId =
         "Holder must be a GemFort trader linked by phone. Pick a trader from the directory.";
     }
     for (const line of lines) {
-      const price = parseFloat(line.price.amount);
-      if (!line.price.amount.trim() || Number.isNaN(price) || price <= 0) {
-        next[`price-${line.gemId}`] = "Enter a valid AP price.";
-      }
+      const priceErr = amountFieldError("AP price", line.price.amount);
+      if (priceErr) next[`price-${line.gemId}`] = priceErr;
     }
     if (Object.keys(next).length) {
       setErrors(next);
-      toast.error(Object.values(next)[0]);
+      toast.error(Object.values(next)[0]!);
       return;
     }
+    setErrors({});
 
     try {
       await withLoading(async () => {
         const id = await createApRequest({
           receiverContactId: holderId,
           receiverBusinessId: holder?.linkedBusinessId ?? null,
-          expectedDurationDays: parseInt(days, 10) || 30,
+          expectedDurationDays: (result.success ? result.data.days : parseInt(days, 10)) || 30,
           items: lines.map((l) => ({
             gemId: l.gemId,
             agreedPrice: parseFloat(l.price.amount),
@@ -241,12 +254,23 @@ export default function AddApScreen() {
         </FormSection>
 
         <FormSection title="Terms">
-          <Input
+          <MaskedInput
             label="Expected Days"
+            mode="custom"
+            mask="999"
             value={days}
-            onChangeText={setDays}
+            onChangeText={(v) => {
+              setDays(v);
+              setErrors((e) => {
+                if (!e.days) return e;
+                const next = { ...e };
+                delete next.days;
+                return next;
+              });
+            }}
             keyboardType="number-pad"
             leftIcon="schedule"
+            error={errors.days}
           />
         </FormSection>
 

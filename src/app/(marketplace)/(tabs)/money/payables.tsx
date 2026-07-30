@@ -32,6 +32,11 @@ import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
+import {
+  addPayableSchema,
+  parseForm,
+  recordPaymentSchema,
+} from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -58,6 +63,8 @@ export default function PayablesScreen() {
     currency: preferred,
   });
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const { data: payables = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['payables', user?.uid],
@@ -80,18 +87,26 @@ export default function PayablesScreen() {
   );
 
   async function handleAdd() {
-    if (!user || !contactId || !money.amount) {
-      toast.error('Select a contact and enter an amount.');
+    if (!user) return;
+    const result = parseForm(addPayableSchema, {
+      contactId,
+      amount: money.amount,
+      description: description || undefined,
+    });
+    if (!result.success) {
+      setErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
       return;
     }
+    setErrors({});
     try {
       await withLoading(async () => {
         const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
         await createPayable(user.uid, {
-          contactId,
-          amount: parseFloat(money.amount),
+          contactId: result.data.contactId,
+          amount: result.data.amount,
           currency: money.currency,
-          description: description || 'Payable',
+          description: result.data.description || 'Payable',
           dueDate: due,
         });
         await queryClient.invalidateQueries({ queryKey: ['payables'] });
@@ -109,14 +124,17 @@ export default function PayablesScreen() {
   async function handleRecordPayment(item: Payable) {
     if (!user) return;
     const remaining = item.amount - item.amountPaid;
-    const parsed = paymentMoney.amount ? parseFloat(paymentMoney.amount) : remaining;
-    if (!parsed || parsed <= 0) {
-      toast.error('Enter a valid payment amount');
+    const amountToValidate = paymentMoney.amount || String(remaining);
+    const result = parseForm(recordPaymentSchema, { amount: amountToValidate });
+    if (!result.success) {
+      setPaymentError(result.errors.amount ?? 'Enter a valid payment amount');
+      toast.error(result.errors.amount ?? 'Enter a valid payment amount');
       return;
     }
+    setPaymentError(null);
     try {
       await withLoading(async () => {
-        await recordPayablePayment(user.uid, item.id, parsed, {
+        await recordPayablePayment(user.uid, item.id, result.data.amount, {
           currency: paymentMoney.currency,
           paymentMethod: paymentMethod || null,
         });
@@ -208,8 +226,12 @@ export default function PayablesScreen() {
               <CurrencyAmountField
                 label="Payment amount"
                 value={paymentMoney}
-                onChange={setPaymentMoney}
+                onChange={(next) => {
+                  setPaymentMoney(next);
+                  setPaymentError(null);
+                }}
                 placeholder={String(remaining)}
+                error={paymentError ?? undefined}
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
               <Button title="Confirm Payment" icon="check-circle" onPress={() => handleRecordPayment(item)} />
@@ -287,8 +309,35 @@ export default function PayablesScreen() {
 
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
-                <ContactPicker label="To contact" contacts={contacts} value={contactId} onChange={setContactId} />
-                <CurrencyAmountField label="Amount" value={money} onChange={setMoney} />
+                <ContactPicker
+                  label="To contact"
+                  contacts={contacts}
+                  value={contactId}
+                  onChange={(id) => {
+                    setContactId(id);
+                    setErrors((e) => {
+                      if (!e.contactId) return e;
+                      const next = { ...e };
+                      delete next.contactId;
+                      return next;
+                    });
+                  }}
+                  error={errors.contactId}
+                />
+                <CurrencyAmountField
+                  label="Amount"
+                  value={money}
+                  onChange={(next) => {
+                    setMoney(next);
+                    setErrors((e) => {
+                      if (!e.amount) return e;
+                      const nextErr = { ...e };
+                      delete nextErr.amount;
+                      return nextErr;
+                    });
+                  }}
+                  error={errors.amount}
+                />
                 <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
                 <Button title="Add Payable" icon="add" onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />

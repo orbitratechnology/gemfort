@@ -20,6 +20,7 @@ import {
 } from '@/constants/currencies';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
+import { formatGroupedAmount, toFaceAmount } from '@/lib/money/mask';
 
 export type CurrencyAmountValue = {
   amount: string;
@@ -42,6 +43,7 @@ type CurrencyAmountFieldProps = Omit<
 
 /**
  * Amount entry with currency selector (phone-field style).
+ * Auto thousand-separators as you type — no forced .00 / cents padding.
  * Emits face amount + ISO currency; callers convert to LKR on save.
  */
 export function CurrencyAmountField({
@@ -52,7 +54,7 @@ export function CurrencyAmountField({
   onChange,
   defaultCurrency,
   disabled,
-  placeholder = '0.00',
+  placeholder = '0',
   ...inputProps
 }: CurrencyAmountFieldProps) {
   const { colors } = useAppTheme();
@@ -98,9 +100,7 @@ export function CurrencyAmountField({
           ]}
         >
           <CurrencyFlag currency={currency} size="sm" />
-          <Text
-            style={[styles.currencyCode, { color: colors.onSurface }]}
-          >
+          <Text style={[styles.currencyCode, { color: colors.onSurface }]}>
             {getCurrencyBadge(currency)}
           </Text>
           <Icon name="expand-more" size={18} color={colors.outline} />
@@ -111,14 +111,20 @@ export function CurrencyAmountField({
           keyboardType="decimal-pad"
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
-          value={value.amount}
-          onChangeText={(amount) => onChange({ amount, currency })}
+          value={formatGroupedAmount(value.amount)}
+          onChangeText={(text) => {
+            onChange({
+              amount: toFaceAmount(text),
+              currency,
+            });
+          }}
           style={[styles.input, { color: colors.text }]}
           accessibilityLabel={label ?? 'Amount'}
         />
       </View>
       {error ? (
         <Text
+          selectable
           style={[styles.error, { color: colors.error }]}
           accessibilityLiveRegion="polite"
         >
