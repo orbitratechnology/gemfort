@@ -1,5 +1,5 @@
 {
-  "name": "gemfort",
+  "name": "expo-firebase-template",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
@@ -106,7 +106,9 @@
   "expo": {
     "autolinking": {
       "ios": {
-        "exclude": ["react-native-calllogs-android"]
+        "exclude": [
+          "react-native-calllogs-android"
+        ]
       }
     }
   }

@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "gemfort"
+    "default": "your-firebase-project-id"
   },
   "targets": {},
   "etags": {}
