@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -14,11 +14,14 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { resolveProfileRole } from '@/constants/roles';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import {
   isNestedWorkspaceHref,
   pushWithAnchor,
 } from '@/navigation/tab-stack-nav';
+import { useAuth } from '@/providers/auth-provider';
+import type { UserRole } from '@/types';
 
 type BannerSlide = {
   id: string;
@@ -29,6 +32,8 @@ type BannerSlide = {
   icon: IconName;
   href: Href;
   tone: 'primary' | 'deep' | 'soft';
+  /** If set, only these roles see the slide (guests never see them) */
+  roles?: UserRole[];
 };
 
 type LoopSlide = BannerSlide & {
@@ -36,7 +41,7 @@ type LoopSlide = BannerSlide & {
   realIndex: number;
 };
 
-const BANNERS: BannerSlide[] = [
+const ALL_BANNERS: BannerSlide[] = [
   {
     id: 'verify',
     eyebrow: 'Trust',
@@ -66,6 +71,7 @@ const BANNERS: BannerSlide[] = [
     icon: 'money-check-dollar',
     href: '/(marketplace)/(tabs)/workspace/cheques',
     tone: 'soft',
+    roles: ['trader', 'admin'],
   },
   {
     id: 'ap',
@@ -76,6 +82,7 @@ const BANNERS: BannerSlide[] = [
     icon: 'handshake',
     href: '/(marketplace)/ap/add',
     tone: 'primary',
+    roles: ['trader', 'admin'],
   },
 ];
 
@@ -87,24 +94,21 @@ const BANNER_HEIGHT = 156;
 const SIDE_INSET = 32;
 const GAP = 12;
 const SHADOW_PAD = 6;
-const COUNT = BANNERS.length;
 
 /** [lastClone, ...items, firstClone] — seamless forward/back loop */
-function buildLoopData(): LoopSlide[] {
-  if (COUNT < 2) {
-    return BANNERS.map((b, i) => ({ ...b, key: b.id, realIndex: i }));
+function buildLoopData(banners: BannerSlide[]): LoopSlide[] {
+  const count = banners.length;
+  if (count < 2) {
+    return banners.map((b, i) => ({ ...b, key: b.id, realIndex: i }));
   }
-  const first = BANNERS[0]!;
-  const last = BANNERS[COUNT - 1]!;
+  const first = banners[0]!;
+  const last = banners[count - 1]!;
   return [
-    { ...last, key: `${last.id}-clone-start`, realIndex: COUNT - 1 },
-    ...BANNERS.map((b, i) => ({ ...b, key: b.id, realIndex: i })),
+    { ...last, key: `${last.id}-clone-start`, realIndex: count - 1 },
+    ...banners.map((b, i) => ({ ...b, key: b.id, realIndex: i })),
     { ...first, key: `${first.id}-clone-end`, realIndex: 0 },
   ];
 }
-
-const LOOP_DATA = buildLoopData();
-const START_LOOP_INDEX = COUNT < 2 ? 0 : 1;
 
 function toneFor(
   tone: BannerSlide['tone'],
@@ -142,19 +146,41 @@ function toneFor(
  */
 export function HomeBannerCarousel() {
   const { colors, isDark } = useAppTheme();
+  const { user, profile } = useAuth();
+  const role = resolveProfileRole(profile);
   const { width: windowWidth } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
-  const loopRef = useRef(START_LOOP_INDEX);
   const pausedRef = useRef(false);
   const programmaticRef = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [index, setIndex] = useState(0);
 
+  const banners = useMemo(
+    () =>
+      ALL_BANNERS.filter((b) => {
+        if (!b.roles) return true;
+        if (!user) return false;
+        return b.roles.includes(role);
+      }),
+    [user, role],
+  );
+  const count = banners.length;
+  const loopData = useMemo(() => buildLoopData(banners), [banners]);
+  const startLoopIndex = count < 2 ? 0 : 1;
+  const loopRef = useRef(startLoopIndex);
+  const countRef = useRef(count);
+  const loopDataRef = useRef(loopData);
+
   const slideWidth = windowWidth - SIDE_INSET * 2;
   const stride = slideWidth + GAP;
   const strideRef = useRef(stride);
-  strideRef.current = stride;
+
+  useEffect(() => {
+    countRef.current = count;
+    loopDataRef.current = loopData;
+    strideRef.current = stride;
+  });
 
   function clearTimers() {
     if (autoTimer.current) clearTimeout(autoTimer.current);
@@ -172,7 +198,9 @@ export function HomeBannerCarousel() {
 
   /** Landed on a clone → jump to the matching real slide */
   function settle(rawIndex: number) {
-    if (COUNT < 2) {
+    const n = countRef.current;
+    const data = loopDataRef.current;
+    if (n < 2) {
       loopRef.current = rawIndex;
       setIndex(rawIndex);
       return;
@@ -180,25 +208,24 @@ export function HomeBannerCarousel() {
 
     let loopIndex = rawIndex;
     if (rawIndex <= 0) {
-      loopIndex = COUNT;
+      loopIndex = n;
       scrollToLoop(loopIndex, false);
-    } else if (rawIndex >= COUNT + 1) {
+    } else if (rawIndex >= n + 1) {
       loopIndex = 1;
       scrollToLoop(loopIndex, false);
     }
 
     loopRef.current = loopIndex;
-    setIndex(LOOP_DATA[loopIndex]?.realIndex ?? 0);
+    setIndex(data[loopIndex]?.realIndex ?? 0);
   }
 
   function scheduleAuto() {
     clearTimers();
-    if (pausedRef.current || COUNT < 2) return;
+    if (pausedRef.current || countRef.current < 2) return;
     autoTimer.current = setTimeout(() => {
       const next = loopRef.current + 1;
       programmaticRef.current = true;
       scrollToLoop(next, true);
-      // Unwrap as soon as the animated scroll finishes — don't wait on momentum events
       settleTimer.current = setTimeout(() => {
         settle(next);
         programmaticRef.current = false;
@@ -207,14 +234,22 @@ export function HomeBannerCarousel() {
     }, AUTO_MS);
   }
 
-  // Position + auto-play when width (stride) changes
+  const carouselConfigKey = `${stride}-${count}-${startLoopIndex}`;
+  const [appliedCarouselConfig, setAppliedCarouselConfig] =
+    useState(carouselConfigKey);
+  if (appliedCarouselConfig !== carouselConfigKey) {
+    setAppliedCarouselConfig(carouselConfigKey);
+    setIndex(0);
+  }
+
+  // Position + auto-play when width (stride) or banner set changes
   useEffect(() => {
-    loopRef.current = START_LOOP_INDEX;
-    scrollToLoop(START_LOOP_INDEX, false);
+    loopRef.current = startLoopIndex;
+    scrollToLoop(startLoopIndex, false);
     scheduleAuto();
     return clearTimers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-init on stride
-  }, [stride]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init on stride / guest vs signed-in set
+  }, [stride, count, startLoopIndex]);
 
   function onScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (programmaticRef.current) return;
@@ -235,7 +270,7 @@ export function HomeBannerCarousel() {
         snapToAlignment="start"
         disableIntervalMomentum
         nestedScrollEnabled
-        contentOffset={{ x: START_LOOP_INDEX * stride, y: 0 }}
+        contentOffset={{ x: startLoopIndex * stride, y: 0 }}
         contentContainerStyle={{
           paddingHorizontal: SIDE_INSET,
           paddingVertical: SHADOW_PAD,
@@ -247,7 +282,7 @@ export function HomeBannerCarousel() {
         }}
         onMomentumScrollEnd={onScrollEnd}
       >
-        {LOOP_DATA.map((item) => {
+        {loopData.map((item) => {
           const tone = toneFor(item.tone, colors, isDark);
           return (
             <View
@@ -313,17 +348,17 @@ export function HomeBannerCarousel() {
       </ScrollView>
 
       <View style={styles.dots} accessibilityRole="tablist">
-        {BANNERS.map((b, i) => {
+        {banners.map((b, i) => {
           const active = i === index;
           return (
             <Pressable
               key={b.id}
               accessibilityRole="button"
-              accessibilityLabel={`Banner ${i + 1} of ${COUNT}`}
+              accessibilityLabel={`Banner ${i + 1} of ${count}`}
               accessibilityState={{ selected: active }}
               hitSlop={8}
               onPress={() => {
-                const loopIndex = COUNT < 2 ? i : i + 1;
+                const loopIndex = count < 2 ? i : i + 1;
                 clearTimers();
                 programmaticRef.current = true;
                 scrollToLoop(loopIndex, true);

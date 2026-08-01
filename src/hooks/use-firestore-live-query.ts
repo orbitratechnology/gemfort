@@ -26,12 +26,21 @@ type LiveQueryOptions<TData, TError = Error> = Omit<
   subscribe: SubscribeFn<TData>;
 };
 
+type SharedListener = {
+  refCount: number;
+  unsubscribe: () => void;
+};
+
+/** One Firestore onSnapshot per queryKey, shared across mounted screens. */
+const sharedListeners = new Map<string, SharedListener>();
+
 /**
  * React Query + Firestore realtime bridge.
  *
  * - `queryFn` (getDocs/getDoc) powers pull-to-refresh / reconnect refetch
  * - `subscribe` (onSnapshot) pushes live updates into the same queryKey cache
  * - `staleTime: Infinity` — the listener is the source of freshness
+ * - Identical `queryKey`s share a single native listener (refcount)
  */
 export function useFirestoreLiveQuery<TData, TError = Error>(
   options: LiveQueryOptions<TData, TError>,
@@ -39,13 +48,28 @@ export function useFirestoreLiveQuery<TData, TError = Error>(
   const { subscribe, queryKey, queryFn, enabled = true, ...rest } = options;
   const queryClient = useQueryClient();
   const subscribeRef = useRef(subscribe);
-  subscribeRef.current = subscribe;
   const keyHash = hashKey(queryKey);
+
+  useEffect(() => {
+    subscribeRef.current = subscribe;
+  });
 
   useEffect(() => {
     if (enabled === false) return;
 
-    return subscribeRef.current(
+    const existing = sharedListeners.get(keyHash);
+    if (existing) {
+      existing.refCount += 1;
+      return () => {
+        existing.refCount -= 1;
+        if (existing.refCount <= 0) {
+          existing.unsubscribe();
+          sharedListeners.delete(keyHash);
+        }
+      };
+    }
+
+    const unsubscribe = subscribeRef.current(
       (data) => {
         queryClient.setQueryData(queryKey, data);
       },
@@ -53,6 +77,17 @@ export function useFirestoreLiveQuery<TData, TError = Error>(
         // Keep last good cache; offline persistence + queryFn refetch recover.
       },
     );
+
+    const entry: SharedListener = { refCount: 1, unsubscribe };
+    sharedListeners.set(keyHash, entry);
+
+    return () => {
+      entry.refCount -= 1;
+      if (entry.refCount <= 0) {
+        entry.unsubscribe();
+        sharedListeners.delete(keyHash);
+      }
+    };
     // queryKey identity is tracked via keyHash; setQueryData needs the array.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyHash stands in for queryKey
   }, [enabled, keyHash, queryClient]);

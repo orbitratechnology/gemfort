@@ -304,22 +304,19 @@ export default function HomeScreen() {
     enabled: workspaceEnabled && canAccessModule(role, "ap"),
   });
 
-  const apImage = useMemo(
-    () => (record: (typeof apRecords)[number]) => {
-      const isTaken = !!user?.uid && record.receiverUid === user.uid;
-      if (isTaken) {
-        return {
-          url: ownerBusinessPhoto(record.senderUid),
-          shape: "circle" as const,
-        };
-      }
-      const partyId = record.receiverContactId || record.apHolderContactId;
-      const url =
-        contactPhoto(partyId) || businessPhoto(record.receiverBusinessId);
-      return { url, shape: "circle" as const };
-    },
-    [user?.uid, contactPhoto, businessPhoto, ownerBusinessPhoto],
-  );
+  const apImage = (record: (typeof apRecords)[number]) => {
+    const isTaken = !!user?.uid && record.receiverUid === user.uid;
+    if (isTaken) {
+      return {
+        url: ownerBusinessPhoto(record.senderUid),
+        shape: "circle" as const,
+      };
+    }
+    const partyId = record.receiverContactId || record.apHolderContactId;
+    const url =
+      contactPhoto(partyId) || businessPhoto(record.receiverBusinessId);
+    return { url, shape: "circle" as const };
+  };
 
   const { data: services = [], refetch: refetchServices } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],

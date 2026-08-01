@@ -1,4 +1,4 @@
-import DateTimePicker from '@expo/ui/community/datetime-picker';
+import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { format, subYears } from 'date-fns';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';

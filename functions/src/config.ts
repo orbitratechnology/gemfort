@@ -14,3 +14,13 @@ setGlobalOptions({
   maxInstances: 10,
 });
 
+/**
+ * Options for latency-critical user callables.
+ * minInstances keeps one warm container (idle billing) to avoid multi-second cold starts.
+ */
+export const HOT_CALLABLE = {
+  region: REGION,
+  timeoutSeconds: 60,
+  minInstances: 1,
+} as const;
+

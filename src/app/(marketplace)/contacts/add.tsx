@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,17 +53,11 @@ export default function AddContactScreen() {
   const [contactTypes, setContactTypes] = useState<string[]>(['broker']);
   const [notes, setNotes] = useState(decodeShareParam(raw.notes));
   const [deviceContactId, setDeviceContactId] = useState<string | null>(null);
-  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
-  const [didApplySharedPhoto, setDidApplySharedPhoto] = useState(false);
-
   const sharedPhotoUri = firstParam(raw.sharedPhotoUri);
-
-  useEffect(() => {
-    if (didApplySharedPhoto || !sharedPhotoUri) return;
-    setLocalPhotoUri(sharedPhotoUri);
-    setDidApplySharedPhoto(true);
-  }, [sharedPhotoUri, didApplySharedPhoto]);
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(
+    () => sharedPhotoUri || null,
+  );
+  const [picking, setPicking] = useState(false);
 
   function toggleType(t: string) {
     setContactTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));

@@ -404,19 +404,21 @@ export function PartyPickerSheet({
   );
   const [query, setQuery] = useState('');
   const [contacts, setContacts] = useState(contactsProp);
+  const [contactsPropSnapshot, setContactsPropSnapshot] = useState(contactsProp);
+  const [wasVisible, setWasVisible] = useState(visible);
   const debouncedQuery = useDebouncedValue(query, 300);
 
-  useEffect(() => {
+  if (contactsProp !== contactsPropSnapshot) {
+    setContactsPropSnapshot(contactsProp);
     setContacts(contactsProp);
-  }, [contactsProp]);
+  }
 
-  useEffect(() => {
-    if (visible && showMarket) {
-      setTab(preferBusinesses ? 'market' : 'contacts');
-    } else if (visible) {
-      setTab('contacts');
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setTab(showMarket && preferBusinesses ? 'market' : 'contacts');
     }
-  }, [visible, showMarket, preferBusinesses]);
+  }
 
   const { data: marketBusinesses = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ['party-picker-businesses', allowedBusinessKinds.join(',')],

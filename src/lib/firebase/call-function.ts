@@ -11,9 +11,22 @@ type CallableFailure = {
   };
 };
 
+function isUnauthorized(
+  status: number,
+  json: CallableSuccess<unknown> | CallableFailure,
+): boolean {
+  if (status === 401) return true;
+  if (!('error' in json) || !json.error) return false;
+  const code = (json.error.status ?? '').toUpperCase();
+  return code === 'UNAUTHENTICATED' || code === 'UNAUTHORIZED';
+}
+
 /**
  * Invoke a Firebase callable HTTPS function with the current Auth ID token.
  * Avoids adding @react-native-firebase/functions (native rebuild).
+ *
+ * Uses a cached ID token; force-refreshes only on auth failure so callables
+ * do not pay an Auth round-trip on every request.
  */
 export async function callFunction<TResult = unknown, TData = Record<string, never>>(
   name: string,
@@ -29,19 +42,27 @@ export async function callFunction<TResult = unknown, TData = Record<string, nev
     throw new Error('Firebase is not configured.');
   }
 
-  const idToken = await getIdToken(user, true);
   const url = `https://${REGION}-${projectId}.cloudfunctions.net/${name}`;
+  const body = JSON.stringify({ data: data ?? {} });
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({ data: data ?? {} }),
-  });
+  const post = async (forceRefresh: boolean) => {
+    const idToken = await getIdToken(user, forceRefresh);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body,
+    });
+    const json = (await response.json()) as CallableSuccess<TResult> | CallableFailure;
+    return { response, json };
+  };
 
-  const json = (await response.json()) as CallableSuccess<TResult> | CallableFailure;
+  let { response, json } = await post(false);
+  if (isUnauthorized(response.status, json)) {
+    ({ response, json } = await post(true));
+  }
 
   if ('error' in json && json.error) {
     const message = json.error.message || 'Request failed.';

@@ -4,7 +4,12 @@ import type { TripStatus, TripType } from '@/types';
 export const TRIP_TYPES: { id: TripType; label: string; subtitle: string; icon: IconName }[] = [
   { id: 'sourcing', label: 'Sourcing', subtitle: 'Buy rough at mines & markets', icon: 'explore' },
   { id: 'selling', label: 'Selling', subtitle: 'Take gems to buyers abroad', icon: 'flight-takeoff' },
-  { id: 'both', label: 'Combined', subtitle: 'Source and sell on one trip', icon: 'sync-alt' },
+  {
+    id: 'both',
+    label: 'Source & Sell',
+    subtitle: 'Source and sell on one trip',
+    icon: 'sync-alt',
+  },
 ];
 
 export const TRIP_STATUS_LABELS: Record<TripStatus, string> = {

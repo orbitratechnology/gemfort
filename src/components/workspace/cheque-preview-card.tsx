@@ -93,7 +93,7 @@ export function ChequePreviewCard({
   return (
     <View
       accessible
-      accessibilityLabel={`Cheque preview. ${isReceived ? "Received" : "Given"}. ${a11yBank || "Bank pending"}. ${amountLabel}.`}
+      accessibilityLabel={`Cheque preview. ${isReceived ? "Taken" : "Given"}. ${a11yBank || "Bank pending"}. ${amountLabel}.`}
     >
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
         Preview
@@ -161,7 +161,7 @@ export function ChequePreviewCard({
                   { color: colors.onSurfaceVariant },
                 ]}
               >
-                {isReceived ? "Received" : "Given"}
+                {isReceived ? "Taken" : "Given"}
               </Text>
               <Text style={[styles.microLabel, { color: colors.textMuted }]}>
                 No.

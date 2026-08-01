@@ -1,11 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ChipSelect } from "@/components/ui/chip-select";
+import { ChoicePreviewCard, ChoiceTileGrid } from "@/components/ui/choice-tile-grid";
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -43,6 +49,7 @@ import {
   createBill,
   fetchContacts,
   fetchGems,
+  updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -82,21 +89,32 @@ export default function AddBillScreen() {
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const isLapidary = resolveProfileRole(profile) === "lapidary";
   const raw = useLocalSearchParams<{
     amount?: string;
     notes?: string;
     jobId?: string;
+    gemId?: string;
+    markSold?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
   const paramNotes = decodeShareParam(raw.notes);
   const paramJobId = firstParam(raw.jobId);
+  const paramGemId = firstParam(raw.gemId);
+  const markSold = firstParam(raw.markSold) === "1";
 
-  const [direction, setDirection] = useState<BillDirection>("payable");
+  const presetDirection: BillDirection | null = isLapidary
+    ? "receivable"
+    : markSold
+      ? "receivable"
+      : null;
 
-  useEffect(() => {
-    if (isLapidary) setDirection("receivable");
-  }, [isLapidary]);
+  const [step, setStep] = useState(presetDirection ? 1 : 0);
+  const [direction, setDirection] = useState<BillDirection | null>(
+    presetDirection,
+  );
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
     currency: preferred,
@@ -105,16 +123,27 @@ export default function AddBillScreen() {
   const [dueDays, setDueDays] = useState("7");
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
-  const [gemIds, setGemIds] = useState<string[]>([]);
+  const [gemIds, setGemIds] = useState<string[]>(
+    paramGemId ? [paramGemId] : [],
+  );
   const [jobId, setJobId] = useState(paramJobId);
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [jobSheetOpen, setJobSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  if (isLapidary && direction !== "receivable") {
+    setDirection("receivable");
+    setStep(1);
+  }
+
+  const directionMeta = DIRECTIONS.find((d) => d.value === direction);
+  const canChangeDirection = !presetDirection && !isLapidary;
+
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -183,6 +212,12 @@ export default function AddBillScreen() {
     });
   }
 
+  function handleSelectDirection(next: BillDirection) {
+    setDirection(next);
+    clearField("direction");
+    setStep(1);
+  }
+
   function addGem(gem: WorkspaceGem) {
     setGemIds((prev) => (prev.includes(gem.id) ? prev : [...prev, gem.id]));
     setGemSheetOpen(false);
@@ -199,7 +234,7 @@ export default function AddBillScreen() {
   }
 
   async function handleSubmit() {
-    if (!user) return;
+    if (!user || !direction) return;
     const result = parseForm(addBillSchema, {
       direction,
       amount: money.amount,
@@ -230,9 +265,32 @@ export default function AddBillScreen() {
           jobId: isLapidary ? jobId || null : null,
           status: isLapidary ? "ongoing" : "open",
         });
-        await queryClient.invalidateQueries({ queryKey: ["bills"] });
+        if (markSold && paramGemId && !isLapidary) {
+          // Same offline rule: do not await server ACK on gem update.
+          void updateGemLifecycle(
+            paramGemId,
+            user.uid,
+            { outcome: "sold" },
+            `Sold on bill`,
+            {
+              soldPrice: result.data.amount,
+              soldPriceCurrency: money.currency,
+            },
+          ).catch(() => {
+            toast.error("Bill saved, but gem sold status may still be syncing.");
+          });
+          void queryClient.invalidateQueries({ queryKey: ["gems"] });
+          void queryClient.invalidateQueries({
+            queryKey: ["gem", paramGemId],
+          });
+        }
+        void queryClient.invalidateQueries({ queryKey: ["bills"] });
         toast.success(
-          isLapidary ? "Bill started — ongoing until due date" : "Bill saved",
+          markSold
+            ? "Bill saved · gem marked sold"
+            : isLapidary
+              ? "Bill started — ongoing until due date"
+              : "Bill saved",
         );
         replaceWithAnchor(
           `/(marketplace)/(tabs)/workspace/bills/${id}` as never,
@@ -247,207 +305,246 @@ export default function AddBillScreen() {
     contacts.find((c) => c.id === contactId)?.displayName ?? "them";
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Add Bill" closeIcon />
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        <FormSection title="Direction">
-          <ChipSelect
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title={step === 0 ? "Direction" : "Add Bill"}
+        closeIcon
+      />
+
+      {step === 0 ? (
+        <View
+          style={[
+            styles.dirStep,
+            { paddingBottom: Math.max(insets.bottom, Spacing.xl) },
+          ]}
+        >
+          <ChoiceTileGrid
+            layout="pair"
             options={DIRECTIONS}
             value={direction}
-            onChange={(v) => setDirection(v as BillDirection)}
+            onChange={handleSelectDirection}
+            error={errors.direction}
           />
-        </FormSection>
+        </View>
+      ) : (
+        <>
+          <ThemedScrollView
+            style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            {directionMeta ? (
+              <ChoicePreviewCard
+                label={directionMeta.label}
+                icon={directionMeta.icon}
+                onPress={
+                  canChangeDirection ? () => setStep(0) : undefined
+                }
+              />
+            ) : null}
 
-        {isLapidary ? (
-          <FormSection title="Job">
-            <JobSelectField
-              label="Link job"
-              job={selectedJob}
-              placeholder="Select a workshop job"
-              onPress={() => setJobSheetOpen(true)}
-              onClear={jobId ? () => setJobId("") : undefined}
-              error={errors.jobId}
-            />
-            <Text style={[styles.helper, { color: colors.textMuted }]}>
-              Tracks payment for a received gem service request until the due
-              date.
-            </Text>
-          </FormSection>
-        ) : (
-          <FormSection title="Gems">
-            {selectedGems.map((gem) => (
-              <View
-                key={gem.id}
-                style={[
-                  styles.gemCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    borderColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <View style={styles.gemHeader}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text
-                      style={[styles.gemTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {gem.variety?.trim() ||
-                        formatGemType(gem.gemType) ||
-                        gem.sku}
-                    </Text>
-                    <Text
-                      style={[styles.gemSub, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {gem.sku} · {gem.currentWeight} ct
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => removeGem(gem.id)}
-                    accessibilityLabel="Remove gem"
-                    hitSlop={8}
+            {isLapidary ? (
+              <FormSection title="Job">
+                <JobSelectField
+                  label="Link job"
+                  job={selectedJob}
+                  placeholder="Select a workshop job"
+                  onPress={() => setJobSheetOpen(true)}
+                  onClear={jobId ? () => setJobId("") : undefined}
+                  error={errors.jobId}
+                />
+                <Text style={[styles.helper, { color: colors.textMuted }]}>
+                  Tracks payment for a received gem service request until the due
+                  date.
+                </Text>
+              </FormSection>
+            ) : (
+              <FormSection title="Gems">
+                {selectedGems.map((gem) => (
+                  <View
+                    key={gem.id}
+                    style={[
+                      styles.gemCard,
+                      {
+                        backgroundColor: colors.surfaceContainerLow,
+                        borderColor: colors.outlineVariant,
+                      },
+                    ]}
                   >
-                    <Icon name="close" size={20} color={colors.textMuted} />
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-            <GemSelectField
-              label={gemIds.length ? "Add another gem" : "Link gems (optional)"}
-              gem={null}
-              placeholder="Select a gem"
-              onPress={() => setGemSheetOpen(true)}
-            />
-          </FormSection>
-        )}
+                    <View style={styles.gemHeader}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={[
+                            styles.gemTitle,
+                            { color: colors.onSurface },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {gem.variety?.trim() ||
+                            formatGemType(gem.gemType) ||
+                            gem.sku}
+                        </Text>
+                        <Text
+                          style={[styles.gemSub, { color: colors.textMuted }]}
+                          numberOfLines={1}
+                        >
+                          {gem.sku} · {gem.currentWeight} ct
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => removeGem(gem.id)}
+                        accessibilityLabel="Remove gem"
+                        hitSlop={8}
+                      >
+                        <Icon
+                          name="close"
+                          size={20}
+                          color={colors.textMuted}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+                <GemSelectField
+                  label={
+                    gemIds.length ? "Add another gem" : "Link gems (optional)"
+                  }
+                  gem={null}
+                  placeholder="Select a gem"
+                  onPress={() => setGemSheetOpen(true)}
+                />
+              </FormSection>
+            )}
 
-        <FormSection title="Details">
-          <CurrencyAmountField
-            label="Amount"
-            value={money}
-            onChange={(next) => {
-              setMoney(next);
-              clearField("amount");
-            }}
-            error={errors.amount}
-          />
-          <MaskedInput
-            label="Due in (days)"
-            mode="custom"
-            mask="999"
-            value={dueDays}
-            onChangeText={(t) => {
-              setDueDays(t);
-              clearField("dueDays");
-            }}
-            keyboardType="number-pad"
-            placeholder="7"
-            leftIcon="event"
-            error={errors.dueDays}
-            helperText={
-              duePreview
-                ? isLapidary
-                  ? `Ongoing until ${duePreview}`
-                  : `Due ${duePreview}`
-                : undefined
+            <FormSection title="Details">
+              <CurrencyAmountField
+                label="Amount"
+                value={money}
+                onChange={(next) => {
+                  setMoney(next);
+                  clearField("amount");
+                }}
+                error={errors.amount}
+              />
+              <MaskedInput
+                label="Due in (days)"
+                mode="custom"
+                mask="999"
+                value={dueDays}
+                onChangeText={(t) => {
+                  setDueDays(t);
+                  clearField("dueDays");
+                }}
+                keyboardType="number-pad"
+                placeholder="7"
+                leftIcon="event"
+                error={errors.dueDays}
+                helperText={
+                  duePreview
+                    ? isLapidary
+                      ? `Ongoing until ${duePreview}`
+                      : `Due ${duePreview}`
+                    : undefined
+                }
+              />
+              {!isLapidary ? (
+                <MaskedInput
+                  label="Commission %"
+                  mode="percent"
+                  value={commissionPercent}
+                  onChangeText={(t) => {
+                    setCommissionPercent(t);
+                    clearField("commissionPercent");
+                  }}
+                  placeholder="Optional"
+                  leftIcon="percent"
+                  error={errors.commissionPercent}
+                />
+              ) : null}
+
+              {showBreakdown && direction ? (
+                <View
+                  style={[
+                    styles.breakdown,
+                    {
+                      backgroundColor: colors.surfaceContainerLowest,
+                      borderColor: colors.outlineVariant,
+                    },
+                  ]}
+                >
+                  <BreakdownRow
+                    label="Amount"
+                    value={formatCurrency(faceAmount, money.currency)}
+                    colors={colors}
+                  />
+                  {direction === "payable" ? (
+                    <>
+                      <BreakdownRow
+                        label="Your commission"
+                        value={formatCurrency(commissionValue, money.currency)}
+                        colors={colors}
+                        accent={colors.successEmerald}
+                      />
+                      <BreakdownRow
+                        label="Total to pay"
+                        value={formatCurrency(netValue, money.currency)}
+                        colors={colors}
+                        strong
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <BreakdownRow
+                        label={`Commission to ${contactName}`}
+                        value={`− ${formatCurrency(commissionValue, money.currency)}`}
+                        colors={colors}
+                        accent={colors.error}
+                      />
+                      <BreakdownRow
+                        label="You receive"
+                        value={formatCurrency(netValue, money.currency)}
+                        colors={colors}
+                        strong
+                      />
+                    </>
+                  )}
+                </View>
+              ) : null}
+
+              <ContactPicker
+                label={direction === "payable" ? "To" : "From"}
+                value={contactId}
+                onChange={(id) => {
+                  setContactId(id);
+                  clearField("contactId");
+                }}
+                contacts={contacts}
+                allowedBusinessKinds={["traders", "lapidaries"]}
+                emptyHint="Pick a contact or GemFort business."
+                error={errors.contactId}
+              />
+              <Input
+                label="Notes"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Optional"
+                leftIcon="notes"
+                multiline
+              />
+            </FormSection>
+          </ThemedScrollView>
+
+          <FormFooter
+            title="Save bill"
+            onPress={handleSubmit}
+            icon="check"
+            secondaryTitle={canChangeDirection ? "Back" : undefined}
+            onSecondaryPress={
+              canChangeDirection ? () => setStep(0) : undefined
             }
           />
-          {!isLapidary ? (
-            <MaskedInput
-              label="Commission %"
-              mode="percent"
-              value={commissionPercent}
-              onChangeText={(t) => {
-                setCommissionPercent(t);
-                clearField("commissionPercent");
-              }}
-              placeholder="Optional"
-              leftIcon="percent"
-              error={errors.commissionPercent}
-            />
-          ) : null}
-
-          {showBreakdown ? (
-            <View
-              style={[
-                styles.breakdown,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                },
-              ]}
-            >
-              <BreakdownRow
-                label="Amount"
-                value={formatCurrency(faceAmount, money.currency)}
-                colors={colors}
-              />
-              {direction === "payable" ? (
-                <>
-                  <BreakdownRow
-                    label="Your commission"
-                    value={formatCurrency(commissionValue, money.currency)}
-                    colors={colors}
-                    accent={colors.successEmerald}
-                  />
-                  <BreakdownRow
-                    label="Total to pay"
-                    value={formatCurrency(netValue, money.currency)}
-                    colors={colors}
-                    strong
-                  />
-                </>
-              ) : (
-                <>
-                  <BreakdownRow
-                    label={`Commission to ${contactName}`}
-                    value={`− ${formatCurrency(commissionValue, money.currency)}`}
-                    colors={colors}
-                    accent={colors.error}
-                  />
-                  <BreakdownRow
-                    label="You receive"
-                    value={formatCurrency(netValue, money.currency)}
-                    colors={colors}
-                    strong
-                  />
-                </>
-              )}
-            </View>
-          ) : null}
-
-          <ContactPicker
-            label={direction === "payable" ? "To" : "From"}
-            value={contactId}
-            onChange={(id) => {
-              setContactId(id);
-              clearField("contactId");
-            }}
-            contacts={contacts}
-            allowedBusinessKinds={["traders", "lapidaries"]}
-            emptyHint="Pick a contact or GemFort business."
-            error={errors.contactId}
-          />
-          <Input
-            label="Notes"
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Optional"
-            leftIcon="notes"
-            multiline
-          />
-        </FormSection>
-      </ThemedScrollView>
-
-      <FormFooter
-        title="Save bill"
-        onPress={handleSubmit}
-        icon="check"
-      />
+        </>
+      )}
 
       {!isLapidary ? (
         <GemPickerSheet
@@ -470,7 +567,7 @@ export default function AddBillScreen() {
           onSelect={selectJob}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -516,8 +613,17 @@ function BreakdownRow({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  content: { paddingBottom: Spacing.xxl, gap: Spacing.md },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
+  dirStep: {
+    paddingHorizontal: Spacing.containerMargin,
+    gap: Spacing.md,
+  },
+  content: {
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.md,
+    gap: Spacing.md,
+  },
   helper: { ...Typography.caption, marginTop: Spacing.xs },
   gemCard: {
     borderRadius: Radius.lg,

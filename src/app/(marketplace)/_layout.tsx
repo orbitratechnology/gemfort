@@ -16,12 +16,10 @@ export const unstable_settings = {
 };
 
 const ACTION_SCREENS = [
-  "bills/add",
-  "cheques/add",
   "contacts/add",
   "ap/add",
+  "ap/sell",
   "services/add",
-  "trips/add",
   "trips/[tripId]/add-purchase",
   "trips/[tripId]/add-expense",
   "trips/[tripId]/add-gems",
@@ -58,6 +56,34 @@ export default function MarketplaceLayout() {
       />
       <Stack.Screen
         name="gems/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="gems/edit"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="trips/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="cheques/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="bills/add"
         options={{
           ...formSheetFitContentOptions,
           contentStyle: { backgroundColor: colors.background },

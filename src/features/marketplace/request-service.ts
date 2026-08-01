@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   doc,
   getDocs,
@@ -12,6 +11,11 @@ import {
   getDoc,
 } from '@/lib/firebase/db';
 import { getFirebaseDb } from '@/lib/firebase/config';
+import {
+  forgetSync,
+  queueDocCreate,
+  queueDocUpdate,
+} from '@/lib/firebase/local-write';
 import type {
   CertificationRequest,
   LapidaryJob,
@@ -34,7 +38,7 @@ export async function createServiceRequest(input: {
   notes?: string;
 }): Promise<string> {
   const now = nowTs();
-  const ref = await addDoc(collection(getFirebaseDb(), 'service_requests'), {
+  const id = queueDocCreate('service_requests', {
     ...input,
     notes: input.notes?.trim() || null,
     status: 'pending',
@@ -45,7 +49,7 @@ export async function createServiceRequest(input: {
     updatedAt: now,
     respondedAt: null,
   });
-  return ref.id;
+  return id;
 }
 
 export async function createCertificationRequest(input: {
@@ -59,7 +63,7 @@ export async function createCertificationRequest(input: {
   notes?: string;
 }): Promise<string> {
   const now = nowTs();
-  const ref = await addDoc(collection(getFirebaseDb(), 'certification_requests'), {
+  const id = queueDocCreate('certification_requests', {
     ...input,
     notes: input.notes?.trim() || null,
     status: 'pending',
@@ -69,7 +73,7 @@ export async function createCertificationRequest(input: {
     updatedAt: now,
     respondedAt: null,
   });
-  return ref.id;
+  return id;
 }
 
 export async function fetchOutgoingServiceRequests(traderUid: string): Promise<ServiceRequest[]> {
@@ -109,7 +113,7 @@ export async function respondServiceRequest(
   let jobId: string | null = null;
 
   if (decision === 'accepted') {
-    const jobRef = await addDoc(collection(getFirebaseDb(), 'lapidary_jobs'), {
+    jobId = queueDocCreate('lapidary_jobs', {
       serviceRequestId: requestId,
       lapidaryUid: data.lapidaryUid,
       lapidaryBusinessId: data.lapidaryBusinessId,
@@ -122,22 +126,25 @@ export async function respondServiceRequest(
       createdAt: now,
       updatedAt: now,
     });
-    jobId = jobRef.id;
 
-    await updateDoc(ref, {
-      status: 'accepted',
-      jobId,
-      serviceRecordId: null,
-      respondedAt: now,
-      updatedAt: now,
-    });
+    forgetSync(
+      updateDoc(ref, {
+        status: 'accepted',
+        jobId,
+        serviceRecordId: null,
+        respondedAt: now,
+        updatedAt: now,
+      }),
+    );
   } else {
-    await updateDoc(ref, {
-      status: 'rejected',
-      rejectReason: rejectReason?.trim() || 'Declined',
-      respondedAt: now,
-      updatedAt: now,
-    });
+    forgetSync(
+      updateDoc(ref, {
+        status: 'rejected',
+        rejectReason: rejectReason?.trim() || 'Declined',
+        respondedAt: now,
+        updatedAt: now,
+      }),
+    );
   }
 
   return { jobId };
@@ -158,10 +165,10 @@ export async function updateLapidaryJobStatus(
   jobId: string,
   status: LapidaryJob['status'],
 ): Promise<void> {
-  await updateDoc(doc(getFirebaseDb(), 'lapidary_jobs', jobId), {
-    status,
-    updatedAt: nowTs(),
-  });
+  queueDocUpdate('lapidary_jobs', jobId, {
+      status,
+      updatedAt: nowTs(),
+    });
 }
 
 export async function fetchOutgoingCertRequests(traderUid: string): Promise<CertificationRequest[]> {
@@ -197,12 +204,14 @@ export async function respondCertificationRequest(
   const data = snap.data() as CertificationRequest;
   if (data.status !== 'pending') throw new Error('Request already handled');
   const now = nowTs();
-  await updateDoc(ref, {
-    status: decision,
-    rejectReason: decision === 'rejected' ? rejectReason?.trim() || 'Declined' : null,
-    respondedAt: now,
-    updatedAt: now,
-  });
+  forgetSync(
+    updateDoc(ref, {
+      status: decision,
+      rejectReason: decision === 'rejected' ? rejectReason?.trim() || 'Declined' : null,
+      respondedAt: now,
+      updatedAt: now,
+    }),
+  );
 }
 
 export async function publishCertificate(input: {
@@ -221,7 +230,7 @@ export async function publishCertificate(input: {
   resultsSummary?: PublicCertificate['resultsSummary'];
 }): Promise<string> {
   const now = nowTs();
-  const ref = await addDoc(collection(getFirebaseDb(), 'certificates'), {
+  const id = queueDocCreate('certificates', {
     labUid: input.labUid,
     labBusinessId: input.labBusinessId,
     labName: input.labName,
@@ -248,14 +257,14 @@ export async function publishCertificate(input: {
   });
 
   if (input.certificationRequestId) {
-    await updateDoc(doc(getFirebaseDb(), 'certification_requests', input.certificationRequestId), {
-      status: 'completed',
-      certificateId: ref.id,
-      updatedAt: now,
-    });
+    queueDocUpdate('certification_requests', input.certificationRequestId, {
+        status: 'completed',
+        certificateId: id,
+        updatedAt: now,
+      });
   }
 
-  return ref.id;
+  return id;
 }
 
 export async function fetchLabCertificates(labUid: string): Promise<PublicCertificate[]> {
@@ -293,16 +302,16 @@ export async function createClientNotification(input: {
   referenceId?: string;
   priority?: 'high' | 'medium' | 'low';
 }) {
-  await addDoc(collection(getFirebaseDb(), 'notifications'), {
-    recipientUid: input.recipientUid,
-    type: input.type,
-    title: input.title,
-    message: input.message,
-    referenceType: input.referenceType ?? null,
-    referenceId: input.referenceId ?? null,
-    priority: input.priority ?? 'medium',
-    isRead: false,
-    isPushSent: false,
-    createdAt: nowTs(),
-  });
+  queueDocCreate('notifications', {
+      recipientUid: input.recipientUid,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      referenceType: input.referenceType ?? null,
+      referenceId: input.referenceId ?? null,
+      priority: input.priority ?? 'medium',
+      isRead: false,
+      isPushSent: false,
+      createdAt: nowTs(),
+    });
 }

@@ -12,45 +12,43 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { TripExpensesSheet } from "@/components/workspace/trip-expenses-sheet";
-import { TripGemsSheet } from "@/components/workspace/trip-gems-sheet";
 import {
-  TripBudgetCard,
-  TripQuickActions,
-  TripResultsCard,
-  TripWalletCard,
+    TripGemsSheet,
+    TripSoldGemsSection,
+} from "@/components/workspace/trip-gems-sheet";
+import {
+    TripBudgetCard,
+    TripQuickActions,
 } from "@/components/workspace/trip-money-cards";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { flagUrl, resolveCountryCode } from "@/constants/gem-options";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
-  budgetRemaining,
-  budgetUsedPercent,
-  canCompleteTrip,
-  canStartTrip,
-  computeTripSummary,
-  formatTripDates,
-  tripBudgetBase,
-  tripBudgetSpent,
-  tripCashCarriedBase,
-  tripCashInHandBase,
-  tripCashSpentBase,
-  tripDurationDays,
-} from "@/features/workspace/trip-utils";
-import {
-  subscribeGems,
-  subscribeTrip,
-  subscribeTripExpenses,
-  subscribeTripGems,
+    subscribeGems,
+    subscribeTrip,
+    subscribeTripExpenses,
+    subscribeTripGems,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-  distributeTripOverhead,
-  fetchGems,
-  fetchTrip,
-  fetchTripExpenses,
-  fetchTripGems,
-  recordTripGemSale,
-  updateTripBudget,
-  updateTripStatus,
+    budgetRemaining,
+    budgetUsedPercent,
+    canCompleteTrip,
+    canStartTrip,
+    computeTripSummary,
+    formatTripDates,
+    tripBudgetBase,
+    tripBudgetSpent,
+    tripDurationDays,
+} from "@/features/workspace/trip-utils";
+import {
+    distributeTripOverhead,
+    fetchGems,
+    fetchTrip,
+    fetchTripExpenses,
+    fetchTripGems,
+    recordTripGemSale,
+    updateTripBudget,
+    updateTripStatus,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -103,6 +101,22 @@ export default function TripDetailScreen() {
   });
 
   const gemMap = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
+  const soldTripGems = useMemo(
+    () =>
+      tripGems
+        .filter((tg) => tg.status === "sold")
+        .slice()
+        .sort((a, b) => {
+          const aMs = a.saleDate?.toMillis?.() ?? 0;
+          const bMs = b.saleDate?.toMillis?.() ?? 0;
+          return bMs - aMs;
+        }),
+    [tripGems],
+  );
+  const activeTripGems = useMemo(
+    () => tripGems.filter((tg) => tg.status !== "sold"),
+    [tripGems],
+  );
   const summary = useMemo(
     () => (trip ? computeTripSummary(expenses, tripGems, gems) : null),
     [trip, expenses, tripGems, gems],
@@ -222,18 +236,9 @@ export default function TripDetailScreen() {
   }
 
   const budgetBase = tripBudgetBase(trip);
-  const cashStarted = tripCashCarriedBase(trip);
   const spent = tripBudgetSpent(summary.totalExpenses, summary.purchaseSpend);
   const remaining = budgetRemaining(trip, spent);
   const budgetPct = budgetUsedPercent(trip, spent);
-  const cashSpent = tripCashSpentBase(expenses, summary.purchaseSpend);
-  const cashInHand = tripCashInHandBase(
-    trip,
-    expenses,
-    summary.purchaseSpend,
-    summary.totalRevenue,
-  );
-  const netPositive = summary.netResult >= 0;
   const destinationFlagCode = resolveCountryCode(trip.destinationCountry);
   const locationLine = [trip.destinationCity, trip.destinationCountry]
     .filter((part): part is string => !!part?.trim())
@@ -337,28 +342,19 @@ export default function TripDetailScreen() {
 
         <TripQuickActions
           expenseCount={expenses.length}
-          gemCount={tripGems.length}
+          gemCount={activeTripGems.length}
           onExpenses={() => setExpensesOpen(true)}
           onGems={() => setGemsOpen(true)}
         />
 
-        <TripResultsCard
-          expenses={formatBase(summary.totalExpenses)}
-          purchases={String(summary.totalGemsPurchased)}
-          sold={String(summary.totalGemsSold)}
-          netResult={formatBase(summary.netResult)}
-          netPositive={netPositive}
-        />
-
-        <TripWalletCard
-          hasCash={cashStarted > 0 || trip.cashCarried > 0}
-          cashInHand={formatBase(cashInHand)}
-          startedWith={formatStored({
-            amount: trip.cashCarried,
-            currency: trip.cashCarriedCurrency ?? trip.budgetCurrency,
-            amountBase: cashStarted,
-          })}
-          spentFromCash={formatBase(cashSpent)}
+        <TripSoldGemsSection
+          soldGems={soldTripGems}
+          gemMap={gemMap}
+          onOpenGem={(gemId) =>
+            router.push(
+              `/(marketplace)/(tabs)/workspace/gems/${gemId}` as never,
+            )
+          }
         />
 
         {isSourcing &&
@@ -409,7 +405,16 @@ export default function TripDetailScreen() {
           <Button
             title="Complete trip"
             icon="done-all"
-            onPress={() => handleStatus("completed")}
+            onPress={() => {
+              void confirm({
+                title: "Complete trip?",
+                message: `Mark “${trip.tripName}” as completed? Expenses, gems, and sales stay available to review.`,
+                confirmLabel: "Complete",
+                cancelLabel: "Cancel",
+                icon: "done-all",
+                onConfirm: () => handleStatus("completed"),
+              });
+            }}
           />
         ) : null}
       </ThemedScrollView>
@@ -423,7 +428,7 @@ export default function TripDetailScreen() {
       <TripGemsSheet
         visible={gemsOpen}
         onClose={() => setGemsOpen(false)}
-        tripGems={tripGems}
+        tripGems={activeTripGems}
         gemMap={gemMap}
         canRecordSales={canRecordSales}
         onOpenGem={(gemId) =>

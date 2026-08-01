@@ -56,6 +56,9 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
   if (code === 'auth/invalid-email') return 'That email address looks invalid.';
   if (code === 'auth/weak-password') return 'Please choose a stronger password.';
   if (code === 'auth/user-disabled') return 'This account has been disabled.';
+  if (code === 'auth/user-token-expired' || code === 'auth/invalid-user-token') {
+    return 'Your session expired. Please sign in again.';
+  }
   if (code === 'auth/requires-recent-login') {
     return 'For security, enter your password again and try once more.';
   }

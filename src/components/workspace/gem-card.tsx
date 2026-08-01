@@ -38,6 +38,7 @@ type GemCardProps = {
   /** Prefer href for Apple Zoom shared-element transitions (iOS 18+). */
   href?: Href;
   onPress?: () => void;
+  onEdit?: () => void;
   onDelete?: () => void | Promise<void>;
   /** Unread marketplace offer count for this gem's listing. */
   offerBadge?: number;
@@ -47,7 +48,14 @@ type GemCardProps = {
 /**
  * Workspace inventory tile for 2-column ecommerce grids.
  */
-export function GemCard({ gem, href, onDelete, offerBadge = 0, style }: GemCardProps) {
+export function GemCard({
+  gem,
+  href,
+  onEdit,
+  onDelete,
+  offerBadge = 0,
+  style,
+}: GemCardProps) {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
@@ -168,21 +176,27 @@ export function GemCard({ gem, href, onDelete, offerBadge = 0, style }: GemCardP
 
   const label = `${gemTitle}, ${caratLabel}, ${price}`;
 
-  const actions: ContextMenuAction[] = onDelete
-    ? [
-        {
-          label: "Delete",
-          icon: "trash",
-          destructive: true,
-          onPress: () =>
-            confirmDelete(
-              "Delete gem",
-              `Remove ${gemTitle} (${shortGemId(gem.id)}) from inventory? This cannot be undone.`,
-              onDelete,
-            ),
-        },
-      ]
-    : [];
+  const actions: ContextMenuAction[] = [];
+  if (onEdit) {
+    actions.push({
+      label: "Edit",
+      icon: "square.and.pencil",
+      onPress: onEdit,
+    });
+  }
+  if (onDelete) {
+    actions.push({
+      label: "Delete",
+      icon: "trash",
+      destructive: true,
+      onPress: () =>
+        confirmDelete(
+          "Delete gem",
+          `Remove ${gemTitle} (${shortGemId(gem.id)}) from inventory? This cannot be undone.`,
+          onDelete,
+        ),
+    });
+  }
 
   if (href) {
     return (

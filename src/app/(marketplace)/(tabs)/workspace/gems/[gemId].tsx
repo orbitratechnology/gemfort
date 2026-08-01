@@ -4,66 +4,77 @@ import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Button } from "@/components/ui/button";
 import { CountryLabel } from "@/components/ui/country-flag";
+import {
+    CurrencyAmountField,
+    type CurrencyAmountValue,
+} from "@/components/ui/currency-amount-field";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-  FontFamily,
-  Radius,
-  Spacing,
-  Typography,
+    FontFamily,
+    Radius,
+    Spacing,
+    Typography,
 } from "@/constants/design-tokens";
 import {
-  GEM_STATUS_GROUPS,
-  formatCostTypeLabel,
-  formatGemStatusLabel,
-  formatGemType,
-  formatShapeLabel,
-  formatTreatmentLabel,
+    GEM_STATUS_GROUPS,
+    formatCostTypeLabel,
+    formatGemStatusLabel,
+    formatGemType,
+    formatShapeLabel,
+    formatTreatmentLabel,
 } from "@/constants/gem-options";
 import { ROLE_LABELS, resolveProfileRole } from "@/constants/roles";
 import {
-  fetchBusinessByOwnerUid,
-  isBusinessVerified,
+    fetchBusinessByOwnerUid,
+    isBusinessVerified,
 } from "@/features/marketplace/marketplace-service";
 import {
-  formatLifecycleSummary,
-  canListGem,
-  resolveGemLifecycle,
-  type GemLifecycle,
+    subscribeBusinessByOwnerUid,
+    subscribeGem,
+    subscribeGemCosts,
+    subscribeGemEvents,
+} from "@/features/workspace/firestore-subscriptions";
+import {
+    canListGem,
+    formatLifecycleSummary,
+    isTerminalOutcome,
+    resolveGemLifecycle,
+    type GemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
 import { getGemQuickActions } from "@/features/workspace/gem-utils";
 import {
-  subscribeBusinessByOwnerUid,
-  subscribeGem,
-  subscribeGemCosts,
-  subscribeGemEvents,
-} from "@/features/workspace/firestore-subscriptions";
-import {
-  fetchGem,
-  fetchGemCosts,
-  fetchGemEvents,
-  updateGemLifecycle,
+    createTransaction,
+    fetchGem,
+    fetchGemCosts,
+    fetchGemEvents,
+    removeGemFromMarket,
+    updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { Timestamp } from "@/lib/firebase/db";
 import { shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
+import { confirm, showActions } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { GemStatus } from "@/types";
@@ -135,6 +146,7 @@ export default function GemDetailScreen() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
   const { formatStored, formatBase } = usePreferredMoney();
+  const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
@@ -144,6 +156,13 @@ export default function GemDetailScreen() {
   >(null);
   const [statusSaving, setStatusSaving] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [soldCashOpen, setSoldCashOpen] = useState(false);
+  const [soldSaving, setSoldSaving] = useState(false);
+  const [soldAmount, setSoldAmount] = useState<CurrencyAmountValue>({
+    amount: "",
+    currency: preferred,
+  });
+  const [soldError, setSoldError] = useState<string | null>(null);
 
   const { data: gem, isLoading } = useFirestoreLiveQuery({
     queryKey: ["gem", gemId],
@@ -187,12 +206,7 @@ export default function GemDetailScreen() {
     setStatusSaving(true);
     try {
       await withLoading(async () => {
-        await updateGemLifecycle(
-          gem.id,
-          user.uid,
-          patch,
-          `Updated ${label}`,
-        );
+        await updateGemLifecycle(gem.id, user.uid, patch, `Updated ${label}`);
         await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
         await queryClient.invalidateQueries({
           queryKey: ["gem-events", gemId],
@@ -205,6 +219,111 @@ export default function GemDetailScreen() {
       toast.error(friendlyError(e, "Could not update status."));
     } finally {
       setStatusSaving(false);
+    }
+  }
+
+  async function handleRemoveFromMarket() {
+    if (!user || !gem) return;
+    const ok = await confirm({
+      title: "Remove",
+      message: "This gem will no longer appear on Market.",
+      confirmLabel: "Remove",
+      tone: "destructive",
+      onConfirm: () => removeGemFromMarket(gem.id, user.uid),
+    });
+    if (!ok) return;
+    await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+    await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+    toast.success("Removed from Market");
+  }
+
+  function openSoldChooser() {
+    if (!user || !gem) return;
+    const ask = gem.askingPrice != null ? String(gem.askingPrice) : "";
+    const askCur = (gem.askingPriceCurrency as typeof preferred) || preferred;
+    showActions({
+      title: "Mark as sold",
+      message: "How was this gem sold?",
+      actions: [
+        {
+          label: "Cash",
+          onPress: () => {
+            setSoldAmount({ amount: ask, currency: askCur });
+            setSoldError(null);
+            setSoldCashOpen(true);
+          },
+        },
+        {
+          label: "Bill",
+          onPress: () => {
+            router.push({
+              pathname: "/(marketplace)/bills/add",
+              params: {
+                gemId: gem.id,
+                amount: ask,
+                markSold: "1",
+                notes: `Sale of ${gem.title?.trim() || formatGemType(gem.gemType)}`,
+              },
+            } as never);
+          },
+        },
+        {
+          label: "Cheque",
+          onPress: () => {
+            router.push({
+              pathname: "/(marketplace)/cheques/add",
+              params: {
+                gemId: gem.id,
+                amount: ask,
+                markSold: "1",
+                direction: "received",
+              },
+            } as never);
+          },
+        },
+      ],
+    });
+  }
+
+  async function handleSoldCash() {
+    if (!user || !gem || soldSaving) return;
+    const amount = parseFloat(soldAmount.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setSoldError("Enter a valid sale amount.");
+      return;
+    }
+    setSoldError(null);
+    setSoldSaving(true);
+    try {
+      await withLoading(async () => {
+        await createTransaction(user.uid, {
+          type: "income",
+          amount,
+          currency: soldAmount.currency,
+          category: "sale",
+          description: `Cash sale of ${gem.sku}`,
+          gemId: gem.id,
+          contactId: null,
+          date: Timestamp.now(),
+        });
+        await updateGemLifecycle(
+          gem.id,
+          user.uid,
+          { outcome: "sold" },
+          `Sold for cash`,
+          { soldPrice: amount, soldPriceCurrency: soldAmount.currency },
+        );
+        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        setSoldCashOpen(false);
+        toast.success("Marked as sold");
+        router.replace("/(marketplace)/(tabs)/workspace/gems" as never);
+      }, "Recording sale…");
+    } catch (e) {
+      setSoldError(friendlyError(e, "Could not mark sold."));
+    } finally {
+      setSoldSaving(false);
     }
   }
 
@@ -299,31 +418,34 @@ export default function GemDetailScreen() {
       ? `${formatStored({
           amount: gem.askingPrice! / gem.currentWeight,
           currency: askCurrency,
-          amountBase:
-            askBase != null ? askBase / gem.currentWeight : null,
+          amountBase: askBase != null ? askBase / gem.currentWeight : null,
         })} / ct`
       : null;
 
   const ownerName =
-    business?.businessName?.trim() ||
-    profile?.displayName?.trim() ||
-    "Owner";
+    business?.businessName?.trim() || profile?.displayName?.trim() || "Owner";
   const ownerRole =
     business?.businessType === "gem_lab" || business?.businessType === "lab"
       ? "Gem Lab"
       : business?.businessType === "lapidary"
         ? "Lapidary"
-        : ROLE_LABELS[resolveProfileRole(profile)] ?? "Trader";
+        : (ROLE_LABELS[resolveProfileRole(profile)] ?? "Trader");
   const ownerAvatar = business?.logoUrl ?? null;
   const ownerVerified = isBusinessVerified(business);
   const ownerInitials = initials(ownerName);
 
   const heroHeight = windowWidth;
   const bottomBarPad = Math.max(insets.bottom, 12);
+  const isOwnGem = !!user && user.uid === gem.ownerUid;
+  const canSell = isOwnGem && !isTerminalOutcome(lifecycle.outcome);
+  const isListed =
+    isOwnGem && (gem.isListedOnMarketplace || lifecycle.outcome === "listed");
   const hasBottomActions =
     !!primaryAction ||
     secondaryActions.length > 0 ||
-    canListGem(gem);
+    canListGem(gem) ||
+    canSell ||
+    isListed;
 
   async function handleShareGem() {
     if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
@@ -566,11 +688,7 @@ export default function GemDetailScreen() {
                   {statusSaving && axisOpen === axis.key ? (
                     <ActivityIndicator size="small" color={colors.onPrimary} />
                   ) : (
-                    <Icon
-                      name={axis.icon}
-                      size={16}
-                      color={colors.onPrimary}
-                    />
+                    <Icon name={axis.icon} size={16} color={colors.onPrimary} />
                   )}
                 </View>
                 <View style={styles.statusChipText}>
@@ -683,7 +801,9 @@ export default function GemDetailScreen() {
                   accessibilityLabel={notesExpanded ? "Show less" : "Read more"}
                   style={styles.readMore}
                 >
-                  <Text style={[styles.readMoreText, { color: colors.primary }]}>
+                  <Text
+                    style={[styles.readMoreText, { color: colors.primary }]}
+                  >
                     {notesExpanded ? "Show less" : "Read more"}
                   </Text>
                   <Icon
@@ -947,7 +1067,45 @@ export default function GemDetailScreen() {
             },
           ]}
         >
-          {primaryAction ? (
+          {isListed ? (
+            <Pressable
+              onPress={() => void handleRemoveFromMarket()}
+              accessibilityRole="button"
+              accessibilityLabel="Remove from Market"
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                {
+                  backgroundColor: colors.error,
+                  opacity: pressed ? 0.9 : 1,
+                },
+              ]}
+            >
+              <Icon name="storefront" size={18} color={colors.onError} />
+              <Text style={[styles.primaryBtnText, { color: colors.onError }]}>
+                Remove
+              </Text>
+            </Pressable>
+          ) : canSell ? (
+            <Pressable
+              onPress={openSoldChooser}
+              accessibilityRole="button"
+              accessibilityLabel="Sold"
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.9 : 1,
+                },
+              ]}
+            >
+              <Icon name="check-circle" size={18} color={colors.onPrimary} />
+              <Text
+                style={[styles.primaryBtnText, { color: colors.onPrimary }]}
+              >
+                Sold
+              </Text>
+            </Pressable>
+          ) : primaryAction ? (
             <Pressable
               onPress={() => router.push(primaryAction.href as never)}
               accessibilityRole="button"
@@ -997,12 +1155,11 @@ export default function GemDetailScreen() {
             </Pressable>
           ) : null}
 
-          {secondaryActions.slice(0, 1).map((action) => (
+          {isListed && canSell ? (
             <Pressable
-              key={action.title}
-              onPress={() => router.push(action.href as never)}
+              onPress={openSoldChooser}
               accessibilityRole="button"
-              accessibilityLabel={action.title}
+              accessibilityLabel="Sold"
               style={({ pressed }) => [
                 styles.secondaryBtn,
                 {
@@ -1015,10 +1172,33 @@ export default function GemDetailScreen() {
                 style={[styles.secondaryBtnText, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {action.title}
+                Sold
               </Text>
             </Pressable>
-          ))}
+          ) : !isListed ? (
+            secondaryActions.slice(0, 1).map((action) => (
+              <Pressable
+                key={action.title}
+                onPress={() => router.push(action.href as never)}
+                accessibilityRole="button"
+                accessibilityLabel={action.title}
+                style={({ pressed }) => [
+                  styles.secondaryBtn,
+                  {
+                    borderColor: colors.onSurface,
+                    opacity: pressed ? 0.88 : 1,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.secondaryBtnText, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {action.title}
+                </Text>
+              </Pressable>
+            ))
+          ) : null}
         </View>
       ) : null}
 
@@ -1129,7 +1309,9 @@ export default function GemDetailScreen() {
                       }
                       if (activeGroup.key === "stone") {
                         void handleLifecyclePatch(
-                          { stoneStage: opt.value as GemLifecycle["stoneStage"] },
+                          {
+                            stoneStage: opt.value as GemLifecycle["stoneStage"],
+                          },
                           opt.label,
                         );
                       } else if (activeGroup.key === "where") {
@@ -1198,6 +1380,36 @@ export default function GemDetailScreen() {
             </View>
           </>
         ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={soldCashOpen}
+        onClose={() => {
+          if (!soldSaving) setSoldCashOpen(false);
+        }}
+        title="Cash sale"
+        footer={
+          <Button
+            title={soldSaving ? "Saving…" : "Mark sold"}
+            icon="check-circle"
+            loading={soldSaving}
+            disabled={soldSaving}
+            onPress={() => void handleSoldCash()}
+          />
+        }
+      >
+        <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
+          Enter the final cash amount. The gem will move to Archive.
+        </Text>
+        <CurrencyAmountField
+          label="Sale amount"
+          value={soldAmount}
+          onChange={(next) => {
+            setSoldAmount(next);
+            setSoldError(null);
+          }}
+          error={soldError ?? undefined}
+        />
       </BottomSheet>
     </View>
   );

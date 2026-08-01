@@ -1,10 +1,9 @@
 import { addDays } from 'date-fns';
-import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ChipSelect } from '@/components/ui/chip-select';
+import { ChoicePreviewCard, ChoiceTileGrid } from '@/components/ui/choice-tile-grid';
 import { CityField } from '@/components/ui/city-field';
 import { CountryField } from '@/components/ui/country-field';
 import {
@@ -37,9 +36,12 @@ export default function AddTripScreen() {
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
   const toast = useToast();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
 
+  const [step, setStep] = useState(0);
   const [tripName, setTripName] = useState('');
-  const [tripType, setTripType] = useState<TripType>('sourcing');
+  const [tripType, setTripType] = useState<TripType | null>(null);
   const [destinationCountry, setDestinationCountry] = useState('Sri Lanka');
   const [destinationCity, setDestinationCity] = useState('');
   const [durationDays, setDurationDays] = useState('7');
@@ -47,12 +49,10 @@ export default function AddTripScreen() {
     amount: '',
     currency: preferred,
   });
-  const [cashCarried, setCashCarried] = useState<CurrencyAmountValue>({
-    amount: '',
-    currency: preferred,
-  });
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const typeMeta = TRIP_TYPES.find((t) => t.id === tripType);
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -63,8 +63,22 @@ export default function AddTripScreen() {
     });
   }
 
+  function handleSelectType(next: TripType) {
+    setTripType(next);
+    clearField('tripType');
+    setStep(1);
+  }
+
   async function handleSubmit() {
-    if (!user) return;
+    if (!user) {
+      toast.error('Sign in to create a trip.');
+      return;
+    }
+    if (!tripType) {
+      toast.error('Select a trip type.');
+      setStep(0);
+      return;
+    }
     const result = parseForm(addTripSchema, {
       tripName,
       tripType,
@@ -72,7 +86,6 @@ export default function AddTripScreen() {
       destinationCountry,
       durationDays,
       budget: budget.amount,
-      cashCarried: cashCarried.amount,
       notes: notes || undefined,
     });
     if (!result.success) {
@@ -95,8 +108,8 @@ export default function AddTripScreen() {
           expectedEndDate: end,
           budget: data.budget ?? 0,
           budgetCurrency: budget.currency,
-          cashCarried: data.cashCarried ?? 0,
-          cashCarriedCurrency: cashCarried.currency,
+          cashCarried: 0,
+          cashCarriedCurrency: budget.currency,
           notes: data.notes || null,
         });
         toast.success('Trip created.');
@@ -108,130 +121,152 @@ export default function AddTripScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Plan trip" closeIcon />
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title={step === 0 ? 'Trip type' : 'Plan trip'}
+        closeIcon
+      />
 
-      <ThemedScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled">
-        <FormSection title="Trip type">
-          <ChipSelect
-            layout="stack"
+      {step === 0 ? (
+        <View
+          style={[
+            styles.typeStep,
+            { paddingBottom: Math.max(insets.bottom, Spacing.xl) },
+          ]}
+        >
+          <ChoiceTileGrid
+            layout="grid"
             options={TRIP_TYPES.map((t) => ({
               value: t.id,
               label: t.label,
               icon: t.icon,
+              span: t.id === 'both' ? 2 : 1,
             }))}
             value={tripType}
-            onChange={(v) => {
-              setTripType(v);
-              clearField('tripType');
-            }}
+            onChange={handleSelectType}
             error={errors.tripType}
           />
-        </FormSection>
+        </View>
+      ) : (
+        <>
+          <ThemedScrollView
+            style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+          >
+            {typeMeta ? (
+              <ChoicePreviewCard
+                label={typeMeta.label}
+                icon={typeMeta.icon}
+                onPress={() => setStep(0)}
+              />
+            ) : null}
 
-        <FormSection title="Where & when">
-          <Input
-            label="Trip name"
-            value={tripName}
-            onChangeText={(v) => {
-              setTripName(v);
-              clearField('tripName');
-            }}
-            placeholder="e.g. Ratnapura March run"
-            leftIcon="flight"
-            error={errors.tripName}
-          />
-          <CountryField
-            label="Country"
-            value={destinationCountry}
-            onChange={(name) => {
-              setDestinationCountry(name);
-              clearField('destinationCountry');
-              if (
-                destinationCity &&
-                !cityBelongsToCountry(destinationCity, name)
-              ) {
-                setDestinationCity('');
-                clearField('destinationCity');
-              }
-            }}
-            placeholder="Select country"
-            error={errors.destinationCountry}
-          />
-          <CityField
-            label="Destination city"
-            value={destinationCity}
-            country={destinationCountry}
-            onChange={(name) => {
-              setDestinationCity(name);
-              clearField('destinationCity');
-            }}
-            placeholder="Select city"
-            sheetTitle="Destination city"
-            error={errors.destinationCity}
-          />
-          <MaskedInput
-            label="Duration (days)"
-            mode="custom"
-            mask="999"
-            value={durationDays}
-            onChangeText={(v) => {
-              setDurationDays(v);
-              clearField('durationDays');
-            }}
-            keyboardType="number-pad"
-            leftIcon="schedule"
-            error={errors.durationDays}
-          />
-        </FormSection>
+            <FormSection title="Where & when">
+              <Input
+                label="Trip name"
+                value={tripName}
+                onChangeText={(v) => {
+                  setTripName(v);
+                  clearField('tripName');
+                }}
+                placeholder="e.g. Ratnapura March run"
+                leftIcon="flight"
+                error={errors.tripName}
+              />
+              <CountryField
+                label="Country"
+                value={destinationCountry}
+                onChange={(name) => {
+                  setDestinationCountry(name);
+                  clearField('destinationCountry');
+                  if (
+                    destinationCity &&
+                    !cityBelongsToCountry(destinationCity, name)
+                  ) {
+                    setDestinationCity('');
+                    clearField('destinationCity');
+                  }
+                }}
+                placeholder="Select country"
+                error={errors.destinationCountry}
+              />
+              <CityField
+                label="Destination city"
+                value={destinationCity}
+                country={destinationCountry}
+                onChange={(name) => {
+                  setDestinationCity(name);
+                  clearField('destinationCity');
+                }}
+                placeholder="Select city"
+                sheetTitle="Destination city"
+                error={errors.destinationCity}
+              />
+              <MaskedInput
+                label="Duration (days)"
+                mode="custom"
+                mask="999"
+                value={durationDays}
+                onChangeText={(v) => {
+                  setDurationDays(v);
+                  clearField('durationDays');
+                }}
+                keyboardType="number-pad"
+                leftIcon="schedule"
+                error={errors.durationDays}
+              />
+            </FormSection>
 
-        <FormSection title="Money">
-          <CurrencyAmountField
-            label="Budget"
-            value={budget}
-            onChange={(next) => {
-              setBudget(next);
-              clearField('budget');
-            }}
-            error={errors.budget}
-          />
-          <CurrencyAmountField
-            label="Cash carried"
-            value={cashCarried}
-            onChange={(next) => {
-              setCashCarried(next);
-              clearField('cashCarried');
-            }}
-            error={errors.cashCarried}
-          />
-          <Input
-            label="Notes"
-            value={notes}
-            onChangeText={(v) => {
-              setNotes(v);
-              clearField('notes');
-            }}
-            multiline
-            style={styles.notes}
-            placeholder="Optional"
-            leftIcon="notes"
-            error={errors.notes}
-          />
-        </FormSection>
-      </ThemedScrollView>
+            <FormSection title="Budget">
+              <CurrencyAmountField
+                label="Total budget"
+                value={budget}
+                onChange={(next) => {
+                  setBudget(next);
+                  clearField('budget');
+                }}
+                error={errors.budget}
+              />
+              <Input
+                label="Notes"
+                value={notes}
+                onChangeText={(v) => {
+                  setNotes(v);
+                  clearField('notes');
+                }}
+                multiline
+                style={styles.notes}
+                placeholder="Optional"
+                leftIcon="notes"
+                error={errors.notes}
+              />
+            </FormSection>
+          </ThemedScrollView>
 
-      <FormFooter title="Create trip" icon="add" onPress={handleSubmit} />
-    </SafeAreaView>
+          <FormFooter
+            title="Create trip"
+            icon="add"
+            onPress={handleSubmit}
+            secondaryTitle="Back"
+            onSecondaryPress={() => setStep(0)}
+          />
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
+  typeStep: {
+    paddingHorizontal: Spacing.containerMargin,
+    gap: Spacing.md,
+  },
   content: {
     paddingTop: Spacing.stackSm,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.md,
     gap: Spacing.lg,
   },
   notes: { minHeight: 72, textAlignVertical: 'top', paddingTop: 12 },

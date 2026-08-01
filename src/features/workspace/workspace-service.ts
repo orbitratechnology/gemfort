@@ -17,7 +17,6 @@ import {
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
-    addDoc,
     collection,
     deleteDoc,
     doc,
@@ -31,6 +30,12 @@ import {
     updateDoc,
     where,
 } from "@/lib/firebase/db";
+import {
+  forgetSync,
+  queueDocCreate,
+  queueDocDelete,
+  queueDocUpdate,
+} from "@/lib/firebase/local-write";
 import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { calcWeightLossPercent, generateSku } from "@/lib/utils";
@@ -86,8 +91,20 @@ export async function createGem(
     acquisitionCost: number;
   },
 ): Promise<string> {
-  const existing = await fetchGems(ownerUid);
-  const sku = generateSku(existing.length + 1);
+  // Prefer inventory length for SKU; fall back quickly offline if getDocs hangs.
+  let sequence = (Date.now() % 90_000) + 10_000;
+  try {
+    const existing = await Promise.race([
+      fetchGems(ownerUid),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("sku-sequence-timeout")), 2_500);
+      }),
+    ]);
+    sequence = existing.length + 1;
+  } catch {
+    // Offline / cold cache — still create the gem.
+  }
+  const sku = generateSku(sequence);
   const now = Timestamp.now();
   const status: GemStatus =
     input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
@@ -171,41 +188,107 @@ export async function createGem(
     updatedAt: now,
   };
 
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "gemtrack_gems"),
-    gemData,
+  const id = queueDocCreate("gemtrack_gems", gemData);
+  queueDocCreate("gemtrack_gem_events", {
+      gemId: id,
+      ownerUid,
+      eventType: "status_change",
+      fromStatus: null,
+      toStatus: status,
+      description: "Gem added to inventory",
+      weightAtEvent: gemData.currentWeight,
+      photoUrl: null,
+      costAdded: input.acquisitionCost,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: ownerUid,
+      createdAt: now,
+    });
+  queueDocCreate("gemtrack_gem_costs", {
+      gemId: id,
+      ownerUid,
+      costType: "acquisition",
+      description: "Acquisition cost",
+      amount: input.acquisitionCost,
+      currency: gemData.acquisitionCurrency,
+      amountBase: gemData.acquisitionCostBase,
+      serviceRecordId: null,
+      date: now,
+      createdAt: now,
+    });
+
+  return id;
+}
+
+export type UpdateGemDetailsInput = {
+  title: string;
+  gemType: string;
+  originCountry: string;
+  roughWeight: number;
+  acquisitionCost: number;
+  acquisitionCurrency: string;
+  colorPrimary: string | null;
+  clarity: string | null;
+  shape: string | null;
+  isNatural: boolean;
+  treatmentStatus: string;
+  photoUrls: string[];
+};
+
+/** Update editable inventory fields (offline-first). Does not change lifecycle locks. */
+export async function updateGemDetails(
+  gemId: string,
+  ownerUid: string,
+  input: UpdateGemDetailsInput,
+): Promise<void> {
+  let gem: WorkspaceGem | null = null;
+  try {
+    gem = await Promise.race([
+      fetchGem(gemId),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("gem-fetch-timeout")), 2_500);
+      }),
+    ]);
+  } catch {
+    throw new Error("Gem not available offline yet. Open it once while online.");
+  }
+  if (!gem || gem.ownerUid !== ownerUid) throw new Error("Gem not found");
+
+  const acquisitionCostBase = await convertToBase(
+    input.acquisitionCost,
+    input.acquisitionCurrency,
   );
+  const costDelta = acquisitionCostBase - (gem.acquisitionCostBase ?? 0);
+  const sameWeight = gem.currentWeight === gem.roughWeight;
 
-  await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
-    gemId: ref.id,
-    ownerUid,
-    eventType: "status_change",
-    fromStatus: null,
-    toStatus: status,
-    description: "Gem added to inventory",
-    weightAtEvent: gemData.currentWeight,
-    photoUrl: null,
-    costAdded: input.acquisitionCost,
-    relatedServiceId: null,
-    relatedApId: null,
-    createdByUid: ownerUid,
-    createdAt: now,
+  queueDocUpdate("gemtrack_gems", gemId, {
+    title: input.title.trim() || null,
+    gemType: input.gemType,
+    originCountry: input.originCountry.trim() || "",
+    roughWeight: input.roughWeight,
+    currentWeight: sameWeight ? input.roughWeight : gem.currentWeight,
+    acquisitionCost: input.acquisitionCost,
+    acquisitionCurrency: input.acquisitionCurrency,
+    acquisitionCostBase,
+    totalCost: Number(((gem.totalCost ?? 0) + costDelta).toFixed(2)),
+    colorPrimary: input.colorPrimary,
+    clarity: input.clarity,
+    shape: input.shape,
+    isNatural: input.isNatural,
+    treatmentStatus: input.treatmentStatus,
+    photoUrls: input.photoUrls,
+    updatedAt: serverTimestamp(),
   });
 
-  await addDoc(collection(getFirebaseDb(), "gemtrack_gem_costs"), {
-    gemId: ref.id,
-    ownerUid,
-    costType: "acquisition",
-    description: "Acquisition cost",
-    amount: input.acquisitionCost,
-    currency: gemData.acquisitionCurrency,
-    amountBase: gemData.acquisitionCostBase,
-    serviceRecordId: null,
-    date: now,
-    createdAt: now,
-  });
-
-  return ref.id;
+  if (
+    gem.marketplaceListingId &&
+    Array.isArray(input.photoUrls)
+  ) {
+    queueDocUpdate("gems", gem.marketplaceListingId, {
+      photoUrls: input.photoUrls,
+      updatedAt: serverTimestamp(),
+    });
+  }
 }
 
 export async function deleteGem(gemId: string, ownerUid: string) {
@@ -224,11 +307,9 @@ export async function deleteGem(gemId: string, ownerUid: string) {
       query(collection(db, "gemtrack_gem_events"), where("gemId", "==", gemId)),
     ),
   ]);
-  await Promise.all([
-    ...costsSnap.docs.map((d) => deleteDoc(d.ref)),
-    ...eventsSnap.docs.map((d) => deleteDoc(d.ref)),
-  ]);
-  await deleteDoc(doc(db, "gemtrack_gems", gemId));
+  for (const d of costsSnap.docs) forgetSync(deleteDoc(d.ref));
+  for (const d of eventsSnap.docs) forgetSync(deleteDoc(d.ref));
+  queueDocDelete("gemtrack_gems", gemId);
 }
 
 export async function updateGemLifecycle(
@@ -284,7 +365,7 @@ export async function updateGemLifecycle(
     updates.soldDate = now;
   }
 
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", gemId), updates);
+  queueDocUpdate("gemtrack_gems", gemId, updates);
 
   // Pause/close the marketplace listing when the gem is sold or returned.
   if (
@@ -292,30 +373,75 @@ export async function updateGemLifecycle(
     typeof gem.marketplaceListingId === "string" &&
     gem.marketplaceListingId.length > 0
   ) {
-    try {
-      await updateDoc(doc(getFirebaseDb(), "gems", gem.marketplaceListingId), {
+    queueDocUpdate("gems", gem.marketplaceListingId, {
         status: next.outcome === "sold" ? "sold" : "paused",
         updatedAt: now,
       });
-    } catch {
-      // Listing may already be gone; gem update still succeeded.
-    }
   }
-  await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
-    gemId,
-    ownerUid,
-    eventType: "status_change",
-    fromStatus: gem.status,
-    toStatus: primary,
-    description,
-    weightAtEvent: gem.currentWeight,
-    photoUrl: null,
-    costAdded: null,
-    relatedServiceId: null,
-    relatedApId: null,
-    createdByUid: ownerUid,
-    createdAt: now,
-  });
+  queueDocCreate("gemtrack_gem_events", {
+      gemId,
+      ownerUid,
+      eventType: "status_change",
+      fromStatus: gem.status,
+      toStatus: primary,
+      description,
+      weightAtEvent: gem.currentWeight,
+      photoUrl: null,
+      costAdded: null,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: ownerUid,
+      createdAt: now,
+    });
+}
+
+/** Take a listed gem off GemNet without marking it sold/returned. */
+export async function removeGemFromMarket(gemId: string, ownerUid: string) {
+  const gem = await fetchGem(gemId);
+  if (!gem || gem.ownerUid !== ownerUid) throw new Error("Gem not found");
+  const life = resolveGemLifecycle(gem);
+  if (!gem.isListedOnMarketplace && life.outcome !== "listed") {
+    throw new Error("This gem is not on the market.");
+  }
+
+  const now = Timestamp.now();
+  const next = applyLifecyclePatch(life, { outcome: null });
+  const primary = derivePrimaryStatus(next);
+
+  queueDocUpdate("gemtrack_gems", gemId, {
+      stoneStage: next.stoneStage,
+      custody: next.custody,
+      outcome: next.outcome,
+      status: primary,
+      isListedOnMarketplace: false,
+      updatedAt: now,
+    });
+
+  if (
+    typeof gem.marketplaceListingId === "string" &&
+    gem.marketplaceListingId.length > 0
+  ) {
+    queueDocUpdate("gems", gem.marketplaceListingId, {
+        status: "paused",
+        updatedAt: now,
+      });
+  }
+
+  queueDocCreate("gemtrack_gem_events", {
+      gemId,
+      ownerUid,
+      eventType: "unlisted",
+      fromStatus: gem.status,
+      toStatus: primary,
+      description: "Removed from Market",
+      weightAtEvent: gem.currentWeight,
+      photoUrl: null,
+      costAdded: null,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: ownerUid,
+      createdAt: now,
+    });
 }
 
 export async function updateGemStatus(
@@ -398,7 +524,7 @@ export async function createService(
   >,
 ) {
   const now = Timestamp.now();
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_services"), {
+  const id = queueDocCreate("gemtrack_services", {
     ...input,
     providerUid: input.providerUid ?? null,
     ownerUid,
@@ -414,13 +540,13 @@ export async function createService(
     createdAt: now,
     updatedAt: now,
   });
-  await updateGemStatus(
+  void updateGemStatus(
     input.gemId,
     ownerUid,
     "with_cutter",
     `Sent for ${input.serviceType}`,
   );
-  return ref.id;
+  return id;
 }
 
 export async function completeService(
@@ -439,54 +565,54 @@ export async function completeService(
     input.weightAfter,
   );
 
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_services", serviceId), {
-    status: "received_back",
-    dateReturned: now,
-    weightAfter: input.weightAfter,
-    weightLossPercent: weightLoss,
-    finalCost: input.finalCost,
-    finalCostCurrency: "LKR",
-    paymentStatus: "paid",
-    resultNotes: input.resultNotes ?? null,
-    updatedAt: now,
-  });
+  queueDocUpdate("gemtrack_services", serviceId, {
+      status: "received_back",
+      dateReturned: now,
+      weightAfter: input.weightAfter,
+      weightLossPercent: weightLoss,
+      finalCost: input.finalCost,
+      finalCostCurrency: "LKR",
+      paymentStatus: "paid",
+      resultNotes: input.resultNotes ?? null,
+      updatedAt: now,
+    });
 
   const gem = await fetchGem(service.gemId);
   if (gem) {
     const newTotal = gem.totalCost + input.finalCost;
-    await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", service.gemId), {
-      currentWeight: input.weightAfter,
-      totalCost: newTotal,
-      status: "cut",
-      updatedAt: now,
-    });
-    await addDoc(collection(getFirebaseDb(), "gemtrack_gem_costs"), {
-      gemId: service.gemId,
-      ownerUid,
-      costType: service.serviceType,
-      description: `Service: ${service.serviceType}`,
-      amount: input.finalCost,
-      currency: "LKR",
-      amountBase: input.finalCost,
-      serviceRecordId: serviceId,
-      date: now,
-      createdAt: now,
-    });
-    await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
-      gemId: service.gemId,
-      ownerUid,
-      eventType: "status_change",
-      fromStatus: gem.status,
-      toStatus: "cut",
-      description: `Returned from ${service.serviceType}. Weight: ${input.weightAfter} ct`,
-      weightAtEvent: input.weightAfter,
-      photoUrl: null,
-      costAdded: input.finalCost,
-      relatedServiceId: serviceId,
-      relatedApId: null,
-      createdByUid: ownerUid,
-      createdAt: now,
-    });
+    queueDocUpdate("gemtrack_gems", service.gemId, {
+        currentWeight: input.weightAfter,
+        totalCost: newTotal,
+        status: "cut",
+        updatedAt: now,
+      });
+    queueDocCreate("gemtrack_gem_costs", {
+        gemId: service.gemId,
+        ownerUid,
+        costType: service.serviceType,
+        description: `Service: ${service.serviceType}`,
+        amount: input.finalCost,
+        currency: "LKR",
+        amountBase: input.finalCost,
+        serviceRecordId: serviceId,
+        date: now,
+        createdAt: now,
+      });
+    queueDocCreate("gemtrack_gem_events", {
+        gemId: service.gemId,
+        ownerUid,
+        eventType: "status_change",
+        fromStatus: gem.status,
+        toStatus: "cut",
+        description: `Returned from ${service.serviceType}. Weight: ${input.weightAfter} ct`,
+        weightAtEvent: input.weightAfter,
+        photoUrl: null,
+        costAdded: input.finalCost,
+        relatedServiceId: serviceId,
+        relatedApId: null,
+        createdByUid: ownerUid,
+        createdAt: now,
+      });
   }
 }
 
@@ -504,7 +630,7 @@ export async function deleteService(serviceId: string, ownerUid: string) {
       "Only completed or cancelled services can be deleted. Request cancellation first.",
     );
   }
-  await deleteDoc(doc(getFirebaseDb(), "gemtrack_services", serviceId));
+  queueDocDelete("gemtrack_services", serviceId);
 }
 
 export async function fetchProviderServices(
@@ -618,7 +744,7 @@ export async function createContact(
   input: Omit<Contact, "id" | "ownerUid" | "createdAt" | "updatedAt">,
 ) {
   const now = Timestamp.now();
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_contacts"), {
+  const id = queueDocCreate("gemtrack_contacts", {
     displayName: input.displayName,
     companyName: input.companyName ?? null,
     phone: normalizePhoneForStorage(input.phone),
@@ -636,7 +762,7 @@ export async function createContact(
     createdAt: now,
     updatedAt: now,
   });
-  return ref.id;
+  return id;
 }
 
 /**
@@ -782,10 +908,10 @@ export async function updateContact(contactId: string, data: Partial<Contact>) {
   if (data.whatsapp !== undefined) {
     payload.whatsapp = normalizePhoneForStorage(data.whatsapp);
   }
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_contacts", contactId), {
-    ...payload,
-    updatedAt: serverTimestamp(),
-  });
+  queueDocUpdate("gemtrack_contacts", contactId, {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    });
 }
 
 /**
@@ -894,7 +1020,7 @@ export async function ensureContactForBusiness(
 }
 
 export async function deleteContact(contactId: string) {
-  await deleteDoc(doc(getFirebaseDb(), "gemtrack_contacts", contactId));
+  queueDocDelete("gemtrack_contacts", contactId);
 }
 
 export async function fetchContactHistory(ownerUid: string, contactId: string) {
@@ -938,17 +1064,14 @@ export async function createTransaction(
     (input.currency && input.currency !== "LKR"
       ? await convertToBase(input.amount, input.currency)
       : input.amount);
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "gemtrack_transactions"),
-    {
-      ...input,
-      ownerUid,
-      amountBase,
-      date: input.date ?? now,
-      createdAt: now,
-    },
-  );
-  return ref.id;
+  const id = queueDocCreate("gemtrack_transactions", {
+    ...input,
+    ownerUid,
+    amountBase,
+    date: input.date ?? now,
+    createdAt: now,
+  });
+  return id;
 }
 
 // ─── Receivables / Payables ───────────────────────
@@ -983,18 +1106,17 @@ export async function createReceivable(
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
-  return (
-    await addDoc(collection(getFirebaseDb(), "gemtrack_receivables"), {
-      ...input,
-      currency,
-      amountBase,
-      ownerUid,
-      amountReceived: 0,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    })
-  ).id;
+  const id = queueDocCreate("gemtrack_receivables", {
+    ...input,
+    currency,
+    amountBase,
+    ownerUid,
+    amountReceived: 0,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
 }
 
 export async function createPayable(
@@ -1007,18 +1129,17 @@ export async function createPayable(
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
-  return (
-    await addDoc(collection(getFirebaseDb(), "gemtrack_payables"), {
-      ...input,
-      currency,
-      amountBase,
-      ownerUid,
-      amountPaid: 0,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    })
-  ).id;
+  const id = queueDocCreate("gemtrack_payables", {
+    ...input,
+    currency,
+    amountBase,
+    ownerUid,
+    amountPaid: 0,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
 }
 
 export async function recordReceivablePayment(
@@ -1050,11 +1171,13 @@ export async function recordReceivablePayment(
   const now = Timestamp.now();
   const currency = options?.currency ?? data.currency ?? "LKR";
 
-  await updateDoc(ref, {
-    amountReceived: newReceived,
-    status,
-    updatedAt: serverTimestamp(),
-  });
+  forgetSync(
+    updateDoc(ref, {
+      amountReceived: newReceived,
+      status,
+      updatedAt: serverTimestamp(),
+    }),
+  );
 
   const amountBase = await convertToBase(paymentAmount, currency);
   const txnId = await createTransaction(ownerUid, {
@@ -1069,24 +1192,24 @@ export async function recordReceivablePayment(
     date: now,
   });
 
-  await addDoc(collection(getFirebaseDb(), "gemtrack_payments"), {
-    ownerUid,
-    direction: "in",
-    amount: paymentAmount,
-    currency,
-    amountBase,
-    paymentMethod: options?.paymentMethod ?? null,
-    commission: options?.commission ?? null,
-    receivableId,
-    payableId: null,
-    billId: null,
-    gemId: null,
-    contactId: data.contactId,
-    transactionId: txnId,
-    notes: options?.notes ?? null,
-    paymentDate: now,
-    createdAt: now,
-  });
+  queueDocCreate("gemtrack_payments", {
+      ownerUid,
+      direction: "in",
+      amount: paymentAmount,
+      currency,
+      amountBase,
+      paymentMethod: options?.paymentMethod ?? null,
+      commission: options?.commission ?? null,
+      receivableId,
+      payableId: null,
+      billId: null,
+      gemId: null,
+      contactId: data.contactId,
+      transactionId: txnId,
+      notes: options?.notes ?? null,
+      paymentDate: now,
+      createdAt: now,
+    });
 }
 
 export async function recordPayablePayment(
@@ -1111,11 +1234,13 @@ export async function recordPayablePayment(
   const now = Timestamp.now();
   const currency = options?.currency ?? data.currency ?? "LKR";
 
-  await updateDoc(ref, {
-    amountPaid: newPaid,
-    status,
-    updatedAt: serverTimestamp(),
-  });
+  forgetSync(
+    updateDoc(ref, {
+      amountPaid: newPaid,
+      status,
+      updatedAt: serverTimestamp(),
+    }),
+  );
 
   const amountBase = await convertToBase(paymentAmount, currency);
   const txnId = await createTransaction(ownerUid, {
@@ -1130,24 +1255,24 @@ export async function recordPayablePayment(
     date: now,
   });
 
-  await addDoc(collection(getFirebaseDb(), "gemtrack_payments"), {
-    ownerUid,
-    direction: "out",
-    amount: paymentAmount,
-    currency,
-    amountBase,
-    paymentMethod: options?.paymentMethod ?? null,
-    commission: options?.commission ?? null,
-    receivableId: null,
-    payableId,
-    billId: null,
-    gemId: null,
-    contactId: data.contactId,
-    transactionId: txnId,
-    notes: options?.notes ?? null,
-    paymentDate: now,
-    createdAt: now,
-  });
+  queueDocCreate("gemtrack_payments", {
+      ownerUid,
+      direction: "out",
+      amount: paymentAmount,
+      currency,
+      amountBase,
+      paymentMethod: options?.paymentMethod ?? null,
+      commission: options?.commission ?? null,
+      receivableId: null,
+      payableId,
+      billId: null,
+      gemId: null,
+      contactId: data.contactId,
+      transactionId: txnId,
+      notes: options?.notes ?? null,
+      paymentDate: now,
+      createdAt: now,
+    });
 }
 
 export async function fetchPayments(ownerUid: string): Promise<Payment[]> {
@@ -1236,7 +1361,7 @@ export async function createBill(
   const jobId = input.jobId?.trim() || null;
   const status: BillStatus =
     input.status ?? (jobId ? "ongoing" : "open");
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_bills"), {
+  const id = queueDocCreate("gemtrack_bills", {
     ownerUid,
     direction: input.direction,
     amount: input.amount,
@@ -1257,7 +1382,7 @@ export async function createBill(
     createdAt: now,
     updatedAt: now,
   });
-  return ref.id;
+  return id;
 }
 
 export async function updateBill(
@@ -1291,14 +1416,14 @@ export async function updateBill(
   } else if (data.gemId !== undefined) {
     updates.gemId = data.gemId;
   }
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), updates);
+  queueDocUpdate("gemtrack_bills", billId, updates);
 }
 
 export async function updateBillStatus(billId: string, status: BillStatus) {
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), {
-    status,
-    updatedAt: serverTimestamp(),
-  });
+  queueDocUpdate("gemtrack_bills", billId, {
+      status,
+      updatedAt: serverTimestamp(),
+    });
 }
 
 export async function deleteBill(billId: string, ownerUid: string) {
@@ -1308,8 +1433,8 @@ export async function deleteBill(billId: string, ownerUid: string) {
   const paymentsSnap = await getDocs(
     query(collection(db, "gemtrack_payments"), where("billId", "==", billId)),
   );
-  await Promise.all(paymentsSnap.docs.map((d) => deleteDoc(d.ref)));
-  await deleteDoc(doc(db, "gemtrack_bills", billId));
+  for (const d of paymentsSnap.docs) forgetSync(deleteDoc(d.ref));
+  queueDocDelete("gemtrack_bills", billId);
 }
 
 export async function recordBillPayment(
@@ -1361,11 +1486,13 @@ export async function recordBillPayment(
       : null);
   const noteLabel = data.notes?.trim() || "Bill";
 
-  await updateDoc(ref, {
-    amountSettled: newSettled,
-    status,
-    updatedAt: serverTimestamp(),
-  });
+  forgetSync(
+    updateDoc(ref, {
+      amountSettled: newSettled,
+      status,
+      updatedAt: serverTimestamp(),
+    }),
+  );
 
   const isReceivable = data.direction === "receivable";
   /**
@@ -1391,7 +1518,7 @@ export async function recordBillPayment(
   if (commission > 0) {
     const commissionBase = await convertToBase(commission, currency);
     if (isReceivable) {
-      await createTransaction(ownerUid, {
+      void createTransaction(ownerUid, {
         type: "expense",
         amount: commission,
         currency,
@@ -1403,7 +1530,7 @@ export async function recordBillPayment(
         date: now,
       });
     } else {
-      await createTransaction(ownerUid, {
+      void createTransaction(ownerUid, {
         type: "income",
         amount: commission,
         currency,
@@ -1418,24 +1545,24 @@ export async function recordBillPayment(
   }
 
   const settlementBase = await convertToBase(paymentAmount, currency);
-  await addDoc(collection(getFirebaseDb(), "gemtrack_payments"), {
-    ownerUid,
-    direction: isReceivable ? "in" : "out",
-    amount: paymentAmount,
-    currency,
-    amountBase: settlementBase,
-    paymentMethod: options?.paymentMethod ?? null,
-    commission: commission > 0 ? commission : null,
-    receivableId: null,
-    payableId: null,
-    billId,
-    gemId: primaryGemId,
-    contactId: data.counterpartyContactId,
-    transactionId: txnId,
-    notes: options?.notes ?? null,
-    paymentDate: now,
-    createdAt: now,
-  });
+  queueDocCreate("gemtrack_payments", {
+      ownerUid,
+      direction: isReceivable ? "in" : "out",
+      amount: paymentAmount,
+      currency,
+      amountBase: settlementBase,
+      paymentMethod: options?.paymentMethod ?? null,
+      commission: commission > 0 ? commission : null,
+      receivableId: null,
+      payableId: null,
+      billId,
+      gemId: primaryGemId,
+      contactId: data.counterpartyContactId,
+      transactionId: txnId,
+      notes: options?.notes ?? null,
+      paymentDate: now,
+      createdAt: now,
+    });
 }
 
 // ─── Cheques ──────────────────────────────────────
@@ -1481,7 +1608,7 @@ export async function createCheque(
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_cheques"), {
+  const id = queueDocCreate("gemtrack_cheques", {
     ownerUid,
     direction: input.direction,
     chequeNumber: input.chequeNumber.trim(),
@@ -1509,7 +1636,7 @@ export async function createCheque(
     createdAt: now,
     updatedAt: now,
   });
-  return ref.id;
+  return id;
 }
 
 export async function updateCheque(
@@ -1555,7 +1682,7 @@ export async function updateCheque(
   if (data.maturityDate !== undefined) updates.maturityDate = data.maturityDate;
   if (data.photoUrl !== undefined) updates.photoUrl = data.photoUrl;
   if (data.notes !== undefined) updates.notes = data.notes?.trim() ?? null;
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId), updates);
+  queueDocUpdate("gemtrack_cheques", chequeId, updates);
 }
 
 export async function updateChequeStatus(
@@ -1579,7 +1706,7 @@ export async function updateChequeStatus(
   if (status === "replaced" && extra?.replacementChequeId) {
     updates.replacementChequeId = extra.replacementChequeId;
   }
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId), updates);
+  queueDocUpdate("gemtrack_cheques", chequeId, updates);
 }
 
 export async function deleteCheque(chequeId: string, ownerUid: string) {
@@ -1587,7 +1714,7 @@ export async function deleteCheque(chequeId: string, ownerUid: string) {
   if (!cheque || cheque.ownerUid !== ownerUid) {
     throw new Error("Cheque not found");
   }
-  await deleteDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId));
+  queueDocDelete("gemtrack_cheques", chequeId);
 }
 
 // ─── Trips ────────────────────────────────────────
@@ -1643,7 +1770,7 @@ export async function createTrip(
     convertToBase(budget, budgetCurrency),
     convertToBase(cashCarried, cashCarriedCurrency),
   ]);
-  const ref = await addDoc(collection(getFirebaseDb(), "gemtrack_trips"), {
+  const id = queueDocCreate("gemtrack_trips", {
     ownerUid,
     companyId: null,
     tripName: input.tripName.trim(),
@@ -1665,7 +1792,7 @@ export async function createTrip(
     createdAt: now,
     updatedAt: now,
   });
-  return ref.id;
+  return id;
 }
 
 export async function updateTripStatus(tripId: string, status: TripStatus) {
@@ -1674,7 +1801,7 @@ export async function updateTripStatus(tripId: string, status: TripStatus) {
     updatedAt: serverTimestamp(),
   };
   if (status === "completed") updates.actualEndDate = Timestamp.now();
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), updates);
+  queueDocUpdate("gemtrack_trips", tripId, updates);
 }
 
 export async function updateTripBudget(
@@ -1687,12 +1814,12 @@ export async function updateTripBudget(
   const budget = Math.max(0, input.budget);
   const budgetCurrency = input.budgetCurrency || "LKR";
   const budgetBase = await convertToBase(budget, budgetCurrency);
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), {
-    budget,
-    budgetCurrency,
-    budgetBase,
-    updatedAt: serverTimestamp(),
-  });
+  queueDocUpdate("gemtrack_trips", tripId, {
+      budget,
+      budgetCurrency,
+      budgetBase,
+      updatedAt: serverTimestamp(),
+    });
 }
 
 export async function deleteTrip(tripId: string, ownerUid: string) {
@@ -1704,29 +1831,27 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
     fetchTripGems(tripId, ownerUid),
   ]);
 
-  await Promise.all([
-    ...expenses.map((e) =>
-      deleteDoc(doc(getFirebaseDb(), "gemtrack_trip_expenses", e.id)),
-    ),
-    ...tripGems.map(async (tg) => {
-      await deleteDoc(doc(getFirebaseDb(), "gemtrack_trip_gems", tg.id));
-      if (tg.status === "on_trip") {
-        const gem = await fetchGem(tg.gemId);
-        if (gem && gem.ownerUid === ownerUid) {
-          const life = resolveGemLifecycle(gem);
-          if (life.custody === "on_trip" || gem.status === "on_trip") {
-            await updateGemLifecycle(
-              tg.gemId,
-              ownerUid,
-              { custody: null },
-              "Removed from trip",
-            );
-          }
+  for (const e of expenses) {
+    queueDocDelete("gemtrack_trip_expenses", e.id);
+  }
+  for (const tg of tripGems) {
+    queueDocDelete("gemtrack_trip_gems", tg.id);
+    if (tg.status === "on_trip") {
+      const gem = await fetchGem(tg.gemId);
+      if (gem && gem.ownerUid === ownerUid) {
+        const life = resolveGemLifecycle(gem);
+        if (life.custody === "on_trip" || gem.status === "on_trip") {
+          void updateGemLifecycle(
+            tg.gemId,
+            ownerUid,
+            { custody: null },
+            "Removed from trip",
+          );
         }
       }
-    }),
-  ]);
-  await deleteDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId));
+    }
+  }
+  queueDocDelete("gemtrack_trips", tripId);
 }
 
 export async function fetchTripExpenses(
@@ -1759,24 +1884,21 @@ export async function addTripExpense(
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
-  const ref = await addDoc(
-    collection(getFirebaseDb(), "gemtrack_trip_expenses"),
-    {
-      tripId,
-      ownerUid,
-      date: input.date ?? now,
-      category: input.category,
-      description: input.description?.trim() ?? null,
-      amount: input.amount,
-      currency,
-      amountBase,
-      paymentMethod: input.paymentMethod ?? null,
-      receiptPhotoUrl: input.receiptPhotoUrl ?? null,
-      createdAt: now,
-    },
-  );
+  const id = queueDocCreate("gemtrack_trip_expenses", {
+    tripId,
+    ownerUid,
+    date: input.date ?? now,
+    category: input.category,
+    description: input.description?.trim() ?? null,
+    amount: input.amount,
+    currency,
+    amountBase,
+    paymentMethod: input.paymentMethod ?? null,
+    receiptPhotoUrl: input.receiptPhotoUrl ?? null,
+    createdAt: now,
+  });
 
-  await createTransaction(ownerUid, {
+  void createTransaction(ownerUid, {
     type: "expense",
     amount: input.amount,
     currency: input.currency ?? "LKR",
@@ -1787,8 +1909,8 @@ export async function addTripExpense(
     date: input.date ?? now,
   });
 
-  await refreshTripSummary(tripId, ownerUid);
-  return ref.id;
+  void refreshTripSummary(tripId, ownerUid);
+  return id;
 }
 
 export async function fetchTripGems(
@@ -1819,18 +1941,18 @@ async function refreshTripSummary(tripId: string, ownerUid: string) {
   );
   const totalRevenue = sold.reduce((s, tg) => s + (tg.salePrice ?? 0), 0);
 
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_trips", tripId), {
-    summary: {
-      totalExpenses,
-      totalGemsPurchased: purchases.length,
-      totalGemsSold: sold.length,
-      totalRevenue,
-      netResult: totalRevenue - totalExpenses - purchaseSpend,
-      gemsOnAp: 0,
-      gemsReturned: tripGems.filter((tg) => tg.status === "returned").length,
-    },
-    updatedAt: serverTimestamp(),
-  });
+  queueDocUpdate("gemtrack_trips", tripId, {
+      summary: {
+        totalExpenses,
+        totalGemsPurchased: purchases.length,
+        totalGemsSold: sold.length,
+        totalRevenue,
+        netResult: totalRevenue - totalExpenses - purchaseSpend,
+        gemsOnAp: 0,
+        gemsReturned: tripGems.filter((tg) => tg.status === "returned").length,
+      },
+      updatedAt: serverTimestamp(),
+    });
 }
 
 export async function createGemOnSourcingTrip(
@@ -1849,20 +1971,20 @@ export async function createGemOnSourcingTrip(
   });
 
   const now = Timestamp.now();
-  await addDoc(collection(getFirebaseDb(), "gemtrack_trip_gems"), {
-    tripId,
-    ownerUid,
-    gemId,
-    role: "purchase",
-    purchaseCost: input.acquisitionCost,
-    salePrice: null,
-    saleDate: null,
-    status: "on_trip",
-    createdAt: now,
-    updatedAt: now,
-  });
+  queueDocCreate("gemtrack_trip_gems", {
+      tripId,
+      ownerUid,
+      gemId,
+      role: "purchase",
+      purchaseCost: input.acquisitionCost,
+      salePrice: null,
+      saleDate: null,
+      status: "on_trip",
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  await refreshTripSummary(tripId, ownerUid);
+  void refreshTripSummary(tripId, ownerUid);
   return gemId;
 }
 
@@ -1872,9 +1994,8 @@ export async function addGemsToSellingTrip(
   gemIds: string[],
 ): Promise<void> {
   const now = Timestamp.now();
-  await Promise.all(
-    gemIds.map(async (gemId) => {
-      await addDoc(collection(getFirebaseDb(), "gemtrack_trip_gems"), {
+  for (const gemId of gemIds) {
+    queueDocCreate("gemtrack_trip_gems", {
         tripId,
         ownerUid,
         gemId,
@@ -1886,15 +2007,14 @@ export async function addGemsToSellingTrip(
         createdAt: now,
         updatedAt: now,
       });
-      await updateGemStatus(
-        gemId,
-        ownerUid,
-        "on_trip",
-        "Added to selling trip parcel",
-      );
-    }),
-  );
-  await refreshTripSummary(tripId, ownerUid);
+    void updateGemStatus(
+      gemId,
+      ownerUid,
+      "on_trip",
+      "Added to selling trip parcel",
+    );
+  }
+  void refreshTripSummary(tripId, ownerUid);
 }
 
 export async function recordTripGemSale(
@@ -1905,19 +2025,19 @@ export async function recordTripGemSale(
   salePrice: number,
 ): Promise<void> {
   const now = Timestamp.now();
-  await updateDoc(doc(getFirebaseDb(), "gemtrack_trip_gems", tripGemId), {
-    salePrice,
-    saleDate: now,
-    status: "sold",
-    updatedAt: serverTimestamp(),
-  });
-  await updateGemStatus(
+  queueDocUpdate("gemtrack_trip_gems", tripGemId, {
+      salePrice,
+      saleDate: now,
+      status: "sold",
+      updatedAt: serverTimestamp(),
+    });
+  void updateGemStatus(
     gemId,
     ownerUid,
     "sold",
     `Sold on trip for ${salePrice}`,
   );
-  await createTransaction(ownerUid, {
+  void createTransaction(ownerUid, {
     type: "income",
     amount: salePrice,
     currency: "LKR",
@@ -1927,7 +2047,7 @@ export async function recordTripGemSale(
     contactId: null,
     date: now,
   });
-  await refreshTripSummary(tripId, ownerUid);
+  void refreshTripSummary(tripId, ownerUid);
 }
 
 export async function distributeTripOverhead(
@@ -1961,23 +2081,23 @@ export async function distributeTripOverhead(
     const gem = await fetchGem(tg.gemId);
     if (!gem) continue;
 
-    await addDoc(collection(getFirebaseDb(), "gemtrack_gem_costs"), {
-      gemId: tg.gemId,
-      ownerUid,
-      costType: "trip_overhead",
-      description: "Trip overhead allocation",
-      amount: share,
-      currency: "LKR",
-      amountBase: share,
-      serviceRecordId: null,
-      date: now,
-      createdAt: now,
-    });
+    queueDocCreate("gemtrack_gem_costs", {
+        gemId: tg.gemId,
+        ownerUid,
+        costType: "trip_overhead",
+        description: "Trip overhead allocation",
+        amount: share,
+        currency: "LKR",
+        amountBase: share,
+        serviceRecordId: null,
+        date: now,
+        createdAt: now,
+      });
 
-    await updateDoc(doc(getFirebaseDb(), "gemtrack_gems", tg.gemId), {
-      totalCost: gem.totalCost + share,
-      updatedAt: serverTimestamp(),
-    });
+    queueDocUpdate("gemtrack_gems", tg.gemId, {
+        totalCost: gem.totalCost + share,
+        updatedAt: serverTimestamp(),
+      });
     distributed += share;
   }
 
@@ -1991,9 +2111,12 @@ export async function fetchListingBySlug(slug: string) {
   if (!normalized) return null;
 
   // Constrain visibility so the query only matches docs the client may read.
-  const visibilities: Array<
-    "public" | "contacts" | "private" | "members_only"
-  > = ["public", "private", "members_only"];
+  const visibilities: (
+    | "public"
+    | "contacts"
+    | "private"
+    | "members_only"
+  )[] = ["public", "private", "members_only"];
   try {
     const { getFirebaseAuth } = await import("@/lib/firebase/config");
     if (getFirebaseAuth().currentUser) {
@@ -2011,9 +2134,18 @@ export async function fetchListingBySlug(slug: string) {
     limit(1),
   );
   const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as import("@/types").MarketplaceListing;
+  if (!snap.empty) {
+    const d = snap.docs[0]!;
+    return { id: d.id, ...d.data() } as import("@/types").MarketplaceListing;
+  }
+
+  // "View on Market" passes marketplaceListingId (doc id), not shareableSlug.
+  const byId = await getDoc(doc(getFirebaseDb(), "gems", normalized));
+  if (!byId.exists()) return null;
+  return {
+    id: byId.id,
+    ...byId.data(),
+  } as import("@/types").MarketplaceListing;
 }
 
 export async function createListing(
@@ -2102,7 +2234,7 @@ export async function createListing(
     // Owner may still create the listing; snapshot can be backfilled later.
   }
 
-  const ref = await addDoc(collection(getFirebaseDb(), "gems"), {
+  const listingId = queueDocCreate("gems", {
     ...input,
     title: listingTitle || input.title,
     workspaceGemId,
@@ -2153,7 +2285,7 @@ export async function createListing(
       const next = applyLifecyclePatch(life, { outcome: "listed" });
       const gemUpdates: Record<string, unknown> = {
         isListedOnMarketplace: true,
-        marketplaceListingId: ref.id,
+        marketplaceListingId: listingId,
         stoneStage: next.stoneStage,
         custody: next.custody,
         outcome: next.outcome,
@@ -2172,28 +2304,28 @@ export async function createListing(
         gemUpdates.askingPriceCurrency = currency;
         gemUpdates.askingPriceBase = priceMinBase;
       }
-      await updateDoc(gemRef, gemUpdates);
-      await addDoc(collection(getFirebaseDb(), "gemtrack_gem_events"), {
-        gemId: workspaceGemId,
-        ownerUid: sellerUid,
-        eventType: "listed",
-        fromStatus: gem.status ?? null,
-        toStatus: "listed",
-        description: listingTitle
-          ? `On Market as “${listingTitle}”`
-          : "On Market",
-        weightAtEvent: gem.currentWeight ?? null,
-        photoUrl: null,
-        costAdded: null,
-        relatedServiceId: null,
-        relatedApId: null,
-        createdByUid: sellerUid,
-        createdAt: now,
-      });
+      forgetSync(updateDoc(gemRef, gemUpdates));
+      queueDocCreate("gemtrack_gem_events", {
+          gemId: workspaceGemId,
+          ownerUid: sellerUid,
+          eventType: "listed",
+          fromStatus: gem.status ?? null,
+          toStatus: "listed",
+          description: listingTitle
+            ? `On Market as “${listingTitle}”`
+            : "On Market",
+          weightAtEvent: gem.currentWeight ?? null,
+          photoUrl: null,
+          costAdded: null,
+          relatedServiceId: null,
+          relatedApId: null,
+          createdByUid: sellerUid,
+          createdAt: now,
+        });
     }
   }
 
-  return { id: ref.id, slug };
+  return { id: listingId, slug };
 }
 
 // ─── Notifications ────────────────────────────────
@@ -2225,21 +2357,19 @@ export async function createNotification(
 ) {
   /** @deprecated Notifications are created by Cloud Functions only. */
   const now = Timestamp.now();
-  await addDoc(collection(getFirebaseDb(), "notifications"), {
-    recipientUid,
-    ...input,
-    referenceType: input.referenceType ?? null,
-    referenceId: input.referenceId ?? null,
-    isRead: false,
-    isPushSent: false,
-    createdAt: now,
-  });
+  queueDocCreate("notifications", {
+      recipientUid,
+      ...input,
+      referenceType: input.referenceType ?? null,
+      referenceId: input.referenceId ?? null,
+      isRead: false,
+      isPushSent: false,
+      createdAt: now,
+    });
 }
 
 export async function markNotificationRead(notifId: string) {
-  await updateDoc(doc(getFirebaseDb(), "notifications", notifId), {
-    isRead: true,
-  });
+  queueDocUpdate("notifications", notifId, { isRead: true });
 }
 
 export async function markAllNotificationsRead(recipientUid: string) {
@@ -2249,7 +2379,7 @@ export async function markAllNotificationsRead(recipientUid: string) {
     where("isRead", "==", false),
   );
   const snap = await getDocs(q);
-  await Promise.all(snap.docs.map((d) => updateDoc(d.ref, { isRead: true })));
+  for (const d of snap.docs) forgetSync(updateDoc(d.ref, { isRead: true }));
 }
 
 // ─── Verification ─────────────────────────────────
@@ -2289,8 +2419,9 @@ export async function submitVerificationApplication(
   }
 
   const now = Timestamp.now();
-  const applicationId = (
-    await addDoc(collection(getFirebaseDb(), "verification_applications"), {
+  const applicationId = queueDocCreate(
+    "verification_applications",
+    {
       applicantUid,
       businessId: input.businessId,
       applicationType: input.applicationType,
@@ -2302,14 +2433,13 @@ export async function submitVerificationApplication(
       adminUid: null,
       adminNotes: "",
       submittedAt: now,
-    })
-  ).id;
-
-  await updateDoc(doc(getFirebaseDb(), "users", applicantUid), {
-    verificationStatus: "pending",
-    dateOfBirth,
-    updatedAt: serverTimestamp(),
-  });
+    },
+  );
+  queueDocUpdate("users", applicantUid, {
+      verificationStatus: "pending",
+      dateOfBirth,
+      updatedAt: serverTimestamp(),
+    });
 
   return applicationId;
 }

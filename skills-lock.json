@@ -11,7 +11,7 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-simulator/SKILL.md",
-      "computedHash": "6f7c03c7c17d1254fcdbbcea6883d05f89acd24ad4d9e5ec2966c8b6348e04f0"
+      "computedHash": "45a4851ca7a3e7ea423c1a46669d1cdfd16a4c1a8c4cbe965410004ac846d61c"
     },
     "eas-update-insights": {
       "source": "expo/skills",

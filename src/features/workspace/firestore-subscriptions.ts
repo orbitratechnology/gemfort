@@ -703,16 +703,23 @@ export function subscribeListingBySlug(
     return () => undefined;
   }
 
-  const visibilities: Array<
-    'public' | 'contacts' | 'private' | 'members_only'
-  > = ['public', 'private', 'members_only'];
+  const visibilities: (
+    | 'public'
+    | 'contacts'
+    | 'private'
+    | 'members_only'
+  )[] = ['public', 'private', 'members_only'];
   try {
     if (getFirebaseAuth().currentUser) visibilities.push('contacts');
   } catch {
     // Auth unavailable — public + legacy link visibilities only.
   }
 
-  return listenCollection(
+  let fromSlug: MarketplaceListing | null = null;
+  let fromId: MarketplaceListing | null = null;
+  const emit = () => onData(fromSlug ?? fromId);
+
+  const unsubSlug = listenCollection(
     query(
       collection(getFirebaseDb(), 'gems'),
       where('shareableSlug', '==', normalized),
@@ -725,9 +732,31 @@ export function subscribeListingBySlug(
       const d = docs[0]!;
       return { id: d.id, ...d.data() } as MarketplaceListing;
     },
-    onData,
+    (listing) => {
+      fromSlug = listing;
+      emit();
+    },
     onError,
   );
+
+  // Fallback: marketplaceListingId is the Firestore doc id, not the slug.
+  const unsubId = listenDoc(
+    doc(getFirebaseDb(), 'gems', normalized),
+    (id, data, exists) =>
+      exists && data
+        ? ({ id, ...data } as MarketplaceListing)
+        : null,
+    (listing) => {
+      fromId = listing;
+      emit();
+    },
+    onError,
+  );
+
+  return () => {
+    unsubSlug();
+    unsubId();
+  };
 }
 
 // ─── Jobs / requests / certificates ─────────────────

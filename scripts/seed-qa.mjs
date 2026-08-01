@@ -4,7 +4,8 @@
  * Usage: node scripts/seed-qa.mjs
  *
  * Accounts (password: QaTest123!):
- *   qa-trader@gemfort.test   — verified trader
+ *   qa-trader@gemfort.test   — verified trader (sender)
+ *   qa-trader-b@gemfort.test — verified trader (AP holder / accept-sell)
  *   qa-lapidary@gemfort.test — verified lapidary
  *   qa-lab@gemfort.test      — verified gem lab
  *   qa-suspended@gemfort.test — suspended lockout (AC-AUTH-003)
@@ -25,6 +26,7 @@ const QA_PASSWORD = 'QaTest123!';
 
 const PERSONAS = [
   {
+    key: 'trader',
     email: 'qa-trader@gemfort.test',
     displayName: 'QA Trader Mahesh',
     phone: '+94770000001',
@@ -33,6 +35,16 @@ const PERSONAS = [
     businessName: 'QA Beruwala Sapphire House',
   },
   {
+    key: 'trader_b',
+    email: 'qa-trader-b@gemfort.test',
+    displayName: 'QA Trader Farook',
+    phone: '+94770000004',
+    role: 'trader',
+    businessId: 'qa-trader-b-biz',
+    businessName: 'QA Farook Gems',
+  },
+  {
+    key: 'lapidary',
     email: 'qa-lapidary@gemfort.test',
     displayName: 'QA Lapidary Kamal',
     phone: '+94770000002',
@@ -41,6 +53,7 @@ const PERSONAS = [
     businessName: 'QA Kamal Gem Cutting',
   },
   {
+    key: 'gem_lab',
     email: 'qa-lab@gemfort.test',
     displayName: 'QA Lab Nisha',
     phone: '+94770000003',
@@ -260,10 +273,10 @@ async function main() {
 
   for (const p of PERSONAS) {
     const uid = await ensureAuthUser(p);
-    uids[p.role] = uid;
+    uids[p.key] = uid;
     await db.collection('users').doc(uid).set(userDoc(uid, p), { merge: true });
     await db.collection('businesses').doc(p.businessId).set(businessForRole(uid, p), { merge: true });
-    console.log(`OK ${p.role}: ${p.email} → ${uid}`);
+    console.log(`OK ${p.key}: ${p.email} → ${uid}`);
   }
 
   await db.collection('announcements').doc('welcome').set(

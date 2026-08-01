@@ -74,7 +74,6 @@ function BillRow({
 }) {
   const { formatStored } = usePreferredMoney();
   const isPayable = bill.direction === "payable";
-  const remaining = remainingAmount(bill);
   const remainingStored = billRemainingStored(bill);
   const partyLabel = contactName || "Contact";
 

@@ -142,7 +142,6 @@ export const addTripSchema = z.object({
     .max(60, "Country name is too long"),
   durationDays: wholeDays("Duration", 1, 365),
   budget: optionalPositiveNumber("Budget"),
-  cashCarried: optionalPositiveNumber("Cash carried"),
   notes: z.string().trim().max(500, "Notes are too long").optional(),
 });
 
@@ -322,8 +321,23 @@ export const completeServiceSchema = z.object({
 
 export type CompleteServiceForm = z.infer<typeof completeServiceSchema>;
 
+const nonNegativeNumber = (label: string, max = 99_999_999) =>
+  z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .refine(
+      (v) => !Number.isNaN(parseAmountInput(v)),
+      `Enter a valid ${label.toLowerCase()}`,
+    )
+    .transform((v) => parseAmountInput(v))
+    .refine((n) => n >= 0, `${label} cannot be negative`)
+    .refine((n) => n <= max, `${label} is too large`);
+
+/** AP sale: sender payout + receiver keep (soldPrice = sum). */
 export const sellApGemSchema = z.object({
-  soldPrice: positiveNumber("Sold price"),
+  ownerReceives: positiveNumber("Sender amount"),
+  receiverKeeps: nonNegativeNumber("Your amount"),
   soldToName: z
     .string()
     .trim()

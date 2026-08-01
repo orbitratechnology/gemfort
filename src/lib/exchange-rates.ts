@@ -15,7 +15,6 @@ type RateCache = ExchangeRatesSnapshot & { fetchedAt: number };
 
 let cache: RateCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000;
-const FIRESTORE_FRESH_MS = 24 * 60 * 60 * 1000;
 
 const OPEN_ER_API = `https://open.er-api.com/v6/latest/${BASE_CURRENCY}`;
 
@@ -40,30 +39,40 @@ function normalizeRates(raw: Record<string, number>): Record<string, number> {
 }
 
 async function fetchFromOpenErApi(): Promise<ExchangeRatesSnapshot> {
-  const res = await fetch(OPEN_ER_API);
-  if (!res.ok) throw new Error('Could not fetch exchange rates.');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const res = await fetch(OPEN_ER_API, { signal: controller.signal });
+    if (!res.ok) throw new Error('Could not fetch exchange rates.');
 
-  const data = (await res.json()) as {
-    result?: string;
-    rates?: Record<string, number>;
-    time_last_update_unix?: number;
-  };
+    const data = (await res.json()) as {
+      result?: string;
+      rates?: Record<string, number>;
+      time_last_update_unix?: number;
+    };
 
-  if (data.result !== 'success' || !data.rates) {
-    throw new Error('Could not fetch exchange rates.');
+    if (data.result !== 'success' || !data.rates) {
+      throw new Error('Could not fetch exchange rates.');
+    }
+
+    return {
+      rates: normalizeRates(data.rates),
+      updatedAt: (data.time_last_update_unix ?? Math.floor(Date.now() / 1000)) * 1000,
+      provider: 'open.er-api.com',
+    };
+  } finally {
+    clearTimeout(timer);
   }
-
-  return {
-    rates: normalizeRates(data.rates),
-    updatedAt: (data.time_last_update_unix ?? Math.floor(Date.now() / 1000)) * 1000,
-    provider: 'open.er-api.com',
-  };
 }
 
 async function fetchFromFirestore(): Promise<ExchangeRatesSnapshot | null> {
   try {
-    const { doc, getDoc, getFirebaseDb } = await import('@/lib/firebase/db');
-    const snap = await getDoc(doc(getFirebaseDb(), 'system', 'exchange_rates'));
+    const { doc, getDocFromCache, getFirebaseDb } = await import(
+      '@/lib/firebase/db'
+    );
+    const ref = doc(getFirebaseDb(), 'system', 'exchange_rates');
+    // Cache-only so offline FX never waits on the network.
+    const snap = await getDocFromCache(ref);
     if (!snap.exists()) return null;
     const data = snap.data() as {
       rates?: Record<string, number>;
@@ -77,8 +86,8 @@ async function fetchFromFirestore(): Promise<ExchangeRatesSnapshot | null> {
     if (typeof data.updatedAt === 'number') updatedAt = data.updatedAt;
     else if (data.updatedAt?.toMillis) updatedAt = data.updatedAt.toMillis();
 
-    if (Date.now() - updatedAt > FIRESTORE_FRESH_MS) return null;
-
+    // Always use persisted rates when present so offline FX writes do not
+    // fall through to a network fetch that can hang.
     return {
       rates: normalizeRates(data.rates),
       updatedAt,
@@ -89,17 +98,32 @@ async function fetchFromFirestore(): Promise<ExchangeRatesSnapshot | null> {
   }
 }
 
-/** Fetch LKR-based rates (foreign per 1 LKR). Prefers fresh Firestore cache, else open.er-api. */
+/** Fetch LKR-based rates (foreign per 1 LKR). Prefers memory → Firestore cache → API. */
 export async function fetchExchangeRatesSnapshot(): Promise<ExchangeRatesSnapshot> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return { rates: cache.rates, updatedAt: cache.updatedAt, provider: cache.provider };
   }
 
   const fromFs = await fetchFromFirestore();
-  const snapshot = fromFs ?? (await fetchFromOpenErApi());
+  if (fromFs) {
+    cache = { ...fromFs, fetchedAt: Date.now() };
+    return fromFs;
+  }
 
-  cache = { ...snapshot, fetchedAt: Date.now() };
-  return snapshot;
+  // Keep last good memory rates rather than hanging on network while offline.
+  if (cache) {
+    return { rates: cache.rates, updatedAt: cache.updatedAt, provider: cache.provider };
+  }
+
+  try {
+    const snapshot = await fetchFromOpenErApi();
+    cache = { ...snapshot, fetchedAt: Date.now() };
+    return snapshot;
+  } catch {
+    throw new Error(
+      'Exchange rates unavailable offline. Use LKR or go online once to cache rates.',
+    );
+  }
 }
 
 /** @deprecated Prefer fetchExchangeRatesSnapshot — returns foreign-per-LKR map. */

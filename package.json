@@ -51,11 +51,11 @@
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.9",
     "react-native-mask-text": "^0.15.0",
-    "react-native-reanimated": "4.5.0",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-worklets": "0.10.0",
+    "react-native-worklets": "0.10.1",
     "rn-country-select": "0.5.2",
     "rn-international-phone-number": "0.14.0",
     "sonner-native": "^0.26.4",
@@ -106,8 +106,14 @@
   "expo": {
     "autolinking": {
       "ios": {
-        "exclude": ["react-native-calllogs-android"]
+        "exclude": [
+          "react-native-calllogs-android"
+        ]
       }
     }
+  },
+  "patchedDependencies": {
+    "metro-runtime@0.84.4": "patches/metro-runtime@0.84.4.patch",
+    "metro@0.84.4": "patches/metro@0.84.4.patch"
   }
 }

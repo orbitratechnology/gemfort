@@ -12,9 +12,7 @@ import {
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
-    addDoc,
     collection,
-    deleteDoc,
     doc,
     getDoc,
     getDocs,
@@ -23,11 +21,15 @@ import {
     orderBy,
     query,
     serverTimestamp,
-    setDoc,
     Timestamp,
-    updateDoc,
     where,
 } from "@/lib/firebase/db";
+import {
+    queueDocCreate,
+    queueDocDelete,
+    queueDocSet,
+    queueDocUpdate,
+} from "@/lib/firebase/local-write";
 import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import type {
     Announcement,
@@ -268,7 +270,7 @@ export async function createBusinessProfile(
   const isLab = type === "gem_lab";
   const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
   const ph = normalizePhoneForStorage(input.phone) ?? "";
-  const ref = await addDoc(collection(getFirebaseDb(), "businesses"), {
+  const id = queueDocCreate("businesses", {
     ownerUid,
     businessType: type,
     businessName: input.businessName.trim(),
@@ -353,7 +355,7 @@ export async function createBusinessProfile(
     createdAt: now,
     updatedAt: now,
   });
-  return ref.id;
+  return id;
 }
 
 export async function updateBusinessProfile(
@@ -415,7 +417,7 @@ export async function updateBusinessProfile(
     updates["labProfile.reportTypes"] =
       reportTypesFromOfferings(certificateOfferings);
   }
-  await updateDoc(doc(getFirebaseDb(), "businesses", businessId), updates);
+  queueDocUpdate("businesses", businessId, updates);
 }
 
 type BusinessAnalyticsField =
@@ -429,10 +431,10 @@ export async function trackBusinessAnalytics(
   field: BusinessAnalyticsField,
 ): Promise<void> {
   try {
-    await updateDoc(doc(getFirebaseDb(), "businesses", businessId), {
-      [`analytics.${field}`]: increment(1),
-      updatedAt: serverTimestamp(),
-    });
+    queueDocUpdate("businesses", businessId, {
+        [`analytics.${field}`]: increment(1),
+        updatedAt: serverTimestamp(),
+      });
   } catch {
     // Non-blocking — market still works if rules reject the write
   }
@@ -736,7 +738,7 @@ export async function submitFraudReport(input: {
   description: string;
   evidenceUrls?: string[];
 }): Promise<string> {
-  const ref = await addDoc(collection(getFirebaseDb(), "reports"), {
+  const id = queueDocCreate("reports", {
     reporterUid: input.reporterUid,
     reportedBusinessId: input.reportedBusinessId,
     reportedUserUid: input.reportedUserUid,
@@ -752,7 +754,7 @@ export async function submitFraudReport(input: {
     updatedAt: serverTimestamp(),
     resolvedAt: null,
   });
-  return ref.id;
+  return id;
 }
 
 export async function sendLike(input: {
@@ -761,12 +763,12 @@ export async function sendLike(input: {
   toBusinessId: string;
 }): Promise<void> {
   const likeId = `${input.fromBusinessId}_${input.toBusinessId}`;
-  await setDoc(doc(getFirebaseDb(), "likes", likeId), {
-    fromBusinessId: input.fromBusinessId,
-    toBusinessId: input.toBusinessId,
-    fromUid: input.fromUid,
-    createdAt: serverTimestamp(),
-  });
+  queueDocSet("likes", likeId, {
+      fromBusinessId: input.fromBusinessId,
+      toBusinessId: input.toBusinessId,
+      fromUid: input.fromUid,
+      createdAt: serverTimestamp(),
+    });
 }
 
 /** Gem-trade offer limits — deliberate pricing, not chat spam. */
@@ -905,7 +907,7 @@ export async function submitListingOffer(input: {
   const now = serverTimestamp();
   const biz = input.buyerBusiness;
 
-  const ref = await addDoc(collection(getFirebaseDb(), "listing_offers"), {
+  const id = queueDocCreate("listing_offers", {
     listingId: input.listing.id,
     listingSlug: input.listing.shareableSlug,
     listingTitle: input.listing.title,
@@ -928,18 +930,18 @@ export async function submitListingOffer(input: {
     updatedAt: now,
   });
 
-  return ref.id;
+  return id;
 }
 
 export async function withdrawListingOffer(offerId: string): Promise<void> {
-  await updateDoc(doc(getFirebaseDb(), "listing_offers", offerId), {
-    status: "withdrawn",
-    updatedAt: serverTimestamp(),
-  });
+  queueDocUpdate("listing_offers", offerId, {
+      status: "withdrawn",
+      updatedAt: serverTimestamp(),
+    });
 }
 
 export async function deleteListingOffer(offerId: string): Promise<void> {
-  await deleteDoc(doc(getFirebaseDb(), "listing_offers", offerId));
+  queueDocDelete("listing_offers", offerId);
 }
 
 export async function markListingOffersRead(
@@ -947,42 +949,33 @@ export async function markListingOffersRead(
 ): Promise<void> {
   const unread = offers.filter((o) => isListingOfferUnread(o));
   if (unread.length === 0) return;
-  const db = getFirebaseDb();
-  const batch = db.batch();
   const now = serverTimestamp();
   for (const o of unread) {
-    batch.update(doc(db, "listing_offers", o.id), {
-      sellerReadAt: now,
-      updatedAt: now,
-    });
+    queueDocUpdate("listing_offers", o.id, {
+        sellerReadAt: now,
+        updatedAt: now,
+      });
   }
-  await batch.commit();
 }
 
 export async function clearListingOffers(
   offers: ListingOffer[],
 ): Promise<void> {
   if (offers.length === 0) return;
-  const db = getFirebaseDb();
-  const batch = db.batch();
   const now = serverTimestamp();
   for (const o of offers) {
-    batch.update(doc(db, "listing_offers", o.id), {
-      sellerCleared: true,
-      updatedAt: now,
-    });
+    queueDocUpdate("listing_offers", o.id, {
+        sellerCleared: true,
+        updatedAt: now,
+      });
   }
-  await batch.commit();
 }
 
 export async function removeListingOffers(
   offers: ListingOffer[],
 ): Promise<void> {
   if (offers.length === 0) return;
-  const db = getFirebaseDb();
-  const batch = db.batch();
   for (const o of offers) {
-    batch.delete(doc(db, "listing_offers", o.id));
+    queueDocDelete("listing_offers", o.id);
   }
-  await batch.commit();
 }

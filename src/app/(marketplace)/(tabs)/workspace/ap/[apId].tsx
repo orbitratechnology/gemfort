@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ChipSelect } from "@/components/ui/chip-select";
 import {
@@ -13,10 +14,10 @@ import {
   ScreenInset,
 } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sale-split";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -32,8 +33,8 @@ import {
   apPaymentSent,
   cancelApRequest,
   deleteApRecord,
+  ensureApReceiverPayoutExpense,
   fetchApRecordsForUser,
-  recordApGemSale,
   requestApCancellation,
   respondApCancellation,
   respondApRequest,
@@ -64,21 +65,13 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import {
-  formatCurrency,
-  formatDate,
-  formatRelativeDue,
-} from "@/lib/utils";
-import {
-  parseForm,
-  recordPaymentSchema,
-  sellApGemSchema,
-} from "@/lib/validation/form-schemas";
+import { haptics } from "@/lib/haptics";
+import { formatDate, formatRelativeDue } from "@/lib/utils";
+import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
-  ApGemLine,
   ApLifecycleStatus,
   ApPaymentMethod,
   ApRecord,
@@ -192,12 +185,9 @@ export default function ApDetailScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [sellGemId, setSellGemId] = useState<string | null>(null);
-  const [soldPrice, setSoldPrice] = useState("");
-  const [soldToName, setSoldToName] = useState("");
-  const [paymentDueDays, setPaymentDueDays] = useState("14");
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
   const [payAmount, setPayAmount] = useState("");
+  const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [receiveMethodOverride, setReceiveMethodOverride] =
     useState<ApPaymentMethod | null>(null);
 
@@ -212,6 +202,11 @@ export default function ApDetailScreen() {
   const ap = records.find((r) => r.id === apId);
   const isSender = !!user && !!ap && ap.senderUid === user.uid;
   const isReceiver = !!user && !!ap && ap.receiverUid === user.uid;
+
+  useEffect(() => {
+    if (!ap || !isReceiver || ap.status !== "done") return;
+    void ensureApReceiverPayoutExpense(ap).catch(() => {});
+  }, [ap, isReceiver]);
 
   const owed = useMemo(() => (ap ? apOwnerOwedTotal(ap) : 0), [ap]);
 
@@ -279,9 +274,6 @@ export default function ApDetailScreen() {
         await action();
         toast.success(ok);
         await invalidate();
-        setSellGemId(null);
-        setSoldPrice("");
-        setSoldToName("");
       }, "Updating…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not update AP."));
@@ -332,6 +324,9 @@ export default function ApDetailScreen() {
   const counterpartyName = isSender
     ? ap.receiverName || "Holder"
     : ap.senderName || "Sender";
+  const ownerPhoto = isReceiver
+    ? resolveBusinessPhotoByOwnerUid(ap.senderUid, businesses)
+    : null;
 
   const toneColor =
     meta.tone === "success"
@@ -349,10 +344,6 @@ export default function ApDetailScreen() {
         : meta.tone === "warning"
           ? colors.warningAmber + "18"
           : colors.surfaceContainerHighest;
-
-  function lineCommission(line: ApGemLine, sale: number) {
-    return sale - line.agreedPrice;
-  }
 
   return (
     <SafeAreaView
@@ -611,7 +602,8 @@ export default function ApDetailScreen() {
         {/* Gem lines + actions */}
         <FormSection title="Gems">
           {items.map((line) => {
-            const selling = sellGemId === line.gemId;
+            const sold = line.lineStatus === "sold" && line.soldPrice != null;
+            const yours = line.commission ?? 0;
             return (
               <View key={line.gemId} style={styles.lineCard}>
                 <View style={styles.lineTop}>
@@ -628,45 +620,83 @@ export default function ApDetailScreen() {
                     >
                       {line.gemLabel}
                     </Text>
-                    <Text style={[styles.meta, { color: colors.textMuted }]}>
-                      AP{" "}
-                      {formatStored({
-                        amount: line.agreedPrice,
-                        currency: line.currency,
-                        amountBase: line.agreedPriceBase,
-                      })}
-                      {line.soldPrice != null
-                        ? ` · Sold ${formatStored({
-                            amount: line.soldPrice,
+                    {!sold ? (
+                      <View style={styles.apPriceRow}>
+                        <Icon
+                          name="handshake"
+                          size={14}
+                          color={colors.onSurfaceVariant}
+                        />
+                        <Text
+                          style={[
+                            styles.apPrice,
+                            { color: colors.onSurfaceVariant },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {formatStored({
+                            amount: line.agreedPrice,
                             currency: line.currency,
-                            amountBase: line.soldPriceBase ?? undefined,
-                          })}`
-                        : ""}
-                      {line.commission != null
-                        ? ` · Comm ${formatStored({
-                            amount: line.commission,
-                            currency: line.currency,
-                            amountBase: line.commissionBase ?? undefined,
-                          })}`
-                        : ""}
-                    </Text>
+                            amountBase: line.agreedPriceBase,
+                          })}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                   <View
                     style={[
                       styles.lineBadge,
-                      { backgroundColor: colors.surfaceContainerHighest },
+                      {
+                        backgroundColor: sold
+                          ? colors.successEmerald + "22"
+                          : colors.surfaceContainerHighest,
+                      },
                     ]}
                   >
                     <Text
                       style={[
                         styles.lineBadgeText,
-                        { color: colors.onSurfaceVariant },
+                        {
+                          color: sold
+                            ? colors.successEmerald
+                            : colors.onSurfaceVariant,
+                        },
                       ]}
                     >
                       {line.lineStatus}
                     </Text>
                   </View>
                 </View>
+
+                {sold && line.ownerReceives != null ? (
+                  isReceiver ? (
+                    <ApGemSaleSplit
+                      soldLabel={formatStored({
+                        amount: line.soldPrice!,
+                        currency: line.currency,
+                        amountBase: line.soldPriceBase ?? undefined,
+                      })}
+                      senderLabel={formatStored({
+                        amount: line.ownerReceives,
+                        currency: line.currency,
+                        amountBase: line.ownerReceivesBase ?? undefined,
+                      })}
+                      yoursLabel={formatStored({
+                        amount: yours,
+                        currency: line.currency,
+                        amountBase: line.commissionBase ?? undefined,
+                      })}
+                    />
+                  ) : isSender ? (
+                    <ApGemSenderDue
+                      amountLabel={formatStored({
+                        amount: line.ownerReceives,
+                        currency: line.currency,
+                        amountBase: line.ownerReceivesBase ?? undefined,
+                      })}
+                    />
+                  ) : null
+                ) : null}
 
                 {isReceiver &&
                 isApOngoing(ap.status) &&
@@ -675,11 +705,12 @@ export default function ApDetailScreen() {
                     <Button
                       title="Sell"
                       icon="sell"
-                      onPress={() => {
-                        setSellGemId(line.gemId);
-                        setSoldPrice("");
-                        setSoldToName("");
-                      }}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(marketplace)/ap/sell",
+                          params: { apId: ap.id, gemId: line.gemId },
+                        })
+                      }
                       style={styles.flex}
                     />
                     <Button
@@ -694,80 +725,6 @@ export default function ApDetailScreen() {
                       }
                       style={styles.flex}
                     />
-                  </View>
-                ) : null}
-
-                {selling ? (
-                  <View style={styles.sellBox}>
-                    <MaskedInput
-                      label="Sold price"
-                      mode="currency"
-                      value={soldPrice}
-                      onChangeText={setSoldPrice}
-                      leftIcon="payments"
-                    />
-                    <Input
-                      label="Sold to"
-                      value={soldToName}
-                      onChangeText={setSoldToName}
-                      leftIcon="person"
-                    />
-                    <MaskedInput
-                      label="Payment due (days)"
-                      mode="custom"
-                      mask="999"
-                      value={paymentDueDays}
-                      onChangeText={setPaymentDueDays}
-                      keyboardType="number-pad"
-                      leftIcon="schedule"
-                    />
-                    {soldPrice.trim() ? (
-                      <Text style={{ color: colors.textMuted }}>
-                        Commission{" "}
-                        {formatCurrency(
-                          lineCommission(line, parseFloat(soldPrice) || 0),
-                          line.currency,
-                        )}
-                      </Text>
-                    ) : null}
-                    <View style={styles.row}>
-                      <Button
-                        title="Cancel"
-                        variant="secondary"
-                        onPress={() => setSellGemId(null)}
-                        style={styles.flex}
-                      />
-                      <Button
-                        title="Confirm sale"
-                        onPress={() => {
-                          const result = parseForm(sellApGemSchema, {
-                            soldPrice,
-                            soldToName: soldToName || undefined,
-                            paymentDueDays,
-                          });
-                          if (!result.success) {
-                            toast.error(Object.values(result.errors)[0]!);
-                            return;
-                          }
-                          const due = new Date();
-                          due.setDate(
-                            due.getDate() + result.data.paymentDueDays,
-                          );
-                          run(
-                            () =>
-                              recordApGemSale({
-                                apId: ap.id,
-                                gemId: line.gemId,
-                                soldPrice: result.data.soldPrice,
-                                soldToName: result.data.soldToName,
-                                paymentDueDateIso: due.toISOString(),
-                              }),
-                            "Sale recorded",
-                          );
-                        }}
-                        style={styles.flex}
-                      />
-                    </View>
                   </View>
                 ) : null}
               </View>
@@ -872,24 +829,54 @@ export default function ApDetailScreen() {
         {isReceiver &&
         isApOngoing(ap.status) &&
         items.some((i) => i.lineStatus === "sold") ? (
-          <FormSection title="Payment to owner">
-            <Text style={[styles.meta, { color: colors.textMuted }]}>
-              Owed {formatBase(owed)}
-            </Text>
-            <ChipSelect
-              label="Method"
-              options={PAY_METHODS}
-              value={payMethod}
-              onChange={setPayMethod}
-              layout="split"
-            />
-            <MaskedInput
-              label="Amount"
-              mode="currency"
-              value={payAmount || (owed > 0 ? String(owed) : "")}
-              onChangeText={setPayAmount}
-              leftIcon="payments"
-            />
+          <ScreenInset>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Pay owner ${formatBase(owed)}`}
+              onPress={haptics.wrap("light", () => {
+                if (!payAmount && owed > 0) setPayAmount(String(owed));
+                setPaySheetOpen(true);
+              })}
+              style={({ pressed }) => [
+                styles.owedCard,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.92 : 1,
+                  transform: [{ scale: pressed ? 0.985 : 1 }],
+                },
+              ]}
+            >
+              <ContactAvatar
+                name={counterpartyName}
+                photoUrl={ownerPhoto}
+                size={52}
+              />
+              <View style={styles.owedBody}>
+                <Icon name="call-made" size={18} color={colors.onPrimary} />
+                <Text
+                  style={[styles.owedAmount, { color: colors.onPrimary }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {formatBase(owed)}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.owedChevron,
+                  { backgroundColor: colors.onPrimary + "22" },
+                ]}
+              >
+                <Icon name="payments" size={22} color={colors.onPrimary} />
+              </View>
+            </Pressable>
+          </ScreenInset>
+        ) : null}
+
+        <BottomSheet
+          visible={paySheetOpen}
+          onClose={() => setPaySheetOpen(false)}
+          footer={
             <Button
               title={
                 payMethod === "cheque"
@@ -908,6 +895,7 @@ export default function ApDetailScreen() {
                   return;
                 }
                 const amount = result.data.amount;
+                setPaySheetOpen(false);
                 if (payMethod === "cheque") {
                   router.push({
                     pathname: "/(marketplace)/cheques/add",
@@ -932,8 +920,37 @@ export default function ApDetailScreen() {
                 );
               }}
             />
-          </FormSection>
-        ) : null}
+          }
+        >
+          <View style={styles.payHero}>
+            <ContactAvatar
+              name={counterpartyName}
+              photoUrl={ownerPhoto}
+              size={72}
+            />
+            <Icon name="call-made" size={22} color={colors.primary} />
+            <Text
+              style={[styles.payHeroAmount, { color: colors.primary }]}
+              selectable
+            >
+              {formatBase(owed)}
+            </Text>
+          </View>
+
+          <ChipSelect
+            options={PAY_METHODS}
+            value={payMethod}
+            onChange={setPayMethod}
+            layout="stack"
+          />
+
+          <MaskedInput
+            mode="currency"
+            value={payAmount || (owed > 0 ? String(owed) : "")}
+            onChangeText={setPayAmount}
+            leftIcon="payments"
+          />
+        </BottomSheet>
 
         {isSender && ap.status === "payment_sent" ? (
           <FormSection title="Confirm payment">
@@ -1195,13 +1212,61 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "capitalize",
   },
+  apPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  apPrice: {
+    ...Typography.bodySmall,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
   meta: { ...Typography.bodySmall },
   row: { flexDirection: "row", gap: Spacing.sm },
   flex: { flex: 1 },
-  sellBox: { gap: Spacing.sm },
   waitRow: {
     flexDirection: "row",
     gap: Spacing.sm,
     alignItems: "flex-start",
+  },
+
+  owedCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+  },
+  owedBody: {
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+  },
+  owedAmount: {
+    ...Typography.headlineSm,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  owedChevron: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  payHero: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: Spacing.sm,
+  },
+  payHeroAmount: {
+    ...Typography.displayLg,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    textAlign: "center",
   },
 });

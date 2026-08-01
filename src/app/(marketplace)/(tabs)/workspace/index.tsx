@@ -43,7 +43,10 @@ import {
     fetchLapidaryJobs,
 } from "@/features/marketplace/request-service";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
-import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
+import {
+  isTerminalOutcome,
+  resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import {
     detectBillsDueToday,
     getBillSummary,
@@ -285,7 +288,10 @@ export default function WorkspaceHub() {
   const chequeSummary = getChequeSummary(cheques);
   const billsDueToday = detectBillsDueToday(bills);
   const billSummary = getBillSummary(bills);
-  const ongoingTrips = trips.filter((t) => t.status === "ongoing");
+  // Active trips (planning + ongoing) — completed/cancelled stay off the tile.
+  const activeTrips = trips.filter(
+    (t) => t.status === "planning" || t.status === "ongoing",
+  );
   const takenPendingAp = apRecords.filter(
     (a) => a.status === "pending" && a.receiverUid === userId,
   );
@@ -296,12 +302,16 @@ export default function WorkspaceHub() {
   const { income: monthIncome, expense: monthExpense } =
     getMonthTotals(transactions);
   const monthNet = monthIncome - monthExpense;
-  const totalInventoryValue = gems.reduce(
+  // Active inventory (excludes sold / archived terminal outcomes) — matches My Gems list.
+  const activeGems = gems.filter(
+    (g) => !isTerminalOutcome(resolveGemLifecycle(g).outcome),
+  );
+  const totalInventoryValue = activeGems.reduce(
     (sum, g) => sum + (g.acquisitionCostBase || g.acquisitionCost || 0),
     0,
   );
 
-  const readyGems = gems.filter((g) => {
+  const readyGems = activeGems.filter((g) => {
     const life = resolveGemLifecycle(g);
     return (
       life.stoneStage === "polished" ||
@@ -310,7 +320,7 @@ export default function WorkspaceHub() {
       g.status === "certified"
     );
   }).length;
-  const inService = gems.filter((g) => {
+  const inService = activeGems.filter((g) => {
     const life = resolveGemLifecycle(g);
     return (
       life.custody === "with_cutter" ||
@@ -318,10 +328,7 @@ export default function WorkspaceHub() {
       life.custody === "with_polisher"
     );
   }).length;
-  const listedGems = gems.filter((g) => {
-    const life = resolveGemLifecycle(g);
-    return life.outcome === "listed";
-  }).length;
+  const activeInventoryGems = activeGems.length;
   const ongoingServices = services.filter((s) =>
     ["given", "in_progress", "overdue", "cancellation_requested"].includes(
       s.status,
@@ -332,7 +339,7 @@ export default function WorkspaceHub() {
   const allModules: ModuleItem[] = [
     {
       label: "Gems",
-      value: listedGems,
+      value: activeInventoryGems,
       icon: "diamond",
       image: require("@/assets/images/mygems-icon.png"),
       route: `${WORKSPACE}/gems`,
@@ -363,7 +370,7 @@ export default function WorkspaceHub() {
     },
     {
       label: "Trips",
-      value: ongoingTrips.length,
+      value: activeTrips.length,
       icon: "flight",
       image: require("@/assets/images/trips-icon.png"),
       route: `${WORKSPACE}/trips`,
@@ -689,7 +696,8 @@ export default function WorkspaceHub() {
                   <Text
                     style={[styles.heroPillText, { color: colors.onPrimary }]}
                   >
-                    {gems.length} {gems.length === 1 ? "gem" : "gems"}
+                    {activeInventoryGems}{" "}
+                    {activeInventoryGems === 1 ? "gem" : "gems"}
                   </Text>
                 </View>
                 {readyGems > 0 ? (

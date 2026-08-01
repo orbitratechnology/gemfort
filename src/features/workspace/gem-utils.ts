@@ -10,6 +10,8 @@ export type GemListFilters = {
   search?: string;
   status?: GemStatus | "all";
   gemType?: string | "all";
+  /** When true, only sold/returned. When false/omitted, hide sold/returned. */
+  archiveOnly?: boolean;
 };
 
 export function filterGems(
@@ -27,6 +29,16 @@ export function filterGems(
         g.gemType.toLowerCase().includes(term) ||
         g.originCountry.toLowerCase().includes(term) ||
         g.notes?.toLowerCase().includes(term),
+    );
+  }
+
+  if (filters.archiveOnly) {
+    result = result.filter((g) =>
+      isTerminalOutcome(resolveGemLifecycle(g).outcome),
+    );
+  } else {
+    result = result.filter(
+      (g) => !isTerminalOutcome(resolveGemLifecycle(g).outcome),
     );
   }
 

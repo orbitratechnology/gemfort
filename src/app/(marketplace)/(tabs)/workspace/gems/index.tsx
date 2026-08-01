@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
@@ -19,7 +18,7 @@ import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { GemCard } from '@/components/workspace/gem-card';
-import { GEM_STATUS_FILTERS, GEM_TYPES } from '@/constants/gem-options';
+import { GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
@@ -32,30 +31,21 @@ import { useUnreadOffersByListingId } from '@/hooks/use-unread-listing-offers';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
-import type { GemStatus } from '@/types';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 
-const GRID_GAP = Spacing.gutterMd; // 16 — clear air between tiles
-const CHIP_HEIGHT = 36;
-const LIST_H_PAD = Spacing.containerMargin;
+const GRID_GAP = Spacing.stackSm;
 
 export default function GemsListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ status?: string }>();
-  const initialStatus = (params.status as GemStatus | undefined) ?? 'all';
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
-  const [statusFilter, setStatusFilter] = useState<GemStatus | 'all'>(initialStatus);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [draft, setDraft] = useState<{ status: GemStatus | 'all'; type: string }>({
-    status: initialStatus,
-    type: 'all',
-  });
+  const [draftType, setDraftType] = useState('all');
 
   const { data: gems = [], refetch, isRefetching } = useFirestoreLiveQuery({
     queryKey: ['gems', user?.uid],
@@ -67,20 +57,23 @@ export default function GemsListScreen() {
   const unreadByListing = useUnreadOffersByListingId();
 
   const filtered = useMemo(
-    () => filterGems(gems, { search: debouncedSearch, status: statusFilter, gemType: typeFilter }),
-    [gems, debouncedSearch, statusFilter, typeFilter],
+    () =>
+      filterGems(gems, {
+        search: debouncedSearch,
+        gemType: typeFilter,
+      }),
+    [gems, debouncedSearch, typeFilter],
   );
 
-  const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all';
+  const hasActiveFilters = typeFilter !== 'all';
 
   function openFilter() {
-    setDraft({ status: statusFilter, type: typeFilter });
+    setDraftType(typeFilter);
     setFilterOpen(true);
   }
 
   function applyFilter() {
-    setStatusFilter(draft.status);
-    setTypeFilter(draft.type);
+    setTypeFilter(draftType);
     setFilterOpen(false);
   }
 
@@ -98,7 +91,28 @@ export default function GemsListScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <WorkspaceScreenBackdrop kind="gems" />
-      <StackHeader title="My Gems" />
+      <StackHeader
+        title="My Gems"
+        right={
+          <Pressable
+            onPress={() =>
+              router.push('/(marketplace)/(tabs)/workspace/gems/archive' as never)
+            }
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Archived gems"
+            style={({ pressed }) => [
+              styles.headerIconBtn,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Icon name="archive" size={20} color={colors.onSurfaceVariant} />
+          </Pressable>
+        }
+      />
 
       <View style={styles.searchRow}>
         <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
@@ -137,52 +151,13 @@ export default function GemsListScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.filtersWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}>
-          {GEM_STATUS_FILTERS.map((f) => {
-            const active = statusFilter === f.value;
-            return (
-              <Pressable
-                key={f.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={({ pressed }) => [
-                  styles.chip,
-                  active
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : {
-                        backgroundColor: colors.surfaceContainerLowest,
-                        borderColor: colors.outlineVariant,
-                      },
-                  pressed && { opacity: 0.9 },
-                ]}
-                onPress={() => setStatusFilter(f.value)}>
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                  ]}>
-                  {f.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       {hasActiveFilters ? (
         <View style={styles.resultMeta}>
           <Text style={[styles.resultCount, { color: colors.onSurfaceVariant }]}>
             {filtered.length} {filtered.length === 1 ? 'gem' : 'gems'}
           </Text>
           <Pressable
-            onPress={() => {
-              setStatusFilter('all');
-              setTypeFilter('all');
-            }}
+            onPress={() => setTypeFilter('all')}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Clear filters">
@@ -195,6 +170,7 @@ export default function GemsListScreen() {
         data={filtered}
         keyExtractor={(item) => item.id}
         numColumns={2}
+        masonry
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
         ListEmptyComponent={
@@ -202,7 +178,9 @@ export default function GemsListScreen() {
             icon="diamond"
             title={gems.length ? 'No gems match' : 'No gems yet'}
             subtitle={
-              gems.length ? 'Try clearing filters or search' : 'Add your first gem to start tracking'
+              gems.length
+                ? 'Try clearing filters or search'
+                : 'Add your first gem to start tracking'
             }
           />
         }
@@ -215,6 +193,12 @@ export default function GemsListScreen() {
                 item.marketplaceListingId
                   ? (unreadByListing[item.marketplaceListingId] ?? 0)
                   : 0
+              }
+              onEdit={() =>
+                router.push({
+                  pathname: '/(marketplace)/gems/edit',
+                  params: { gemId: item.id },
+                } as never)
               }
               onDelete={
                 canDeleteGem(item)
@@ -248,20 +232,14 @@ export default function GemsListScreen() {
             <Button
               title="Reset"
               variant="ghost"
-              onPress={() => setDraft({ status: 'all', type: 'all' })}
+              onPress={() => setDraftType('all')}
             />
           </>
         }>
         <FilterChipGroup
-          label="Status"
-          value={draft.status}
-          onChange={(v) => setDraft((d) => ({ ...d, status: v }))}
-          options={GEM_STATUS_FILTERS.map((f) => ({ id: f.value, label: f.label }))}
-        />
-        <FilterChipGroup
           label="Gem Type"
-          value={draft.type}
-          onChange={(v) => setDraft((d) => ({ ...d, type: v }))}
+          value={draftType}
+          onChange={setDraftType}
           options={[
             { id: 'all', label: 'All' },
             ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label })),
@@ -274,10 +252,17 @@ export default function GemsListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchRow: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: LIST_H_PAD,
+    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.stackMd,
   },
   searchBox: {
@@ -297,62 +282,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
   },
-
-  filtersWrap: {
-    height: CHIP_HEIGHT,
-    marginBottom: Spacing.stackMd,
-  },
-  filtersContent: {
-    paddingHorizontal: LIST_H_PAD,
-    gap: 8,
-    alignItems: 'center',
-  },
-  chip: {
-    height: CHIP_HEIGHT,
-    paddingHorizontal: 14,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: {
-    ...Typography.labelMd,
-    lineHeight: 18,
-    includeFontPadding: false,
-  },
-
   resultMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: LIST_H_PAD,
-    marginBottom: Spacing.stackSm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.stackSm,
   },
-  resultCount: { ...Typography.labelMd },
-  clearFilters: { ...Typography.labelMd, fontWeight: '600' },
-
+  resultCount: { ...Typography.caption },
+  clearFilters: { ...Typography.labelMd, fontWeight: '700' },
   list: {
-    paddingHorizontal: LIST_H_PAD - GRID_GAP / 2,
-    paddingTop: Spacing.stackSm,
-    paddingBottom: 100,
-    flexGrow: 1,
+    // Half-gap here + cell pad = ~8px edge inset / inter-item gaps
+    paddingHorizontal: GRID_GAP / 2,
+    paddingBottom: 120,
   },
   cell: {
-    flex: 1,
-    paddingHorizontal: GRID_GAP / 2,
-    marginBottom: GRID_GAP,
+    padding: GRID_GAP / 2,
   },
-
   fab: {
     position: 'absolute',
+    right: Spacing.containerMargin,
     bottom: 24,
-    right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.28)',
-    zIndex: 100,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
   },
 });

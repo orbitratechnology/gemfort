@@ -587,6 +587,41 @@ export function formatOptionLabel(
   return value.replace(/_/g, ' ');
 }
 
+/** Map a stored slug or label back to a picker option value. */
+export function resolveOptionValue(
+  options: readonly { value: string; label: string }[],
+  stored: string | null | undefined,
+): string {
+  if (!stored) return '';
+  const trimmed = stored.trim();
+  if (options.some((o) => o.value === trimmed)) return trimmed;
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, '_');
+  const byNormalized = options.find((o) => o.value === normalized);
+  if (byNormalized) return byNormalized.value;
+  const byLabel = options.find(
+    (o) => o.label.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return byLabel?.value ?? '';
+}
+
+/** Map stored color shade value or "Family · Shade" label to a shade value. */
+export function resolveColorShadeValue(
+  stored: string | null | undefined,
+): string {
+  if (!stored) return '';
+  if (findColorShade(stored)) return stored;
+  const trimmed = stored.trim();
+  for (const family of GEM_COLOR_FAMILIES) {
+    for (const shade of family.shades) {
+      if (`${family.label} · ${shade.label}` === trimmed) return shade.value;
+      if (shade.label.toLowerCase() === trimmed.toLowerCase()) {
+        return shade.value;
+      }
+    }
+  }
+  return '';
+}
+
 /** Shape / cut display — accepts stored slugs or legacy label strings. */
 export function formatShapeLabel(value: string | null | undefined): string {
   if (!value) return '';

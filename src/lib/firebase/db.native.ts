@@ -2,6 +2,7 @@ export {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   addDoc,
   updateDoc,

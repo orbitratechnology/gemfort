@@ -396,7 +396,10 @@ service cloud.firestore {
             && request.resource.data.type in [
               'service_request_received', 'service_request_accepted', 'service_request_rejected',
               'service_job_updated', 'cert_request_received', 'cert_request_accepted',
-              'cert_request_rejected', 'cert_ready', 'listing_offer_received'
+              'cert_request_rejected', 'cert_ready', 'listing_offer_received',
+              'ap_request_received', 'ap_request_accepted', 'ap_request_rejected',
+              'ap_request_cancelled', 'ap_gem_sold', 'ap_payment_sent', 'ap_payment_received',
+              'ap_cancellation_requested', 'ap_cancellation_rejected', 'ap_cancellation_accepted'
             ]
             && request.resource.data.isRead == false);
       allow delete: if isOwner(resource.data.recipientUid)
@@ -520,6 +523,22 @@ service cloud.firestore {
                          && isNotSuspended();
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.ownerUid);
+      // AP counterparty may transition a locked gem (unlock / mark sold).
+      allow update: if isSignedIn() && isNotSuspended()
+        && resource.data.currentApId is string
+        && exists(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId))
+        && (
+          get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.receiverUid == uid()
+          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.senderUid == uid()
+          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.ownerUid == uid()
+        )
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly([
+               'status', 'currentHolderContactId', 'currentApId', 'updatedAt',
+               'soldPrice', 'soldPriceCurrency', 'soldPriceBase', 'soldDate',
+               'stoneStage', 'custody', 'outcome', 'isListedOnMarketplace'
+             ]);
       allow read, write: if isAdmin();
     }
 
@@ -559,10 +578,28 @@ service cloud.firestore {
         && (resource.data.ownerUid == uid()
             || resource.data.senderUid == uid()
             || resource.data.receiverUid == uid());
-      // Creates go through callables; block client creates of lifecycle APs.
-      allow create: if false;
-      allow update: if false;
-      allow delete: if isAdmin();
+      // Offline-first client creates (sender only, pending).
+      allow create: if isAnySignedIn()
+        && isNotSuspended()
+        && request.resource.data.senderUid == uid()
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.receiverUid is string
+        && request.resource.data.receiverUid != uid()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0;
+      allow update: if isSignedIn() && isNotSuspended()
+        && (resource.data.ownerUid == uid()
+            || resource.data.senderUid == uid()
+            || resource.data.receiverUid == uid())
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.senderUid == resource.data.senderUid
+        && request.resource.data.receiverUid == resource.data.receiverUid;
+      allow delete: if isSignedIn() && isNotSuspended()
+        && (resource.data.ownerUid == uid()
+            || resource.data.senderUid == uid()
+            || resource.data.receiverUid == uid())
+        && resource.data.status in ['done', 'cancelled', 'rejected'];
       allow read, write: if isAdmin();
     }
 
@@ -571,9 +608,18 @@ service cloud.firestore {
         && (resource.data.senderUid == uid()
             || resource.data.receiverUid == uid()
             || resource.data.ownerUid == uid());
-      allow create: if false;
+      allow create: if isAnySignedIn()
+        && isNotSuspended()
+        && request.resource.data.actorUid == uid()
+        && (request.resource.data.senderUid == uid()
+            || request.resource.data.receiverUid == uid()
+            || request.resource.data.ownerUid == uid());
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        || (isSignedIn() && isNotSuspended()
+            && (resource.data.senderUid == uid()
+                || resource.data.receiverUid == uid()
+                || resource.data.ownerUid == uid()));
       allow read, write: if isAdmin();
     }
 

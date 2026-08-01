@@ -3,7 +3,7 @@ import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../admin';
-import { REGION } from '../config';
+import { HOT_CALLABLE, REGION } from '../config';
 import { createNotificationDoc, formatCurrency } from '../notifications/create';
 import { convertToBaseServer, loadServerRates } from './exchange-rates';
 
@@ -86,7 +86,7 @@ async function writeApPaymentEvent(input: {
 
 /** Create multi-gem AP request → status pending. Locks gems on_ap. */
 export const createApRequest = onCall(
-  { region: REGION, timeoutSeconds: 60 },
+  HOT_CALLABLE,
   async (request) => {
     const uid = requireAuth(request.auth?.uid);
     const data = request.data as {
@@ -232,7 +232,7 @@ export const createApRequest = onCall(
 
 /** Receiver accept / reject. */
 export const respondApRequest = onCall(
-  { region: REGION, timeoutSeconds: 60 },
+  HOT_CALLABLE,
   async (request) => {
     const uid = requireAuth(request.auth?.uid);
     const { apId, action, rejectionReason } = request.data as {
@@ -423,15 +423,16 @@ export const recordApGemSale = onCall(
     batch.update(ref, { items, updatedAt: now });
     batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
       status: 'sold',
-      soldPrice,
+      // Owner's gem ledger shows only what they receive — not the holder's full sale.
+      soldPrice: ownerReceives,
       soldPriceCurrency: saleCurrency,
-      soldPriceBase: saleAmountBase,
+      soldPriceBase: ownerReceivesBase,
       soldDate: now,
       updatedAt: now,
     });
     await batch.commit();
 
-    // Receiver books sale income now
+    // Receiver books sale income now (full actual sale)
     await db.collection('gemtrack_transactions').add({
       ownerUid: uid,
       type: 'income',
@@ -450,7 +451,8 @@ export const recordApGemSale = onCall(
       recipientUid: ap.senderUid,
       type: 'ap_gem_sold',
       title: 'AP gem sold',
-      message: `${ap.receiverName} sold ${line.gemLabel} for ${formatCurrency(soldPrice, line.currency)}. You are owed ${formatCurrency(ownerReceives, line.currency)}.`,
+      // Never reveal holder's full sale or commission to the sender.
+      message: `${ap.receiverName} sold ${line.gemLabel}. You are owed ${formatCurrency(ownerReceives, line.currency)}.`,
       referenceType: 'ap',
       referenceId: data.apId,
     });
@@ -496,7 +498,7 @@ export const returnApGem = onCall(
 
 /** Receiver marks payment sent for sold lines. */
 export const apPaymentSent = onCall(
-  { region: REGION, timeoutSeconds: 60 },
+  HOT_CALLABLE,
   async (request) => {
     const uid = requireAuth(request.auth?.uid);
     const data = request.data as {
@@ -569,7 +571,7 @@ export const apPaymentSent = onCall(
 
 /** Sender confirms payment received → done + money both sides. */
 export const apPaymentReceived = onCall(
-  { region: REGION, timeoutSeconds: 60 },
+  HOT_CALLABLE,
   async (request) => {
     const uid = requireAuth(request.auth?.uid);
     const data = request.data as {

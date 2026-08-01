@@ -228,6 +228,8 @@ export type WorkspaceGem = {
   outcome?: GemOutcome | null;
   currentLocation: string | null;
   currentHolderContactId: string | null;
+  /** Set while gem is locked on an AP — lets counterparty update via rules. */
+  currentApId?: string | null;
   totalCost: number;
   totalCostCurrency: string;
   askingPrice: number | null;

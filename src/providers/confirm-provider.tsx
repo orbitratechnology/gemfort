@@ -64,12 +64,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [actions, setActions] = useState<PendingActions | null>(null);
   const pendingRef = useRef<PendingConfirm | null>(null);
-  pendingRef.current = pending;
   const actionsSeq = useRef(0);
 
   const close = useCallback((result: boolean) => {
     const current = pendingRef.current;
     if (!current) return;
+    pendingRef.current = null;
     setLoading(false);
     setPending(null);
     current.resolve(result);
@@ -81,7 +81,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         pendingRef.current.resolve(false);
       }
       setLoading(false);
-      setPending({ ...options, resolve });
+      const next = { ...options, resolve };
+      pendingRef.current = next;
+      setPending(next);
     });
   }, []);
 

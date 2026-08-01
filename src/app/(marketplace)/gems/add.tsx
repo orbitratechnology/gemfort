@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -173,40 +173,40 @@ export default function AddGemScreen() {
     [linkableTrips, selectedTripId],
   );
 
-  useEffect(() => {
-    if (didApplyTripParam || !tripIdParam) return;
+  if (!didApplyTripParam && tripIdParam) {
     if (paramTrip && isSourcingTrip(paramTrip)) {
       setSelectedTripId(paramTrip.id);
       setDidApplyTripParam(true);
     } else if (paramTrip === null) {
       setDidApplyTripParam(true);
     }
-  }, [tripIdParam, paramTrip, didApplyTripParam]);
+  }
 
-  useEffect(() => {
-    if (didApplyShared || !sharedImageUris) return;
+  if (!didApplyShared && sharedImageUris) {
     try {
       const parsed = JSON.parse(sharedImageUris) as unknown;
-      if (!Array.isArray(parsed) || parsed.length === 0) return;
-      const media: LocalMedia[] = parsed
-        .filter(
-          (uri): uri is string => typeof uri === "string" && uri.length > 0,
-        )
-        .slice(0, MAX_GEM_PHOTOS)
-        .map((uri, index) => ({
-          uri,
-          kind: "image" as const,
-          mimeType: "image/jpeg",
-          fileName: `shared-${index + 1}.jpg`,
-        }));
-      if (media.length === 0) return;
-      setPhotos(media);
-      setStep(1);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const media: LocalMedia[] = parsed
+          .filter(
+            (uri): uri is string => typeof uri === "string" && uri.length > 0,
+          )
+          .slice(0, MAX_GEM_PHOTOS)
+          .map((uri, index) => ({
+            uri,
+            kind: "image" as const,
+            mimeType: "image/jpeg",
+            fileName: `shared-${index + 1}.jpg`,
+          }));
+        if (media.length > 0) {
+          setPhotos(media);
+          setStep(1);
+        }
+      }
       setDidApplyShared(true);
     } catch {
-      // Ignore malformed share params.
+      setDidApplyShared(true);
     }
-  }, [sharedImageUris, didApplyShared]);
+  }
 
   const selectedType = useMemo(
     () => GEM_TYPES.find((t) => t.value === gemType) ?? GEM_TYPES[0],
@@ -278,22 +278,9 @@ export default function AddGemScreen() {
     return result.data;
   }
 
-  function validatePhotos() {
-    if (photos.length < 1) {
-      setErrors((prev) => ({
-        ...prev,
-        photos: "Add at least one photo of the gem.",
-      }));
-      toast.error("Add at least one photo of the gem.");
-      return false;
-    }
-    clearField("photos");
-    return true;
-  }
-
   function handlePhotosChange(next: LocalMedia[]) {
     setPhotos(next);
-    if (next.length > 0) clearField("photos");
+    clearField("photos");
   }
 
   function handleNext() {
@@ -303,7 +290,7 @@ export default function AddGemScreen() {
       return;
     }
     if (step === 1) {
-      if (!validatePhotos()) return;
+      clearField("photos");
       setStep(2);
       return;
     }
@@ -324,22 +311,36 @@ export default function AddGemScreen() {
       setStep(0);
       return;
     }
-    if (!validatePhotos()) {
-      setStep(1);
-      return;
-    }
     try {
       await withLoading(async () => {
         const stamp = Date.now();
-        const photoUrls = await Promise.all(
-          photos.map((photo, index) => {
-            const ext = extensionForMedia(photo);
-            return uploadLocalMedia(
-              photo,
-              `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
-            );
-          }),
-        );
+        let photoUrls: string[] = [];
+        let photosDeferred = false;
+        if (photos.length > 0) {
+          try {
+            photoUrls = await Promise.race([
+              Promise.all(
+                photos.map((photo, index) => {
+                  const ext = extensionForMedia(photo);
+                  return uploadLocalMedia(
+                    photo,
+                    `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+                  );
+                }),
+              ),
+              new Promise<never>((_, reject) => {
+                setTimeout(
+                  () => reject(new Error("photo-upload-timeout")),
+                  8_000,
+                );
+              }),
+            ]);
+          } catch {
+            // Storage needs network — still save the gem offline-first.
+            photosDeferred = true;
+            photoUrls = [];
+          }
+        }
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
@@ -368,21 +369,25 @@ export default function AddGemScreen() {
           ? await createGemOnSourcingTrip(user.uid, selectedTripId, gemPayload)
           : await createGem(user.uid, gemPayload);
 
+        void queryClient.invalidateQueries({ queryKey: ["gems"] });
         if (selectedTripId) {
-          await queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: ["trip-gems", selectedTripId],
           });
-          await queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: ["trip", selectedTripId],
           });
-          await queryClient.invalidateQueries({ queryKey: ["trips"] });
+          void queryClient.invalidateQueries({ queryKey: ["trips"] });
         }
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
 
         toast.success(
-          selectedTripId
-            ? "Gem added and linked to trip"
-            : "Gem added to your inventory",
+          photosDeferred
+            ? "Gem saved — add photos when you’re back online"
+            : photos.length === 0
+              ? "Gem added — photos optional, add anytime"
+              : selectedTripId
+                ? "Gem added and linked to trip"
+                : "Gem added to your inventory",
         );
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
       }, "Adding gem…");
@@ -719,6 +724,7 @@ export default function AddGemScreen() {
               max={MAX_GEM_PHOTOS}
               error={errors.photos}
               emptyTitle="Add photos"
+              emptySubtitle="Optional — skip now and add later from Edit"
             />
           </FormSection>
         ) : null}
@@ -781,7 +787,7 @@ export default function AddGemScreen() {
                 label="Photos"
                 value={
                   photos.length === 0
-                    ? "None"
+                    ? "None · add later"
                     : `${photos.length} · primary set`
                 }
               />
@@ -791,7 +797,13 @@ export default function AddGemScreen() {
       </ThemedScrollView>
 
       <FormFooter
-        title={step === 2 ? "Save gem" : "Continue"}
+        title={
+          step === 2
+            ? "Save gem"
+            : step === 1 && photos.length === 0
+              ? "Continue without photos"
+              : "Continue"
+        }
         icon={step === 2 ? "shield" : "arrow-forward"}
         onPress={handleNext}
         secondaryTitle={step > 0 ? "Back" : undefined}

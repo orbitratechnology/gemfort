@@ -1,8 +1,9 @@
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { Button } from "@/components/ui/button";
 import {
   CurrencyAmountField,
@@ -70,6 +71,7 @@ export default function AddApScreen() {
   const toast = useToast();
   const { gemId: preselected } = useLocalSearchParams<{ gemId?: string }>();
   const [lines, setLines] = useState<LineDraft[]>([]);
+  const [prefillGemId, setPrefillGemId] = useState<string | null>(null);
   const [holderId, setHolderId] = useState("");
   const [days, setDays] = useState("30");
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
@@ -89,6 +91,19 @@ export default function AddApScreen() {
     enabled: !!user,
   });
 
+  if (
+    preselected &&
+    gems.length > 0 &&
+    prefillGemId !== preselected &&
+    !lines.some((l) => l.gemId === preselected)
+  ) {
+    const gem = gems.find((g) => g.id === preselected);
+    setPrefillGemId(preselected);
+    if (gem) {
+      setLines([{ gemId: gem.id, price: defaultPrice(gem, preferred) }]);
+    }
+  }
+
   const availableGems = useMemo(
     () =>
       gems.filter(
@@ -98,16 +113,6 @@ export default function AddApScreen() {
       ),
     [gems, lines],
   );
-
-  useEffect(() => {
-    if (!preselected || gems.length === 0) return;
-    setLines((prev) => {
-      if (prev.some((l) => l.gemId === preselected)) return prev;
-      const gem = gems.find((g) => g.id === preselected);
-      if (!gem) return prev;
-      return [{ gemId: gem.id, price: defaultPrice(gem, preferred) }];
-    });
-  }, [preselected, gems, preferred]);
 
   const holder = contacts.find((c) => c.id === holderId);
 
@@ -181,6 +186,15 @@ export default function AddApScreen() {
     } catch (e) {
       toast.error(friendlyError(e, "Could not send AP request."));
     }
+  }
+
+  if (!user) {
+    return (
+      <SignInPrompt
+        title="Give a stone on AP"
+        message="Sign in to hand over inventory with clear return dates."
+      />
+    );
   }
 
   return (

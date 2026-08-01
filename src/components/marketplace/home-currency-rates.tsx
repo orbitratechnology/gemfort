@@ -58,14 +58,14 @@ export function HomeCurrencyRates({
     return list;
   }, [preferred]);
 
-  const updatedLabel = useMemo(() => {
-    if (!data?.updatedAt) return null;
+  let updatedLabel: string | null = null;
+  if (data?.updatedAt) {
     try {
-      return formatRelativeTime(new Date(data.updatedAt));
+      updatedLabel = formatRelativeTime(new Date(data.updatedAt));
     } catch {
-      return null;
+      updatedLabel = null;
     }
-  }, [data?.updatedAt]);
+  }
 
   if (isError && !data) {
     return (

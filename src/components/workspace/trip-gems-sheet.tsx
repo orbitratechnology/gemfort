@@ -9,8 +9,10 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
+import { toTripDate } from "@/features/workspace/trip-utils";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { formatDate } from "@/lib/utils";
 import type { TripGem, WorkspaceGem } from "@/types";
 
 type TripGemsSheetProps = {
@@ -309,6 +311,141 @@ export function TripGemAvatar({
   return <GemThumb gem={gem} selected={selected} size={size} />;
 }
 
+/** Sold parcels on the trip detail screen — count, revenue, gem cards. */
+export function TripSoldGemsSection({
+  soldGems,
+  gemMap,
+  onOpenGem,
+}: {
+  soldGems: TripGem[];
+  gemMap: Map<string, WorkspaceGem>;
+  onOpenGem: (gemId: string) => void;
+}) {
+  const { colors } = useAppTheme();
+  const { formatBase } = usePreferredMoney();
+
+  if (soldGems.length === 0) return null;
+
+  const totalRevenue = soldGems.reduce((s, tg) => s + (tg.salePrice ?? 0), 0);
+
+  return (
+    <View style={styles.soldSection}>
+      <Text style={[styles.soldSectionTitle, { color: colors.onSurface }]}>
+        Sold gems
+      </Text>
+
+      <View style={styles.soldStats}>
+        <View
+          style={[
+            styles.soldStatCard,
+            { backgroundColor: colors.surfaceContainerLowest },
+          ]}
+        >
+          <Text style={[styles.soldStatLabel, { color: colors.textMuted }]}>
+            Sold
+          </Text>
+          <Text
+            selectable
+            style={[styles.soldStatValue, { color: colors.onSurface }]}
+          >
+            {soldGems.length}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.soldStatCard,
+            styles.soldStatCardWide,
+            { backgroundColor: colors.surfaceContainerLowest },
+          ]}
+        >
+          <Text style={[styles.soldStatLabel, { color: colors.textMuted }]}>
+            Revenue
+          </Text>
+          <Text
+            selectable
+            style={[styles.soldStatValue, { color: colors.successEmerald }]}
+          >
+            {formatBase(totalRevenue)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.soldList}>
+        {soldGems.map((tg) => {
+          const gem = gemMap.get(tg.gemId);
+          const title =
+            gem?.title?.trim() || gem?.sku || tg.gemId.slice(0, 8);
+          const typeLabel = gem ? formatGemType(gem.gemType) : null;
+          const weightLabel = gem ? `${gem.currentWeight} ct` : null;
+          const saleDate = toTripDate(tg.saleDate);
+
+          return (
+            <Pressable
+              key={tg.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${title}, sold`}
+              onPress={() => onOpenGem(tg.gemId)}
+              style={({ pressed }) => [
+                styles.soldGemCard,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderColor: colors.outlineVariant,
+                },
+                pressed && { opacity: 0.9 },
+              ]}
+            >
+              <GemThumb gem={gem} size={72} />
+              <View style={styles.soldGemBody}>
+                <Text
+                  style={[styles.soldGemTitle, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+                {(typeLabel || weightLabel) && (
+                  <Text
+                    style={[styles.soldGemMeta, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {[typeLabel, weightLabel].filter(Boolean).join(" · ")}
+                  </Text>
+                )}
+                {gem?.sku ? (
+                  <Text
+                    style={[styles.soldGemSku, { color: colors.onSurfaceVariant }]}
+                    numberOfLines={1}
+                  >
+                    {gem.sku}
+                  </Text>
+                ) : null}
+                <View style={styles.soldGemFooter}>
+                  <Text
+                    selectable
+                    style={[styles.soldGemPrice, { color: colors.successEmerald }]}
+                  >
+                    {tg.salePrice != null ? formatBase(tg.salePrice) : "—"}
+                  </Text>
+                  {saleDate ? (
+                    <Text
+                      style={[
+                        styles.soldGemDate,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {formatDate(saleDate)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.outline} />
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   empty: {
     alignItems: "center",
@@ -366,4 +503,61 @@ const styles = StyleSheet.create({
   saleActions: { flexDirection: "row", gap: Spacing.sm },
   footerRow: { flexDirection: "row", gap: Spacing.sm },
   footerHalf: { flex: 1 },
+
+  soldSection: { gap: Spacing.md },
+  soldSectionTitle: {
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
+  },
+  soldStats: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  soldStatCard: {
+    flex: 1,
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+  },
+  soldStatCardWide: { flex: 1.4 },
+  soldStatLabel: {
+    ...Typography.labelMd,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  soldStatValue: {
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  soldList: { gap: Spacing.sm },
+  soldGemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: 1,
+  },
+  soldGemBody: { flex: 1, gap: 3, minWidth: 0 },
+  soldGemTitle: { ...Typography.labelMd, fontWeight: "700", fontSize: 15 },
+  soldGemMeta: { ...Typography.bodySmall },
+  soldGemSku: { ...Typography.caption },
+  soldGemFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+    marginTop: 2,
+  },
+  soldGemPrice: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  soldGemDate: { ...Typography.caption },
 });

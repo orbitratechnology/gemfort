@@ -5,7 +5,7 @@ import {
   useLocalSearchParams,
   type Href,
 } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -113,8 +113,7 @@ export default function CreateListingScreen() {
     enabled: !!user && !!gemId && isVerifiedSeller,
   });
 
-  useEffect(() => {
-    if (didPrefill || !gem) return;
+  if (!didPrefill && gem) {
     const currentTitle =
       gem.title?.trim() ||
       `${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
@@ -128,7 +127,7 @@ export default function CreateListingScreen() {
       });
     }
     setDidPrefill(true);
-  }, [gem, didPrefill, preferred]);
+  }
 
   const visibilityMeta = useMemo(
     () => LISTING_VISIBILITY_OPTIONS.find((o) => o.value === visibility),

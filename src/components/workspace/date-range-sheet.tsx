@@ -1,5 +1,5 @@
 import { addMonths, format, isSameDay, isSameMonth, isWithinInterval, subMonths } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
@@ -47,13 +47,16 @@ export function DateRangeSheet({
     activePeriod ?? 'custom',
   );
 
-  useEffect(() => {
-    if (!visible) return;
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible && !wasVisible) {
+    setWasVisible(true);
     setMonth(value.start);
     setDraftStart(value.start);
     setDraftEnd(value.end);
     setPreset(activePeriod ?? 'custom');
-  }, [visible, value, activePeriod]);
+  } else if (!visible && wasVisible) {
+    setWasVisible(false);
+  }
 
   const weeks = useMemo(() => getMonthGrid(month), [month]);
 
