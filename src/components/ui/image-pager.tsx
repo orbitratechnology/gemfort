@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 3,
   },
   dots: {

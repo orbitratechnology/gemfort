@@ -63,6 +63,12 @@ export type NotificationInput = {
   referenceType?: string | null;
   referenceId?: string | null;
   priority?: NotificationPriority;
+  /** Display name of the person/business that triggered the event. */
+  actorName?: string | null;
+  /** Profile / business logo for the actor. */
+  actorPhotoUrl?: string | null;
+  /** Secondary rich media (gem, listing, announcement art). */
+  imageUrl?: string | null;
 };
 
 export type StoredNotification = NotificationInput & {
@@ -106,6 +112,36 @@ export const PUSH_MANDATORY_TYPES = new Set<NotificationType>([
   'report_resolved',
   'report_dismissed',
 ]);
+
+/** Expo / APNs interactive category ids (must match client registration). */
+export function pushCategoryForType(type: NotificationType): string {
+  if (type === 'ap_request_received') return 'ap_request';
+  if (type === 'ap_cancellation_requested') return 'ap_cancel';
+  if (type === 'listing_offer_received') return 'listing_offer';
+  return 'open_ref';
+}
+
+export function pushChannelForType(type: NotificationType, priority: NotificationPriority): string {
+  if (
+    priority === 'high' ||
+    type === 'cheque_bounced' ||
+    type.startsWith('account_') ||
+    type === 'ap_overdue' ||
+    type === 'payment_overdue' ||
+    type === 'service_overdue'
+  ) {
+    return 'urgent';
+  }
+  if (
+    type.includes('due') ||
+    type.includes('maturing') ||
+    type.includes('overdue') ||
+    priority === 'medium'
+  ) {
+    return 'alerts';
+  }
+  return 'default';
+}
 
 export type UserNotificationPreferences = {
   /** Master push switch; unset means enabled. */

@@ -6,7 +6,12 @@ import {
     subDays,
 } from 'date-fns';
 
-import type { Firestore, QueryDocumentSnapshot, Timestamp } from 'firebase-admin/firestore';
+import {
+  type DocumentSnapshot,
+  type Firestore,
+  type QueryDocumentSnapshot,
+  Timestamp,
+} from 'firebase-admin/firestore';
 
 import { AP_PAYMENT_OVERDUE_DAYS, DUE_SOON_DAYS } from '../config';
 import { formatCurrency, toDate } from './create';
@@ -95,6 +100,59 @@ function effectiveReceivableOverdue(r: ReceivableDoc): boolean {
   if (remaining <= 0) return false;
   const due = toDate(r.dueDate);
   return !!due && startOfDay(due) < startOfDay(new Date());
+}
+
+function ts(d: Date): Timestamp {
+  return Timestamp.fromDate(d);
+}
+
+function ensureOwner(
+  contexts: Map<string, OwnerContext>,
+  ownerUid: string | undefined,
+): OwnerContext | null {
+  if (!ownerUid) return null;
+  let ctx = contexts.get(ownerUid);
+  if (!ctx) {
+    ctx = {
+      contacts: new Map(),
+      gems: new Map(),
+      cheques: [],
+      apRecords: [],
+      services: [],
+      receivables: [],
+      bills: [],
+    };
+    contexts.set(ownerUid, ctx);
+  }
+  return ctx;
+}
+
+function mergeDocsById(
+  ...snaps: { docs: QueryDocumentSnapshot[] }[]
+): QueryDocumentSnapshot[] {
+  const byId = new Map<string, QueryDocumentSnapshot>();
+  for (const snap of snaps) {
+    for (const d of snap.docs) byId.set(d.id, d);
+  }
+  return [...byId.values()];
+}
+
+async function getDocsByIds(
+  db: Firestore,
+  collectionName: string,
+  ids: Iterable<string>,
+): Promise<DocumentSnapshot[]> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return [];
+  const out: DocumentSnapshot[] = [];
+  const chunkSize = 100;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const refs = chunk.map((id) => db.collection(collectionName).doc(id));
+    const snaps = await db.getAll(...refs);
+    out.push(...snaps);
+  }
+  return out;
 }
 
 export function buildGemTrackCandidatesForOwner(
@@ -255,7 +313,7 @@ export function buildGemTrackCandidatesForOwner(
         referenceId: doc.id,
       });
     }
-    }
+  }
 
   // Bills are private: never emit a bill alert to anyone except this owner.
   return candidates.filter(
@@ -263,68 +321,120 @@ export function buildGemTrackCandidatesForOwner(
   );
 }
 
+/**
+ * Load only docs that can produce today's alerts (date windows / active statuses).
+ * Avoids full-collection `.get()` on cheques, APs, services, receivables, bills,
+ * contacts, and gems — read cost used to scale with total DB size every morning.
+ */
 export async function loadOwnerContexts(db: Firestore): Promise<Map<string, OwnerContext>> {
-  const [cheques, apRecords, services, receivables, bills, contacts, gems] = await Promise.all([
-    db.collection('gemtrack_cheques').get(),
-    db.collection('gemtrack_ap_records').get(),
-    db.collection('gemtrack_services').get(),
-    db.collection('gemtrack_receivables').get(),
-    db.collection('gemtrack_bills').get(),
-    db.collection('gemtrack_contacts').get(),
-    db.collection('gemtrack_gems').get(),
+  const now = startOfDay(new Date());
+  const tomorrow = addDays(now, 1);
+  const dayAfterTomorrow = addDays(now, 2);
+  const dueSoon = addDays(now, DUE_SOON_DAYS);
+  const dueSoonEnd = addDays(dueSoon, 1);
+  const apPaymentCutoff = subDays(now, AP_PAYMENT_OVERDUE_DAYS);
+
+  const [
+    chequesSnap,
+    billsSnap,
+    receivablesDueSoonSnap,
+    receivablesOverdueSnap,
+    servicesSnap,
+    apReturnSnap,
+    apPaymentSentSnap,
+    apSoldSnap,
+  ] = await Promise.all([
+    db
+      .collection('gemtrack_cheques')
+      .where('maturityDate', '>=', ts(tomorrow))
+      .where('maturityDate', '<', ts(dayAfterTomorrow))
+      .get(),
+    db
+      .collection('gemtrack_bills')
+      .where('dueDate', '>=', ts(now))
+      .where('dueDate', '<', ts(tomorrow))
+      .get(),
+    db
+      .collection('gemtrack_receivables')
+      .where('dueDate', '>=', ts(dueSoon))
+      .where('dueDate', '<', ts(dueSoonEnd))
+      .get(),
+    db
+      .collection('gemtrack_receivables')
+      .where('status', 'in', ['pending', 'partial', 'overdue'])
+      .where('dueDate', '<', ts(now))
+      .get(),
+    db
+      .collection('gemtrack_services')
+      .where('status', '==', 'given')
+      .where('expectedReturnDate', '<', ts(now))
+      .get(),
+    db
+      .collection('gemtrack_ap_records')
+      .where('status', 'in', ['accepted', 'with_holder'])
+      .where('expectedReturnDate', '<', ts(dueSoonEnd))
+      .get(),
+    db
+      .collection('gemtrack_ap_records')
+      .where('status', '==', 'payment_sent')
+      .where('paymentSentAt', '<', ts(apPaymentCutoff))
+      .get(),
+    db
+      .collection('gemtrack_ap_records')
+      .where('status', 'in', ['sold', 'accepted'])
+      .where('soldDate', '<', ts(apPaymentCutoff))
+      .get(),
   ]);
 
-  const owners = new Set<string>();
-  for (const snap of [cheques, apRecords, services, receivables, bills]) {
-    snap.docs.forEach((d) => {
-      const uid = d.data().ownerUid as string | undefined;
-      if (uid) owners.add(uid);
-    });
-  }
+  const apDocs = mergeDocsById(apReturnSnap, apPaymentSentSnap, apSoldSnap);
+  const receivableDocs = mergeDocsById(receivablesDueSoonSnap, receivablesOverdueSnap);
 
   const contexts = new Map<string, OwnerContext>();
-  for (const ownerUid of owners) {
-    contexts.set(ownerUid, {
-      contacts: new Map(),
-      gems: new Map(),
-      cheques: [],
-      apRecords: [],
-      services: [],
-      receivables: [],
-      bills: [],
-    });
+  const contactIds = new Set<string>();
+  const gemIds = new Set<string>();
+
+  for (const d of chequesSnap.docs) {
+    const data = d.data() as ChequeDoc;
+    ensureOwner(contexts, data.ownerUid)?.cheques.push(d);
+    if (data.counterpartyContactId) contactIds.add(data.counterpartyContactId);
+  }
+  for (const d of billsSnap.docs) {
+    const data = d.data() as BillDoc;
+    ensureOwner(contexts, data.ownerUid)?.bills.push(d);
+    if (data.counterpartyContactId) contactIds.add(data.counterpartyContactId);
+  }
+  for (const d of receivableDocs) {
+    const data = d.data() as ReceivableDoc;
+    ensureOwner(contexts, data.ownerUid)?.receivables.push(d);
+    if (data.contactId) contactIds.add(data.contactId);
+  }
+  for (const d of servicesSnap.docs) {
+    const data = d.data() as ServiceDoc;
+    ensureOwner(contexts, data.ownerUid)?.services.push(d);
+    if (data.providerContactId) contactIds.add(data.providerContactId);
+    if (data.gemId) gemIds.add(data.gemId);
+  }
+  for (const d of apDocs) {
+    const data = d.data() as ApDoc;
+    ensureOwner(contexts, data.ownerUid)?.apRecords.push(d);
+    if (data.apHolderContactId) contactIds.add(data.apHolderContactId);
   }
 
-  contacts.docs.forEach((d) => {
-    const data = d.data();
-    const uid = data.ownerUid as string;
-    contexts.get(uid)?.contacts.set(d.id, data as ContactDoc);
-  });
-  gems.docs.forEach((d) => {
-    const data = d.data();
-    const uid = data.ownerUid as string;
-    contexts.get(uid)?.gems.set(d.id, data as GemDoc);
-  });
-  cheques.docs.forEach((d) => {
-    const uid = d.data().ownerUid as string;
-    contexts.get(uid)?.cheques.push(d);
-  });
-  apRecords.docs.forEach((d) => {
-    const uid = d.data().ownerUid as string;
-    contexts.get(uid)?.apRecords.push(d);
-  });
-  services.docs.forEach((d) => {
-    const uid = d.data().ownerUid as string;
-    contexts.get(uid)?.services.push(d);
-  });
-  receivables.docs.forEach((d) => {
-    const uid = d.data().ownerUid as string;
-    contexts.get(uid)?.receivables.push(d);
-  });
-  bills.docs.forEach((d) => {
-    const uid = d.data().ownerUid as string;
-    contexts.get(uid)?.bills.push(d);
-  });
+  const [contactSnaps, gemSnaps] = await Promise.all([
+    getDocsByIds(db, 'gemtrack_contacts', contactIds),
+    getDocsByIds(db, 'gemtrack_gems', gemIds),
+  ]);
+
+  for (const snap of contactSnaps) {
+    if (!snap.exists) continue;
+    const data = snap.data() as ContactDoc & { ownerUid?: string };
+    contexts.get(data.ownerUid ?? '')?.contacts.set(snap.id, data);
+  }
+  for (const snap of gemSnaps) {
+    if (!snap.exists) continue;
+    const data = snap.data() as GemDoc & { ownerUid?: string };
+    contexts.get(data.ownerUid ?? '')?.gems.set(snap.id, data);
+  }
 
   return contexts;
 }

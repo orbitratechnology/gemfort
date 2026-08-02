@@ -18,9 +18,11 @@ export const dailyGemTrackNotifications = onSchedule(
   async () => {
     const contexts = await loadOwnerContexts(db);
     let totalCreated = 0;
+    let totalCandidates = 0;
 
     for (const [ownerUid, ctx] of contexts) {
       const candidates = buildGemTrackCandidatesForOwner(ownerUid, ctx);
+      totalCandidates += candidates.length;
       if (candidates.length === 0) continue;
       const created = await createNotificationsBatch(candidates);
       totalCreated += created;
@@ -28,6 +30,7 @@ export const dailyGemTrackNotifications = onSchedule(
 
     logger.info('Daily GemTrack notifications complete', {
       owners: contexts.size,
+      candidates: totalCandidates,
       created: totalCreated,
     });
   },

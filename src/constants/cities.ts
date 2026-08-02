@@ -1,5 +1,3 @@
-import { City } from "country-state-city";
-
 import { findCountry } from "@/constants/countries";
 
 export type AppCity = {
@@ -39,6 +37,16 @@ const POPULAR_CITY_NAMES: Record<string, string[]> = {
   AU: ["Sydney", "Melbourne", "Brisbane"],
 };
 
+let cityModulePromise: Promise<typeof import("country-state-city")> | null =
+  null;
+
+function loadCityModule() {
+  if (!cityModulePromise) {
+    cityModulePromise = import("country-state-city");
+  }
+  return cityModulePromise;
+}
+
 function toAppCity(c: {
   name: string;
   countryCode: string;
@@ -65,13 +73,16 @@ export function resolveCountryIso2(
 
 /**
  * Cities for a country (name or ISO2). Deduped by name, popular hubs first.
+ * Dynamically loads `country-state-city` so the ~7MB catalog stays out of the
+ * initial JS bundle until a city picker opens.
  */
-export function listCitiesForCountry(
+export async function listCitiesForCountry(
   country: string | null | undefined,
-): AppCity[] {
+): Promise<AppCity[]> {
   const iso2 = resolveCountryIso2(country);
   if (!iso2) return [];
 
+  const { City } = await loadCityModule();
   const raw = City.getCitiesOfCountry(iso2) ?? [];
   const byName = new Map<string, AppCity>();
   for (const c of raw) {
@@ -101,12 +112,12 @@ export function listCitiesForCountry(
   return [...popular, ...rest];
 }
 
-export function cityBelongsToCountry(
+export async function cityBelongsToCountry(
   cityName: string | null | undefined,
   country: string | null | undefined,
-): boolean {
+): Promise<boolean> {
   if (!cityName?.trim() || !country?.trim()) return false;
-  const cities = listCitiesForCountry(country);
+  const cities = await listCitiesForCountry(country);
   const lower = cityName.trim().toLowerCase();
   return cities.some((c) => c.name.toLowerCase() === lower);
 }

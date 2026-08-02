@@ -159,6 +159,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         icon: "./assets/images/notification-icon.png",
         color: "#64A0F7",
         defaultChannel: "default",
+        enableBackgroundRemoteNotifications: true,
+      },
+    ],
+    [
+      "react-native-notify-kit",
+      {
+        ios: {
+          notificationServiceExtension: true,
+        },
       },
     ],
     [

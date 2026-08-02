@@ -180,13 +180,13 @@ export default function AddTripScreen() {
                 onChange={(name) => {
                   setDestinationCountry(name);
                   clearField('destinationCountry');
-                  if (
-                    destinationCity &&
-                    !cityBelongsToCountry(destinationCity, name)
-                  ) {
-                    setDestinationCity('');
-                    clearField('destinationCity');
-                  }
+                  if (!destinationCity) return;
+                  void cityBelongsToCountry(destinationCity, name).then((ok) => {
+                    if (!ok) {
+                      setDestinationCity('');
+                      clearField('destinationCity');
+                    }
+                  });
                 }}
                 placeholder="Select country"
                 error={errors.destinationCountry}

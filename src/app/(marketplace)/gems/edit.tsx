@@ -53,6 +53,7 @@ import {
 import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
 import {
   fetchGem,
+  queueGemPhotoUrls,
   updateGemDetails,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -254,35 +255,60 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
     try {
       await withLoading(async () => {
         const stamp = Date.now();
-        let photoUrls: string[] = [];
+        const remoteUrls = photos
+          .map((p) => p.uri)
+          .filter((uri) => isRemoteUri(uri));
+        const hasLocalPhotos = photos.some((p) => !isRemoteUri(p.uri));
+        let photoUrls = remoteUrls;
         let photosDeferred = false;
 
-        if (photos.length > 0) {
+        if (photos.length > 0 && hasLocalPhotos) {
+          const uploadTask = Promise.all(
+            photos.map((photo, index) => {
+              if (isRemoteUri(photo.uri)) return Promise.resolve(photo.uri);
+              const ext = extensionForMedia(photo);
+              return uploadLocalMedia(
+                photo,
+                `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+              );
+            }),
+          );
+
           try {
+            // Await the real upload — do not race-abandon it (8s was wiping URLs).
             photoUrls = await Promise.race([
-              Promise.all(
-                photos.map((photo, index) => {
-                  if (isRemoteUri(photo.uri)) return Promise.resolve(photo.uri);
-                  const ext = extensionForMedia(photo);
-                  return uploadLocalMedia(
-                    photo,
-                    `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
-                  );
-                }),
-              ),
+              uploadTask,
               new Promise<never>((_, reject) => {
                 setTimeout(
                   () => reject(new Error("photo-upload-timeout")),
-                  8_000,
+                  45_000,
                 );
               }),
             ]);
           } catch {
-            photoUrls = photos
-              .map((p) => p.uri)
-              .filter((uri) => isRemoteUri(uri));
-            photosDeferred = photos.some((p) => !isRemoteUri(p.uri));
+            photosDeferred = true;
+            // Never blank existing / remote photos when new uploads are slow.
+            photoUrls =
+              remoteUrls.length > 0 ? remoteUrls : (gem.photoUrls ?? []);
+            void uploadTask
+              .then((urls) => {
+                queueGemPhotoUrls(gem.id, urls);
+                queryClient.setQueryData(
+                  ["gem", gem.id],
+                  (prev: WorkspaceGem | null | undefined) =>
+                    prev ? { ...prev, photoUrls: urls } : prev,
+                );
+                void queryClient.invalidateQueries({ queryKey: ["gems"] });
+                void queryClient.invalidateQueries({
+                  queryKey: ["gem", gem.id],
+                });
+              })
+              .catch(() => {
+                // Offline / hard failure — field edits below still save.
+              });
           }
+        } else if (photos.length === 0) {
+          photoUrls = [];
         }
 
         const colorLabel = data.colorPrimary
@@ -313,7 +339,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
 
         toast.success(
           photosDeferred
-            ? "Gem updated — new photos will upload when you’re online"
+            ? "Gem updated — photos still uploading in the background"
             : "Gem updated",
         );
         if (router.canGoBack()) router.back();

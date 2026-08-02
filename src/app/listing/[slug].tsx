@@ -66,7 +66,7 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
-import { openPhone, openWhatsApp } from "@/lib/utils";
+import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
@@ -1001,6 +1001,13 @@ export default function PublicListingScreen() {
   );
 }
 
+function offerStatusLabel(status: ListingOffer["status"]): string {
+  if (status === "pending") return "Pending";
+  if (status === "accepted") return "Accepted";
+  if (status === "declined") return "Declined";
+  return "Withdrawn";
+}
+
 function ReceivedOfferRow({
   offer,
   unread,
@@ -1009,9 +1016,49 @@ function ReceivedOfferRow({
   unread: boolean;
 }) {
   const { colors } = useAppTheme();
+  const { formatStored } = usePreferredMoney();
+  const needsBusinessResolve =
+    !offer.buyerBusinessId || !offer.buyerLogoUrl || !offer.buyerBusinessName;
+
+  const { data: buyerBusiness } = useFirestoreLiveQuery({
+    queryKey: [
+      "offer-buyer-business",
+      offer.buyerBusinessId ?? offer.buyerUid,
+    ],
+    queryFn: () =>
+      offer.buyerBusinessId
+        ? fetchBusiness(offer.buyerBusinessId)
+        : fetchBusinessByOwnerUid(offer.buyerUid),
+    subscribe: (onData, onError) =>
+      offer.buyerBusinessId
+        ? subscribeBusiness(offer.buyerBusinessId, onData, onError)
+        : subscribeBusinessByOwnerUid(offer.buyerUid, onData, onError),
+    enabled: needsBusinessResolve && !!offer.buyerUid,
+  });
+
+  const businessId = offer.buyerBusinessId ?? buyerBusiness?.id ?? null;
   const name =
-    offer.buyerBusinessName?.trim() || offer.buyerName?.trim() || "Buyer";
+    offer.buyerBusinessName?.trim() ||
+    buyerBusiness?.businessName?.trim() ||
+    offer.buyerName?.trim() ||
+    "Buyer";
+  const photoUrl = offer.buyerLogoUrl ?? buyerBusiness?.logoUrl ?? null;
+  const country =
+    offer.buyerCountry?.trim() || buyerBusiness?.country?.trim() || null;
   const note = offer.message?.trim();
+  const amountLabel = formatStored({
+    amount: offer.amount,
+    currency: offer.currency || "USD",
+    amountBase: offer.amountBase,
+  });
+  const whenLabel = formatRelativeTime(offer.createdAt);
+  const statusLabel = offerStatusLabel(offer.status);
+  const statusTone =
+    offer.status === "pending"
+      ? colors.primary
+      : offer.status === "accepted"
+        ? colors.successEmerald
+        : colors.onSurfaceVariant;
 
   return (
     <View
@@ -1025,36 +1072,78 @@ function ReceivedOfferRow({
         },
       ]}
     >
-      <ContactAvatar
-        name={name}
-        photoUrl={offer.buyerLogoUrl}
-        size={44}
-      />
-      <View style={styles.receivedBody}>
-        <View style={styles.receivedTitleRow}>
+      <Pressable
+        onPress={() =>
+          businessId
+            ? router.push(`/business/${businessId}` as never)
+            : undefined
+        }
+        disabled={!businessId}
+        accessibilityRole={businessId ? "button" : undefined}
+        accessibilityLabel={
+          businessId ? `View ${name} business profile` : name
+        }
+        style={({ pressed }) => [
+          styles.receivedBuyer,
+          { opacity: pressed && businessId ? 0.88 : 1 },
+        ]}
+      >
+        <ContactAvatar name={name} photoUrl={photoUrl} size={44} />
+        <View style={styles.receivedBuyerText}>
+          <View style={styles.receivedTitleRow}>
+            <Text
+              style={[styles.receivedName, { color: colors.onSurface }]}
+              numberOfLines={1}
+            >
+              {name}
+            </Text>
+            {country ? <CountryFlag country={country} size="xs" /> : null}
+            {businessId ? (
+              <Icon
+                name="chevron-right"
+                size={16}
+                color={colors.onSurfaceVariant}
+              />
+            ) : null}
+          </View>
           <Text
-            style={[styles.receivedName, { color: colors.onSurface }]}
+            style={[styles.receivedMeta, { color: colors.onSurfaceVariant }]}
             numberOfLines={1}
           >
-            {name}
+            {whenLabel}
+            {unread ? " · New" : ""}
           </Text>
-          {offer.buyerCountry ? (
-            <CountryFlag country={offer.buyerCountry} size="xs" />
-          ) : null}
         </View>
-        {note ? (
-          <Text
-            style={[styles.receivedNote, { color: colors.onSurfaceVariant }]}
-            numberOfLines={3}
-          >
-            {note}
+      </Pressable>
+
+      <View style={styles.receivedOfferMeta}>
+        <Text
+          style={[styles.receivedAmount, { color: colors.onSurface }]}
+          selectable
+        >
+          {amountLabel}
+        </Text>
+        <View
+          style={[
+            styles.receivedStatusPill,
+            { backgroundColor: statusTone + "22" },
+          ]}
+        >
+          <Text style={[styles.receivedStatusText, { color: statusTone }]}>
+            {statusLabel}
           </Text>
-        ) : (
-          <Text style={[styles.receivedNote, { color: colors.textMuted }]}>
-            No note
-          </Text>
-        )}
+        </View>
       </View>
+
+      {note ? (
+        <Text
+          style={[styles.receivedNote, { color: colors.onSurfaceVariant }]}
+          numberOfLines={4}
+          selectable
+        >
+          {note}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -1312,28 +1401,57 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   receivedRow: {
-    flexDirection: "row",
-    gap: 12,
+    gap: 10,
     padding: 12,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "flex-start",
   },
-  receivedBody: {
+  receivedBuyer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  receivedBuyerText: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 2,
   },
   receivedTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   receivedName: {
     ...Typography.bodyMd,
     fontWeight: "700",
     flexShrink: 1,
+  },
+  receivedMeta: {
+    ...Typography.caption,
+  },
+  receivedOfferMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  receivedAmount: {
+    ...Typography.headlineSm,
+    fontFamily: FontFamily.bold,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    flexShrink: 1,
+  },
+  receivedStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+  },
+  receivedStatusText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   receivedNote: {
     ...Typography.bodyMd,

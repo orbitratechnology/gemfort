@@ -17,8 +17,8 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { BottomSheet, FilterChipGroup } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { ProductGrid } from "@/components/ui/product-grid";
 import { SkeletonList } from "@/components/ui/skeleton-list";
 import {
   AttributePickerField,
@@ -49,7 +49,6 @@ import type { Business, MarketplaceListing } from "@/types";
 
 type Tab = "gems" | "traders" | "lapidaries" | "labs";
 type BusinessSortBy = "featured" | "rating" | "name";
-const PAGE_SIZE = 20;
 const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries", "labs"];
 
 const QUICK_TYPES: { id: string; label: string }[] = [
@@ -89,7 +88,6 @@ export default function MarketScreen() {
   }
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [filterOpen, setFilterOpen] = useState(false);
   const [gemTypeSheetOpen, setGemTypeSheetOpen] = useState(false);
 
@@ -199,15 +197,6 @@ export default function MarketScreen() {
     return sorted;
   }, [debouncedSearch, businesses, verifiedOnly, city, businessSort]);
 
-  const visibleGems = useMemo(
-    () => filteredGems.slice(0, visibleCount),
-    [filteredGems, visibleCount],
-  );
-  const visibleBusinesses = useMemo(
-    () => filteredBusinesses.slice(0, visibleCount),
-    [filteredBusinesses, visibleCount],
-  );
-
   const segments: { id: Tab; label: string; icon: IconName }[] = [
     { id: "gems", label: "Gems", icon: "diamond" },
     { id: "traders", label: "Traders", icon: "storefront" },
@@ -223,6 +212,9 @@ export default function MarketScreen() {
     (verifiedOnly ? 1 : 0) +
     (city !== "all" ? 1 : 0) +
     (businessSort !== "featured" ? 1 : 0);
+
+  const listData: (Business | MarketplaceListing)[] =
+    tab === "gems" ? filteredGems : filteredBusinesses;
 
   function openFilter() {
     if (tab === "gems") {
@@ -247,13 +239,11 @@ export default function MarketScreen() {
       setCity(draftBusiness.city);
       setBusinessSort(draftBusiness.sort);
     }
-    setVisibleCount(PAGE_SIZE);
     setFilterOpen(false);
   }
 
   function switchTab(next: Tab) {
     setTab(next);
-    setVisibleCount(PAGE_SIZE);
   }
 
   return (
@@ -262,123 +252,199 @@ export default function MarketScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <ScrollView
+      <FlashList<Business | MarketplaceListing>
+        data={isLoading ? [] : listData}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        masonry
+        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={tab === "gems" ? refetchListings : refetchBusinesses}
           />
         }
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View
-          style={[
-            styles.searchBox,
-            styles.contentInset,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-        >
-          <Icon name="search" size={22} color={colors.textMuted} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.textMain }]}
-            placeholder={
-              tab === "gems"
-                ? "Search gems, origins…"
-                : "Search traders, lapidaries, labs…"
-            }
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={(text) => {
-              setSearch(text);
-              setVisibleCount(PAGE_SIZE);
-            }}
-          />
-        </View>
-
-        <View
-          style={[
-            styles.segmentTrack,
-            styles.contentInset,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-        >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.segment}
-          >
-            {segments.map((s) => {
-              const active = tab === s.id;
-              const tone = active ? colors.onPrimary : colors.onSurfaceVariant;
-              return (
-                <Pressable
-                  key={s.id}
-                  onPress={() => switchTab(s.id)}
-                  style={[
-                    styles.segmentBtn,
-                    active && { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Icon name={s.icon} size={16} color={tone} />
-                  <Text style={[styles.segmentText, { color: tone }]}>
-                    {s.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {tab === "gems" ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-          >
-            <Pressable
-              onPress={openFilter}
+        ListHeaderComponent={
+          <View style={styles.headerBlock}>
+            <View
               style={[
-                styles.filterChip,
-                gemFilterActive
-                  ? {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.primary,
-                    }
-                  : {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      borderColor: colors.outlineVariant,
-                    },
+                styles.searchBox,
+                styles.contentInset,
+                { backgroundColor: colors.surfaceContainerLow },
               ]}
             >
-              <Icon
-                name="tune"
-                size={16}
-                color={gemFilterActive ? colors.onPrimary : colors.textMain}
+              <Icon name="search" size={22} color={colors.textMuted} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.textMain }]}
+                placeholder={
+                  tab === "gems"
+                    ? "Search gems, origins…"
+                    : "Search traders, lapidaries, labs…"
+                }
+                placeholderTextColor={colors.textMuted}
+                value={search}
+                onChangeText={setSearch}
               />
-              <Text
-                style={[
-                  styles.filterText,
-                  {
-                    color: gemFilterActive ? colors.onPrimary : colors.textMain,
-                  },
-                ]}
+            </View>
+
+            <View
+              style={[
+                styles.segmentTrack,
+                styles.contentInset,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.segment}
               >
-                Filter
-              </Text>
-            </Pressable>
-            {QUICK_TYPES.map((t) => {
-              const active = gemType === t.id;
-              return (
+                {segments.map((s) => {
+                  const active = tab === s.id;
+                  const tone = active ? colors.onPrimary : colors.onSurfaceVariant;
+                  return (
+                    <Pressable
+                      key={s.id}
+                      onPress={() => switchTab(s.id)}
+                      style={[
+                        styles.segmentBtn,
+                        active && { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Icon name={s.icon} size={16} color={tone} />
+                      <Text style={[styles.segmentText, { color: tone }]}>
+                        {s.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {tab === "gems" ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+              >
                 <Pressable
-                  key={t.id}
-                  onPress={() => {
-                    setGemType(t.id);
-                    setVisibleCount(PAGE_SIZE);
-                  }}
+                  onPress={openFilter}
                   style={[
                     styles.filterChip,
-                    active
+                    gemFilterActive
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
+                      : {
+                          backgroundColor: colors.surfaceContainerLowest,
+                          borderColor: colors.outlineVariant,
+                        },
+                  ]}
+                >
+                  <Icon
+                    name="tune"
+                    size={16}
+                    color={gemFilterActive ? colors.onPrimary : colors.textMain}
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      {
+                        color: gemFilterActive
+                          ? colors.onPrimary
+                          : colors.textMain,
+                      },
+                    ]}
+                  >
+                    Filter
+                  </Text>
+                </Pressable>
+                {QUICK_TYPES.map((t) => {
+                  const active = gemType === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => setGemType(t.id)}
+                      style={[
+                        styles.filterChip,
+                        active
+                          ? {
+                              backgroundColor: colors.primary,
+                              borderColor: colors.primary,
+                            }
+                          : {
+                              backgroundColor: colors.surfaceContainerLowest,
+                              borderColor: colors.outlineVariant,
+                            },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filterText,
+                          {
+                            color: active ? colors.onPrimary : colors.textMain,
+                          },
+                        ]}
+                      >
+                        {t.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}
+              >
+                <Pressable
+                  onPress={openFilter}
+                  style={[
+                    styles.filterChip,
+                    businessFilterCount > 0
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
+                      : {
+                          backgroundColor: colors.surfaceContainerLowest,
+                          borderColor: colors.outlineVariant,
+                        },
+                  ]}
+                >
+                  <Icon
+                    name="tune"
+                    size={16}
+                    color={
+                      businessFilterCount > 0
+                        ? colors.onPrimary
+                        : colors.textMain
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      {
+                        color:
+                          businessFilterCount > 0
+                            ? colors.onPrimary
+                            : colors.textMain,
+                      },
+                    ]}
+                  >
+                    Filters
+                    {businessFilterCount > 0
+                      ? ` (${businessFilterCount})`
+                      : ""}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setVerifiedOnly((v) => !v)}
+                  style={[
+                    styles.filterChip,
+                    verifiedOnly
                       ? {
                           backgroundColor: colors.primary,
                           borderColor: colors.primary,
@@ -392,182 +458,66 @@ export default function MarketScreen() {
                   <Text
                     style={[
                       styles.filterText,
-                      { color: active ? colors.onPrimary : colors.textMain },
+                      {
+                        color: verifiedOnly
+                          ? colors.onPrimary
+                          : colors.textMain,
+                      },
                     ]}
                   >
-                    {t.label}
+                    Verified
                   </Text>
+                  <Icon
+                    name="verified"
+                    size={16}
+                    color={verifiedOnly ? colors.onPrimary : colors.textMain}
+                  />
                 </Pressable>
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-          >
-            <Pressable
-              onPress={openFilter}
-              style={[
-                styles.filterChip,
-                businessFilterCount > 0
-                  ? {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.primary,
-                    }
-                  : {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      borderColor: colors.outlineVariant,
-                    },
-              ]}
-            >
-              <Icon
-                name="tune"
-                size={16}
-                color={
-                  businessFilterCount > 0 ? colors.onPrimary : colors.textMain
-                }
-              />
-              <Text
-                style={[
-                  styles.filterText,
-                  {
-                    color:
-                      businessFilterCount > 0
-                        ? colors.onPrimary
-                        : colors.textMain,
-                  },
-                ]}
-              >
-                Filters
-                {businessFilterCount > 0 ? ` (${businessFilterCount})` : ""}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setVerifiedOnly((v) => !v);
-                setVisibleCount(PAGE_SIZE);
-              }}
-              style={[
-                styles.filterChip,
-                verifiedOnly
-                  ? {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.primary,
-                    }
-                  : {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      borderColor: colors.outlineVariant,
-                    },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  { color: verifiedOnly ? colors.onPrimary : colors.textMain },
-                ]}
-              >
-                Verified
-              </Text>
-              <Icon
-                name="verified"
-                size={16}
-                color={verifiedOnly ? colors.onPrimary : colors.textMain}
-              />
-            </Pressable>
-            {city !== "all" ? (
-              <Pressable
-                onPress={() => {
-                  setCity("all");
-                  setVisibleCount(PAGE_SIZE);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                ]}
-              >
-                <Icon name="location-on" size={16} color={colors.onPrimary} />
-                <Text style={[styles.filterText, { color: colors.onPrimary }]}>
-                  {city}
-                </Text>
-                <Icon name="close" size={14} color={colors.onPrimary} />
-              </Pressable>
-            ) : null}
-          </ScrollView>
-        )}
-
-        <View style={styles.grid}>
-          {isLoading ? (
+                {city !== "all" ? (
+                  <Pressable
+                    onPress={() => setCity("all")}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name="location-on"
+                      size={16}
+                      color={colors.onPrimary}
+                    />
+                    <Text
+                      style={[styles.filterText, { color: colors.onPrimary }]}
+                    >
+                      {city}
+                    </Text>
+                    <Icon name="close" size={14} color={colors.onPrimary} />
+                  </Pressable>
+                ) : null}
+              </ScrollView>
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          isLoading ? (
             <View style={styles.contentInset}>
               <SkeletonList />
             </View>
           ) : tab === "gems" ? (
-            filteredGems.length ? (
-              <>
-                <ProductGrid>
-                  {visibleGems.map((gem: MarketplaceListing) => (
-                    <ListingCard
-                      key={gem.id}
-                      listing={gem}
-                      href={`/listing/${gem.shareableSlug}`}
-                    />
-                  ))}
-                </ProductGrid>
-                {visibleCount < filteredGems.length ? (
-                  <View style={styles.contentInset}>
-                    <Button
-                      title={`Load more (${filteredGems.length - visibleCount} remaining)`}
-                      variant="secondary"
-                      onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                    />
-                  </View>
-                ) : null}
-              </>
-            ) : (
-              <View style={styles.contentInset}>
-                <EmptyState
-                  icon="diamond"
-                  title="No gems match"
-                  subtitle={
-                    gemType === "all"
-                      ? "Try a different search."
-                      : "Try clearing gem type filters."
-                  }
-                />
-              </View>
-            )
-          ) : filteredBusinesses.length ? (
-            <>
-              <ProductGrid>
-                {visibleBusinesses.map((b: Business) => (
-                  <BusinessCard
-                    key={b.id}
-                    business={b}
-                    roleLabel={
-                      tab === "labs"
-                        ? "Gem Lab"
-                        : tab === "lapidaries"
-                          ? "Lapidary"
-                          : "Trader"
-                    }
-                    href={`/business/${b.id}`}
-                  />
-                ))}
-              </ProductGrid>
-              {visibleCount < filteredBusinesses.length ? (
-                <View style={styles.contentInset}>
-                  <Button
-                    title={`Load more (${filteredBusinesses.length - visibleCount} remaining)`}
-                    variant="secondary"
-                    onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                  />
-                </View>
-              ) : null}
-            </>
+            <View style={styles.contentInset}>
+              <EmptyState
+                icon="diamond"
+                title="No gems match"
+                subtitle={
+                  gemType === "all"
+                    ? "Try a different search."
+                    : "Try clearing gem type filters."
+                }
+              />
+            </View>
           ) : (
             <View style={styles.contentInset}>
               <EmptyState
@@ -588,9 +538,31 @@ export default function MarketScreen() {
                 }
               />
             </View>
-          )}
-        </View>
-      </ScrollView>
+          )
+        }
+        renderItem={({ item }) => (
+          <View style={styles.cell}>
+            {tab === "gems" ? (
+              <ListingCard
+                listing={item as MarketplaceListing}
+                href={`/listing/${(item as MarketplaceListing).shareableSlug}`}
+              />
+            ) : (
+              <BusinessCard
+                business={item as Business}
+                roleLabel={
+                  tab === "labs"
+                    ? "Gem Lab"
+                    : tab === "lapidaries"
+                      ? "Lapidary"
+                      : "Trader"
+                }
+                href={`/business/${item.id}`}
+              />
+            )}
+          </View>
+        )}
+      />
 
       <BottomSheet
         visible={filterOpen}
@@ -708,7 +680,10 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: Spacing.containerMargin,
     paddingBottom: 100,
+  },
+  headerBlock: {
     gap: Spacing.gutterMd,
+    marginBottom: Spacing.stackSm,
   },
   contentInset: {
     marginHorizontal: Spacing.containerMargin,
@@ -763,7 +738,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   filterText: { ...Typography.labelMd },
-  grid: { gap: Spacing.gutterMd, marginTop: Spacing.stackSm },
+  cell: {
+    paddingHorizontal: Spacing.stackSm / 2,
+    paddingBottom: Spacing.stackSm,
+  },
   gemTypeThumb: {
     width: 36,
     height: 36,

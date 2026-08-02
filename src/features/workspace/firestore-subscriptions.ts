@@ -4,6 +4,7 @@ import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import {
   collection,
   doc,
+  documentId,
   limit,
   onSnapshot,
   orderBy,
@@ -38,6 +39,21 @@ import type {
 
 type ErrCb = (error: Error) => void;
 type Unsub = () => void;
+
+/** Cap realtime owner-scoped lists — enough for typical inventory, avoids unbounded sync. */
+export const OWNER_LIST_LIMIT = 200;
+/** Marketplace directory page size. */
+export const MARKET_LIST_LIMIT = 100;
+/** Firestore `in` operator max values per query. */
+const IN_QUERY_LIMIT = 30;
+
+function chunkIds<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
 
 function asError(err: unknown): Error {
   return err instanceof Error ? err : new Error(String(err));
@@ -125,6 +141,7 @@ export function subscribeGems(
       collection(getFirebaseDb(), 'gemtrack_gems'),
       where('ownerUid', '==', ownerUid),
       orderBy('updatedAt', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem),
     onData,
@@ -190,6 +207,7 @@ export function subscribeServices(
       collection(getFirebaseDb(), 'gemtrack_services'),
       where('ownerUid', '==', ownerUid),
       orderBy('updatedAt', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord),
     onData,
@@ -241,11 +259,13 @@ export function subscribeGivenApRecords(
     collection(db, 'gemtrack_ap_records'),
     where('senderUid', '==', uid),
     orderBy('updatedAt', 'desc'),
+    limit(OWNER_LIST_LIMIT),
   );
   const byOwner = query(
     collection(db, 'gemtrack_ap_records'),
     where('ownerUid', '==', uid),
     orderBy('updatedAt', 'desc'),
+    limit(OWNER_LIST_LIMIT),
   );
 
   let senderDocs: ApRecord[] | null = null;
@@ -310,6 +330,7 @@ export function subscribeTakenApRecords(
       collection(getFirebaseDb(), 'gemtrack_ap_records'),
       where('receiverUid', '==', uid),
       orderBy('updatedAt', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) =>
       docs.map((d) =>
@@ -375,6 +396,7 @@ export function subscribeContacts(
     query(
       collection(getFirebaseDb(), 'gemtrack_contacts'),
       where('ownerUid', '==', ownerUid),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) =>
       docs
@@ -397,6 +419,7 @@ export function subscribeTransactions(
       collection(getFirebaseDb(), 'gemtrack_transactions'),
       where('ownerUid', '==', ownerUid),
       orderBy('date', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction),
     onData,
@@ -413,6 +436,7 @@ export function subscribeReceivables(
     query(
       collection(getFirebaseDb(), 'gemtrack_receivables'),
       where('ownerUid', '==', ownerUid),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Receivable),
     onData,
@@ -429,6 +453,7 @@ export function subscribePayables(
     query(
       collection(getFirebaseDb(), 'gemtrack_payables'),
       where('ownerUid', '==', ownerUid),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Payable),
     onData,
@@ -446,6 +471,7 @@ export function subscribePayments(
       collection(getFirebaseDb(), 'gemtrack_payments'),
       where('ownerUid', '==', ownerUid),
       orderBy('paymentDate', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Payment),
     onData,
@@ -465,6 +491,7 @@ export function subscribeBills(
       collection(getFirebaseDb(), 'gemtrack_bills'),
       where('ownerUid', '==', ownerUid),
       orderBy('dueDate', 'asc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => mapBill(d.id, d.data())),
     onData,
@@ -497,6 +524,7 @@ export function subscribeCheques(
       collection(getFirebaseDb(), 'gemtrack_cheques'),
       where('ownerUid', '==', ownerUid),
       orderBy('maturityDate', 'asc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque),
     onData,
@@ -529,6 +557,7 @@ export function subscribeTrips(
       collection(getFirebaseDb(), 'gemtrack_trips'),
       where('ownerUid', '==', ownerUid),
       orderBy('startDate', 'desc'),
+      limit(OWNER_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Trip),
     onData,
@@ -634,6 +663,7 @@ export function subscribeVerifiedBusinesses(
       collection(getFirebaseDb(), 'businesses'),
       where('verificationStatus', '==', 'verified'),
       where('isActive', '==', true),
+      limit(MARKET_LIST_LIMIT),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Business),
     onData,
@@ -650,6 +680,21 @@ export function subscribeBusiness(
     doc(getFirebaseDb(), 'businesses', businessId),
     (id, data, exists) =>
       exists && data ? ({ id, ...data } as Business) : null,
+    onData,
+    onError,
+  );
+}
+
+/** Whether `fromBusinessId` has liked `toBusinessId` (own like doc only). */
+export function subscribeHasLikedBusiness(
+  fromBusinessId: string,
+  toBusinessId: string,
+  onData: (liked: boolean) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenDoc(
+    doc(getFirebaseDb(), 'likes', `${fromBusinessId}_${toBusinessId}`),
+    (_id, _data, exists) => exists,
     onData,
     onError,
   );
@@ -845,7 +890,7 @@ export function subscribeGemsByIds(
     return () => undefined;
   }
 
-  const byId = new Map<string, WorkspaceGem | null>();
+  const byId = new Map<string, WorkspaceGem>();
   const unsubs: Unsub[] = [];
 
   const emit = () => {
@@ -856,15 +901,25 @@ export function subscribeGemsByIds(
     );
   };
 
-  for (const id of unique) {
+  for (const chunk of chunkIds(unique, IN_QUERY_LIMIT)) {
     unsubs.push(
-      subscribeGem(
-        id,
-        (gem) => {
-          byId.set(id, gem);
+      onSnapshot(
+        query(
+          collection(getFirebaseDb(), 'gemtrack_gems'),
+          where(documentId(), 'in', chunk),
+        ),
+        (snap) => {
+          const present = new Set<string>();
+          for (const d of snap.docs) {
+            present.add(d.id);
+            byId.set(d.id, { id: d.id, ...d.data() } as WorkspaceGem);
+          }
+          for (const id of chunk) {
+            if (!present.has(id)) byId.delete(id);
+          }
           emit();
         },
-        onError,
+        (err) => onError?.(asError(err)),
       ),
     );
   }
@@ -885,22 +940,37 @@ export function subscribeBusinessesByOwnerUids(
     return () => undefined;
   }
 
-  const byUid: Record<string, Business | null> = {};
+  const byUid: Record<string, Business | null> = Object.fromEntries(
+    unique.map((uid) => [uid, null]),
+  );
   const unsubs: Unsub[] = [];
 
   const emit = () => {
     onData({ ...byUid });
   };
 
-  for (const uid of unique) {
+  for (const chunk of chunkIds(unique, IN_QUERY_LIMIT)) {
     unsubs.push(
-      subscribeBusinessByOwnerUid(
-        uid,
-        (biz) => {
-          byUid[uid] = biz;
+      onSnapshot(
+        query(
+          collection(getFirebaseDb(), 'businesses'),
+          where('ownerUid', 'in', chunk),
+        ),
+        (snap) => {
+          const byOwner = new Map<string, Business[]>();
+          for (const d of snap.docs) {
+            const biz = { id: d.id, ...d.data() } as Business;
+            const list = byOwner.get(biz.ownerUid) ?? [];
+            list.push(biz);
+            byOwner.set(biz.ownerUid, list);
+          }
+          for (const uid of chunk) {
+            const list = byOwner.get(uid);
+            byUid[uid] = list?.length ? pickPrimaryBusiness(list) : null;
+          }
           emit();
         },
-        onError,
+        (err) => onError?.(asError(err)),
       ),
     );
   }

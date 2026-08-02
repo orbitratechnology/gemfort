@@ -1,7 +1,7 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { Redirect, Stack } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -18,6 +18,11 @@ import {
   resolveNotificationVisuals,
   type NotificationVisual,
 } from "@/features/workspace/notification-visuals";
+import type { InboxActionId } from "@/features/workspace/notification-presentation";
+import {
+  respondApCancellation,
+  respondApRequest,
+} from "@/features/workspace/ap-lifecycle-service";
 import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
   fetchNotifications,
@@ -34,8 +39,11 @@ import type { AppNotification } from "@/types";
 
 const EMPTY_VISUAL: NotificationVisual = {
   imageUrl: null,
+  mediaUrl: null,
   shape: "circle",
+  mediaShape: "rounded",
   label: "?",
+  actorName: null,
   fallbackIcon: "notifications",
 };
 
@@ -75,6 +83,7 @@ export default function NotificationsScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const {
     data: notifications = [],
@@ -94,7 +103,10 @@ export default function NotificationsScreen() {
       "notification-visuals",
       user?.uid,
       notifications
-        .map((n) => `${n.id}:${n.referenceType}:${n.referenceId}`)
+        .map(
+          (n) =>
+            `${n.id}:${n.referenceType}:${n.referenceId}:${n.actorPhotoUrl ?? ""}:${n.imageUrl ?? ""}`,
+        )
         .join("|"),
     ],
     queryFn: () => resolveNotificationVisuals(notifications, user!.uid),
@@ -103,13 +115,19 @@ export default function NotificationsScreen() {
 
   const unread = notifications.filter((n) => !n.isRead).length;
 
-  const handleTap = useCallback(
+  const markRead = useCallback(
+    async (n: AppNotification) => {
+      if (n.isRead) return;
+      await markNotificationRead(n.id);
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    [queryClient],
+  );
+
+  const openNotification = useCallback(
     async (n: AppNotification) => {
       try {
-        if (!n.isRead) {
-          await markNotificationRead(n.id);
-          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        }
+        await markRead(n);
         navigateFromNotificationRef(n.referenceType, n.referenceId, {
           fromInbox: true,
         });
@@ -117,7 +135,77 @@ export default function NotificationsScreen() {
         toast.error(friendlyError(e, "Could not open notification."));
       }
     },
-    [queryClient, toast],
+    [markRead, toast],
+  );
+
+  const handleAction = useCallback(
+    async (n: AppNotification, actionId: InboxActionId) => {
+      const key = `${n.id}:${actionId}`;
+      try {
+        setBusyKey(key);
+
+        if (actionId === "accept_ap" || actionId === "decline_ap") {
+          if (!n.referenceId) throw new Error("Missing AP reference.");
+          await respondApRequest(
+            n.referenceId,
+            actionId === "accept_ap" ? "accepted" : "rejected",
+          );
+          await markRead(n);
+          toast.success(
+            actionId === "accept_ap" ? "AP accepted" : "AP declined",
+          );
+          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          return;
+        }
+
+        if (
+          actionId === "accept_ap_cancel" ||
+          actionId === "decline_ap_cancel"
+        ) {
+          if (!n.referenceId) throw new Error("Missing AP reference.");
+          await respondApCancellation(
+            n.referenceId,
+            actionId === "accept_ap_cancel" ? "accepted" : "rejected",
+          );
+          await markRead(n);
+          toast.success(
+            actionId === "accept_ap_cancel"
+              ? "AP cancelled"
+              : "Cancellation declined",
+          );
+          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          return;
+        }
+
+        await markRead(n);
+
+        if (actionId === "view_listing") {
+          navigateFromNotificationRef("listing", n.referenceId, {
+            fromInbox: true,
+          });
+          return;
+        }
+        if (actionId === "view_verify") {
+          navigateFromNotificationRef("verification", null, {
+            fromInbox: true,
+          });
+          return;
+        }
+        if (actionId === "view_account") {
+          navigateFromNotificationRef("account", null, { fromInbox: true });
+          return;
+        }
+
+        navigateFromNotificationRef(n.referenceType, n.referenceId, {
+          fromInbox: true,
+        });
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not complete that action."));
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [markRead, queryClient, toast],
   );
 
   const handleMarkAllRead = useCallback(async () => {
@@ -257,17 +345,25 @@ export default function NotificationsScreen() {
             <EmptyState
               icon="notifications-none"
               title="You're all caught up"
-              subtitle="Alerts about AP, cheques, bills, and payments show up here."
+              subtitle="Offers, AP requests, cheques, bills, and account alerts show up here."
             />
           )
         }
-        renderItem={({ item }) => (
-          <NotificationRow
-            notification={item}
-            visual={visuals[item.id] ?? EMPTY_VISUAL}
-            onPress={() => handleTap(item)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const busyActionId =
+            busyKey?.startsWith(`${item.id}:`)
+              ? (busyKey.slice(item.id.length + 1) as InboxActionId)
+              : null;
+          return (
+            <NotificationRow
+              notification={item}
+              visual={visuals[item.id] ?? EMPTY_VISUAL}
+              onPress={() => openNotification(item)}
+              onAction={(actionId) => handleAction(item, actionId)}
+              busyActionId={busyActionId}
+            />
+          );
+        }}
       />
     </>
   );

@@ -1,6 +1,7 @@
 export {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocFromCache,
   getDocs,

@@ -757,18 +757,39 @@ export async function submitFraudReport(input: {
   return id;
 }
 
+export function businessLikeId(
+  fromBusinessId: string,
+  toBusinessId: string,
+): string {
+  return `${fromBusinessId}_${toBusinessId}`;
+}
+
+export async function fetchHasLikedBusiness(
+  fromBusinessId: string,
+  toBusinessId: string,
+): Promise<boolean> {
+  const snap = await getDoc(
+    doc(
+      getFirebaseDb(),
+      "likes",
+      businessLikeId(fromBusinessId, toBusinessId),
+    ),
+  );
+  return snap.exists();
+}
+
 export async function sendLike(input: {
   fromUid: string;
   fromBusinessId: string;
   toBusinessId: string;
 }): Promise<void> {
-  const likeId = `${input.fromBusinessId}_${input.toBusinessId}`;
+  const likeId = businessLikeId(input.fromBusinessId, input.toBusinessId);
   queueDocSet("likes", likeId, {
-      fromBusinessId: input.fromBusinessId,
-      toBusinessId: input.toBusinessId,
-      fromUid: input.fromUid,
-      createdAt: serverTimestamp(),
-    });
+    fromBusinessId: input.fromBusinessId,
+    toBusinessId: input.toBusinessId,
+    fromUid: input.fromUid,
+    createdAt: serverTimestamp(),
+  });
 }
 
 /** Gem-trade offer limits — deliberate pricing, not chat spam. */

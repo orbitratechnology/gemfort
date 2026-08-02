@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import {
   canRegisterForPushNotifications,
@@ -9,14 +9,25 @@ import {
 import { updateFcmToken } from '@/lib/firebase/auth-service';
 import { useAuth } from '@/providers/auth-provider';
 
+// Android tray UI is owned by react-native-notify-kit (profile largeIcon + gem BigPicture).
+// iOS still uses the system presentation from APNs / local attachments.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async () =>
+    Platform.OS === 'android'
+      ? {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: true,
+          shouldShowBanner: false,
+          shouldShowList: false,
+        }
+      : {
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        },
 });
 
 export function usePushNotifications() {

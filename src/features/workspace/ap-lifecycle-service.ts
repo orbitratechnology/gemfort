@@ -1,4 +1,5 @@
 import { normalizeApRecord } from "@/features/workspace/ap-normalize";
+import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
 import { fetchBusiness } from "@/features/marketplace/marketplace-service";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
@@ -7,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   Timestamp,
@@ -49,6 +51,7 @@ function notify(
   title: string,
   message: string,
   apId: string,
+  actorName?: string | null,
 ) {
   if (!recipientUid || recipientUid === getFirebaseAuth().currentUser?.uid) {
     return;
@@ -60,6 +63,9 @@ function notify(
     message,
     referenceType: "ap",
     referenceId: apId,
+    actorName: actorName ?? null,
+    actorPhotoUrl: null,
+    imageUrl: null,
     priority: "medium",
     isRead: false,
     isPushSent: false,
@@ -95,6 +101,7 @@ export async function fetchGivenApRecords(uid: string): Promise<ApRecord[]> {
     collection(db, "gemtrack_ap_records"),
     where("senderUid", "==", uid),
     orderBy("updatedAt", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   try {
     const snap = await getDocs(bySender);
@@ -111,6 +118,7 @@ export async function fetchGivenApRecords(uid: string): Promise<ApRecord[]> {
     collection(db, "gemtrack_ap_records"),
     where("ownerUid", "==", uid),
     orderBy("updatedAt", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(byOwner);
   return snap.docs.map((d) =>
@@ -123,6 +131,7 @@ export async function fetchTakenApRecords(uid: string): Promise<ApRecord[]> {
     collection(getFirebaseDb(), "gemtrack_ap_records"),
     where("receiverUid", "==", uid),
     orderBy("updatedAt", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) =>
@@ -279,6 +288,7 @@ export async function createApRequest(input: {
     "New AP request",
     `${senderName} offered ${lines.length} gem${lines.length === 1 ? "" : "s"} on AP.`,
     apId,
+    senderName,
   );
 
   return apId;
@@ -314,6 +324,7 @@ export async function respondApRequest(
       "AP request declined",
       `${ap.receiverName} declined your AP request.`,
       apId,
+      ap.receiverName,
     );
     return { ok: true as const, status: "rejected" as const };
   }
@@ -329,6 +340,7 @@ export async function respondApRequest(
     "AP request accepted",
     `${ap.receiverName} accepted your AP (${(ap.items ?? []).length} gems).`,
     apId,
+    ap.receiverName,
   );
   return { ok: true as const, status: "accepted" as const };
 }
@@ -356,6 +368,7 @@ export async function cancelApRequest(apId: string) {
     "AP request cancelled",
     `${ap.senderName} cancelled an AP request.`,
     apId,
+    ap.senderName,
   );
   return { ok: true as const };
 }
@@ -455,6 +468,7 @@ export async function recordApGemSale(input: {
     "AP gem sold",
     `${ap.receiverName} sold ${line.gemLabel}. You are owed ${formatMoney(ownerReceives, line.currency)}.`,
     input.apId,
+    ap.receiverName,
   );
 
   return { ok: true as const };
@@ -533,6 +547,7 @@ export async function apPaymentSent(input: {
     "AP payment sent",
     `${ap.receiverName} sent ${formatMoney(amount)} via ${input.method}. Confirm when received.`,
     input.apId,
+    ap.receiverName,
   );
   return { ok: true as const };
 }
@@ -606,6 +621,7 @@ export async function apPaymentReceived(
     "AP payment confirmed",
     `${ap.senderName} confirmed receipt of ${formatMoney(amount, currency)}. AP complete (sold ${formatMoney(soldTotal, currency)}).`,
     apId,
+    ap.senderName,
   );
 
   return { ok: true as const };
@@ -673,6 +689,7 @@ export async function requestApCancellation(apId: string) {
     "AP cancellation requested",
     `${ap.senderName} asked to cancel an AP. Accept to unlock the stones.`,
     apId,
+    ap.senderName,
   );
   return { ok: true as const, status: "cancellation_requested" as const };
 }
@@ -701,6 +718,7 @@ export async function respondApCancellation(
       "AP cancellation declined",
       `${ap.receiverName} kept the AP active.`,
       apId,
+      ap.receiverName,
     );
     return { ok: true as const, status: "accepted" as const };
   }
@@ -720,6 +738,7 @@ export async function respondApCancellation(
     "AP cancelled",
     `${ap.receiverName} accepted your cancellation request.`,
     apId,
+    ap.receiverName,
   );
   return { ok: true as const, status: "cancelled" as const };
 }

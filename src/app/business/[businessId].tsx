@@ -2,6 +2,7 @@ import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
     Linking,
@@ -40,6 +41,7 @@ import {
     fetchBusiness,
     fetchBusinessByOwnerUid,
     fetchBusinesses,
+    fetchHasLikedBusiness,
     fetchPublicListings,
     sendLike,
     trackBusinessAnalytics,
@@ -47,6 +49,7 @@ import {
 import {
     subscribeBusiness,
     subscribeBusinessByOwnerUid,
+    subscribeHasLikedBusiness,
     subscribePublicListings,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
@@ -95,6 +98,7 @@ export default function BusinessProfileScreen() {
   const { formatFace } = usePreferredMoney();
   const { user, profile } = useAuth();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [reportOpen, setReportOpen] = useState(false);
@@ -130,6 +134,22 @@ export default function BusinessProfileScreen() {
     subscribe: (onData, onError) =>
       subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user && isFirebaseConfigured,
+  });
+
+  const isOwnBusinessPreview =
+    !!user && !!business && user.uid === business.ownerUid;
+
+  const { data: liked = false } = useFirestoreLiveQuery({
+    queryKey: ["has-liked", myBusiness?.id, business?.id],
+    queryFn: () => fetchHasLikedBusiness(myBusiness!.id, business!.id),
+    subscribe: (onData, onError) =>
+      subscribeHasLikedBusiness(myBusiness!.id, business!.id, onData, onError),
+    enabled:
+      !!myBusiness?.id &&
+      !!business?.id &&
+      !!user &&
+      !isOwnBusinessPreview &&
+      isFirebaseConfigured,
   });
 
   const { data: allListings = [] } = useFirestoreLiveQuery({
@@ -201,6 +221,8 @@ export default function BusinessProfileScreen() {
   const isVerifiedTrader =
     profile?.verificationStatus === "verified" && profile?.role === "trader";
   const canLike =
+    !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness && !liked;
+  const showLikeAction =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
   const isLab =
     business?.businessType === "gem_lab" ||
@@ -236,12 +258,10 @@ export default function BusinessProfileScreen() {
   const yearsValue = business
     ? String(business.badges.yearsActive || business.yearEstablished || "—")
     : "—";
-  const likesValue = business
-    ? String(business.badges.likeCount)
-    : "0";
+  const likesValue = String(business?.badges?.likeCount ?? 0);
 
   async function handleLike() {
-    if (!user || !myBusiness || !business) return;
+    if (!user || !myBusiness || !business || liked || liking) return;
     setLiking(true);
     try {
       await sendLike({
@@ -249,14 +269,35 @@ export default function BusinessProfileScreen() {
         fromBusinessId: myBusiness.id,
         toBusinessId: business.id,
       });
+      queryClient.setQueryData(
+        ["has-liked", myBusiness.id, business.id],
+        true,
+      );
+      queryClient.setQueryData(
+        ["business", businessId],
+        (prev: Business | null | undefined) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            badges: {
+              ...prev.badges,
+              likeCount: (prev.badges?.likeCount ?? 0) + 1,
+            },
+          };
+        },
+      );
       toast.success(`You liked ${business.businessName}.`);
     } catch (e) {
       const msg = friendlyError(e, "Could not send like.");
-      toast.error(
-        msg.includes("PERMISSION") || msg.includes("already")
-          ? "You already liked this business."
-          : msg,
-      );
+      if (msg.includes("PERMISSION") || msg.includes("already")) {
+        queryClient.setQueryData(
+          ["has-liked", myBusiness.id, business.id],
+          true,
+        );
+        toast.show("You already liked this business.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLiking(false);
     }
@@ -311,8 +352,8 @@ export default function BusinessProfileScreen() {
       router.push("/profile/business" as Href);
       return;
     }
-    if (canLike) {
-      void handleLike();
+    if (showLikeAction) {
+      if (canLike) void handleLike();
       return;
     }
     if (hasWhatsApp && whatsappValue) {
@@ -323,17 +364,20 @@ export default function BusinessProfileScreen() {
 
   const primaryLabel = isOwnBusiness
     ? "Edit profile"
-    : canLike
+    : showLikeAction
       ? liking
         ? "Liking…"
-        : "Likes"
+        : liked
+          ? "Liked"
+          : "Like"
       : hasWhatsApp
         ? "Message"
         : hasPhone
           ? "Call"
           : "Share";
 
-  const primaryDisabled = canLike && liking;
+  const primaryDisabled = showLikeAction && (liking || liked);
+  const likeIsPrimary = showLikeAction && !isOwnBusiness;
 
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -412,6 +456,15 @@ export default function BusinessProfileScreen() {
               label="Likes"
               color={colors.onSurface}
               muted={colors.textMuted}
+              onPress={
+                showLikeAction
+                  ? () => {
+                      if (canLike) void handleLike();
+                      else toast.show("You already liked this business.");
+                    }
+                  : undefined
+              }
+              accessibilityLabel={`${likesValue} likes${showLikeAction ? ". Double tap to like" : ""}`}
             />
           </View>
         </View>
@@ -462,12 +515,22 @@ export default function BusinessProfileScreen() {
             accessibilityLabel={primaryLabel}
             disabled={primaryDisabled}
             onPress={() => {
-              if (!isOwnBusiness && !canLike && !hasWhatsApp && hasPhone) {
+              if (
+                !isOwnBusiness &&
+                !showLikeAction &&
+                !hasWhatsApp &&
+                hasPhone
+              ) {
                 void trackBusinessAnalytics(bizId, "phoneTapsTotal");
                 if (phoneValue) Linking.openURL(openPhone(phoneValue));
                 return;
               }
-              if (!isOwnBusiness && !canLike && !hasWhatsApp && !hasPhone) {
+              if (
+                !isOwnBusiness &&
+                !showLikeAction &&
+                !hasWhatsApp &&
+                !hasPhone
+              ) {
                 handleShareProfile();
                 return;
               }
@@ -475,18 +538,41 @@ export default function BusinessProfileScreen() {
             }}
             style={({ pressed }) => [
               styles.primaryBtn,
+              likeIsPrimary ? styles.likeBtn : null,
               {
-                backgroundColor: colors.surfaceContainerHigh,
-                opacity: pressed || primaryDisabled ? 0.75 : 1,
+                backgroundColor: likeIsPrimary
+                  ? liked
+                    ? colors.primaryContainer
+                    : colors.primary
+                  : colors.surfaceContainerHigh,
+                opacity: pressed || primaryDisabled ? 0.78 : 1,
               },
             ]}
           >
-            <Text style={[styles.primaryBtnText, { color: colors.onSurface }]}>
+            {likeIsPrimary ? (
+              <Icon
+                name={liked ? "favorite" : "favorite-border"}
+                size={20}
+                color={liked ? colors.primary : colors.onPrimary}
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.primaryBtnText,
+                {
+                  color: likeIsPrimary
+                    ? liked
+                      ? colors.primary
+                      : colors.onPrimary
+                    : colors.onSurface,
+                },
+              ]}
+            >
               {primaryLabel}
             </Text>
           </Pressable>
 
-          {!isOwnBusiness && hasWhatsApp && (canLike || hasPhone) ? (
+          {!isOwnBusiness && hasWhatsApp && (showLikeAction || hasPhone) ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="WhatsApp"
@@ -818,20 +904,42 @@ function StatCell({
   label,
   color,
   muted,
+  onPress,
+  accessibilityLabel,
 }: {
   value: string;
   label: string;
   color: string;
   muted: string;
+  onPress?: () => void;
+  accessibilityLabel?: string;
 }) {
-  return (
-    <View style={styles.statCell}>
+  const content = (
+    <>
       <Text style={[styles.statValue, { color }]} numberOfLines={1}>
         {value}
       </Text>
       <Text style={[styles.statLabel, { color: muted }]}>{label}</Text>
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? `${value} ${label}`}
+        style={({ pressed }) => [
+          styles.statCell,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.statCell}>{content}</View>;
 }
 
 function SuggestedCard({
@@ -1044,21 +1152,25 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     flex: 1,
-    minHeight: 36,
-    borderRadius: Radius.md,
+    minHeight: 48,
+    borderRadius: Radius.lg,
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
+  },
+  likeBtn: {
+    flexDirection: "row",
+    gap: 8,
   },
   primaryBtnText: {
-    ...Typography.labelMd,
+    ...Typography.button,
     fontWeight: "700",
   },
   secondaryBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.md,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",

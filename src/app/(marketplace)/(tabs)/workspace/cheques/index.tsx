@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/ui/empty-state";
+import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -41,7 +42,6 @@ import {
     Text,
     View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 function ChequeRow({
@@ -267,117 +267,112 @@ export default function ChequesScreen() {
         }
       />
 
-      <ScrollView
+      <FlashList
+        data={upcoming}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-      >
-        {/* Summary strip */}
-        <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                HOLDING
-              </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {summary.holdingCount} · {formatBase(summary.holdingTotal)}
-              </Text>
+        ListHeaderComponent={
+          <View style={styles.headerBlock}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryCol}>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: colors.onPrimary + "99" },
+                    ]}
+                  >
+                    HOLDING
+                  </Text>
+                  <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                    {summary.holdingCount} · {formatBase(summary.holdingTotal)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.summaryDivider,
+                    { backgroundColor: colors.onPrimary + "22" },
+                  ]}
+                />
+                <View style={styles.summaryCol}>
+                  <Text
+                    style={[
+                      styles.summaryLabel,
+                      { color: colors.onPrimary + "99" },
+                    ]}
+                  >
+                    THIS MONTH
+                  </Text>
+                  <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                    {formatBase(summary.clearingThisMonth)}
+                  </Text>
+                </View>
+              </View>
+              {summary.bouncedCount > 0 ? (
+                <View
+                  style={[
+                    styles.bouncedBanner,
+                    { backgroundColor: colors.error + "33" },
+                  ]}
+                >
+                  <Icon name="warning" size={16} color={colors.onPrimary} />
+                  <Text style={[styles.bouncedText, { color: colors.onPrimary }]}>
+                    {summary.bouncedCount} bounced · action required
+                  </Text>
+                </View>
+              ) : null}
             </View>
-            <View
-              style={[
-                styles.summaryDivider,
-                { backgroundColor: colors.onPrimary + "22" },
-              ]}
-            />
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                THIS MONTH
-              </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {formatBase(summary.clearingThisMonth)}
-              </Text>
-            </View>
-          </View>
-          {summary.bouncedCount > 0 ? (
-            <View
-              style={[
-                styles.bouncedBanner,
-                { backgroundColor: colors.error + "33" },
-              ]}
-            >
-              <Icon name="warning" size={16} color={colors.onPrimary} />
-              <Text style={[styles.bouncedText, { color: colors.onPrimary }]}>
-                {summary.bouncedCount} bounced · action required
-              </Text>
-            </View>
-          ) : null}
-        </View>
 
-        {/* Bounced section */}
-        {bounced.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.error }]}>
-              Bounced
+            {bounced.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={[styles.sectionTitle, { color: colors.error }]}>
+                  Bounced
+                </Text>
+                {bounced.map((c) => (
+                  <ChequeRow
+                    key={c.id}
+                    cheque={c}
+                    contactName={
+                      contactMap.get(c.counterpartyContactId) ?? c.issuedBy
+                    }
+                    contactPhotoUrl={
+                      contactPhotoMap.get(c.counterpartyContactId) ?? null
+                    }
+                    colors={colors}
+                    onDelete={() => handleDelete(c.id)}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+              Upcoming
             </Text>
-            {bounced.map((c) => (
-              <ChequeRow
-                key={c.id}
-                cheque={c}
-                contactName={
-                  contactMap.get(c.counterpartyContactId) ?? c.issuedBy
-                }
-                contactPhotoUrl={
-                  contactPhotoMap.get(c.counterpartyContactId) ?? null
-                }
-                colors={colors}
-                onDelete={() => handleDelete(c.id)}
-              />
-            ))}
           </View>
-        ) : null}
-
-        {/* Upcoming */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Upcoming
-          </Text>
-          {upcoming.length === 0 ? (
-            <EmptyState
-              icon="money-check-dollar"
-              title="No pending cheques"
-              subtitle="Add a post-dated cheque to track maturity and clearance."
-            />
-          ) : (
-            upcoming.map((c) => (
-              <ChequeRow
-                key={c.id}
-                cheque={c}
-                contactName={
-                  contactMap.get(c.counterpartyContactId) ?? c.issuedBy
-                }
-                contactPhotoUrl={
-                  contactPhotoMap.get(c.counterpartyContactId) ?? null
-                }
-                colors={colors}
-                onDelete={() => handleDelete(c.id)}
-              />
-            ))
-          )}
-        </View>
-      </ScrollView>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon="money-check-dollar"
+            title="No pending cheques"
+            subtitle="Add a post-dated cheque to track maturity and clearance."
+          />
+        }
+        renderItem={({ item: c }) => (
+          <ChequeRow
+            cheque={c}
+            contactName={contactMap.get(c.counterpartyContactId) ?? c.issuedBy}
+            contactPhotoUrl={
+              contactPhotoMap.get(c.counterpartyContactId) ?? null
+            }
+            colors={colors}
+            onDelete={() => handleDelete(c.id)}
+          />
+        )}
+      />
 
       <Pressable
         accessibilityRole="button"
@@ -400,7 +395,10 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.containerMargin,
     paddingBottom: 100,
+  },
+  headerBlock: {
     gap: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   headerBtn: {
     width: 40,
@@ -444,6 +442,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     borderWidth: 1,
+    marginBottom: Spacing.sm,
   },
   rowIcon: {
     width: 40,

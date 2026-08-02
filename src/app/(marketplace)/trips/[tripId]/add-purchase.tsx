@@ -63,7 +63,7 @@ export default function AddTripPurchaseScreen() {
 
     try {
       await withLoading(async () => {
-        const gemId = await createGemOnSourcingTrip(user.uid, tripId, {
+        const gem = await createGemOnSourcingTrip(user.uid, tripId, {
           gemType: result.data.gemType,
           originCountry: result.data.originCountry,
           roughWeight: result.data.roughWeight,
@@ -71,12 +71,13 @@ export default function AddTripPurchaseScreen() {
           acquisitionCurrency: acquisition.currency,
           notes: result.data.notes ?? null,
         });
+        queryClient.setQueryData(['gem', gem.id], gem);
         await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
         await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
         await queryClient.invalidateQueries({ queryKey: ['trips'] });
         await queryClient.invalidateQueries({ queryKey: ['gems'] });
         toast.success('Gem purchased and linked to trip.');
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never);
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}` as never);
       }, 'Recording purchase…');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not record purchase.'));

@@ -415,9 +415,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           value={country}
           onChange={(name) => {
             setCountry(name);
-            if (city && !cityBelongsToCountry(city, name)) {
-              setCity("");
-            }
+            if (!city) return;
+            void cityBelongsToCountry(city, name).then((ok) => {
+              if (!ok) setCity("");
+            });
           }}
           placeholder="Select country"
         />

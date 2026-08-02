@@ -3,8 +3,11 @@ import { describe, it } from 'node:test';
 
 import {
   priorityForType,
+  pushCategoryForType,
+  pushChannelForType,
   PUSH_MANDATORY_TYPES,
 } from '../types';
+import { pickFcmRichImage } from '../push';
 
 describe('priorityForType', () => {
   it('marks cheque bounce and account actions as high', () => {
@@ -25,10 +28,39 @@ describe('priorityForType', () => {
   });
 });
 
+describe('pushCategoryForType', () => {
+  it('maps interactive categories', () => {
+    assert.equal(pushCategoryForType('ap_request_received'), 'ap_request');
+    assert.equal(pushCategoryForType('ap_cancellation_requested'), 'ap_cancel');
+    assert.equal(pushCategoryForType('listing_offer_received'), 'listing_offer');
+    assert.equal(pushCategoryForType('cheque_maturing_tomorrow'), 'open_ref');
+  });
+});
+
+describe('pushChannelForType', () => {
+  it('maps channels by urgency', () => {
+    assert.equal(pushChannelForType('cheque_bounced', 'high'), 'urgent');
+    assert.equal(pushChannelForType('bill_due_today', 'medium'), 'alerts');
+    assert.equal(pushChannelForType('announcement_platform', 'low'), 'default');
+  });
+});
+
 describe('PUSH_MANDATORY_TYPES', () => {
   it('includes verification and account lifecycle pushes', () => {
     assert.equal(PUSH_MANDATORY_TYPES.has('verification_approved'), true);
     assert.equal(PUSH_MANDATORY_TYPES.has('account_banned'), true);
     assert.equal(PUSH_MANDATORY_TYPES.has('cheque_maturing_tomorrow'), false);
+  });
+});
+
+describe('pickFcmRichImage', () => {
+  it('prefers gem art, falls back to profile', () => {
+    assert.equal(
+      pickFcmRichImage('https://a/profile.jpg', 'https://a/gem.jpg'),
+      'https://a/gem.jpg',
+    );
+    assert.equal(pickFcmRichImage('https://a/profile.jpg', null), 'https://a/profile.jpg');
+    assert.equal(pickFcmRichImage(null, 'https://a/gem.jpg'), 'https://a/gem.jpg');
+    assert.equal(pickFcmRichImage(null, null), null);
   });
 });

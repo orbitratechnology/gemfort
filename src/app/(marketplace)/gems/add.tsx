@@ -64,6 +64,7 @@ import {
   createGemOnSourcingTrip,
   fetchTrip,
   fetchTrips,
+  queueGemPhotoUrls,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -316,27 +317,30 @@ export default function AddGemScreen() {
         const stamp = Date.now();
         let photoUrls: string[] = [];
         let photosDeferred = false;
+        let uploadTask: Promise<string[]> | null = null;
+
         if (photos.length > 0) {
+          uploadTask = Promise.all(
+            photos.map((photo, index) => {
+              const ext = extensionForMedia(photo);
+              return uploadLocalMedia(
+                photo,
+                `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+              );
+            }),
+          );
           try {
             photoUrls = await Promise.race([
-              Promise.all(
-                photos.map((photo, index) => {
-                  const ext = extensionForMedia(photo);
-                  return uploadLocalMedia(
-                    photo,
-                    `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
-                  );
-                }),
-              ),
+              uploadTask,
               new Promise<never>((_, reject) => {
                 setTimeout(
                   () => reject(new Error("photo-upload-timeout")),
-                  8_000,
+                  45_000,
                 );
               }),
             ]);
           } catch {
-            // Storage needs network — still save the gem offline-first.
+            // Storage needs network — save gem now; attach URLs when upload finishes.
             photosDeferred = true;
             photoUrls = [];
           }
@@ -365,10 +369,30 @@ export default function AddGemScreen() {
           photoUrls,
         };
 
-        const gemId = selectedTripId
+        const gem = selectedTripId
           ? await createGemOnSourcingTrip(user.uid, selectedTripId, gemPayload)
           : await createGem(user.uid, gemPayload);
 
+        if (photosDeferred && uploadTask) {
+          void uploadTask
+            .then((urls) => {
+              queueGemPhotoUrls(gem.id, urls);
+              queryClient.setQueryData(["gem", gem.id], {
+                ...gem,
+                photoUrls: urls,
+              });
+              void queryClient.invalidateQueries({ queryKey: ["gems"] });
+              void queryClient.invalidateQueries({
+                queryKey: ["gem", gem.id],
+              });
+            })
+            .catch(() => {
+              // Still offline — gem row exists without photos.
+            });
+        }
+
+        // Seed detail cache so navigation skips the Loading flash.
+        queryClient.setQueryData(["gem", gem.id], gem);
         void queryClient.invalidateQueries({ queryKey: ["gems"] });
         if (selectedTripId) {
           void queryClient.invalidateQueries({
@@ -382,14 +406,14 @@ export default function AddGemScreen() {
 
         toast.success(
           photosDeferred
-            ? "Gem saved — add photos when you’re back online"
+            ? "Gem saved — photos still uploading in the background"
             : photos.length === 0
               ? "Gem added — photos optional, add anytime"
               : selectedTripId
                 ? "Gem added and linked to trip"
                 : "Gem added to your inventory",
         );
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gemId}`);
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}`);
       }, "Adding gem…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not add gem."));

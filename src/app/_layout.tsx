@@ -2,6 +2,8 @@ import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
+// Side-effect: register background notification task at module load.
+import "@/lib/notifications/rich-display";
 import {
   formSheetFitContentOptions,
   silkStackScreenOptions,

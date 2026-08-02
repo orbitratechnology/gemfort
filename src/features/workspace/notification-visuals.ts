@@ -3,12 +3,14 @@ import {
   fetchBusiness,
   fetchBusinessByOwnerUid,
 } from "@/features/marketplace/marketplace-service";
+import { fallbackIconForType } from "@/features/workspace/notification-presentation";
 import { gemPrimaryPhotoUrl, resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchApRecordById } from "@/features/workspace/ap-lifecycle-service";
 import {
   fetchBill,
   fetchCheque,
   fetchGem,
+  fetchListingBySlug,
   fetchService,
 } from "@/features/workspace/workspace-service";
 import { getFirebaseDb } from "@/lib/firebase/config";
@@ -20,12 +22,19 @@ import type {
 } from "@/types";
 
 export type NotificationVisual = {
+  /** Primary avatar / logo (people, businesses). */
   imageUrl: string | null;
+  /** Secondary media (gem, listing, cheque photo, announcement art). */
+  mediaUrl: string | null;
   /** People/business logos are circular; gems/media use rounded squares. */
   shape: "circle" | "rounded";
+  mediaShape: "circle" | "rounded";
   label: string;
+  actorName: string | null;
   fallbackIcon: IconName;
 };
+
+export { fallbackIconForType };
 
 function uniqueIds(
   notifications: AppNotification[],
@@ -70,33 +79,21 @@ async function fetchAnnouncement(
   return { id: snap.id, ...snap.data() } as Announcement;
 }
 
-export function fallbackIconForType(type: string): IconName {
-  if (type.startsWith("cheque_")) return "money-check-dollar";
-  if (type.startsWith("bill_")) return "receipt-long";
-  if (type.startsWith("ap_")) return "handshake";
-  if (type.startsWith("service_")) return "handyman";
-  if (type.startsWith("cert_")) return "workspace-premium";
-  if (type.startsWith("payment_")) return "payments";
-  if (type.startsWith("verification_")) return "verified-user";
-  if (type.startsWith("announcement_")) return "campaign";
-  if (type.startsWith("report_")) return "flag";
-  if (type.startsWith("account_")) return "manage-accounts";
-  if (type.startsWith("listing_offer")) return "sell";
-  return "notifications";
-}
-
 function baseVisual(n: AppNotification): NotificationVisual {
   return {
-    imageUrl: null,
+    imageUrl: n.actorPhotoUrl ?? null,
+    mediaUrl: n.imageUrl ?? null,
     shape: "circle",
-    label: n.title.slice(0, 2).toUpperCase(),
+    mediaShape: "rounded",
+    label: n.actorName?.slice(0, 2).toUpperCase() || n.title.slice(0, 2).toUpperCase(),
+    actorName: n.actorName ?? null,
     fallbackIcon: fallbackIconForType(n.type),
   };
 }
 
 /**
  * Resolve avatars / gem photos for inbox rows from live Firestore refs.
- * Notifications only store referenceType + referenceId — images are never static.
+ * Prefers denormalized actorPhotoUrl / imageUrl when present, then fills gaps.
  */
 export async function resolveNotificationVisuals(
   notifications: AppNotification[],
@@ -106,13 +103,28 @@ export async function resolveNotificationVisuals(
   for (const n of notifications) out[n.id] = baseVisual(n);
   if (notifications.length === 0) return out;
 
-  const [aps, services, cheques, bills, announcements] = await Promise.all([
-    mapFetch(uniqueIds(notifications, "ap"), fetchApRecordById),
-    mapFetch(uniqueIds(notifications, "service"), fetchService),
-    mapFetch(uniqueIds(notifications, "cheque"), fetchCheque),
-    mapFetch(uniqueIds(notifications, "bill"), fetchBill),
-    mapFetch(uniqueIds(notifications, "announcement"), fetchAnnouncement),
-  ]);
+  const listingIds = [
+    ...new Set(
+      notifications
+        .filter(
+          (n) =>
+            (n.referenceType === "listing" ||
+              n.type === "listing_offer_received") &&
+            n.referenceId,
+        )
+        .map((n) => n.referenceId!),
+    ),
+  ];
+
+  const [aps, services, cheques, bills, announcements, listings] =
+    await Promise.all([
+      mapFetch(uniqueIds(notifications, "ap"), fetchApRecordById),
+      mapFetch(uniqueIds(notifications, "service"), fetchService),
+      mapFetch(uniqueIds(notifications, "cheque"), fetchCheque),
+      mapFetch(uniqueIds(notifications, "bill"), fetchBill),
+      mapFetch(uniqueIds(notifications, "announcement"), fetchAnnouncement),
+      mapFetch(listingIds, fetchListingBySlug),
+    ]);
 
   const gemIds = new Set<string>();
   const businessIds = new Set<string>();
@@ -142,6 +154,9 @@ export async function resolveNotificationVisuals(
     if (a.linkedBusinessId) businessIds.add(a.linkedBusinessId);
     if (a.linkedGemId) gemIds.add(a.linkedGemId);
   }
+  for (const listing of listings.values()) {
+    if (listing.businessId) businessIds.add(listing.businessId);
+  }
 
   const [gems, businessesById, contacts] = await Promise.all([
     mapFetch([...gemIds], fetchGem),
@@ -153,7 +168,6 @@ export async function resolveNotificationVisuals(
     if (contact.linkedBusinessId) businessIds.add(contact.linkedBusinessId);
   }
 
-  // Refetch businesses if contacts linked new business IDs.
   const missingBiz = [...businessIds].filter((id) => !businessesById.has(id));
   if (missingBiz.length > 0) {
     const extra = await mapFetch(missingBiz, fetchBusiness);
@@ -179,8 +193,6 @@ export async function resolveNotificationVisuals(
     if (n.referenceType === "ap") {
       const ap = aps.get(refId);
       if (!ap) continue;
-      const preferGem =
-        n.type === "ap_gem_sold" || n.type.includes("gem");
       const firstGemId = ap.items?.[0]?.gemId;
       const gemPhoto = firstGemId
         ? gemPrimaryPhotoUrl(gems.get(firstGemId))
@@ -196,20 +208,18 @@ export async function resolveNotificationVisuals(
         (counterpartyUid
           ? businessesByOwner.get(counterpartyUid)
           : null);
-      if (preferGem && gemPhoto) {
-        visual.imageUrl = gemPhoto;
-        visual.shape = "rounded";
-        visual.label = counterpartyName || "Gem";
-      } else if (biz?.logoUrl) {
+
+      visual.actorName = visual.actorName || counterpartyName || biz?.businessName || null;
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
+
+      if (!visual.imageUrl && biz?.logoUrl) {
         visual.imageUrl = biz.logoUrl;
         visual.shape = "circle";
-        visual.label = biz.businessName || counterpartyName || "AP";
-      } else if (gemPhoto) {
-        visual.imageUrl = gemPhoto;
-        visual.shape = "rounded";
-        visual.label = counterpartyName || "Gem";
-      } else {
-        visual.label = counterpartyName || "AP";
+      }
+      if (!visual.mediaUrl && gemPhoto) {
+        visual.mediaUrl = gemPhoto;
+        visual.mediaShape = "rounded";
       }
       continue;
     }
@@ -221,16 +231,17 @@ export async function resolveNotificationVisuals(
       const biz = service.providerBusinessId
         ? businessesById.get(service.providerBusinessId)
         : null;
-      if (gemPhoto) {
-        visual.imageUrl = gemPhoto;
-        visual.shape = "rounded";
-        visual.label = service.providerName || "Service";
-      } else if (biz?.logoUrl) {
+      visual.actorName =
+        visual.actorName || biz?.businessName || service.providerName || null;
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
+      if (!visual.imageUrl && biz?.logoUrl) {
         visual.imageUrl = biz.logoUrl;
         visual.shape = "circle";
-        visual.label = biz.businessName || service.providerName || "Service";
-      } else {
-        visual.label = service.providerName || "Service";
+      }
+      if (!visual.mediaUrl && gemPhoto) {
+        visual.mediaUrl = gemPhoto;
+        visual.mediaShape = "rounded";
       }
       continue;
     }
@@ -238,20 +249,23 @@ export async function resolveNotificationVisuals(
     if (n.referenceType === "cheque") {
       const cheque = cheques.get(refId);
       if (!cheque) continue;
-      if (cheque.photoUrl) {
-        visual.imageUrl = cheque.photoUrl;
-        visual.shape = "rounded";
-        visual.label = cheque.issuedBy || cheque.chequeNumber || "Cheque";
-      } else {
-        const contact = cheque.counterpartyContactId
-          ? contacts.get(cheque.counterpartyContactId)
-          : null;
+      const contact = cheque.counterpartyContactId
+        ? contacts.get(cheque.counterpartyContactId)
+        : null;
+      visual.actorName =
+        visual.actorName ||
+        contact?.displayName ||
+        cheque.issuedBy ||
+        null;
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
+      if (!visual.imageUrl) {
         visual.imageUrl = resolvePartyPhotoUrl(contact, businessesById);
         visual.shape = "circle";
-        visual.label =
-          contact?.displayName ||
-          cheque.issuedBy ||
-          "Cheque";
+      }
+      if (!visual.mediaUrl && cheque.photoUrl) {
+        visual.mediaUrl = cheque.photoUrl;
+        visual.mediaShape = "rounded";
       }
       continue;
     }
@@ -262,29 +276,65 @@ export async function resolveNotificationVisuals(
       const contact = bill.counterpartyContactId
         ? contacts.get(bill.counterpartyContactId)
         : null;
-      visual.imageUrl = resolvePartyPhotoUrl(contact, businessesById);
-      visual.shape = "circle";
-      visual.label = contact?.displayName || "Bill";
+      visual.actorName = visual.actorName || contact?.displayName || null;
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
+      if (!visual.imageUrl) {
+        visual.imageUrl = resolvePartyPhotoUrl(contact, businessesById);
+        visual.shape = "circle";
+      }
       continue;
     }
 
     if (n.referenceType === "announcement") {
       const ann = announcements.get(refId);
       if (!ann) continue;
-      if (ann.imageUrl) {
-        visual.imageUrl = ann.imageUrl;
-        visual.shape = "rounded";
-        visual.label = ann.title || "News";
-      } else if (ann.linkedBusinessId) {
+      if (!visual.mediaUrl && ann.imageUrl) {
+        visual.mediaUrl = ann.imageUrl;
+        visual.mediaShape = "rounded";
+      }
+      if (!visual.imageUrl && ann.linkedBusinessId) {
         const biz = businessesById.get(ann.linkedBusinessId);
         visual.imageUrl = biz?.logoUrl ?? null;
         visual.shape = "circle";
-        visual.label = biz?.businessName || ann.title || "News";
-      } else if (ann.linkedGemId) {
-        visual.imageUrl = gemPrimaryPhotoUrl(gems.get(ann.linkedGemId));
-        visual.shape = "rounded";
-        visual.label = ann.title || "News";
+        visual.actorName = visual.actorName || biz?.businessName || null;
+      } else if (!visual.mediaUrl && ann.linkedGemId) {
+        visual.mediaUrl = gemPrimaryPhotoUrl(gems.get(ann.linkedGemId));
+        visual.mediaShape = "rounded";
       }
+      visual.actorName = visual.actorName || "GemFort";
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() ||
+        ann.title?.slice(0, 2).toUpperCase() ||
+        visual.label;
+      continue;
+    }
+
+    if (
+      n.referenceType === "listing" ||
+      n.type === "listing_offer_received"
+    ) {
+      const listing = listings.get(refId);
+      if (!listing) continue;
+      const listingPhoto = listing.photoUrls?.[0] ?? null;
+      const biz = listing.businessId
+        ? businessesById.get(listing.businessId)
+        : null;
+
+      // For offers, actor is the buyer (may already be denormalized).
+      if (!visual.actorName && n.type !== "listing_offer_received") {
+        visual.actorName = biz?.businessName || null;
+      }
+      if (!visual.imageUrl && n.type !== "listing_offer_received" && biz?.logoUrl) {
+        visual.imageUrl = biz.logoUrl;
+        visual.shape = "circle";
+      }
+      if (!visual.mediaUrl && listingPhoto) {
+        visual.mediaUrl = listingPhoto;
+        visual.mediaShape = "rounded";
+      }
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
     }
   }
 

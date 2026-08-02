@@ -30,6 +30,8 @@ export const onAnnouncementPublished = onDocumentCreated(
         message: (data.content as string)?.slice(0, 200) || 'New announcement from GemFort.',
         referenceType: 'announcement',
         referenceId: event.params.announcementId,
+        imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : null,
+        actorName: 'GemFort',
       }));
 
     const created = await createNotificationsBatch(inputs);

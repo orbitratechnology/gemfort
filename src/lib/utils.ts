@@ -16,6 +16,13 @@ export function generateSku(sequence: number): string {
   return `GF-${year}-${String(sequence).padStart(5, '0')}`;
 }
 
+/** Offline-safe SKU from a Firestore doc id (no collection scan). */
+export function generateSkuFromDocId(docId: string): string {
+  const year = new Date().getFullYear();
+  const token = docId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
+  return `GF-${year}-${token.padEnd(5, '0')}`;
+}
+
 /** Short user-facing gem ID (hides internal SKU codes). */
 export function shortGemId(id: string | null | undefined): string {
   if (!id) return '';

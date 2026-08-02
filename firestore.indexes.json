@@ -99,6 +99,46 @@
       ]
     },
     {
+      "collectionGroup": "gemtrack_receivables",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_services",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expectedReturnDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_ap_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expectedReturnDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_ap_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "paymentSentAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_ap_records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "soldDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "gemtrack_trips",
       "queryScope": "COLLECTION",
       "fields": [

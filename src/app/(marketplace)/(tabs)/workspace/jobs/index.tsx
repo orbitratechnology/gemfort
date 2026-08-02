@@ -5,8 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
 import { FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
+import { FlashList } from '@/components/ui/gesture-lists';
 import { StackHeader } from '@/components/ui/stack-header';
-import { ThemedScrollView } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -130,61 +130,73 @@ export default function LapidaryJobsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <WorkspaceScreenBackdrop kind="jobs" />
       <StackHeader title="Workshop jobs" />
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        <FormSectionLabel title="Incoming requests" />
-        <ScreenInset style={styles.sectionBody}>
-        {pending.length === 0 ? (
-          <Text style={{ color: colors.textMuted }}>No pending service requests.</Text>
-        ) : (
-          pending.map((r) => (
-            <View key={r.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Text style={[styles.title, { color: colors.primary }]}>{r.gemName}</Text>
-              <Text style={{ color: colors.textMuted }}>{r.serviceTypes.join(', ')}</Text>
-              {r.notes ? <Text style={{ color: colors.onSurfaceVariant }}>{r.notes}</Text> : null}
-              <View style={styles.row}>
-                <Button title="Accept" onPress={() => onRespond(r.id, 'accepted', r.traderUid)} />
-                <Button title="Reject" variant="secondary" onPress={() => onRespond(r.id, 'rejected', r.traderUid)} />
-              </View>
-            </View>
-          ))
-        )}
-        </ScreenInset>
-
-        {cancellationRequests.length > 0 ? (
-          <>
-            <FormSectionLabel title="Cancellation requests" />
+      <FlashList
+        data={jobs}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={
+          <View style={styles.headerBlock}>
+            <FormSectionLabel title="Incoming requests" />
             <ScreenInset style={styles.sectionBody}>
-              {cancellationRequests.map((s) => (
-                <View key={s.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
-                  <Text style={[styles.title, { color: colors.primary }]}>
-                    {s.serviceType.replace(/_/g, ' ')}
-                  </Text>
-                  <Text style={{ color: colors.textMuted }}>
-                    A trader asked to cancel this service.
-                  </Text>
-                  <View style={styles.row}>
-                    <Button title="Accept" onPress={() => onRespondCancellation(s.id, 'accepted')} />
-                    <Button
-                      title="Decline"
-                      variant="secondary"
-                      onPress={() => onRespondCancellation(s.id, 'rejected')}
-                    />
+              {pending.length === 0 ? (
+                <Text style={{ color: colors.textMuted }}>No pending service requests.</Text>
+              ) : (
+                pending.map((r) => (
+                  <View key={r.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+                    <Text style={[styles.title, { color: colors.primary }]}>{r.gemName}</Text>
+                    <Text style={{ color: colors.textMuted }}>{r.serviceTypes.join(', ')}</Text>
+                    {r.notes ? <Text style={{ color: colors.onSurfaceVariant }}>{r.notes}</Text> : null}
+                    <View style={styles.row}>
+                      <Button title="Accept" onPress={() => onRespond(r.id, 'accepted', r.traderUid)} />
+                      <Button title="Reject" variant="secondary" onPress={() => onRespond(r.id, 'rejected', r.traderUid)} />
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))
+              )}
             </ScreenInset>
-          </>
-        ) : null}
 
-        <FormSectionLabel title="Active jobs" />
-        <ScreenInset style={styles.sectionBody}>
-        {isLoading ? <Text style={{ color: colors.textMuted }}>Loading…</Text> : null}
-        {jobs.length === 0 && !isLoading ? (
-          <EmptyState icon="construction" title="No jobs yet" subtitle="Accepted trader stones appear here." />
-        ) : (
-          jobs.map((j) => (
+            {cancellationRequests.length > 0 ? (
+              <>
+                <FormSectionLabel title="Cancellation requests" />
+                <ScreenInset style={styles.sectionBody}>
+                  {cancellationRequests.map((s) => (
+                    <View key={s.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
+                      <Text style={[styles.title, { color: colors.primary }]}>
+                        {s.serviceType.replace(/_/g, ' ')}
+                      </Text>
+                      <Text style={{ color: colors.textMuted }}>
+                        A trader asked to cancel this service.
+                      </Text>
+                      <View style={styles.row}>
+                        <Button title="Accept" onPress={() => onRespondCancellation(s.id, 'accepted')} />
+                        <Button
+                          title="Decline"
+                          variant="secondary"
+                          onPress={() => onRespondCancellation(s.id, 'rejected')}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </ScreenInset>
+              </>
+            ) : null}
+
+            <FormSectionLabel title="Active jobs" />
+            {isLoading ? (
+              <ScreenInset>
+                <Text style={{ color: colors.textMuted }}>Loading…</Text>
+              </ScreenInset>
+            ) : null}
+          </View>
+        }
+        ListEmptyComponent={
+          isLoading ? null : (
+            <EmptyState icon="construction" title="No jobs yet" subtitle="Accepted trader stones appear here." />
+          )
+        }
+        renderItem={({ item: j }) => (
+          <ScreenInset>
             <Pressable
-              key={j.id}
               style={[styles.card, { backgroundColor: colors.surfaceContainerLowest }]}>
               <Text style={[styles.title, { color: colors.primary }]}>{j.gemName}</Text>
               <Text style={{ color: colors.textMuted }}>
@@ -202,10 +214,9 @@ export default function LapidaryJobsScreen() {
                 ) : null}
               </View>
             </Pressable>
-          ))
+          </ScreenInset>
         )}
-        </ScreenInset>
-      </ThemedScrollView>
+      />
     </SafeAreaView>
   );
 }
@@ -213,8 +224,9 @@ export default function LapidaryJobsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { gap: Spacing.md, paddingBottom: 48 },
+  headerBlock: { gap: Spacing.md },
   sectionBody: { gap: Spacing.md },
-  card: { borderRadius: Radius.lg, padding: Spacing.lg, gap: 8 },
+  card: { borderRadius: Radius.lg, padding: Spacing.lg, gap: 8, marginBottom: Spacing.sm },
   title: { ...Typography.headlineMdMobile, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },
 });

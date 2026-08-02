@@ -68,22 +68,6 @@ async function unlockGem(gemId: string) {
   });
 }
 
-async function writeApPaymentEvent(input: {
-  apId: string;
-  ownerUid: string;
-  senderUid: string;
-  receiverUid: string;
-  actorUid: string;
-  type: 'sent' | 'received';
-  method: ApPaymentMethod | null;
-  amount: number;
-}) {
-  await db.collection('gemtrack_ap_payments').add({
-    ...input,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-}
-
 /** Create multi-gem AP request → status pending. Locks gems on_ap. */
 export const createApRequest = onCall(
   HOT_CALLABLE,
@@ -125,7 +109,14 @@ export const createApRequest = onCall(
       );
     }
 
-    const bizSnap = await db.collection('businesses').doc(linkedBusinessId).get();
+    const gemRefs = itemsIn.map((item) => db.collection('gemtrack_gems').doc(item.gemId));
+    const [bizSnap, senderSnap, rates, ...gemSnaps] = await Promise.all([
+      db.collection('businesses').doc(linkedBusinessId).get(),
+      db.collection('users').doc(uid).get(),
+      loadServerRates(),
+      ...gemRefs.map((ref) => ref.get()),
+    ]);
+
     if (!bizSnap.exists) {
       throw new HttpsError('not-found', 'Trader business profile not found.');
     }
@@ -135,21 +126,19 @@ export const createApRequest = onCall(
       throw new HttpsError('failed-precondition', 'Invalid AP receiver.');
     }
 
-    const senderSnap = await db.collection('users').doc(uid).get();
     const senderName =
       (senderSnap.data()?.displayName as string) ||
       (biz.ownerName as string) ||
       'Trader';
 
-    const rates = await loadServerRates();
     const lines: ApGemLine[] = [];
-    for (const item of itemsIn) {
+    for (let i = 0; i < itemsIn.length; i++) {
+      const item = itemsIn[i]!;
       const price = Number(item.agreedPrice);
       if (!item.gemId || !Number.isFinite(price) || price < 0) {
         throw new HttpsError('invalid-argument', 'Each gem needs a valid AP price.');
       }
-      const gemRef = db.collection('gemtrack_gems').doc(item.gemId);
-      const gemSnap = await gemRef.get();
+      const gemSnap = gemSnaps[i]!;
       if (!gemSnap.exists || gemSnap.data()?.ownerUid !== uid) {
         throw new HttpsError('permission-denied', `Gem ${item.gemId} not found.`);
       }
@@ -223,6 +212,7 @@ export const createApRequest = onCall(
       message: `${senderName} offered ${lines.length} gem${lines.length === 1 ? '' : 's'} on AP.`,
       referenceType: 'ap',
       referenceId: apRef.id,
+      actorName: senderName,
     });
 
     logger.info('createApRequest', { apId: apRef.id, uid, receiverUid, gems: lines.length });
@@ -280,6 +270,7 @@ export const respondApRequest = onCall(
         message: `${ap.receiverName} declined your AP request.`,
         referenceType: 'ap',
         referenceId: apId,
+        actorName: ap.receiverName,
       });
       return { ok: true as const, status: 'rejected' };
     }
@@ -297,6 +288,7 @@ export const respondApRequest = onCall(
       message: `${ap.receiverName} accepted your AP (${(ap.items ?? []).length} gems).`,
       referenceType: 'ap',
       referenceId: apId,
+      actorName: ap.receiverName,
     });
 
     return { ok: true as const, status: 'accepted' };
@@ -536,7 +528,8 @@ export const apPaymentSent = onCall(
       : owed;
     const now = Timestamp.now();
 
-    await ref.update({
+    const batch = db.batch();
+    batch.update(ref, {
       status: 'payment_sent',
       paymentMethod: data.method,
       paymentAmount: amount,
@@ -544,8 +537,7 @@ export const apPaymentSent = onCall(
       paymentChequeId: data.chequeId ?? null,
       updatedAt: now,
     });
-
-    await writeApPaymentEvent({
+    batch.set(db.collection('gemtrack_ap_payments').doc(), {
       apId: data.apId,
       ownerUid: ap.ownerUid,
       senderUid: ap.senderUid,
@@ -554,7 +546,9 @@ export const apPaymentSent = onCall(
       type: 'sent',
       method: data.method,
       amount,
+      createdAt: FieldValue.serverTimestamp(),
     });
+    await batch.commit();
 
     await createNotificationDoc({
       recipientUid: ap.senderUid,
@@ -606,15 +600,18 @@ export const apPaymentReceived = onCall(
     const method = data.method ?? ap.paymentMethod;
     const chequeId = data.chequeId ?? ap.paymentChequeId ?? null;
 
-    await ref.update({
+    const rates = await loadServerRates();
+    const amountBase = convertToBaseServer(amount, currency, rates);
+
+    const batch = db.batch();
+    batch.update(ref, {
       status: 'done',
       paymentReceivedAt: now,
       ...(data.method ? { paymentMethod: data.method } : {}),
       ...(data.chequeId !== undefined ? { paymentChequeId: chequeId } : {}),
       updatedAt: now,
     });
-
-    await writeApPaymentEvent({
+    batch.set(db.collection('gemtrack_ap_payments').doc(), {
       apId,
       ownerUid: ap.ownerUid,
       senderUid: ap.senderUid,
@@ -623,13 +620,9 @@ export const apPaymentReceived = onCall(
       type: 'received',
       method,
       amount,
+      createdAt: FieldValue.serverTimestamp(),
     });
-
-    const rates = await loadServerRates();
-    const amountBase = convertToBaseServer(amount, currency, rates);
-
-    // Sender income
-    await db.collection('gemtrack_transactions').add({
+    batch.set(db.collection('gemtrack_transactions').doc(), {
       ownerUid: ap.senderUid,
       type: 'income',
       amount,
@@ -642,9 +635,7 @@ export const apPaymentReceived = onCall(
       date: now,
       createdAt: now,
     });
-
-    // Receiver payout expense
-    await db.collection('gemtrack_transactions').add({
+    batch.set(db.collection('gemtrack_transactions').doc(), {
       ownerUid: ap.receiverUid,
       type: 'expense',
       amount,
@@ -657,6 +648,7 @@ export const apPaymentReceived = onCall(
       date: now,
       createdAt: now,
     });
+    await batch.commit();
 
     await createNotificationDoc({
       recipientUid: ap.receiverUid,
@@ -713,6 +705,7 @@ export const requestApCancellation = onCall(
       message: `${ap.senderName} asked to cancel an AP. Accept to unlock the stones.`,
       referenceType: 'ap',
       referenceId: apId,
+      actorName: ap.senderName,
     });
 
     return { ok: true as const, status: 'cancellation_requested' as const };

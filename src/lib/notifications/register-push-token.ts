@@ -3,8 +3,13 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { updateFcmToken } from '@/lib/firebase/auth-service';
+import {
+  ANDROID_CHANNEL_ID,
+  ensureAndroidNotificationChannels,
+  registerNotificationCategories,
+} from '@/lib/notifications/categories';
 
-export const ANDROID_CHANNEL_ID = 'default';
+export { ANDROID_CHANNEL_ID };
 
 export function canRegisterForPushNotifications(): boolean {
   if (Platform.OS === 'web') return false;
@@ -12,17 +17,9 @@ export function canRegisterForPushNotifications(): boolean {
   return true;
 }
 
-async function ensureAndroidChannel() {
-  if (Platform.OS !== 'android') return;
-
-  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-    name: 'GemFort alerts',
-    importance: Notifications.AndroidImportance.HIGH,
-  });
-}
-
 async function requestPushPermission(): Promise<boolean> {
-  await ensureAndroidChannel();
+  await ensureAndroidNotificationChannels();
+  await registerNotificationCategories();
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;

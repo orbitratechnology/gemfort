@@ -1,6 +1,7 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -56,9 +57,29 @@ export function CityPickerSheet({
   }
 
   const countryMeta = useMemo(() => findCountry(country), [country]);
-  const cities = useMemo(() => listCitiesForCountry(country), [country]);
+  const [cities, setCities] = useState<AppCity[]>([]);
+  const citiesRequestKey = visible ? `${openSession}:${country ?? ""}` : null;
+  const [citiesResolvedKey, setCitiesResolvedKey] = useState<string | null>(
+    null,
+  );
+  const citiesLoading =
+    citiesRequestKey != null && citiesRequestKey !== citiesResolvedKey;
+
+  useEffect(() => {
+    if (citiesRequestKey == null) return;
+    let cancelled = false;
+    void listCitiesForCountry(country).then((next) => {
+      if (cancelled) return;
+      setCities(next);
+      setCitiesResolvedKey(citiesRequestKey);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [citiesRequestKey, country]);
 
   const filtered = useMemo(() => {
+    if (citiesLoading) return [];
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return cities;
     return cities.filter(
@@ -66,7 +87,7 @@ export function CityPickerSheet({
         c.name.toLowerCase().includes(q) ||
         c.stateCode.toLowerCase().includes(q),
     );
-  }, [cities, debouncedQuery]);
+  }, [cities, citiesLoading, debouncedQuery]);
 
   const selectedLower = value?.trim().toLowerCase() ?? "";
 
@@ -111,15 +132,22 @@ export function CityPickerSheet({
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={SheetListSeparator}
         ListEmptyComponent={
-          <EmptyState
-            icon="place"
-            title={country ? "No cities found" : "Select a country first"}
-            subtitle={
-              country
-                ? "Try another search."
-                : "Choose a country to browse its cities."
-            }
-          />
+          citiesLoading ? (
+            <ActivityIndicator
+              style={{ marginTop: Spacing.xl }}
+              color={colors.primary}
+            />
+          ) : (
+            <EmptyState
+              icon="place"
+              title={country ? "No cities found" : "Select a country first"}
+              subtitle={
+                country
+                  ? "Try another search."
+                  : "Choose a country to browse its cities."
+              }
+            />
+          )
         }
         renderItem={({ item }) => {
           const active = selectedLower === item.name.toLowerCase();

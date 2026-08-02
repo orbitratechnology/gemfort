@@ -31,6 +31,7 @@ export {
   onCertRequestUpdated,
 } from './gemnet/requests';
 export { onListingOfferCreated } from './gemnet/listing-offers';
+export { onLikeCreated } from './gemnet/likes';
 
 export { onNotificationCreated } from './notifications/on-created';
 

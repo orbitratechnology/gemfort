@@ -321,7 +321,7 @@ export default function ChequeDetailScreen() {
   const whatsapp =
     contact?.whatsapp?.trim() || contact?.phone?.trim() || null;
 
-  const statusActions: {
+  const allStatusActions: {
     status: ChequeStatus;
     label: string;
     sub: string;
@@ -356,7 +356,8 @@ export default function ChequeDetailScreen() {
       icon: "cancel",
       tone: "danger",
     },
-  ].filter((a) =>
+  ];
+  const statusActions = allStatusActions.filter((a) =>
     cheque.status === "holding"
       ? ["deposited", "cleared", "bounced", "cancelled"].includes(a.status)
       : ["cleared", "bounced", "cancelled"].includes(a.status),

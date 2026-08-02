@@ -738,6 +738,12 @@ export type AppNotification = {
   message: string;
   referenceType: string | null;
   referenceId: string | null;
+  /** Display name of the person/business that triggered the event. */
+  actorName?: string | null;
+  /** Profile / business logo for the actor. */
+  actorPhotoUrl?: string | null;
+  /** Secondary rich media (gem, listing, announcement art). */
+  imageUrl?: string | null;
   priority?: "high" | "medium" | "low";
   isRead: boolean;
   isPushSent?: boolean;

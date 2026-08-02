@@ -1,6 +1,7 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
 
+import { db } from '../admin';
 import { REGION } from '../config';
 import { createNotificationDoc, formatCurrency } from '../notifications/create';
 
@@ -22,6 +23,16 @@ export const onListingOfferCreated = onDocumentCreated(
       ? formatCurrency(amount, currency)
       : `${currency} offer`;
 
+    let listingImage: string | null = null;
+    const listingId = data.listingId ? String(data.listingId) : '';
+    if (listingId) {
+      const listingSnap = await db.collection('gems').doc(listingId).get();
+      const photos = listingSnap.data()?.photoUrls;
+      if (Array.isArray(photos) && typeof photos[0] === 'string') {
+        listingImage = photos[0];
+      }
+    }
+
     const id = await createNotificationDoc({
       recipientUid: data.sellerUid,
       type: 'listing_offer_received',
@@ -30,6 +41,9 @@ export const onListingOfferCreated = onDocumentCreated(
       referenceType: 'listing',
       referenceId: data.listingSlug || data.listingId,
       priority: 'high',
+      actorName: buyerName,
+      actorPhotoUrl: data.buyerLogoUrl ? String(data.buyerLogoUrl) : null,
+      imageUrl: listingImage,
     });
 
     logger.info('listing_offer_received notified', {

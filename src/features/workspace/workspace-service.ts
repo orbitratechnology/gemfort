@@ -14,6 +14,7 @@ import {
   resolveGemLifecycle,
   type GemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
+import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
@@ -34,11 +35,12 @@ import {
   forgetSync,
   queueDocCreate,
   queueDocDelete,
+  queueDocSet,
   queueDocUpdate,
 } from "@/lib/firebase/local-write";
 import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
-import { calcWeightLossPercent, generateSku } from "@/lib/utils";
+import { calcWeightLossPercent, generateSkuFromDocId } from "@/lib/utils";
 import type {
     ApRecord,
     Bill,
@@ -72,6 +74,7 @@ export async function fetchGems(ownerUid: string): Promise<WorkspaceGem[]> {
     collection(getFirebaseDb(), "gemtrack_gems"),
     where("ownerUid", "==", ownerUid),
     orderBy("updatedAt", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem);
@@ -90,21 +93,10 @@ export async function createGem(
     roughWeight: number;
     acquisitionCost: number;
   },
-): Promise<string> {
-  // Prefer inventory length for SKU; fall back quickly offline if getDocs hangs.
-  let sequence = (Date.now() % 90_000) + 10_000;
-  try {
-    const existing = await Promise.race([
-      fetchGems(ownerUid),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("sku-sequence-timeout")), 2_500);
-      }),
-    ]);
-    sequence = existing.length + 1;
-  } catch {
-    // Offline / cold cache — still create the gem.
-  }
-  const sku = generateSku(sequence);
+): Promise<WorkspaceGem> {
+  // Allocate id first so SKU is unique offline without scanning inventory.
+  const id = doc(collection(getFirebaseDb(), "gemtrack_gems")).id;
+  const sku = generateSkuFromDocId(id);
   const now = Timestamp.now();
   const status: GemStatus =
     input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
@@ -121,10 +113,18 @@ export async function createGem(
     isListedOnMarketplace: false,
   });
   const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
-  const acquisitionCostBase = await convertToBase(
-    input.acquisitionCost,
-    acquisitionCurrency,
-  );
+  const askingCurrency = input.askingPriceCurrency ?? acquisitionCurrency;
+  const minimumCurrency = input.minimumPriceCurrency ?? acquisitionCurrency;
+  const [acquisitionCostBase, askingPriceBase, minimumPriceBase] =
+    await Promise.all([
+      convertToBase(input.acquisitionCost, acquisitionCurrency),
+      input.askingPrice != null
+        ? convertToBase(input.askingPrice, askingCurrency)
+        : Promise.resolve(null),
+      input.minimumPrice != null
+        ? convertToBase(input.minimumPrice, minimumCurrency)
+        : Promise.resolve(null),
+    ]);
 
   const gemData = {
     ownerUid,
@@ -159,22 +159,10 @@ export async function createGem(
     totalCostCurrency: "LKR",
     askingPrice: input.askingPrice ?? null,
     askingPriceCurrency: input.askingPriceCurrency ?? null,
-    askingPriceBase:
-      input.askingPrice != null
-        ? await convertToBase(
-            input.askingPrice,
-            input.askingPriceCurrency ?? acquisitionCurrency,
-          )
-        : null,
+    askingPriceBase,
     minimumPrice: input.minimumPrice ?? null,
     minimumPriceCurrency: input.minimumPriceCurrency ?? null,
-    minimumPriceBase:
-      input.minimumPrice != null
-        ? await convertToBase(
-            input.minimumPrice,
-            input.minimumPriceCurrency ?? acquisitionCurrency,
-          )
-        : null,
+    minimumPriceBase,
     soldPrice: null,
     soldPriceCurrency: null,
     soldPriceBase: null,
@@ -188,7 +176,7 @@ export async function createGem(
     updatedAt: now,
   };
 
-  const id = queueDocCreate("gemtrack_gems", gemData);
+  queueDocSet("gemtrack_gems", id, gemData);
   queueDocCreate("gemtrack_gem_events", {
       gemId: id,
       ownerUid,
@@ -217,7 +205,7 @@ export async function createGem(
       createdAt: now,
     });
 
-  return id;
+  return { id, ...gemData } as WorkspaceGem;
 }
 
 export type UpdateGemDetailsInput = {
@@ -234,6 +222,14 @@ export type UpdateGemDetailsInput = {
   treatmentStatus: string;
   photoUrls: string[];
 };
+
+/** Persist photo URLs after a late/background upload finishes. */
+export function queueGemPhotoUrls(gemId: string, photoUrls: string[]): void {
+  queueDocUpdate("gemtrack_gems", gemId, {
+    photoUrls,
+    updatedAt: serverTimestamp(),
+  });
+}
 
 /** Update editable inventory fields (offline-first). Does not change lifecycle locks. */
 export async function updateGemDetails(
@@ -489,6 +485,7 @@ export async function fetchServices(
     collection(getFirebaseDb(), "gemtrack_services"),
     where("ownerUid", "==", ownerUid),
     orderBy("updatedAt", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord);
@@ -720,6 +717,7 @@ export async function fetchContacts(ownerUid: string): Promise<Contact[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_contacts"),
     where("ownerUid", "==", ownerUid),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs
@@ -1047,6 +1045,7 @@ export async function fetchTransactions(
     collection(getFirebaseDb(), "gemtrack_transactions"),
     where("ownerUid", "==", ownerUid),
     orderBy("date", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction);
@@ -1082,6 +1081,7 @@ export async function fetchReceivables(
   const q = query(
     collection(getFirebaseDb(), "gemtrack_receivables"),
     where("ownerUid", "==", ownerUid),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Receivable);
@@ -1091,6 +1091,7 @@ export async function fetchPayables(ownerUid: string): Promise<Payable[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_payables"),
     where("ownerUid", "==", ownerUid),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payable);
@@ -1280,6 +1281,7 @@ export async function fetchPayments(ownerUid: string): Promise<Payment[]> {
     collection(getFirebaseDb(), "gemtrack_payments"),
     where("ownerUid", "==", ownerUid),
     orderBy("paymentDate", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payment);
@@ -1292,6 +1294,7 @@ export async function fetchBills(ownerUid: string): Promise<Bill[]> {
     collection(getFirebaseDb(), "gemtrack_bills"),
     where("ownerUid", "==", ownerUid),
     orderBy("dueDate", "asc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => {
@@ -1572,6 +1575,7 @@ export async function fetchCheques(ownerUid: string): Promise<Cheque[]> {
     collection(getFirebaseDb(), "gemtrack_cheques"),
     where("ownerUid", "==", ownerUid),
     orderBy("maturityDate", "asc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque);
@@ -1734,6 +1738,7 @@ export async function fetchTrips(ownerUid: string): Promise<Trip[]> {
     collection(getFirebaseDb(), "gemtrack_trips"),
     where("ownerUid", "==", ownerUid),
     orderBy("startDate", "desc"),
+    limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Trip);
@@ -1963,8 +1968,8 @@ export async function createGemOnSourcingTrip(
     roughWeight: number;
     acquisitionCost: number;
   },
-): Promise<string> {
-  const gemId = await createGem(ownerUid, {
+): Promise<WorkspaceGem> {
+  const gem = await createGem(ownerUid, {
     ...input,
     status: "on_trip",
     notes: input.notes ?? "Purchased on trip",
@@ -1974,7 +1979,7 @@ export async function createGemOnSourcingTrip(
   queueDocCreate("gemtrack_trip_gems", {
       tripId,
       ownerUid,
-      gemId,
+      gemId: gem.id,
       role: "purchase",
       purchaseCost: input.acquisitionCost,
       salePrice: null,
@@ -1985,7 +1990,7 @@ export async function createGemOnSourcingTrip(
     });
 
   void refreshTripSummary(tripId, ownerUid);
-  return gemId;
+  return gem;
 }
 
 export async function addGemsToSellingTrip(

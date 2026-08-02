@@ -291,8 +291,10 @@ service cloud.firestore {
 
     match /likes/{likeId} {
 
-      // Only admin reads individual likes (privacy)
-      allow read: if isAdmin();
+      // Liker can read their own like (for Liked state). List stays admin-only.
+      allow get: if isAdmin()
+        || (isSignedIn() && resource.data.fromUid == request.auth.uid);
+      allow list: if isAdmin();
 
       // Verified members can like others
       allow create: if isVerifiedMember()
