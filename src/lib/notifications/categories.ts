@@ -6,6 +6,7 @@ export const ANDROID_CHANNELS = {
   default: 'default',
   alerts: 'alerts',
   urgent: 'urgent',
+  progress: 'progress',
 } as const;
 
 export const ANDROID_CHANNEL_ID = ANDROID_CHANNELS.default;
@@ -39,6 +40,13 @@ export async function ensureAndroidNotificationChannels() {
     importance: Notifications.AndroidImportance.MAX,
     description: 'Bounced cheques, overdues, and account security',
     vibrationPattern: [0, 400, 200, 400],
+  });
+
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNELS.progress, {
+    name: 'Ongoing activity',
+    importance: Notifications.AndroidImportance.LOW,
+    description: 'Quiet progress for active trips, APs, cheques, bills, and services',
+    showBadge: false,
   });
 }
 

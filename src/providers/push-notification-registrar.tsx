@@ -1,12 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
-import {
-  respondApCancellation,
-  respondApRequest,
-} from '@/features/workspace/ap-lifecycle-service';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
+import { handleNotificationAction } from '@/lib/notifications/actions';
 import {
   ensureAndroidNotificationChannels,
   registerNotificationCategories,
@@ -16,7 +13,6 @@ import {
   ensureNotifeeChannels,
   parseRichPushData,
   registerBackgroundNotificationTask,
-  wireNotifeeBackgroundPress,
   wireNotifeePressEvents,
 } from '@/lib/notifications/rich-display';
 
@@ -35,51 +31,8 @@ function handleNotificationResponse(
   const actionId = response.actionIdentifier;
 
   if (actionId && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
-    void handleCategoryAction(actionId, referenceType, referenceId);
+    void handleNotificationAction(actionId, referenceType, referenceId);
     return;
-  }
-
-  navigateFromNotificationRef(referenceType, referenceId);
-}
-
-async function handleCategoryAction(
-  actionId: string,
-  referenceType: string | null,
-  referenceId: string | null,
-) {
-  try {
-    if (actionId === 'accept' && referenceType === 'ap' && referenceId) {
-      await respondApRequest(referenceId, 'accepted');
-      navigateFromNotificationRef(referenceType, referenceId);
-      return;
-    }
-    if (actionId === 'decline' && referenceType === 'ap' && referenceId) {
-      await respondApRequest(referenceId, 'rejected');
-      navigateFromNotificationRef(referenceType, referenceId);
-      return;
-    }
-    if (
-      actionId === 'accept_cancel' &&
-      referenceType === 'ap' &&
-      referenceId
-    ) {
-      await respondApCancellation(referenceId, 'accepted');
-      navigateFromNotificationRef(referenceType, referenceId);
-      return;
-    }
-    if (
-      actionId === 'decline_cancel' &&
-      referenceType === 'ap' &&
-      referenceId
-    ) {
-      await respondApCancellation(referenceId, 'rejected');
-      navigateFromNotificationRef(referenceType, referenceId);
-      return;
-    }
-  } catch (error) {
-    if (__DEV__) {
-      console.warn('[push] Category action failed', actionId, error);
-    }
   }
 
   navigateFromNotificationRef(referenceType, referenceId);
@@ -93,9 +46,7 @@ export function PushNotificationRegistrar() {
     void ensureNotifeeChannels();
     void registerNotificationCategories();
     void registerBackgroundNotificationTask();
-    void wireNotifeeBackgroundPress();
-
-    const unsubNotifee = wireNotifeePressEvents();
+    const unsubNotifee = wireNotifeePressEvents(handleNotificationAction);
 
     handleNotificationResponse(Notifications.getLastNotificationResponse());
 

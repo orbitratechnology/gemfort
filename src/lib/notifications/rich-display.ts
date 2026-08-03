@@ -1,7 +1,10 @@
 import notifee, {
+  AndroidCategory,
   AndroidImportance,
   AndroidStyle,
+  AndroidVisibility,
   EventType,
+  type AndroidAction,
   type Event,
 } from 'react-native-notify-kit';
 import * as Notifications from 'expo-notifications';
@@ -26,6 +29,19 @@ export type RichPushData = {
   imageUrl?: string;
   largeIconUrl?: string;
 };
+
+const BRAND_INK = '#171717';
+const ALERT_AMBER = '#A66B12';
+const CRITICAL_RED = '#B83A3A';
+
+const LARGE_ICON_BY_REFERENCE = {
+  ap: require('../../../assets/images/ap-icon.png'),
+  service: require('../../../assets/images/lapidary-icon.png'),
+  cheque: require('../../../assets/images/cheque-icon.png'),
+  bill: require('../../../assets/images/bill-icon.png'),
+  listing: require('../../../assets/images/mygems-icon.png'),
+  default: require('../../../assets/images/gemfort-icon.png'),
+} as const;
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : value != null ? String(value) : '';
@@ -70,12 +86,83 @@ export async function ensureNotifeeChannels() {
     importance: AndroidImportance.HIGH,
     vibration: true,
   });
+  await notifee.createChannel({
+    id: ANDROID_CHANNELS.progress,
+    name: 'Ongoing activity',
+    description: 'Quiet progress for active trips, APs, cheques, bills, and services',
+    importance: AndroidImportance.LOW,
+    vibration: false,
+    badge: false,
+  });
 }
 
 function channelForPriority(priority?: string): string {
   if (priority === 'high') return ANDROID_CHANNELS.urgent;
   if (priority === 'medium') return ANDROID_CHANNELS.alerts;
   return ANDROID_CHANNELS.default;
+}
+
+function fallbackLargeIcon(referenceType?: string) {
+  return (
+    LARGE_ICON_BY_REFERENCE[
+      referenceType as keyof typeof LARGE_ICON_BY_REFERENCE
+    ] ?? LARGE_ICON_BY_REFERENCE.default
+  );
+}
+
+function accentFor(data: RichPushData): string {
+  const type = data.type ?? '';
+  if (
+    type === 'cheque_bounced' ||
+    type.includes('overdue') ||
+    type === 'verification_revoked' ||
+    type === 'account_warning' ||
+    type === 'account_suspended' ||
+    type === 'account_banned'
+  ) {
+    return CRITICAL_RED;
+  }
+  if (type.includes('due') || type.includes('maturing')) return ALERT_AMBER;
+  return BRAND_INK;
+}
+
+function androidCategoryFor(data: RichPushData): AndroidCategory {
+  const type = data.type ?? '';
+  if (type.startsWith('announcement_')) return AndroidCategory.PROMO;
+  if (type === 'listing_offer_received') return AndroidCategory.SOCIAL;
+  if (type.startsWith('account_') || type === 'cheque_bounced') {
+    return AndroidCategory.ERROR;
+  }
+  if (type.includes('due') || type.includes('overdue') || type.includes('maturing')) {
+    return AndroidCategory.REMINDER;
+  }
+  if (data.referenceType === 'service') return AndroidCategory.SERVICE;
+  return AndroidCategory.STATUS;
+}
+
+function action(
+  id: string,
+  title: string,
+): AndroidAction {
+  return {
+    title,
+    pressAction: { id, launchActivity: 'default' },
+  };
+}
+
+function actionsForCategory(categoryId?: string): AndroidAction[] {
+  if (categoryId === 'ap_request') {
+    return [action('accept', 'Accept'), action('decline', 'Decline'), action('view', 'Details')];
+  }
+  if (categoryId === 'ap_cancel') {
+    return [
+      action('accept_cancel', 'Allow cancel'),
+      action('decline_cancel', 'Keep AP'),
+      action('view', 'Details'),
+    ];
+  }
+  if (categoryId === 'listing_offer') return [action('view', 'View listing')];
+  return [action('view', 'View')];
 }
 
 /**
@@ -96,7 +183,9 @@ export async function displayRichNotification(data: RichPushData) {
   const channelId = channelForPriority(data.priority);
 
   if (Platform.OS === 'android') {
+    const senderIcon = profileUrl || fallbackLargeIcon(data.referenceType);
     await notifee.displayNotification({
+      id: [data.type, data.referenceId].filter(Boolean).join(':') || undefined,
       title: title || 'GemFort',
       body: body || undefined,
       subtitle: data.actorName || undefined,
@@ -108,24 +197,41 @@ export async function displayRichNotification(data: RichPushData) {
       },
       android: {
         channelId,
-        pressAction: { id: 'default' },
-        // Sender avatar (matches in-app notification row).
-        ...(profileUrl
-          ? {
-              largeIcon: profileUrl,
-              circularLargeIcon: true,
-            }
-          : {}),
+        smallIcon: 'notification_icon',
+        largeIcon: senderIcon,
+        circularLargeIcon: true,
+        color: accentFor(data),
+        category: androidCategoryFor(data),
+        visibility: AndroidVisibility.PRIVATE,
+        importance:
+          data.priority === 'high'
+            ? AndroidImportance.HIGH
+            : data.priority === 'medium'
+              ? AndroidImportance.DEFAULT
+              : AndroidImportance.LOW,
+        pressAction: { id: 'default', launchActivity: 'default' },
+        actions: actionsForCategory(data.categoryId),
+        onlyAlertOnce: true,
         // Gem / listing image when available.
         ...(gemUrl
           ? {
               style: {
                 type: AndroidStyle.BIGPICTURE,
                 picture: gemUrl,
-                largeIcon: profileUrl || null,
+                // Keep the sender visible in both collapsed and expanded layouts.
+                largeIcon: senderIcon,
+                summary: data.actorName || undefined,
               },
             }
-          : {}),
+          : body
+            ? {
+                style: {
+                  type: AndroidStyle.BIGTEXT,
+                  text: body,
+                  summary: data.actorName || undefined,
+                },
+              }
+            : {}),
       },
     });
     return;
@@ -233,24 +339,43 @@ export async function registerBackgroundNotificationTask() {
   }
 }
 
-export function wireNotifeePressEvents() {
+export type NotifeeActionHandler = (
+  actionId: string,
+  referenceType: string | null,
+  referenceId: string | null,
+  notificationId?: string,
+) => void | Promise<void>;
+
+export function wireNotifeePressEvents(onAction?: NotifeeActionHandler) {
   return notifee.onForegroundEvent(({ type, detail }: Event) => {
     if (type !== EventType.PRESS && type !== EventType.ACTION_PRESS) return;
     const data = detail.notification?.data ?? {};
+    const referenceType = data.referenceType != null ? String(data.referenceType) : null;
+    const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
+      void onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      return;
+    }
     navigateFromNotificationRef(
-      data.referenceType != null ? String(data.referenceType) : null,
-      data.referenceId != null ? String(data.referenceId) : null,
+      referenceType,
+      referenceId,
     );
   });
 }
 
-export async function wireNotifeeBackgroundPress() {
+export async function wireNotifeeBackgroundPress(onAction?: NotifeeActionHandler) {
   notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (type !== EventType.PRESS && type !== EventType.ACTION_PRESS) return;
     const data = detail.notification?.data ?? {};
+    const referenceType = data.referenceType != null ? String(data.referenceType) : null;
+    const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
+      await onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      return;
+    }
     navigateFromNotificationRef(
-      data.referenceType != null ? String(data.referenceType) : null,
-      data.referenceId != null ? String(data.referenceId) : null,
+      referenceType,
+      referenceId,
     );
   });
 }

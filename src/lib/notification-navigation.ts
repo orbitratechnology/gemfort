@@ -45,6 +45,10 @@ export function navigateFromNotificationRef(
     go(`/(marketplace)/(tabs)/workspace/bills/${id}` as Href, options);
     return;
   }
+  if (type === 'trip' && id) {
+    go(`/(marketplace)/(tabs)/workspace/trips/${id}` as Href, options);
+    return;
+  }
   if (type === 'receivable') {
     go(
       '/(marketplace)/(tabs)/money/receivables' as Href,

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   Text,
@@ -38,6 +38,7 @@ import {
   isNestedWorkspaceHref,
   pushWithAnchor,
 } from "@/navigation/tab-stack-nav";
+import { syncActiveProgressNotifications } from "@/lib/notifications/active-progress-notifications";
 import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
 
 /** High enough to list every ongoing item in the long-press sheet. */
@@ -391,6 +392,10 @@ export function ActiveProgressStrip({
     () => allItems.slice(0, limit),
     [allItems, limit],
   );
+
+  useEffect(() => {
+    void syncActiveProgressNotifications(allItems);
+  }, [allItems]);
 
   const [index, setIndex] = useState(0);
   const [listOpen, setListOpen] = useState(false);

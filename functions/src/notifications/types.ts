@@ -87,6 +87,11 @@ export function priorityForType(type: NotificationType): NotificationPriority {
     return 'high';
   }
   if (
+    type === 'ap_request_received' ||
+    type === 'service_request_received' ||
+    type === 'cert_request_received' ||
+    type === 'ap_cancellation_requested' ||
+    type === 'service_cancellation_requested' ||
     type === 'ap_overdue' ||
     type === 'cheque_maturing_tomorrow' ||
     type === 'bill_due_today' ||

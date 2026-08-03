@@ -140,9 +140,14 @@ export async function resolvePushMedia(input: {
       const snap = await db.collection('gemtrack_services').doc(refId).get();
       if (snap.exists) {
         const s = snap.data() ?? {};
-        actorName = actorName || str(s.providerName);
+        const viewerIsProvider = str(s.providerUid) === input.recipientUid;
+        const counterpartyUid = viewerIsProvider ? str(s.ownerUid) : str(s.providerUid);
+        actorName = actorName || (viewerIsProvider ? null : str(s.providerName));
         if (!actorPhotoUrl) {
-          const biz = await businessLogoById(str(s.providerBusinessId));
+          const biz = viewerIsProvider
+            ? await businessLogoByOwnerUid(counterpartyUid)
+            : (await businessLogoById(str(s.providerBusinessId))) ??
+              (await businessLogoByOwnerUid(counterpartyUid));
           actorPhotoUrl = biz?.logoUrl ?? null;
           actorName = actorName || biz?.name || null;
         }
