@@ -2,6 +2,7 @@ export {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithCredential,
   signOut,
   sendPasswordResetEmail,
   updateProfile,
@@ -11,9 +12,12 @@ export {
   signInWithPhoneNumber,
   getIdToken,
   EmailAuthProvider,
+  GoogleAuthProvider,
+  AppleAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
   deleteUser,
+  getAdditionalUserInfo,
 } from '@react-native-firebase/auth';
 
 export type { FirebaseAuthTypes } from '@react-native-firebase/auth';

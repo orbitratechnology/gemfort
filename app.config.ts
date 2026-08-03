@@ -62,7 +62,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: "./assets/images/icon.png",
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ??
-      "./google-services/google-services.json",
+      `./google-services/google-services${googleServicesSuffix}.json`,
     permissions: [
       "android.permission.READ_CALL_LOG",
       "android.permission.READ_PHONE_STATE",
@@ -120,6 +120,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "expo-status-bar",
     "expo-web-browser",
+    "expo-apple-authentication",
+    "react-native-nitro-google-signin",
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
     "@react-native-vector-icons/material-icons",

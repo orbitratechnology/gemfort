@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "tsx --test src/notifications/__tests__/types.test.ts",
+    "test": "tsx --test src/notifications/__tests__/types.test.ts src/flights.test.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },

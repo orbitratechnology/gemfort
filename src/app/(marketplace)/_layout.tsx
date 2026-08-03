@@ -1,11 +1,13 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 
 import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { needsPhoneVerification } from "@/lib/firebase/auth-service";
 import {
   formSheetFitContentOptions,
   silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
+import { useAuth } from "@/providers/auth-provider";
 
 /**
  * Action screens are siblings of `(tabs)` so they push above NativeTabs.
@@ -27,6 +29,11 @@ const ACTION_SCREENS = [
 
 export default function MarketplaceLayout() {
   const { colors } = useAppTheme();
+  const { user, profile } = useAuth();
+
+  if (user && profile && needsPhoneVerification(profile)) {
+    return <Redirect href="/(auth)/complete-phone" />;
+  }
 
   return (
     <Stack

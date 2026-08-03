@@ -19,6 +19,7 @@ import {
 import { AuthStepIndicator } from "@/components/auth/auth-step-indicator";
 import { PasswordVisibilityToggle } from "@/components/auth/password-visibility-toggle";
 import { RegisterRoleCards } from "@/components/auth/register-role-cards";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
@@ -34,6 +35,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { friendlyError } from "@/lib/errors";
 import { registerUser } from "@/lib/firebase/auth-service";
+import { signInWithApple, signInWithGoogle } from "@/lib/firebase/social-auth";
 import { haptics } from "@/lib/haptics";
 import { parseForm, registerSchema } from "@/lib/validation/form-schemas";
 import { withLoading } from "@/providers/loading-provider";
@@ -124,6 +126,24 @@ export default function RegisterScreen() {
     }
   }
 
+  async function handleSocialRegister(
+    signIn: (selectedRole: UserRole) => Promise<Awaited<ReturnType<typeof signInWithGoogle>>>,
+  ) {
+    if (!role) {
+      setErrors({ role: "Choose a role to continue." });
+      toast.error("Choose a role to continue.");
+      return;
+    }
+    try {
+      await withLoading(async () => {
+        await signIn(role);
+        router.replace('/(auth)/complete-phone');
+      }, 'Creating accountâ€¦');
+    } catch (error) {
+      toast.error(friendlyError(error, 'Google or Apple Sign-In could not be completed.'));
+    }
+  }
+
   const enterMs = reduceMotion ? Motion.fast : Motion.normal;
   const exitMs = Math.round(enterMs * 0.65);
   const roleLabel = role ? ROLE_LABELS[role] : "";
@@ -150,6 +170,11 @@ export default function RegisterScreen() {
                 clearField("role");
               }}
               error={errors.role}
+            />
+            <SocialAuthButtons
+              appleButtonType="signUp"
+              onGooglePress={() => handleSocialRegister(signInWithGoogle)}
+              onApplePress={() => handleSocialRegister(signInWithApple)}
             />
             <Button
               title={continueTitle}

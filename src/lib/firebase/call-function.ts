@@ -11,6 +11,26 @@ type CallableFailure = {
   };
 };
 
+async function readCallableJson<T>(response: Response): Promise<
+  CallableSuccess<T> | CallableFailure
+> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as CallableSuccess<T> | CallableFailure;
+  } catch {
+    // Cloud Functions returns an HTML document for an undeployed callable,
+    // gateway failure, or malformed URL. Never let that escape as a JSON parser
+    // exception to a React screen.
+    const error = new Error(
+      response.status === 404
+        ? 'This service is not deployed yet. Please try again after deployment.'
+        : 'The service returned an unexpected response. Please try again.',
+    ) as Error & { code?: string };
+    error.code = 'functions/unavailable';
+    throw error;
+  }
+}
+
 function isUnauthorized(
   status: number,
   json: CallableSuccess<unknown> | CallableFailure,
@@ -55,7 +75,7 @@ export async function callFunction<TResult = unknown, TData = Record<string, nev
       },
       body,
     });
-    const json = (await response.json()) as CallableSuccess<TResult> | CallableFailure;
+    const json = await readCallableJson<TResult>(response);
     return { response, json };
   };
 

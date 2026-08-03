@@ -2,6 +2,7 @@ export {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithCredential,
   signOut,
   sendPasswordResetEmail,
   updateProfile,
@@ -11,7 +12,10 @@ export {
   signInWithPhoneNumber,
   getIdToken,
   EmailAuthProvider,
+  GoogleAuthProvider,
+  AppleAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
   deleteUser,
+  getAdditionalUserInfo,
 } from './auth.native';

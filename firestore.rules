@@ -525,6 +525,16 @@ service cloud.firestore {
                          && isNotSuspended();
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.ownerUid);
+      // An AP holder must be able to read a gem while it is locked on their AP
+      // so the Taken AP detail can render the gem's photo and metadata.
+      allow read: if isSignedIn() && isNotSuspended()
+        && resource.data.currentApId is string
+        && exists(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId))
+        && (
+          get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.receiverUid == uid()
+          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.senderUid == uid()
+          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.ownerUid == uid()
+        );
       // AP counterparty may transition a locked gem (unlock / mark sold).
       allow update: if isSignedIn() && isNotSuspended()
         && resource.data.currentApId is string

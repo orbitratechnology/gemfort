@@ -160,6 +160,21 @@ export async function changePassword(currentPassword: string, newPassword: strin
  */
 export async function deleteAccount(password: string) {
   await reauthenticateWithPassword(password);
+  await deleteAuthenticatedAccount();
+}
+
+export async function deleteAccountWithProvider(providerId: 'google.com' | 'apple.com') {
+  if (providerId === 'google.com') {
+    const { reauthenticateWithGoogle } = await import('@/lib/firebase/social-auth');
+    await reauthenticateWithGoogle();
+  } else {
+    const { reauthenticateWithApple } = await import('@/lib/firebase/social-auth');
+    await reauthenticateWithApple();
+  }
+  await deleteAuthenticatedAccount();
+}
+
+async function deleteAuthenticatedAccount() {
   await callFunction<{ ok: true }>('deleteMyAccount');
   try {
     await Promise.all([clearOnboardingState(), clearThemePreference()]);
@@ -175,7 +190,24 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export function needsPhoneVerification(profile: UserProfile | null): boolean {
-  return !!profile?.phone && profile.phoneVerified !== true;
+  return !profile?.phone || profile.phoneVerified !== true;
+}
+
+/** Save the number selected before the signed-in user proves ownership by SMS. */
+export async function savePhoneForVerification(phone: string) {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error('You must be signed in to add a phone number.');
+  const normalizedPhone = normalizePhoneNumber(phone);
+  if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
+    throw new Error('Select your country and enter a valid mobile number.');
+  }
+
+  await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
+    phone: normalizedPhone,
+    phoneVerified: false,
+    updatedAt: serverTimestamp(),
+  });
+  return normalizedPhone;
 }
 
 export async function updateFcmToken(uid: string, token: string | null) {

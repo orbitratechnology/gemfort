@@ -244,14 +244,16 @@ export default function ApDetailScreen() {
     enabled: gemIds.length > 0,
   });
 
-  const ownerUid = ap?.ownerUid || ap?.senderUid;
+  // Only the sender owns the receiver contact. Taken APs must not query another
+  // trader's private contacts collection just to resolve a photo.
+  const contactsOwnerUid = isSender ? (ap?.ownerUid || ap?.senderUid) : null;
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
-    queryKey: ["contacts", ownerUid],
-    queryFn: () => fetchContacts(ownerUid!),
+    queryKey: ["contacts", contactsOwnerUid],
+    queryFn: () => fetchContacts(contactsOwnerUid!),
     subscribe: (onData, onError) =>
-      subscribeContacts(ownerUid!, onData, onError),
-    enabled: !!ownerUid,
+      subscribeContacts(contactsOwnerUid!, onData, onError),
+    enabled: !!contactsOwnerUid,
   });
 
   const { data: businesses = [] } = useFirestoreLiveQuery({
@@ -327,6 +329,11 @@ export default function ApDetailScreen() {
   const ownerPhoto = isReceiver
     ? resolveBusinessPhotoByOwnerUid(ap.senderUid, businesses)
     : null;
+  const partyName = isSender ? holderName : counterpartyName;
+  const partyPhoto = isSender ? holderPhoto : ownerPhoto;
+  const partyRole = isSender
+    ? "Holding your gems"
+    : "Gave you these gems";
 
   const toneColor =
     meta.tone === "success"
@@ -395,11 +402,11 @@ export default function ApDetailScreen() {
                 }
               }}
               accessibilityRole="button"
-              accessibilityLabel={`AP holder ${holderName}`}
+              accessibilityLabel={`AP party ${partyName}`}
             >
               <ContactAvatar
-                name={holderName}
-                photoUrl={holderPhoto}
+                name={partyName}
+                photoUrl={partyPhoto}
                 size={88}
               />
               <Text
@@ -407,10 +414,10 @@ export default function ApDetailScreen() {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {holderName}
+                {partyName}
               </Text>
               <Text style={[styles.holderRole, { color: colors.textMuted }]}>
-                {isSender ? "Holding your gems" : "You hold these gems"}
+                {partyRole}
               </Text>
             </Pressable>
 

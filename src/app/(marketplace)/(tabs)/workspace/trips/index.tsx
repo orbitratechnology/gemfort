@@ -210,6 +210,31 @@ export default function TripsScreen() {
         {tab === "active" ? (
           <Pressable
             onPress={haptics.wrap("light", () =>
+              router.push("/(marketplace)/(tabs)/workspace/flights" as never),
+            )}
+            style={({ pressed }) => [
+              styles.flightsCard,
+              { backgroundColor: colors.primaryContainer },
+              pressed && { opacity: 0.9 },
+            ]}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="flight" size={22} color={colors.onPrimary} />
+            </View>
+            <View style={styles.createText}>
+              <Text style={[styles.createTitle, { color: colors.onPrimaryContainer }]}>
+                Find flights
+              </Text>
+              <Text style={[styles.createSub, { color: colors.onPrimaryContainer + "B8" }]}>
+                Compare cached fares for your next trade trip
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={22} color={colors.onPrimaryContainer} />
+          </Pressable>
+        ) : null}
+        {tab === "active" ? (
+          <Pressable
+            onPress={haptics.wrap("light", () =>
               router.push("/(marketplace)/trips/add" as never),
             )}
             style={({ pressed }) => [
@@ -292,6 +317,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
     padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+  },
+  flightsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
   },

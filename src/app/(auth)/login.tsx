@@ -11,11 +11,13 @@ import {
   authGreeting,
 } from '@/components/auth/auth-screen';
 import { PasswordVisibilityToggle } from '@/components/auth/password-visibility-toggle';
+import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { Button } from '@/components/ui/button';
 import { Spacing, TouchTarget, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { loadRememberedEmail, saveRememberedEmail } from '@/lib/auth/remember-email';
 import { getUserProfile, loginUser, needsPhoneVerification } from '@/lib/firebase/auth-service';
+import { signInWithApple, signInWithGoogle } from '@/lib/firebase/social-auth';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { markOnboardingComplete } from '@/lib/onboarding';
@@ -78,6 +80,22 @@ export default function LoginScreen() {
       const msg = friendlyError(e, 'Could not sign in. Please try again.');
       setErrors({ password: msg });
       toast.error(msg);
+    }
+  }
+
+  async function finishSocialLogin(signIn: () => Promise<Awaited<ReturnType<typeof signInWithGoogle>>>) {
+    try {
+      await withLoading(async () => {
+        const { profile } = await signIn();
+        await markOnboardingComplete();
+        if (needsPhoneVerification(profile)) {
+          router.replace('/(auth)/complete-phone');
+        } else {
+          router.replace('/(marketplace)/(tabs)/home');
+        }
+      }, 'Signing inâ€¦');
+    } catch (error) {
+      toast.error(friendlyError(error, 'Google or Apple Sign-In could not be completed.'));
     }
   }
 
@@ -159,6 +177,11 @@ export default function LoginScreen() {
         </View>
 
         <Button title="Sign In" onPress={handleLogin} style={styles.cta} />
+        <SocialAuthButtons
+          appleButtonType="signIn"
+          onGooglePress={() => finishSocialLogin(() => signInWithGoogle())}
+          onApplePress={() => finishSocialLogin(() => signInWithApple())}
+        />
       </View>
 
       <AuthFooterLink

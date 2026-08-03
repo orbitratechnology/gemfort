@@ -49,3 +49,9 @@ example
 /dogfood-output
 /docs
 /plan
+
+# Firebase native configuration is supplied to cloud builds through sensitive
+# EAS file environment variables. Keep only ignored local copies for native runs.
+/google-services/
+/google-services/*
+!/google-services/.gitkeep

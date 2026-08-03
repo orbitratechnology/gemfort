@@ -42,7 +42,7 @@ describe('needsPhoneVerification', () => {
     ).toBe(false);
   });
 
-  it('skips when no phone', () => {
-    expect(needsPhoneVerification({ phone: '', phoneVerified: false } as UserProfile)).toBe(false);
+  it('requires completion when no phone is on the profile', () => {
+    expect(needsPhoneVerification({ phone: '', phoneVerified: false } as UserProfile)).toBe(true);
   });
 });

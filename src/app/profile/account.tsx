@@ -19,6 +19,7 @@ import { friendlyError } from '@/lib/errors';
 import {
   changePassword,
   deleteAccount,
+  deleteAccountWithProvider,
   sendPasswordResetForCurrentUser,
 } from '@/lib/firebase/auth-service';
 import {
@@ -48,6 +49,14 @@ export default function AccountSettingsScreen() {
   if (!user) {
     return <Redirect href="/(auth)/login" />;
   }
+
+  const providerIds = user.providerData.map((provider) => provider.providerId);
+  const hasPasswordProvider = providerIds.includes('password');
+  const socialProvider = providerIds.includes('google.com')
+    ? 'google.com'
+    : providerIds.includes('apple.com')
+      ? 'apple.com'
+      : null;
 
   async function handleChangePassword() {
     Keyboard.dismiss();
@@ -89,13 +98,19 @@ export default function AccountSettingsScreen() {
 
   function confirmDeleteAccount() {
     Keyboard.dismiss();
-    const result = parseForm(deleteAccountSchema, {
-      password: deletePassword,
-      confirmText,
-    });
-    if (!result.success) {
-      setDeleteErrors(result.errors);
+    if (confirmText.trim().toUpperCase() !== 'DELETE') {
+      setDeleteErrors({ confirmText: 'Type DELETE to confirm' });
       return;
+    }
+    if (hasPasswordProvider) {
+      const result = parseForm(deleteAccountSchema, {
+        password: deletePassword,
+        confirmText,
+      });
+      if (!result.success) {
+        setDeleteErrors(result.errors);
+        return;
+      }
     }
 
     void confirm({
@@ -106,14 +121,20 @@ export default function AccountSettingsScreen() {
       confirmLabel: 'Delete forever',
       cancelLabel: 'Cancel',
       icon: 'delete-forever',
-      onConfirm: () => runDelete(result.data.password),
+      onConfirm: runDelete,
     });
   }
 
-  async function runDelete(password: string) {
+  async function runDelete() {
     setDeleteErrors({});
     try {
-      await deleteAccount(password);
+      if (hasPasswordProvider) {
+        await deleteAccount(deletePassword);
+      } else if (socialProvider) {
+        await deleteAccountWithProvider(socialProvider);
+      } else {
+        throw new Error('Sign in again with your original provider to delete this account.');
+      }
       toast.success('Your account has been deleted.');
       router.replace('/(marketplace)/(tabs)/home');
     } catch (e) {
@@ -135,6 +156,7 @@ export default function AccountSettingsScreen() {
           </Text>
         </FormSection>
 
+        {hasPasswordProvider ? <>
         <FormSectionLabel title="CHANGE PASSWORD" />
         <FormSection>
           <View style={styles.fields}>
@@ -199,6 +221,7 @@ export default function AccountSettingsScreen() {
             />
           </View>
         </FormSection>
+        </> : null}
 
         <FormSectionLabel title="DELETE ACCOUNT" />
         <FormSection>
@@ -207,7 +230,7 @@ export default function AccountSettingsScreen() {
               Deletes your Auth account and all GemFort data tied to you — profile, business,
               listings, verification docs, notifications, workspace records, and uploaded files.
             </Text>
-            <Input
+            {hasPasswordProvider ? <Input
               label="Password"
               leftIcon="lock"
               value={deletePassword}
@@ -220,7 +243,11 @@ export default function AccountSettingsScreen() {
               autoComplete="password"
               textContentType="password"
               error={deleteErrors.password}
-            />
+            /> : (
+              <Text style={[styles.dangerBody, { color: colors.textMuted }]}>
+                You will be asked to sign in with {socialProvider === 'apple.com' ? 'Apple' : 'Google'} again before deletion.
+              </Text>
+            )}
             <Input
               label="Type DELETE to confirm"
               leftIcon="warning"

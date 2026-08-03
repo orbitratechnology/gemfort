@@ -26,6 +26,7 @@ export async function confirmPhoneVerificationCode(
   await linkWithCredential(user, credential);
 
   await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
+    phone: user.phoneNumber ?? '',
     phoneVerified: true,
     updatedAt: serverTimestamp(),
   });
