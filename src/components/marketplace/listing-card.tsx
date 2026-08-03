@@ -80,15 +80,11 @@ export function ListingCard({
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
 
         {hasOriginFlag ? (
-          <View
-            style={[
-              styles.overlayChip,
-              styles.flagChip,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            <CountryFlag country={listing.origin} size="xs" />
-          </View>
+          <CountryFlag
+            country={listing.origin}
+            size="xs"
+            style={styles.originFlag}
+          />
         ) : null}
 
         <View
@@ -107,7 +103,13 @@ export function ListingCard({
         </View>
 
         {listing.isCertified ? (
-          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+          <View
+            style={[
+              styles.badge,
+              hasOriginFlag && styles.badgeWithFlag,
+              { backgroundColor: colors.primary },
+            ]}
+          >
             <Text style={[styles.badgeText, { color: colors.onPrimary }]}>
               Certified
             </Text>
@@ -179,7 +181,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  flagChip: {
+  originFlag: {
+    position: "absolute",
+    bottom: Spacing.sm,
     left: Spacing.sm,
   },
   caratChip: {
@@ -197,6 +201,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Radius.full,
+  },
+  badgeWithFlag: {
+    bottom: 26,
   },
   badgeText: {
     fontSize: 9,

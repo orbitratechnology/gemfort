@@ -75,6 +75,10 @@ export function getFlightPriceCalendar(criteria: FlightSearchCriteria) {
   return callFunction<FlightCalendarResult, FlightSearchCriteria>('getFlightPriceCalendar', criteria);
 }
 
+export function createFlightBookingLink(url: string) {
+  return callFunction<{ bookingUrl: string }, { url: string }>('createFlightBookingLink', { url });
+}
+
 export function airlineLogoUrl(iata: string | null, width = 132, height = 44) {
   return iata ? `https://pics.avs.io/${width}/${height}/${encodeURIComponent(iata)}.png` : null;
 }

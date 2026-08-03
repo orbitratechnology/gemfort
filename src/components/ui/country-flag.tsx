@@ -48,7 +48,7 @@ export function CountryFlag({
     <Image
       source={{ uri: flagUrl(code, dims.width >= 24 ? 80 : 40) }}
       style={[styles.flag, dims, style as object]}
-      contentFit="cover"
+      contentFit="contain"
       accessibilityLabel={`Flag for ${country}`}
     />
   );
@@ -160,7 +160,6 @@ export function PlaceLabel({
 const styles = StyleSheet.create({
   flag: {
     borderRadius: 2,
-    backgroundColor: "#ddd",
     flexShrink: 0,
   },
   row: {

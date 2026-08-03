@@ -39,4 +39,4 @@ export { deleteMyAccount, onAuthUserDeleted } from './account/delete-account';
 
 export { syncGemNews, runNewsSyncNow } from './news/sync-gem-news';
 export { syncExhibitions } from './news/sync-exhibitions';
-export { searchFlights, getFlightPriceCalendar } from './flights';
+export { searchFlights, getFlightPriceCalendar, createFlightBookingLink } from './flights';

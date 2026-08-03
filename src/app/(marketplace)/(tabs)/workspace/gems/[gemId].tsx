@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
     ActivityIndicator,
+    Linking,
     Pressable,
     StyleSheet,
     Text,
@@ -362,6 +363,7 @@ export default function GemDetailScreen() {
   const lifecycle = resolveGemLifecycle(gem);
   const statusLabel = formatLifecycleSummary(lifecycle);
   const isCertified =
+    Boolean(gem.certificateUrl) ||
     gem.status === "certified" ||
     gem.treatmentStatus?.toLowerCase().includes("cert");
   const stoneLabel = formatGemStatusLabel(lifecycle.stoneStage);
@@ -382,6 +384,9 @@ export default function GemDetailScreen() {
     ...(gem.clarity ? [{ label: "Clarity", value: gem.clarity }] : []),
     { label: "Treatment", value: treatmentLabel || "None" },
     { label: "Origin", value: gem.originCountry || "Unknown" },
+    ...(gem.certificateUrl
+      ? [{ label: "Certificate / Report", value: gem.certificateFileName || "View attachment" }]
+      : []),
   ];
 
   const tags: string[] = [];
@@ -738,6 +743,18 @@ export default function GemDetailScreen() {
                 </View>
               ))}
             </View>
+          ) : null}
+
+          {gem.certificateUrl ? (
+            <Pressable
+              onPress={() => void Linking.openURL(gem.certificateUrl!)}
+              accessibilityRole="link"
+              accessibilityLabel="Open certificate or report"
+              style={[styles.readMore, { alignSelf: "flex-start" }]}
+            >
+              <Icon name="description" size={18} color={colors.primary} />
+              <Text style={[styles.readMoreText, { color: colors.primary }]}>View Certificate / Report</Text>
+            </Pressable>
           ) : null}
 
           <View style={styles.specGrid}>

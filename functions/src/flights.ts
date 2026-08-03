@@ -8,6 +8,7 @@ import { normalizeFlightOffer } from './flights-utils';
 
 export const travelpayoutsApiToken = defineSecret('TRAVELPAYOUTS_API_TOKEN');
 export const travelpayoutsMarker = defineSecret('TRAVELPAYOUTS_MARKER');
+export const travelpayoutsProjectId = defineSecret('TRAVELPAYOUTS_PROJECT_ID');
 
 const IATA = z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/);
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -76,13 +77,12 @@ function cached<T>(key: string, request: () => Promise<T>): Promise<T> {
 }
 
 export const searchFlights = onCall(
-  { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken, travelpayoutsMarker] },
+  { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken] },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to search flights.');
     const criteria = parseCriteria(request.data);
     const token = travelpayoutsApiToken.value();
-    const marker = travelpayoutsMarker.value();
-    usableSecret('TRAVELPAYOUTS_API_TOKEN', token); usableSecret('TRAVELPAYOUTS_MARKER', marker);
+    usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
     return cached(`flights:${JSON.stringify(criteria)}`, async () => {
       const result = await api('/aviasales/v3/prices_for_dates', {
         origin: criteria.origin, destination: criteria.destination, departure_at: criteria.departureAt,
@@ -91,7 +91,42 @@ export const searchFlights = onCall(
       }, token);
       if (!result.success) throw new HttpsError('unavailable', result.error || 'No cached fares are available for this route.');
       const data = Array.isArray(result.data) ? result.data : [];
-      return { currency: criteria.currency, offers: data.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object').map((item) => normalizeFlightOffer(item, marker)) };
+      return { currency: criteria.currency, offers: data.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object').map(normalizeFlightOffer) };
+    });
+  },
+);
+
+const bookingSchema = z.object({ url: z.string().url() });
+
+export const createFlightBookingLink = onCall(
+  { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken, travelpayoutsMarker, travelpayoutsProjectId] },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to continue to booking.');
+    const input = bookingSchema.safeParse(request.data);
+    if (!input.success) throw new HttpsError('invalid-argument', 'Invalid flight booking link.');
+    const parsedUrl = new URL(input.data.url);
+    if (parsedUrl.hostname !== 'www.aviasales.com' && parsedUrl.hostname !== 'aviasales.com') {
+      throw new HttpsError('invalid-argument', 'Unsupported booking link.');
+    }
+    const token = travelpayoutsApiToken.value(); const marker = travelpayoutsMarker.value(); const trs = travelpayoutsProjectId.value();
+    usableSecret('TRAVELPAYOUTS_API_TOKEN', token); usableSecret('TRAVELPAYOUTS_MARKER', marker); usableSecret('TRAVELPAYOUTS_PROJECT_ID', trs);
+    return cached(`partner-link:${input.data.url}`, async () => {
+      let response: Response;
+      try {
+        response = await fetch('https://api.travelpayouts.com/links/v1/create', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },
+          body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),
+        });
+      } catch {
+        throw new HttpsError('unavailable', 'Could not create the booking link.');
+      }
+      const payload = await response.json() as { code?: string; error?: string; result?: { links?: Array<{ code?: string; message?: string; partner_url?: string }> } };
+      const link = payload.result?.links?.[0];
+      if (!response.ok || payload.code !== 'success' || link?.code !== 'success' || !link.partner_url) {
+        logger.warn('Travelpayouts partner link failed', { status: response.status, code: payload.code, detail: link?.message ?? payload.error });
+        throw new HttpsError('failed-precondition', 'Travelpayouts could not create an affiliate booking link. Confirm that this project is connected to Aviasales.');
+      }
+      return { bookingUrl: link.partner_url };
     });
   },
 );

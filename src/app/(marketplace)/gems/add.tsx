@@ -4,19 +4,19 @@ import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState, type ReactNode } from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { CountryField } from "@/components/ui/country-field";
 import { CountryFlag } from "@/components/ui/country-flag";
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -24,56 +24,57 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
+import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-  AttributePickerField,
-  ClarityPickerSheet,
-  ColorPickerSheet,
-  ColorSwatch,
-  GemTypePickerSheet,
-  ShapePickerSheet,
-  StatusPickerSheet,
-  TreatmentPickerSheet,
+    AttributePickerField,
+    ClarityPickerSheet,
+    ColorPickerSheet,
+    ColorSwatch,
+    GemTypePickerSheet,
+    ShapePickerSheet,
+    StatusPickerSheet,
+    TreatmentPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import {
-  TripPickerSheet,
-  TripSelectField,
+    TripPickerSheet,
+    TripSelectField,
 } from "@/components/workspace/trip-picker-sheet";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
-  GEM_CLARITIES,
-  GEM_SHAPES,
-  GEM_TREATMENTS,
-  GEM_TYPES,
-  MANUAL_STATUS_OPTIONS,
-  findColorShade,
-  formatColorLabel,
-  formatGemStatusLabel,
-  formatGemType,
-  formatOptionLabel,
-  formatShapeLabel,
-  type GemTreatmentValue,
+    findColorShade,
+    formatColorLabel,
+    formatGemStatusLabel,
+    formatGemType,
+    formatOptionLabel,
+    formatShapeLabel,
+    GEM_CLARITIES,
+    GEM_SHAPES,
+    GEM_TREATMENTS,
+    GEM_TYPES,
+    MANUAL_STATUS_OPTIONS,
+    type GemTreatmentValue,
 } from "@/constants/gem-options";
 import {
-  subscribeTrip,
-  subscribeTrips,
+    subscribeTrip,
+    subscribeTrips,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-  createGem,
-  createGemOnSourcingTrip,
-  fetchTrip,
-  fetchTrips,
-  queueGemPhotoUrls,
+    createGem,
+    createGemOnSourcingTrip,
+    fetchTrip,
+    fetchTrips,
+    queueGemPhotoUrls,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
-  extensionForMedia,
-  uploadLocalMedia,
-  type LocalMedia,
+    extensionForMedia,
+    uploadLocalMedia,
+    type LocalMedia,
 } from "@/lib/firebase/storage-service";
 import { formatCurrency } from "@/lib/utils";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -135,6 +136,7 @@ export default function AddGemScreen() {
   const [status, setStatus] = useState<GemStatus | "">("");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
+  const [certificate, setCertificate] = useState<LocalMedia | null>(null);
   const [selectedTripId, setSelectedTripId] = useState(tripIdParam ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
@@ -318,6 +320,7 @@ export default function AddGemScreen() {
         let photoUrls: string[] = [];
         let photosDeferred = false;
         let uploadTask: Promise<string[]> | null = null;
+        let certificateUrl: string | null = null;
 
         if (photos.length > 0) {
           uploadTask = Promise.all(
@@ -345,6 +348,12 @@ export default function AddGemScreen() {
             photoUrls = [];
           }
         }
+        if (certificate) {
+          certificateUrl = await uploadLocalMedia(
+            certificate,
+            `gemtrack_gems/${user.uid}/${stamp}_certificate.${extensionForMedia(certificate)}`,
+          );
+        }
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
@@ -367,6 +376,8 @@ export default function AddGemScreen() {
           treatmentStatus: data.treatment ?? "natural",
           status: data.status,
           photoUrls,
+          certificateUrl,
+          certificateFileName: certificate?.fileName ?? null,
         };
 
         const gem = selectedTripId
@@ -544,14 +555,10 @@ export default function AddGemScreen() {
               ]}
             >
               <View style={styles.moreToggleText}>
-                <Text
-                  style={[styles.moreTitle, { color: colors.primary }]}
-                >
+                <Text style={[styles.moreTitle, { color: colors.primary }]}>
                   {showOptional ? "Hide details" : "More details"}
                 </Text>
-                <Text
-                  style={[styles.moreHint, { color: colors.textMuted }]}
-                >
+                <Text style={[styles.moreHint, { color: colors.textMuted }]}>
                   {optionalFilledCount > 0
                     ? `${optionalFilledCount} filled · optional`
                     : "Shape, clarity, origin…"}
@@ -741,16 +748,27 @@ export default function AddGemScreen() {
         ) : null}
 
         {step === 1 ? (
-          <FormSection title="Photos">
-            <MediaAlbumField
-              value={photos}
-              onChange={handlePhotosChange}
-              max={MAX_GEM_PHOTOS}
-              error={errors.photos}
-              emptyTitle="Add photos"
-              emptySubtitle="Optional — skip now and add later from Edit"
-            />
-          </FormSection>
+          <>
+            <FormSection title="Photos">
+              <MediaAlbumField
+                value={photos}
+                onChange={handlePhotosChange}
+                max={MAX_GEM_PHOTOS}
+                error={errors.photos}
+                emptyTitle="Add photos"
+                emptySubtitle="Optional — skip now and add later from Edit"
+              />
+            </FormSection>
+            <FormSection title="Certificate / Report">
+              <MediaField
+                value={certificate}
+                onChange={setCertificate}
+                allows="documents"
+                emptyTitle="Add certificate or report"
+                emptySubtitle="Optional — skip now and add later from Edit"
+              />
+            </FormSection>
+          </>
         ) : null}
 
         {step === 2 ? (
@@ -766,10 +784,7 @@ export default function AddGemScreen() {
                   acquisition.currency,
                 )}
               />
-              <ReviewRow
-                label="Shape"
-                value={formatShapeLabel(shape) || "—"}
-              />
+              <ReviewRow label="Shape" value={formatShapeLabel(shape) || "—"} />
               <ReviewRow
                 label="Clarity"
                 value={formatOptionLabel(GEM_CLARITIES, clarity) || "—"}
@@ -825,7 +840,7 @@ export default function AddGemScreen() {
           step === 2
             ? "Save gem"
             : step === 1 && photos.length === 0
-              ? "Continue without photos"
+              ? "Continue"
               : "Continue"
         }
         icon={step === 2 ? "shield" : "arrow-forward"}

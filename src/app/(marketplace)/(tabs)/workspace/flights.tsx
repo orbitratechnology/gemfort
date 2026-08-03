@@ -9,7 +9,7 @@ import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { airlineLogoUrl, formatFlightDateTime, formatFlightDuration, getFlightPriceCalendar, searchFlights, type FlightOffer, type FlightPlace, type FlightSearchCriteria } from '@/features/flights/flights-service';
+import { airlineLogoUrl, createFlightBookingLink, formatFlightDateTime, formatFlightDuration, getFlightPriceCalendar, searchFlights, type FlightOffer, type FlightPlace, type FlightSearchCriteria } from '@/features/flights/flights-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
@@ -41,7 +41,7 @@ export default function FlightsScreen() {
     if (!oneWay && returnAt < departureAt) { toast.error('Return date must be after departure.'); return; }
     haptics.commit(); setCriteria({ origin: origin.code, destination: destination.code, departureAt, ...(oneWay ? {} : { returnAt }), oneWay, direct, currency: preferredCurrency === 'RMB' ? 'CNY' : preferredCurrency, limit: 20, page: 1 });
   }
-  async function openOffer(offer: FlightOffer) { if (!offer.bookingUrl) { toast.error('A booking link is unavailable for this cached fare.'); return; } try { await WebBrowser.openBrowserAsync(offer.bookingUrl); } catch { toast.error('Could not open Aviasales.'); } }
+  async function openOffer(offer: FlightOffer) { if (!offer.bookingUrl) { toast.error('A booking link is unavailable for this cached fare.'); return; } try { const result = await createFlightBookingLink(offer.bookingUrl); await WebBrowser.openBrowserAsync(result.bookingUrl); } catch (error) { toast.error(friendlyError(error, 'Could not create your affiliate booking link.')); } }
   const error = search.error ? friendlyError(search.error, 'Could not load flight fares.') : null;
 
   return <View style={[styles.safe, { backgroundColor: colors.background }]}>

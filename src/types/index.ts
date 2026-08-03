@@ -246,6 +246,9 @@ export type WorkspaceGem = {
   soldPriceBase?: number | null;
   soldDate: Timestamp | null;
   photoUrls: string[];
+  /** Optional owner-uploaded certificate or report (image, media, or document). */
+  certificateUrl?: string | null;
+  certificateFileName?: string | null;
   isListedOnMarketplace: boolean;
   marketplaceListingId: string | null;
   notes: string | null;
@@ -692,6 +695,9 @@ export type MarketplaceListing = {
   /** LKR equivalent of priceMax. */
   priceMaxBase?: number | null;
   photoUrls: string[];
+  /** Snapshot of the workspace gem's optional certificate/report attachment. */
+  certificateUrl?: string | null;
+  certificateFileName?: string | null;
   status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;
   shareableUrl: string;

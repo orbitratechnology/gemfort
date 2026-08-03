@@ -5,17 +5,16 @@ export type TravelpayoutsOffer = {
   expiresAt: string | null; foundAt: string | null; bookingUrl: string | null;
 };
 
-export function buildBookingUrl(link: string | undefined, marker: string): string | null {
+export function buildBookingUrl(link: string | undefined): string | null {
   if (!link) return null;
   try {
     const url = new URL(link, 'https://www.aviasales.com');
     if (url.hostname !== 'www.aviasales.com' && url.hostname !== 'aviasales.com') return null;
-    url.searchParams.set('marker', marker);
     return url.toString();
   } catch { return null; }
 }
 
-export function normalizeFlightOffer(raw: Record<string, unknown>, marker: string): TravelpayoutsOffer {
+export function normalizeFlightOffer(raw: Record<string, unknown>): TravelpayoutsOffer {
   return {
     origin: String(raw.origin ?? ''), destination: String(raw.destination ?? ''),
     originAirport: String(raw.origin_airport ?? raw.origin ?? ''), destinationAirport: String(raw.destination_airport ?? raw.destination ?? ''),
@@ -27,6 +26,6 @@ export function normalizeFlightOffer(raw: Record<string, unknown>, marker: strin
     duration: typeof raw.duration === 'number' ? raw.duration : null,
     expiresAt: typeof raw.expires_at === 'string' ? raw.expires_at : null,
     foundAt: typeof raw.found_at === 'string' ? raw.found_at : null,
-    bookingUrl: buildBookingUrl(typeof raw.link === 'string' ? raw.link : undefined, marker),
+    bookingUrl: buildBookingUrl(typeof raw.link === 'string' ? raw.link : undefined),
   };
 }

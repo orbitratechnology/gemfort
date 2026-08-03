@@ -102,7 +102,7 @@ function initials(name: string) {
 }
 
 export default function PublicListingScreen() {
-  const params = useLocalSearchParams<{ slug: string | string[] }>();
+  const params = useLocalSearchParams<{ slug: string | string[]; offers?: string | string[] }>();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
@@ -152,6 +152,10 @@ export default function PublicListingScreen() {
   });
 
   const isOwner = !!user && !!listing && user.uid === listing.sellerUid;
+
+  useEffect(() => {
+    if (isOwner && params.offers === "1") setOffersInboxOpen(true);
+  }, [isOwner, params.offers]);
 
   const { data: receivedOffers = [] } = useFirestoreLiveQuery({
     queryKey: ["listing-offers", listing?.id],
@@ -293,6 +297,9 @@ export default function PublicListingScreen() {
     { label: "Origin", value: activeListing.origin || "Unknown" },
     ...(activeListing.isCertified && activeListing.certifyingLab
       ? [{ label: "Lab", value: activeListing.certifyingLab }]
+      : []),
+    ...(activeListing.certificateUrl
+      ? [{ label: "Certificate / Report", value: activeListing.certificateFileName || "View attachment" }]
       : []),
   ];
 
@@ -719,6 +726,18 @@ export default function PublicListingScreen() {
             })}
           </View>
 
+          {activeListing.certificateUrl ? (
+            <Pressable
+              onPress={() => void Linking.openURL(activeListing.certificateUrl!)}
+              accessibilityRole="link"
+              accessibilityLabel="Open certificate or report"
+              style={[styles.readMore, { alignSelf: "flex-start" }]}
+            >
+              <Icon name="description" size={18} color={colors.primary} />
+              <Text style={[styles.readMoreText, { color: colors.primary }]}>View Certificate / Report</Text>
+            </Pressable>
+          ) : null}
+
           {activeListing.description ? (
             <View style={styles.descBlock}>
               <Text
@@ -818,7 +837,7 @@ export default function PublicListingScreen() {
           >
             <Icon name="local-offer" size={18} color={colors.onPrimary} />
             <Text style={[styles.offerBtnText, { color: colors.onPrimary }]}>
-              Offers
+              View Offers
             </Text>
             {unreadOfferCount > 0 ? (
               <View

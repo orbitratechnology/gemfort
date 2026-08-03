@@ -98,13 +98,18 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     !isTerminalOutcome(life.outcome)
   ) {
     actions.push({
+      title: "View Offers",
+      href: `/listing/${gem.marketplaceListingId}?offers=1`,
+      variant: "secondary",
+    });
+    actions.push({
       title: "View on Market",
       href: `/listing/${gem.marketplaceListingId}`,
       variant: "secondary",
     });
   }
 
-  if (life.stoneStage !== "rough") {
+  if (!life.custody) {
     actions.push({
       title: "Record Service",
       href: `/(marketplace)/services/add?gemId=${gem.id}`,
