@@ -123,7 +123,7 @@ export function TripBudgetCard({
         </View>
 
         <Text
-          selectable
+          selectable={false}
           style={[styles.budgetHero, { color: colors.onSurface }]}
         >
           {budgetLabel}
@@ -135,7 +135,7 @@ export function TripBudgetCard({
               Used
             </Text>
             <Text
-              selectable
+              selectable={false}
               style={[styles.budgetValue, { color: colors.onSurface }]}
             >
               {usedLabel}
@@ -146,7 +146,7 @@ export function TripBudgetCard({
               Remaining
             </Text>
             <Text
-              selectable
+              selectable={false}
               style={[
                 styles.budgetValue,
                 {

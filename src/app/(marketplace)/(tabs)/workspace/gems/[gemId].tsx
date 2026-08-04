@@ -517,13 +517,13 @@ export default function GemDetailScreen() {
           <View style={styles.titleBlock}>
             <Text
               style={[styles.gemName, { color: colors.onSurface }]}
-              selectable
+              selectable={false}
             >
               {gemTitle}
             </Text>
             <Text
               style={[styles.subtitle, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {formatGemType(gem.gemType)}
               {gem.variety ? ` · ${gem.variety}` : ""}
@@ -540,7 +540,7 @@ export default function GemDetailScreen() {
                   fontFamily: FontFamily.bold,
                 },
               ]}
-              selectable
+              selectable={false}
             >
               {askLabel}
             </Text>
@@ -554,7 +554,7 @@ export default function GemDetailScreen() {
                       : colors.onSurfaceVariant,
                   },
                 ]}
-                selectable
+                selectable={false}
               >
                 {perCaratLabel}
               </Text>
@@ -791,7 +791,7 @@ export default function GemDetailScreen() {
                     <Text
                       style={[styles.specValue, { color: colors.onSurface }]}
                       numberOfLines={2}
-                      selectable
+                      selectable={false}
                     >
                       {spec.value}
                     </Text>
@@ -806,7 +806,7 @@ export default function GemDetailScreen() {
               <Text
                 style={[styles.notes, { color: colors.onSurfaceVariant }]}
                 numberOfLines={notesExpanded ? undefined : 3}
-                selectable
+                selectable={false}
               >
                 {gem.notes}
               </Text>

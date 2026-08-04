@@ -393,14 +393,14 @@ export default function CreateListingScreen() {
               <Text
                 style={[styles.gemTitle, { color: colors.onSurface }]}
                 numberOfLines={1}
-                selectable
+                selectable={false}
               >
                 {gem.title?.trim() || formatGemType(gem.gemType)}
               </Text>
               <Text
                 style={[styles.gemMeta, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
-                selectable
+                selectable={false}
               >
                 {formatGemType(gem.gemType)} · {gem.currentWeight} ct
                 {gem.originCountry ? ` · ${gem.originCountry}` : ""}

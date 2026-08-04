@@ -369,7 +369,7 @@ export default function ApDetailScreen() {
                 {meta.label}
               </Text>
             </View>
-            <Text style={[styles.amount, { color: colors.primary }]} selectable>
+            <Text style={[styles.amount, { color: colors.primary }]} selectable={false}>
               {formatBase(agreed)}
             </Text>
             <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
@@ -587,7 +587,7 @@ export default function ApDetailScreen() {
                     </Text>
                     <Text
                       style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable
+                      selectable={false}
                     >
                       {step.sub}
                     </Text>
@@ -600,7 +600,7 @@ export default function ApDetailScreen() {
 
         {ap.rejectionReason ? (
           <FormSection title="Details">
-            <Text style={{ color: colors.error }} selectable>
+            <Text style={{ color: colors.error }} selectable={false}>
               {ap.rejectionReason}
             </Text>
           </FormSection>
@@ -938,7 +938,7 @@ export default function ApDetailScreen() {
             <Icon name="call-made" size={22} color={colors.primary} />
             <Text
               style={[styles.payHeroAmount, { color: colors.primary }]}
-              selectable
+              selectable={false}
             >
               {formatBase(owed)}
             </Text>

@@ -397,7 +397,7 @@ export default function ServiceDetailScreen() {
             {service.instructions ? (
               <Text
                 style={[styles.desc, { color: colors.onSurfaceVariant }]}
-                selectable
+                selectable={false}
               >
                 {service.instructions}
               </Text>
@@ -636,7 +636,7 @@ export default function ServiceDetailScreen() {
                     </Text>
                     <Text
                       style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable
+                      selectable={false}
                     >
                       {step.sub}
                     </Text>
@@ -665,7 +665,7 @@ export default function ServiceDetailScreen() {
               </Text>
               <Text
                 style={[styles.weightValue, { color: colors.primary }]}
-                selectable
+                selectable={false}
               >
                 {service.weightBefore} ct
               </Text>
@@ -694,7 +694,7 @@ export default function ServiceDetailScreen() {
               </Text>
               <Text
                 style={[styles.weightValue, { color: colors.primary }]}
-                selectable
+                selectable={false}
               >
                 {service.weightAfter != null
                   ? `${service.weightAfter} ct`
@@ -724,7 +724,7 @@ export default function ServiceDetailScreen() {
                   </Text>
                   <Text
                     style={[styles.costValue, { color: colors.onSurface }]}
-                    selectable
+                    selectable={false}
                   >
                     {formatFace(
                       service.agreedPrice,
@@ -745,7 +745,7 @@ export default function ServiceDetailScreen() {
                   </Text>
                   <Text
                     style={[styles.costValue, { color: colors.onSurface }]}
-                    selectable
+                    selectable={false}
                   >
                     {formatFace(
                       service.advancePaid,
@@ -767,7 +767,7 @@ export default function ServiceDetailScreen() {
                 </Text>
                 <Text
                   style={[styles.costTotalValue, { color: colors.primary }]}
-                  selectable
+                  selectable={false}
                 >
                   {formatFace(
                     service.finalCost ?? service.agreedPrice ?? 0,

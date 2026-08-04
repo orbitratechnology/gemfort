@@ -253,7 +253,7 @@ export default function MoneyDashboard() {
             >
               <Icon name="date-range" size={16} color={colors.primary} />
               <Text
-                selectable
+                selectable={false}
                 style={[styles.rangeChipText, { color: colors.primary }]}
               >
                 {customRange.label}

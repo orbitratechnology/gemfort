@@ -936,7 +936,7 @@ function ReviewRow({
       <View style={styles.reviewValueRow}>
         {leading}
         <Text
-          selectable
+          selectable={false}
           style={[styles.reviewValue, { color: colors.onSurface }]}
         >
           {value}

@@ -9,7 +9,6 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { verifyCertificateByNumber } from '@/features/marketplace/request-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { friendlyError } from '@/lib/errors';
 import { withLoading } from '@/providers/loading-provider';
 import type { PublicCertificate } from '@/types';
 
@@ -27,9 +26,8 @@ export default function VerifyCertificateScreen() {
         const cert = await verifyCertificateByNumber(number.trim());
         setResult(cert);
       }, 'Verifying…');
-    } catch (e) {
+    } catch {
       setResult(null);
-      console.warn(friendlyError(e, 'Verify failed'));
     }
   }
 

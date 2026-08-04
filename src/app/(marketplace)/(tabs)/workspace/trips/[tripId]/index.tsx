@@ -498,7 +498,7 @@ function HeroCardContent({
         </View>
       </View>
       {locationLine ? (
-        <Text selectable style={[styles.heroLoc, { color: textPrimary }]}>
+        <Text selectable={false} style={[styles.heroLoc, { color: textPrimary }]}>
           {locationLine}
         </Text>
       ) : null}

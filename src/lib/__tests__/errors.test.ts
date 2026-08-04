@@ -1,4 +1,4 @@
-import { friendlyError } from '@/lib/errors';
+import { friendlyError, safeUserMessage } from '@/lib/errors';
 
 describe('friendlyError', () => {
   const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -34,6 +34,12 @@ describe('friendlyError', () => {
 
   it('falls back for technical Firebase strings', () => {
     expect(friendlyError(new Error('Firebase: Error (auth/internal-error).'))).toBe(
+      'Something went wrong. Please try again.',
+    );
+  });
+
+  it('removes technical strings at the UI boundary', () => {
+    expect(safeUserMessage('Firebase: Error (auth/internal-error).')).toBe(
       'Something went wrong. Please try again.',
     );
   });

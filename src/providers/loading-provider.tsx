@@ -171,7 +171,6 @@ export async function withLoading<T>(
 
 export function showLoading(message?: string): void {
   if (!bridge) {
-    console.warn("LoadingProvider is not mounted; showLoading() ignored.");
     return;
   }
   bridge.show(message);

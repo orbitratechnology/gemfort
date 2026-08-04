@@ -124,7 +124,7 @@ export function CurrencyAmountField({
       </View>
       {error ? (
         <Text
-          selectable
+          selectable={false}
           style={[styles.error, { color: colors.error }]}
           accessibilityLiveRegion="polite"
         >

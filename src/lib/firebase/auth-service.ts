@@ -175,7 +175,11 @@ export async function deleteAccountWithProvider(providerId: 'google.com' | 'appl
 }
 
 async function deleteAuthenticatedAccount() {
-  await callFunction<{ ok: true }>('deleteMyAccount');
+  // The function independently verifies a recent Firebase Auth event. Force a
+  // new ID token after password/OAuth reauthentication so that proof reaches it.
+  await callFunction<{ ok: true }>('deleteMyAccount', undefined, {
+    forceRefreshToken: true,
+  });
   try {
     await Promise.all([clearOnboardingState(), clearThemePreference()]);
   } catch {

@@ -48,7 +48,7 @@ export function AuthField({
       </View>
       {error ? (
         <Text
-          selectable
+          selectable={false}
           style={[styles.error, { color: colors.error }]}
           accessibilityLiveRegion="polite">
           {error}

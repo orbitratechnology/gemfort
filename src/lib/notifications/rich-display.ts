@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 
 import { ANDROID_CHANNELS } from '@/lib/notifications/categories';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
+import { safeUserMessage } from '@/lib/errors';
 
 export const BACKGROUND_NOTIFICATION_TASK = 'GEMFORT_BACKGROUND_NOTIFICATION';
 
@@ -171,8 +172,10 @@ function actionsForCategory(categoryId?: string): AndroidAction[] {
  * - BigPicture = gem / listing art when available
  */
 export async function displayRichNotification(data: RichPushData) {
-  const title = data.title?.trim();
-  const body = data.body?.trim();
+  const title = data.title ? safeUserMessage(data.title, 'GemFort') : undefined;
+  const body = data.body
+    ? safeUserMessage(data.body, 'Open GemFort to view the update.')
+    : undefined;
   if (!title && !body) return;
 
   await ensureNotifeeChannels();
@@ -320,10 +323,7 @@ function extractDataFromTaskPayload(payload: unknown): RichPushData {
 }
 
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
-  if (error) {
-    if (__DEV__) console.warn('[push] background task error', error);
-    return;
-  }
+  if (error) return;
   const rich = extractDataFromTaskPayload(data);
   // Only present when we have media to upgrade, or data-only payload with title.
   if (rich.title || rich.body) {
@@ -334,9 +334,7 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
 export async function registerBackgroundNotificationTask() {
   try {
     await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-  } catch (e) {
-    if (__DEV__) console.warn('[push] registerTaskAsync failed', e);
-  }
+  } catch {}
 }
 
 export type NotifeeActionHandler = (

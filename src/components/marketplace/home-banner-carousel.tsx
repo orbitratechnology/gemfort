@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -30,6 +31,8 @@ type BannerSlide = {
   subtitle: string;
   cta: string;
   icon: IconName;
+  /** Optional transparent artwork, displayed instead of the oversized icon. */
+  image?: number;
   href: Href;
   tone: 'primary' | 'deep' | 'soft';
   /** If set, only these roles see the slide (guests never see them) */
@@ -60,6 +63,17 @@ const ALL_BANNERS: BannerSlide[] = [
     cta: 'Open market',
     icon: 'diamond',
     href: '/(marketplace)/(tabs)/market',
+    tone: 'deep',
+  },
+  {
+    id: 'flights',
+    eyebrow: 'Travel',
+    title: 'Find your next flight',
+    subtitle: 'Explore recent fares for your next gem-trade trip.',
+    cta: 'Explore flights',
+    icon: 'flight',
+    image: require('@/assets/images/trips-icon.png'),
+    href: '/(marketplace)/(tabs)/workspace/flights',
     tone: 'deep',
   },
   {
@@ -313,7 +327,7 @@ export function HomeBannerCarousel() {
                   pointerEvents="none"
                   style={[styles.glow, { backgroundColor: tone.chip }]}
                 />
-                <View style={styles.copy}>
+                  <View style={[styles.copy, !!item.image && styles.copyWithImage]}>
                   <View style={[styles.eyebrowPill, { backgroundColor: tone.chip }]}>
                     <Text style={[styles.eyebrow, { color: tone.on }]}>
                       {item.eyebrow}
@@ -338,9 +352,19 @@ export function HomeBannerCarousel() {
                     <Icon name="arrow-forward" size={16} color={tone.on} />
                   </View>
                 </View>
-                <View style={styles.iconWrap} pointerEvents="none">
-                  <Icon name={item.icon} size={88} color={tone.on} />
-                </View>
+                {item.image ? (
+                  <Image
+                    source={item.image}
+                    style={styles.artwork}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <View style={styles.iconWrap} pointerEvents="none">
+                    <Icon name={item.icon} size={88} color={tone.on} />
+                  </View>
+                )}
               </Pressable>
             </View>
           );
@@ -417,6 +441,7 @@ const styles = StyleSheet.create({
     gap: 6,
     zIndex: 1,
   },
+  copyWithImage: { maxWidth: '62%' },
   eyebrowPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -455,6 +480,13 @@ const styles = StyleSheet.create({
     right: 8,
     bottom: -6,
     opacity: 0.18,
+  },
+  artwork: {
+    position: 'absolute',
+    width: 168,
+    height: 126,
+    right: -18,
+    bottom: -4,
   },
   dots: {
     flexDirection: 'row',

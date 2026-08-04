@@ -758,9 +758,16 @@ export async function deleteApRecord(apId: string) {
     throw new Error("Only completed or cancelled APs can be deleted.");
   }
   try {
+    const partyField =
+      ap.ownerUid === uid
+        ? "ownerUid"
+        : ap.senderUid === uid
+          ? "senderUid"
+          : "receiverUid";
     const payments = await getDocs(
       query(
         collection(getFirebaseDb(), "gemtrack_ap_payments"),
+        where(partyField, "==", uid),
         where("apId", "==", apId),
       ),
     );

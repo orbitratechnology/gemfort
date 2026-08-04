@@ -387,7 +387,7 @@ export default function ChequeDetailScreen() {
                   color: isBounced ? colors.error : colors.primary,
                 },
               ]}
-              selectable
+              selectable={false}
             >
               {amountLabel}
             </Text>
@@ -601,7 +601,7 @@ export default function ChequeDetailScreen() {
                 </Text>
                 <Text
                   style={[styles.chequeNo, { color: colors.onSurface }]}
-                  selectable
+                  selectable={false}
                 >
                   {cheque.chequeNumber || "—"}
                 </Text>
@@ -620,7 +620,7 @@ export default function ChequeDetailScreen() {
                     borderBottomColor: colors.outlineVariant,
                   },
                 ]}
-                selectable
+                selectable={false}
                 numberOfLines={1}
               >
                 {cheque.issuedBy}
@@ -645,7 +645,7 @@ export default function ChequeDetailScreen() {
                     styles.amountBoxValue,
                     { color: isBounced ? colors.error : colors.onSurface },
                   ]}
-                  selectable
+                  selectable={false}
                   numberOfLines={1}
                 >
                   {amountLabel}
@@ -764,7 +764,7 @@ export default function ChequeDetailScreen() {
                     </Text>
                     <Text
                       style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable
+                      selectable={false}
                     >
                       {step.sub}
                     </Text>
@@ -837,7 +837,7 @@ export default function ChequeDetailScreen() {
           <FormSection title="Notes">
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {cheque.notes}
             </Text>

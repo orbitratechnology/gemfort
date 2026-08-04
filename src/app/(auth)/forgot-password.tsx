@@ -62,7 +62,7 @@ export default function ForgotPasswordScreen() {
             <Text style={[styles.successBody, { color: colors.textSecondary }]}>
               Reset link sent to
             </Text>
-            <Text selectable style={[styles.successEmail, { color: colors.text }]}>
+            <Text selectable={false} style={[styles.successEmail, { color: colors.text }]}>
               {email.trim()}
             </Text>
           </View>

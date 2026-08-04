@@ -155,14 +155,14 @@ export function ActionSheet({
             style={[styles.grabber, { backgroundColor: colors.outlineVariant }]}
           />
           {title ? (
-            <Text style={[styles.title, { color: colors.onSurface }]} selectable>
+            <Text style={[styles.title, { color: colors.onSurface }]} selectable={false}>
               {title}
             </Text>
           ) : null}
           {message ? (
             <Text
               style={[styles.message, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {message}
             </Text>

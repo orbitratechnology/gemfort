@@ -1,6 +1,7 @@
 import { Alert, type AlertButton, type AlertOptions } from 'react-native';
 
 import { haptics, type HapticKind } from '@/lib/haptics';
+import { safeUserMessage } from '@/lib/errors';
 
 type AlertHaptic = Extract<HapticKind, 'confirm' | 'warning' | 'error' | 'success'> | 'none';
 
@@ -23,5 +24,5 @@ export function alert(
   if (kind !== 'none') haptics.play(kind);
 
   const { haptic: _haptic, ...rest } = options ?? {};
-  Alert.alert(title, message, buttons, rest);
+  Alert.alert(safeUserMessage(title, 'Notice'), message ? safeUserMessage(message) : undefined, buttons, rest);
 }

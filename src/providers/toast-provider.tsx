@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
+import { safeUserMessage } from "@/lib/errors";
 
 export type ToastVariant = "success" | "error" | "info";
 
@@ -118,7 +119,7 @@ function showToast(message: string, options?: ToastOptions) {
   }
   if (variant === "error") {
     haptics.error();
-    toast.error(message, { duration });
+    toast.error(safeUserMessage(message), { duration });
     return;
   }
   haptics.light();
@@ -135,7 +136,7 @@ export function useToast(): ToastApi {
     },
     error: (message, duration) => {
       haptics.error();
-      toast.error(message, { duration });
+      toast.error(safeUserMessage(message), { duration });
     },
     info: (message, duration) => {
       haptics.light();

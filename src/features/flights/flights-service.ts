@@ -34,10 +34,10 @@ export type FlightCalendarDay = { date: string; price: number; stops: number; ac
 export type FlightSearchResult = { currency: string; offers: FlightOffer[] };
 export type FlightCalendarResult = { currency: string; days: FlightCalendarDay[] };
 
-type AutocompleteResponse = Array<{
+type AutocompleteResponse = {
   type?: FlightPlace['type']; code?: string; name?: string; country_code?: string; country_name?: string;
   city_code?: string | null; city_name?: string | null; main_airport_name?: string | null;
-}>;
+}[];
 
 export async function autocompletePlaces(term: string): Promise<FlightPlace[]> {
   const query = term.trim();

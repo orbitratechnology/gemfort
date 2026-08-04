@@ -73,9 +73,7 @@ function ContactListRowInner({
 
   const handleFavourite = useCallback(() => {
     close();
-    void onToggleFavourite().catch((e) => {
-      console.error(e);
-    });
+    void onToggleFavourite();
   }, [close, onToggleFavourite]);
 
   const handleDelete = useCallback(() => {

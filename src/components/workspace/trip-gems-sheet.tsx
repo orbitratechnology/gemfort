@@ -345,7 +345,7 @@ export function TripSoldGemsSection({
             Sold
           </Text>
           <Text
-            selectable
+            selectable={false}
             style={[styles.soldStatValue, { color: colors.onSurface }]}
           >
             {soldGems.length}
@@ -362,7 +362,7 @@ export function TripSoldGemsSection({
             Revenue
           </Text>
           <Text
-            selectable
+            selectable={false}
             style={[styles.soldStatValue, { color: colors.successEmerald }]}
           >
             {formatBase(totalRevenue)}
@@ -420,7 +420,7 @@ export function TripSoldGemsSection({
                 ) : null}
                 <View style={styles.soldGemFooter}>
                   <Text
-                    selectable
+                    selectable={false}
                     style={[styles.soldGemPrice, { color: colors.successEmerald }]}
                   >
                     {tg.salePrice != null ? formatBase(tg.salePrice) : "—"}

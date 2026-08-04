@@ -6,6 +6,8 @@ import * as functionsV1 from 'firebase-functions/v1';
 import { REGION } from '../config';
 import { wipeUserData } from './wipe-user-data';
 
+const RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60;
+
 /**
  * Primary path: authenticated callable.
  * 1) Client reauthenticates (recent login).
@@ -25,6 +27,14 @@ export const deleteMyAccount = onCall(
     }
 
     const uid = request.auth.uid;
+    const authTime = request.auth.token.auth_time;
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof authTime !== 'number' || now - authTime > RECENT_AUTH_MAX_AGE_SECONDS) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Please sign in again before deleting your account.',
+      );
+    }
     logger.info('deleteMyAccount started', { uid });
 
     const summary = await wipeUserData(uid);

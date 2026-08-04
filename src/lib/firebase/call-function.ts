@@ -51,6 +51,7 @@ function isUnauthorized(
 export async function callFunction<TResult = unknown, TData = Record<string, never>>(
   name: string,
   data?: TData,
+  options?: { forceRefreshToken?: boolean },
 ): Promise<TResult> {
   const user = getFirebaseAuth().currentUser;
   if (!user) {
@@ -79,14 +80,13 @@ export async function callFunction<TResult = unknown, TData = Record<string, nev
     return { response, json };
   };
 
-  let { response, json } = await post(false);
+  let { response, json } = await post(options?.forceRefreshToken === true);
   if (isUnauthorized(response.status, json)) {
     ({ response, json } = await post(true));
   }
 
   if ('error' in json && json.error) {
-    const message = json.error.message || 'Request failed.';
-    const err = new Error(message) as Error & { code?: string };
+    const err = new Error('We could not complete that. Please try again.') as Error & { code?: string };
     err.code = json.error.status
       ? `functions/${json.error.status.toLowerCase()}`
       : 'functions/error';

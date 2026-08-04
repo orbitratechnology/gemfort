@@ -1,12 +1,12 @@
 import { Redirect, router, type Href } from "expo-router";
 import { useState } from "react";
 import {
-  Linking,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
+    Linking,
+    Pressable,
+    StyleSheet,
+    Switch,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -14,20 +14,24 @@ import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
-import { Spacing, Typography, type ThemeColors } from "@/constants/design-tokens";
+import {
+    Spacing,
+    Typography,
+    type ThemeColors,
+} from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import {
-  updateFcmToken,
-  updateNotificationPreferences,
+    updateFcmToken,
+    updateNotificationPreferences,
 } from "@/lib/firebase/auth-service";
 import { registerPushTokenForUser } from "@/lib/notifications/register-push-token";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
-const TERMS_URL = "https://gemfort.app/terms";
-const PRIVACY_URL = "https://gemfort.app/privacy";
-const SUPPORT_EMAIL = "mailto:support@gemfort.app";
+const TERMS_URL = "https://orbitratech.net";
+const PRIVACY_URL = "https://oebitratech.net/privacy-policy";
+const SUPPORT_EMAIL = "mailto:orbitra.technology@gmail.com";
 
 function Divider({ colors }: { colors: ThemeColors }) {
   return (
@@ -120,7 +124,9 @@ export default function SettingsScreen() {
         await updateFcmToken(user.uid, null);
       }
       await refreshProfile();
-      toast.success(next ? "Notifications enabled." : "Notifications disabled.");
+      toast.success(
+        next ? "Notifications enabled." : "Notifications disabled.",
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not update notification settings."));
     } finally {
@@ -202,7 +208,7 @@ export default function SettingsScreen() {
             colors={colors}
             icon="help-outline"
             label="Support"
-            subtitle="support@gemfort.app"
+            subtitle="orbitra.technology@gmail.com"
             onPress={() => void Linking.openURL(SUPPORT_EMAIL)}
           />
         </FormSection>

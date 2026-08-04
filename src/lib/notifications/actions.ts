@@ -45,11 +45,7 @@ export async function handleNotificationAction(
       navigateFromNotificationRef(referenceType, referenceId);
       return;
     }
-  } catch (error) {
-    if (__DEV__) {
-      console.warn('[push] Notification action failed', actionId, error);
-    }
-  }
+  } catch {}
 
   navigateFromNotificationRef(referenceType, referenceId);
 }

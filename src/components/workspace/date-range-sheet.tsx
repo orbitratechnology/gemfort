@@ -140,7 +140,7 @@ export function DateRangeSheet({
 
       <View style={styles.hintRow}>
         <Icon name="date-range" size={18} color={colors.primary} />
-        <Text selectable style={[styles.hint, { color: colors.onSurface }]}>
+        <Text selectable={false} style={[styles.hint, { color: colors.onSurface }]}>
           {rangeHint}
         </Text>
       </View>

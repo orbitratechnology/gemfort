@@ -165,14 +165,14 @@ export function ConfirmDialog({
             <Icon name={resolvedIcon} size={28} color={iconFg} />
           </View>
 
-          <Text style={[styles.title, { color: colors.onSurface }]} selectable>
+          <Text style={[styles.title, { color: colors.onSurface }]} selectable={false}>
             {title}
           </Text>
 
           {message ? (
             <Text
               style={[styles.message, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {message}
             </Text>

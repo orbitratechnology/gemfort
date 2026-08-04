@@ -55,9 +55,7 @@ export function usePushNotifications() {
       if (!uid) return;
       try {
         await updateFcmToken(uid, tokenValue);
-      } catch (error) {
-        if (__DEV__) console.warn('[push] Token refresh save failed', error);
-      }
+      } catch {}
     };
 
     const register = async () => {
@@ -65,10 +63,8 @@ export function usePushNotifications() {
       registeringRef.current = true;
       try {
         await registerPushTokenForUser(uidRef.current);
-      } catch (error) {
-        if (!cancelled && __DEV__) {
-          console.warn('[push] Initial registration failed', error);
-        }
+      } catch {
+        // Registration is retried when the app becomes active.
       } finally {
         registeringRef.current = false;
       }

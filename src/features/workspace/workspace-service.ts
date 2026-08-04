@@ -306,10 +306,18 @@ export async function deleteGem(gemId: string, ownerUid: string) {
   const db = getFirebaseDb();
   const [costsSnap, eventsSnap] = await Promise.all([
     getDocs(
-      query(collection(db, "gemtrack_gem_costs"), where("gemId", "==", gemId)),
+      query(
+        collection(db, "gemtrack_gem_costs"),
+        where("ownerUid", "==", ownerUid),
+        where("gemId", "==", gemId),
+      ),
     ),
     getDocs(
-      query(collection(db, "gemtrack_gem_events"), where("gemId", "==", gemId)),
+      query(
+        collection(db, "gemtrack_gem_events"),
+        where("ownerUid", "==", ownerUid),
+        where("gemId", "==", gemId),
+      ),
     ),
   ]);
   for (const d of costsSnap.docs) forgetSync(deleteDoc(d.ref));
@@ -1443,7 +1451,11 @@ export async function deleteBill(billId: string, ownerUid: string) {
   if (!bill || bill.ownerUid !== ownerUid) throw new Error("Bill not found");
   const db = getFirebaseDb();
   const paymentsSnap = await getDocs(
-    query(collection(db, "gemtrack_payments"), where("billId", "==", billId)),
+    query(
+      collection(db, "gemtrack_payments"),
+      where("ownerUid", "==", ownerUid),
+      where("billId", "==", billId),
+    ),
   );
   for (const d of paymentsSnap.docs) forgetSync(deleteDoc(d.ref));
   queueDocDelete("gemtrack_bills", billId);

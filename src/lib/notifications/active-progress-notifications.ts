@@ -87,9 +87,7 @@ export function syncActiveProgressNotifications(items: ActiveProgressItem[]): Pr
         }),
       ),
     );
-  }).catch((error) => {
-    if (__DEV__) console.warn('[notifications] Progress sync failed', error);
-  });
+  }).catch(() => {});
 
   return pendingSync;
 }

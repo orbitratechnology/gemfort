@@ -79,7 +79,16 @@ async function fetchAnnouncement(
   return { id: snap.id, ...snap.data() } as Announcement;
 }
 
-function baseVisual(n: AppNotification): NotificationVisual {
+/**
+ * Builds an immediately usable visual from the denormalized notification.
+ *
+ * Notifications already persist actor and media URLs. The async resolver below
+ * only enriches older/minimal records, so callers must be able to render this
+ * shape while that work is pending or unavailable.
+ */
+export function notificationVisualFromNotification(
+  n: AppNotification,
+): NotificationVisual {
   return {
     imageUrl: n.actorPhotoUrl ?? null,
     mediaUrl: n.imageUrl ?? null,
@@ -100,7 +109,9 @@ export async function resolveNotificationVisuals(
   viewerUid: string,
 ): Promise<Record<string, NotificationVisual>> {
   const out: Record<string, NotificationVisual> = {};
-  for (const n of notifications) out[n.id] = baseVisual(n);
+  for (const n of notifications) {
+    out[n.id] = notificationVisualFromNotification(n);
+  }
   if (notifications.length === 0) return out;
 
   const listingIds = [

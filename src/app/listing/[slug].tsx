@@ -3,12 +3,12 @@ import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
+    Linking,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,8 +16,8 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryFlag, CountryLabel } from "@/components/ui/country-flag";
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -28,36 +28,36 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { resolveCurrencyCode, type CurrencyCode } from "@/constants/currencies";
 import {
-  FontFamily,
-  Radius,
-  Spacing,
-  Typography,
+    FontFamily,
+    Radius,
+    Spacing,
+    Typography,
 } from "@/constants/design-tokens";
 import {
-  formatGemType,
-  formatShapeLabel,
-  formatTreatmentLabel,
+    formatGemType,
+    formatShapeLabel,
+    formatTreatmentLabel,
 } from "@/constants/gem-options";
 import {
-  clearListingOffers,
-  fetchBusiness,
-  fetchBusinessByOwnerUid,
-  fetchBuyerOffersForListing,
-  fetchOffersForListing,
-  isBusinessVerified,
-  isListingOfferUnread,
-  LISTING_OFFER_LIMITS,
-  markListingOffersRead,
-  removeListingOffers,
-  submitListingOffer,
-  withdrawListingOffer,
+    clearListingOffers,
+    fetchBusiness,
+    fetchBusinessByOwnerUid,
+    fetchBuyerOffersForListing,
+    fetchOffersForListing,
+    isBusinessVerified,
+    isListingOfferUnread,
+    LISTING_OFFER_LIMITS,
+    markListingOffersRead,
+    removeListingOffers,
+    submitListingOffer,
+    withdrawListingOffer,
 } from "@/features/marketplace/marketplace-service";
 import {
-  subscribeBusiness,
-  subscribeBusinessByOwnerUid,
-  subscribeBuyerOffersForListing,
-  subscribeListingBySlug,
-  subscribeOffersForListing,
+    subscribeBusiness,
+    subscribeBusinessByOwnerUid,
+    subscribeBuyerOffersForListing,
+    subscribeListingBySlug,
+    subscribeOffersForListing,
 } from "@/features/workspace/firestore-subscriptions";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -102,7 +102,10 @@ function initials(name: string) {
 }
 
 export default function PublicListingScreen() {
-  const params = useLocalSearchParams<{ slug: string | string[]; offers?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    slug: string | string[];
+    offers?: string | string[];
+  }>();
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
@@ -112,7 +115,9 @@ export default function PublicListingScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const [descExpanded, setDescExpanded] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
-  const [offersInboxOpen, setOffersInboxOpen] = useState(false);
+  const [offersInboxOpen, setOffersInboxOpen] = useState(
+    () => params.offers === "1",
+  );
   const [offerSaving, setOfferSaving] = useState(false);
   const [offerAmount, setOfferAmount] = useState<CurrencyAmountValue>({
     amount: "",
@@ -131,7 +136,8 @@ export default function PublicListingScreen() {
   } = useFirestoreLiveQuery({
     queryKey: ["listing", slug],
     queryFn: () => fetchListingBySlug(slug!),
-    subscribe: (onData, onError) => subscribeListingBySlug(slug!, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeListingBySlug(slug!, onData, onError),
     enabled: !!slug,
   });
 
@@ -152,10 +158,6 @@ export default function PublicListingScreen() {
   });
 
   const isOwner = !!user && !!listing && user.uid === listing.sellerUid;
-
-  useEffect(() => {
-    if (isOwner && params.offers === "1") setOffersInboxOpen(true);
-  }, [isOwner, params.offers]);
 
   const { data: receivedOffers = [] } = useFirestoreLiveQuery({
     queryKey: ["listing-offers", listing?.id],
@@ -299,7 +301,12 @@ export default function PublicListingScreen() {
       ? [{ label: "Lab", value: activeListing.certifyingLab }]
       : []),
     ...(activeListing.certificateUrl
-      ? [{ label: "Certificate / Report", value: activeListing.certificateFileName || "View attachment" }]
+      ? [
+          {
+            label: "Certificate / Report",
+            value: activeListing.certificateFileName || "View attachment",
+          },
+        ]
       : []),
   ];
 
@@ -361,7 +368,9 @@ export default function PublicListingScreen() {
       return;
     }
     if (pendingMine) {
-      toast.show("You already have a pending offer. Withdraw it to send a new one.");
+      toast.show(
+        "You already have a pending offer. Withdraw it to send a new one.",
+      );
       return;
     }
     setOfferError(null);
@@ -382,7 +391,10 @@ export default function PublicListingScreen() {
   async function handleSubmitOffer() {
     if (!user || offerSaving) return;
     const now = Date.now();
-    if (now - lastOfferSubmitAt.current < LISTING_OFFER_LIMITS.submitDebounceMs) {
+    if (
+      now - lastOfferSubmitAt.current <
+      LISTING_OFFER_LIMITS.submitDebounceMs
+    ) {
       return;
     }
     lastOfferSubmitAt.current = now;
@@ -512,13 +524,13 @@ export default function PublicListingScreen() {
           <View style={styles.titleBlock}>
             <Text
               style={[styles.gemName, { color: colors.onSurface }]}
-              selectable
+              selectable={false}
             >
               {listingTitle}
             </Text>
             <Text
               style={[styles.subtitle, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {formatGemType(activeListing.gemType)}
               {activeListing.caratWeight
@@ -536,7 +548,7 @@ export default function PublicListingScreen() {
                   fontFamily: FontFamily.bold,
                 },
               ]}
-              selectable
+              selectable={false}
             >
               {priceLabel}
             </Text>
@@ -550,7 +562,7 @@ export default function PublicListingScreen() {
                       : colors.onSurfaceVariant,
                   },
                 ]}
-                selectable
+                selectable={false}
               >
                 {perCaratLabel}
               </Text>
@@ -716,7 +728,7 @@ export default function PublicListingScreen() {
                     <Text
                       style={[styles.specValue, { color: colors.onSurface }]}
                       numberOfLines={2}
-                      selectable
+                      selectable={false}
                     >
                       {spec.value}
                     </Text>
@@ -728,13 +740,17 @@ export default function PublicListingScreen() {
 
           {activeListing.certificateUrl ? (
             <Pressable
-              onPress={() => void Linking.openURL(activeListing.certificateUrl!)}
+              onPress={() =>
+                void Linking.openURL(activeListing.certificateUrl!)
+              }
               accessibilityRole="link"
               accessibilityLabel="Open certificate or report"
               style={[styles.readMore, { alignSelf: "flex-start" }]}
             >
               <Icon name="description" size={18} color={colors.primary} />
-              <Text style={[styles.readMoreText, { color: colors.primary }]}>View Certificate / Report</Text>
+              <Text style={[styles.readMoreText, { color: colors.primary }]}>
+                View Certificate / Report
+              </Text>
             </Pressable>
           ) : null}
 
@@ -743,7 +759,7 @@ export default function PublicListingScreen() {
               <Text
                 style={[styles.notes, { color: colors.onSurfaceVariant }]}
                 numberOfLines={descExpanded ? undefined : 3}
-                selectable
+                selectable={false}
               >
                 {activeListing.description}
               </Text>
@@ -755,7 +771,9 @@ export default function PublicListingScreen() {
                   accessibilityLabel={descExpanded ? "Show less" : "Read more"}
                   style={styles.readMore}
                 >
-                  <Text style={[styles.readMoreText, { color: colors.primary }]}>
+                  <Text
+                    style={[styles.readMoreText, { color: colors.primary }]}
+                  >
                     {descExpanded ? "Show less" : "Read more"}
                   </Text>
                   <Icon
@@ -769,7 +787,7 @@ export default function PublicListingScreen() {
           ) : null}
 
           <Text style={[styles.footer, { color: colors.textMuted }]}>
-            Powered by GemFort — gemfort.app
+            Powered by Orbitra Tech (Pvt) Ltd
           </Text>
         </View>
       </ThemedScrollView>
@@ -841,7 +859,10 @@ export default function PublicListingScreen() {
             </Text>
             {unreadOfferCount > 0 ? (
               <View
-                style={[styles.offerCountBadge, { backgroundColor: colors.error }]}
+                style={[
+                  styles.offerCountBadge,
+                  { backgroundColor: colors.error },
+                ]}
               >
                 <Text style={styles.offerCountBadgeText}>
                   {unreadOfferCount > 99 ? "99+" : String(unreadOfferCount)}
@@ -855,7 +876,10 @@ export default function PublicListingScreen() {
                 ]}
               >
                 <Text
-                  style={[styles.offerCountBadgeText, { color: colors.onPrimary }]}
+                  style={[
+                    styles.offerCountBadgeText,
+                    { color: colors.onPrimary },
+                  ]}
                 >
                   {receivedOffers.length}
                 </Text>
@@ -956,7 +980,8 @@ export default function PublicListingScreen() {
         <Text style={[styles.offerHint, { color: colors.textMuted }]}>
           The seller gets a notification. One pending offer per gem · max{" "}
           {LISTING_OFFER_LIMITS.maxOffersPerDay}/day ·{" "}
-          {LISTING_OFFER_LIMITS.cooldownHoursPerListing}h cooldown after withdraw.
+          {LISTING_OFFER_LIMITS.cooldownHoursPerListing}h cooldown after
+          withdraw.
         </Text>
         <CurrencyAmountField
           label="Your offer"
@@ -978,7 +1003,7 @@ export default function PublicListingScreen() {
       </BottomSheet>
 
       <BottomSheet
-        visible={offersInboxOpen}
+        visible={isOwner && offersInboxOpen}
         onClose={() => setOffersInboxOpen(false)}
         title="Offers"
         footer={
@@ -1040,10 +1065,7 @@ function ReceivedOfferRow({
     !offer.buyerBusinessId || !offer.buyerLogoUrl || !offer.buyerBusinessName;
 
   const { data: buyerBusiness } = useFirestoreLiveQuery({
-    queryKey: [
-      "offer-buyer-business",
-      offer.buyerBusinessId ?? offer.buyerUid,
-    ],
+    queryKey: ["offer-buyer-business", offer.buyerBusinessId ?? offer.buyerUid],
     queryFn: () =>
       offer.buyerBusinessId
         ? fetchBusiness(offer.buyerBusinessId)
@@ -1099,9 +1121,7 @@ function ReceivedOfferRow({
         }
         disabled={!businessId}
         accessibilityRole={businessId ? "button" : undefined}
-        accessibilityLabel={
-          businessId ? `View ${name} business profile` : name
-        }
+        accessibilityLabel={businessId ? `View ${name} business profile` : name}
         style={({ pressed }) => [
           styles.receivedBuyer,
           { opacity: pressed && businessId ? 0.88 : 1 },
@@ -1138,7 +1158,7 @@ function ReceivedOfferRow({
       <View style={styles.receivedOfferMeta}>
         <Text
           style={[styles.receivedAmount, { color: colors.onSurface }]}
-          selectable
+          selectable={false}
         >
           {amountLabel}
         </Text>
@@ -1158,7 +1178,7 @@ function ReceivedOfferRow({
         <Text
           style={[styles.receivedNote, { color: colors.onSurfaceVariant }]}
           numberOfLines={4}
-          selectable
+          selectable={false}
         >
           {note}
         </Text>

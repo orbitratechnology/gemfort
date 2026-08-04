@@ -48,9 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Orphan Auth session (e.g. Firestore wiped): sign out so the app does
       // not sit in a half-authenticated state with permission-denied spam.
       if (!data) {
-        if (__DEV__) {
-          console.warn('[auth] No Firestore profile for uid; signing out', uid);
-        }
         setProfile(null);
         setUser(null);
         await signOut(getFirebaseAuth());
@@ -58,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setProfile(data);
-    } catch (error) {
-      if (__DEV__) console.warn('[auth] Failed to load profile', error);
+    } catch {
       if (requestId === profileRequestRef.current) {
         setProfile(null);
       }

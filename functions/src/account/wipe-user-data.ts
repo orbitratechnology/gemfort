@@ -36,8 +36,14 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'gemtrack_gem_events', field: 'ownerUid' },
   { collection: 'gemtrack_gem_events', field: 'createdByUid' },
   { collection: 'gemtrack_services', field: 'ownerUid' },
+  { collection: 'gemtrack_services', field: 'providerUid' },
   { collection: 'gemtrack_ap_records', field: 'ownerUid' },
+  { collection: 'gemtrack_ap_records', field: 'senderUid' },
+  { collection: 'gemtrack_ap_records', field: 'receiverUid' },
   { collection: 'gemtrack_ap_payments', field: 'ownerUid' },
+  { collection: 'gemtrack_ap_payments', field: 'senderUid' },
+  { collection: 'gemtrack_ap_payments', field: 'receiverUid' },
+  { collection: 'gemtrack_ap_payments', field: 'actorUid' },
   { collection: 'gemtrack_cheques', field: 'ownerUid' },
   { collection: 'gemtrack_bills', field: 'ownerUid' },
   { collection: 'gemtrack_payments', field: 'ownerUid' },
@@ -57,6 +63,7 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
 /** Cross-user references to anonymize (keep the doc, strip the uid). */
 const ANONYMIZE_FIELDS: Array<{ collection: string; field: string }> = [
   { collection: 'reports', field: 'reportedUserUid' },
+  { collection: 'reports', field: 'adminUid' },
 ];
 
 const STORAGE_PREFIXES = [
@@ -72,23 +79,17 @@ const STORAGE_PREFIXES = [
 
 async function deleteQueryInBatches(query: Query): Promise<number> {
   let deleted = 0;
-  // Paginate with document id so large collections finish reliably.
-  let cursor: QueryDocumentSnapshot | undefined;
 
+  // A Firestore document deletion does not delete its subcollections. Use the
+  // Admin SDK's recursive delete for every matched root document, then query
+  // again for the next page. This deliberately runs only in this trusted
+  // server environment, never on a device.
   for (;;) {
-    let page = query.orderBy(FieldPath.documentId()).limit(BATCH_LIMIT);
-    if (cursor) page = page.startAfter(cursor);
-
-    const snap = await page.get();
+    const snap = await query.limit(BATCH_LIMIT).get();
     if (snap.empty) break;
 
-    const batch = db.batch();
-    for (const doc of snap.docs) {
-      batch.delete(doc.ref);
-    }
-    await batch.commit();
+    await Promise.all(snap.docs.map((document) => db.recursiveDelete(document.ref)));
     deleted += snap.size;
-    cursor = snap.docs[snap.docs.length - 1];
     if (snap.size < BATCH_LIMIT) break;
   }
 
@@ -158,7 +159,7 @@ export async function wipeUserData(uid: string): Promise<{
   const userRef = db.collection('users').doc(uid);
   const userSnap = await userRef.get();
   if (userSnap.exists) {
-    await userRef.delete();
+    await db.recursiveDelete(userRef);
     firestoreDeleted += 1;
   }
 

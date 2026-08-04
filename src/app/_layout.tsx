@@ -23,10 +23,10 @@ import {
   Poppins_700Bold,
   useFonts,
 } from "@expo-google-fonts/poppins";
-import { Stack } from "expo-router";
+import { Stack, type ErrorBoundaryProps } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   KeyboardProvider,
@@ -43,6 +43,24 @@ function BootPlaceholder() {
   return (
     <View style={styles.boot} accessibilityLabel="Loading GemFort">
       <ActivityIndicator color="#FFFFFF" size="large" />
+    </View>
+  );
+}
+
+/** Keeps unexpected rendering failures understandable and free of diagnostics. */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return (
+    <View style={styles.errorScreen}>
+      <Text style={styles.errorTitle}>Something went wrong</Text>
+      <Text style={styles.errorMessage}>Please try again.</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+        onPress={() => void retry()}
+        style={({ pressed }) => [styles.retryButton, { opacity: pressed ? 0.8 : 1 }]}
+      >
+        <Text style={styles.retryLabel}>Try again</Text>
+      </Pressable>
     </View>
   );
 }
@@ -169,4 +187,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  errorScreen: {
+    flex: 1,
+    backgroundColor: BOOT_BG,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 12,
+  },
+  errorTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "700" },
+  errorMessage: { color: "#D1D1D1", fontSize: 16 },
+  retryButton: {
+    marginTop: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  retryLabel: { color: "#171717", fontSize: 16, fontWeight: "600" },
 });

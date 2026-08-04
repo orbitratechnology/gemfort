@@ -55,10 +55,7 @@ async function fetchNativePushToken(attempt = 1): Promise<string | null> {
   try {
     const deviceToken = await Notifications.getDevicePushTokenAsync();
     return normalizeDeviceToken(deviceToken);
-  } catch (error) {
-    if (__DEV__) {
-      console.warn(`[push] getDevicePushTokenAsync failed (attempt ${attempt})`, error);
-    }
+  } catch {
     if (attempt >= 3) return null;
     await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     return fetchNativePushToken(attempt + 1);
@@ -66,38 +63,17 @@ async function fetchNativePushToken(attempt = 1): Promise<string | null> {
 }
 
 export async function registerPushTokenForUser(uid: string): Promise<string | null> {
-  if (!canRegisterForPushNotifications()) {
-    if (__DEV__) {
-      console.warn('[push] Skipped registration on this platform/device');
-    }
-    return null;
-  }
+  if (!canRegisterForPushNotifications()) return null;
 
   const granted = await requestPushPermission();
-  if (!granted) {
-    if (__DEV__) {
-      console.warn('[push] Notification permission not granted');
-    }
-    return null;
-  }
+  if (!granted) return null;
 
   const token = await fetchNativePushToken();
-  if (!token) {
-    if (__DEV__) {
-      console.warn('[push] No native push token returned from FCM/APNs');
-    }
-    return null;
-  }
+  if (!token) return null;
 
   try {
     await updateFcmToken(uid, token);
-    if (__DEV__) {
-      console.log('[push] Saved FCM token for user', uid);
-    }
   } catch (error) {
-    if (__DEV__) {
-      console.warn('[push] Failed to save token to Firestore', error);
-    }
     throw error;
   }
 

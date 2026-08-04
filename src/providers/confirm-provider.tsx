@@ -175,7 +175,6 @@ export function useConfirm(): ConfirmApi {
  */
 export function confirm(options: ConfirmOptions): Promise<boolean> {
   if (!bridge) {
-    console.warn("ConfirmProvider is not mounted; confirm() ignored.");
     return Promise.resolve(false);
   }
   return bridge.confirm(options);
@@ -184,7 +183,6 @@ export function confirm(options: ConfirmOptions): Promise<boolean> {
 /** Themed multi-action sheet (replaces native Alert menus). */
 export function showActions(options: ShowActionsOptions): void {
   if (!bridge) {
-    console.warn("ConfirmProvider is not mounted; showActions() ignored.");
     return;
   }
   bridge.showActions(options);

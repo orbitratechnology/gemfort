@@ -4,7 +4,6 @@ import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import {
   collection,
   doc,
-  documentId,
   limit,
   onSnapshot,
   orderBy,
@@ -901,21 +900,20 @@ export function subscribeGemsByIds(
     );
   };
 
-  for (const chunk of chunkIds(unique, IN_QUERY_LIMIT)) {
+  // Do not use a document-ID `in` query here. Firestore rules cannot prove an
+  // AP participant may read every potential result from that query because
+  // access depends on each gem's linked AP record. Individual document reads
+  // let the rules evaluate that relationship per gem, while keeping unrelated
+  // inventory private.
+  for (const gemId of unique) {
     unsubs.push(
       onSnapshot(
-        query(
-          collection(getFirebaseDb(), 'gemtrack_gems'),
-          where(documentId(), 'in', chunk),
-        ),
+        doc(getFirebaseDb(), 'gemtrack_gems', gemId),
         (snap) => {
-          const present = new Set<string>();
-          for (const d of snap.docs) {
-            present.add(d.id);
-            byId.set(d.id, { id: d.id, ...d.data() } as WorkspaceGem);
-          }
-          for (const id of chunk) {
-            if (!present.has(id)) byId.delete(id);
+          if (snap.exists()) {
+            byId.set(snap.id, { id: snap.id, ...snap.data() } as WorkspaceGem);
+          } else {
+            byId.delete(gemId);
           }
           emit();
         },

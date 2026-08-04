@@ -131,7 +131,7 @@ export function LoadingOverlay({
           <ActivityIndicator size="large" color={colors.primary} />
           <Text
             style={[styles.message, { color: colors.onSurface }]}
-            selectable
+            selectable={false}
           >
             {message}
           </Text>

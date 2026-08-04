@@ -116,7 +116,7 @@ export default function AccountSettingsScreen() {
     void confirm({
       title: 'Delete account permanently?',
       message:
-        'This removes your profile, listings, workspace data, uploads, and sign-in. This cannot be undone.',
+        'Your GemFort profile and sign-in will be removed. Your business, listings, requests, workspace records, notifications, verification files, and uploaded photos or documents will be deleted too. Any shared records that need to remain for another member will no longer show your identity. This cannot be undone.',
       tone: 'destructive',
       confirmLabel: 'Delete forever',
       cancelLabel: 'Cancel',

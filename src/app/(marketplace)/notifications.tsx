@@ -15,8 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
+  notificationVisualFromNotification,
   resolveNotificationVisuals,
-  type NotificationVisual,
 } from "@/features/workspace/notification-visuals";
 import type { InboxActionId } from "@/features/workspace/notification-presentation";
 import {
@@ -36,16 +36,6 @@ import { navigateFromNotificationRef } from "@/lib/notification-navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { AppNotification } from "@/types";
-
-const EMPTY_VISUAL: NotificationVisual = {
-  imageUrl: null,
-  mediaUrl: null,
-  shape: "circle",
-  mediaShape: "rounded",
-  label: "?",
-  actorName: null,
-  fallbackIcon: "notifications",
-};
 
 function HeaderIconButton({
   label,
@@ -357,7 +347,11 @@ export default function NotificationsScreen() {
           return (
             <NotificationRow
               notification={item}
-              visual={visuals[item.id] ?? EMPTY_VISUAL}
+              // Render the notification's persisted avatar/media immediately.
+              // The async resolver only adds richer data for older records.
+              visual={
+                visuals[item.id] ?? notificationVisualFromNotification(item)
+              }
               onPress={() => openNotification(item)}
               onAction={(actionId) => handleAction(item, actionId)}
               busyActionId={busyActionId}

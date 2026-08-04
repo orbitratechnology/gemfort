@@ -19,6 +19,7 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
+import { friendlyError } from '@/lib/errors';
 import {
   collectFileUris,
   collectImageUris,
@@ -217,7 +218,7 @@ export default function HandleShareScreen() {
           <EmptyState
             icon="error"
             title="Couldn’t read shared content"
-            subtitle={error.message}
+            subtitle={friendlyError(error, 'Try sharing the content again.')}
           />
           <Button title="Dismiss" variant="secondary" onPress={dismiss} />
         </View>

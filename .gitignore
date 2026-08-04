@@ -55,3 +55,5 @@ example
 /google-services/
 /google-services/*
 !/google-services/.gitkeep
+
+*.log

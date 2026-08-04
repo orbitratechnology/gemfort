@@ -5,9 +5,6 @@
  * error codes) never reach the user.
  */
 export function friendlyError(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
-  // Always log the real error so developers can diagnose (incl. index links).
-  console.error('[GemFort]', error);
-
   const code =
     typeof error === 'object' && error !== null && 'code' in error
       ? String((error as { code?: unknown }).code ?? '')
@@ -73,11 +70,36 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
   const looksTechnical =
     !message ||
     message.length > 90 ||
-    hay.includes('firebase') ||
-    hay.includes('firestore') ||
-    hay.includes('http') ||
+    isTechnicalMessage(hay) ||
     code.length > 0;
   if (!looksTechnical) return message;
 
   return fallback;
+}
+
+/** Ensures strings received by a UI component cannot reveal implementation details. */
+export function safeUserMessage(message: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  if (typeof message !== 'string') return fallback;
+
+  const trimmed = message.trim().replace(/\s+/g, ' ');
+  if (!trimmed || trimmed.length > 140 || isTechnicalMessage(trimmed.toLowerCase())) return fallback;
+
+  return trimmed;
+}
+
+function isTechnicalMessage(value: string): boolean {
+  return (
+    value.includes('firebase') ||
+    value.includes('firestore') ||
+    value.includes('storage/') ||
+    value.includes('auth/') ||
+    value.includes('functions/') ||
+    value.includes('http') ||
+    value.includes('stack') ||
+    value.includes('exception') ||
+    value.includes('undefined') ||
+    value.includes('null') ||
+    value.includes('permission-denied') ||
+    value.includes('failed-precondition')
+  );
 }

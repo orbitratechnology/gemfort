@@ -407,7 +407,7 @@ export default function BillDetailScreen() {
                         : colors.primary,
                 },
               ]}
-              selectable
+              selectable={false}
             >
               {formatStored(remainingStored)}
             </Text>
@@ -681,7 +681,7 @@ export default function BillDetailScreen() {
                 </Text>
                 <Text
                   style={[styles.moneyValue, { color: colors.onSurface }]}
-                  selectable
+                  selectable={false}
                 >
                   {formatStored(faceStored)}
                 </Text>
@@ -695,7 +695,7 @@ export default function BillDetailScreen() {
                     styles.moneyValue,
                     { color: colors.successEmerald },
                   ]}
-                  selectable
+                  selectable={false}
                 >
                   {formatStored(settledStored)}
                 </Text>
@@ -711,7 +711,7 @@ export default function BillDetailScreen() {
                       color: remaining > 0 ? colors.primary : colors.textMuted,
                     },
                   ]}
-                  selectable
+                  selectable={false}
                 >
                   {formatStored(remainingStored)}
                 </Text>
@@ -743,7 +743,7 @@ export default function BillDetailScreen() {
                   </Text>
                   <Text
                     style={[styles.commissionValue, { color: colors.onSurface }]}
-                    selectable
+                    selectable={false}
                   >
                     {formatFace(commissionOnFace, bill.currency)}
                   </Text>
@@ -768,7 +768,7 @@ export default function BillDetailScreen() {
                   </Text>
                   <Text
                     style={[styles.commissionValue, { color: colors.primary }]}
-                    selectable
+                    selectable={false}
                   >
                     {formatFace(netOnFace, bill.currency)}
                   </Text>
@@ -868,7 +868,7 @@ export default function BillDetailScreen() {
                     </Text>
                     <Text
                       style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable
+                      selectable={false}
                     >
                       {step.sub}
                     </Text>
@@ -883,7 +883,7 @@ export default function BillDetailScreen() {
           <FormSection title="Notes">
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
-              selectable
+              selectable={false}
             >
               {bill.notes}
             </Text>
@@ -998,7 +998,7 @@ export default function BillDetailScreen() {
               styles.payHeroAmount,
               { color: isPayable ? colors.error : colors.primary },
             ]}
-            selectable
+            selectable={false}
           >
             {formatStored(remainingStored)}
           </Text>

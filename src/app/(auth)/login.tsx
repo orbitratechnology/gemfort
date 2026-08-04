@@ -1,35 +1,49 @@
-import { Link, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-
-import { AuthField } from '@/components/auth/auth-field';
-import { AuthIllustration } from '@/components/auth/auth-illustration';
+import { Link, router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  AuthFooterLink,
-  AuthHeading,
-  AuthScreen,
-  authGreeting,
-} from '@/components/auth/auth-screen';
-import { PasswordVisibilityToggle } from '@/components/auth/password-visibility-toggle';
-import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
-import { Button } from '@/components/ui/button';
-import { Spacing, TouchTarget, Typography } from '@/constants/design-tokens';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { loadRememberedEmail, saveRememberedEmail } from '@/lib/auth/remember-email';
-import { getUserProfile, loginUser, needsPhoneVerification } from '@/lib/firebase/auth-service';
-import { signInWithApple, signInWithGoogle } from '@/lib/firebase/social-auth';
-import { friendlyError } from '@/lib/errors';
-import { haptics } from '@/lib/haptics';
-import { markOnboardingComplete } from '@/lib/onboarding';
-import { loginSchema, parseForm } from '@/lib/validation/form-schemas';
-import { withLoading } from '@/providers/loading-provider';
-import { useToast } from '@/providers/toast-provider';
+    Keyboard,
+    Pressable,
+    StyleSheet,
+    Switch,
+    Text,
+    View,
+} from "react-native";
+
+import { AuthField } from "@/components/auth/auth-field";
+import { AuthIllustration } from "@/components/auth/auth-illustration";
+import {
+    AuthFooterLink,
+    AuthHeading,
+    AuthScreen,
+    authGreeting,
+} from "@/components/auth/auth-screen";
+import { PasswordVisibilityToggle } from "@/components/auth/password-visibility-toggle";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
+import { Button } from "@/components/ui/button";
+import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import {
+    loadRememberedEmail,
+    saveRememberedEmail,
+} from "@/lib/auth/remember-email";
+import { friendlyError } from "@/lib/errors";
+import {
+    getUserProfile,
+    loginUser,
+    needsPhoneVerification,
+} from "@/lib/firebase/auth-service";
+import { signInWithApple, signInWithGoogle } from "@/lib/firebase/social-auth";
+import { haptics } from "@/lib/haptics";
+import { markOnboardingComplete } from "@/lib/onboarding";
+import { loginSchema, parseForm } from "@/lib/validation/form-schemas";
+import { withLoading } from "@/providers/loading-provider";
+import { useToast } from "@/providers/toast-provider";
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -63,39 +77,46 @@ export default function LoginScreen() {
     setErrors({});
     try {
       await withLoading(async () => {
-        const loggedInUser = await loginUser(result.data.email, result.data.password);
+        const loggedInUser = await loginUser(
+          result.data.email,
+          result.data.password,
+        );
         await saveRememberedEmail(rememberMe ? result.data.email : null);
         await markOnboardingComplete();
         const profile = await getUserProfile(loggedInUser.uid);
         if (needsPhoneVerification(profile)) {
           router.replace({
-            pathname: '/(auth)/verify-otp',
+            pathname: "/(auth)/verify-otp",
             params: { phone: profile!.phone },
           });
         } else {
-          router.replace('/(marketplace)/(tabs)/home');
+          router.replace("/(marketplace)/(tabs)/home");
         }
-      }, 'Signing in…');
+      }, "Signing in…");
     } catch (e) {
-      const msg = friendlyError(e, 'Could not sign in. Please try again.');
+      const msg = friendlyError(e, "Could not sign in. Please try again.");
       setErrors({ password: msg });
       toast.error(msg);
     }
   }
 
-  async function finishSocialLogin(signIn: () => Promise<Awaited<ReturnType<typeof signInWithGoogle>>>) {
+  async function finishSocialLogin(
+    signIn: () => Promise<Awaited<ReturnType<typeof signInWithGoogle>>>,
+  ) {
     try {
       await withLoading(async () => {
         const { profile } = await signIn();
         await markOnboardingComplete();
         if (needsPhoneVerification(profile)) {
-          router.replace('/(auth)/complete-phone');
+          router.replace("/(auth)/complete-phone");
         } else {
-          router.replace('/(marketplace)/(tabs)/home');
+          router.replace("/(marketplace)/(tabs)/home");
         }
-      }, 'Signing inâ€¦');
+      }, "Signing in...");
     } catch (error) {
-      toast.error(friendlyError(error, 'Google or Apple Sign-In could not be completed.'));
+      toast.error(
+        friendlyError(error, "Google or Apple Sign-In could not be completed."),
+      );
     }
   }
 
@@ -115,7 +136,7 @@ export default function LoginScreen() {
           value={email}
           onChangeText={(v) => {
             setEmail(v);
-            clearField('email');
+            clearField("email");
           }}
           autoCapitalize="none"
           autoComplete="email"
@@ -131,7 +152,7 @@ export default function LoginScreen() {
           value={password}
           onChangeText={(v) => {
             setPassword(v);
-            clearField('password');
+            clearField("password");
           }}
           secureTextEntry={!showPassword}
           autoComplete="password"
@@ -154,8 +175,14 @@ export default function LoginScreen() {
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="Forgot password"
-              style={({ pressed }) => [styles.forgotHit, pressed && { opacity: 0.7 }]}>
-              <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
+              style={({ pressed }) => [
+                styles.forgotHit,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[styles.forgotText, { color: colors.primary }]}>
+                Forgot password?
+              </Text>
             </Pressable>
           </Link>
         </View>
@@ -170,7 +197,10 @@ export default function LoginScreen() {
               haptics.selection();
               setRememberMe(v);
             }}
-            trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary }}
+            trackColor={{
+              false: colors.surfaceContainerHighest,
+              true: colors.primary,
+            }}
             thumbColor={colors.background}
             accessibilityLabel="Remember me next time"
           />
@@ -195,27 +225,27 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   form: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
     gap: Spacing.md,
   },
   metaRow: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     marginTop: -Spacing.xs,
   },
   forgotHit: {
     minHeight: TouchTarget.minHeight,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: Spacing.xs,
   },
   forgotText: {
     ...Typography.bodyMd,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   rememberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     minHeight: TouchTarget.minHeight,
     gap: Spacing.md,
   },
