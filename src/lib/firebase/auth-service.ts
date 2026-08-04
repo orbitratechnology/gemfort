@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   EmailAuthProvider,
   getIdToken,
   reauthenticateWithCredential,
@@ -175,11 +176,19 @@ export async function deleteAccountWithProvider(providerId: 'google.com' | 'appl
 }
 
 async function deleteAuthenticatedAccount() {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) {
+    throw new Error('You must be signed in to delete your account.');
+  }
+
   // The function independently verifies a recent Firebase Auth event. Force a
   // new ID token after password/OAuth reauthentication so that proof reaches it.
   await callFunction<{ ok: true }>('deleteMyAccount', undefined, {
     forceRefreshToken: true,
   });
+  // React Native Firebase requires a recent sign-in before deleteUser. The
+  // caller has just completed password, Google, or Apple reauthentication.
+  await deleteUser(user);
   try {
     await Promise.all([clearOnboardingState(), clearThemePreference()]);
   } catch {

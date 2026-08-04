@@ -156,6 +156,15 @@
       ]
     },
     {
+      "collectionGroup": "gemtrack_trip_expenses",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "gemtrack_trip_gems",
       "queryScope": "COLLECTION",
       "fields": [
@@ -202,6 +211,24 @@
       "fields": [
         { "fieldPath": "verificationStatus", "order": "ASCENDING" },
         { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businesses",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+        { "fieldPath": "rankScore", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businesses",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "verificationTier", "order": "ASCENDING" },
+        { "fieldPath": "rankScore", "order": "ASCENDING" }
       ]
     },
     {

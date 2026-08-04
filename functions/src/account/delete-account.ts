@@ -1,4 +1,3 @@
-import { getAuth } from 'firebase-admin/auth';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import * as functionsV1 from 'firebase-functions/v1';
@@ -10,9 +9,10 @@ const RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60;
 
 /**
  * Primary path: authenticated callable.
- * 1) Client reauthenticates (recent login).
- * 2) Client invokes this function.
- * 3) We wipe Firestore + Storage, then delete the Auth user.
+ * 1) Client reauthenticates with password, Google, or Apple.
+ * 2) Client invokes this function to remove its Firestore and Storage data.
+ * 3) Client calls React Native Firebase's deleteUser on that freshly
+ *    reauthenticated user. The Auth onDelete trigger below is a safety net.
  */
 export const deleteMyAccount = onCall(
   {
@@ -35,27 +35,9 @@ export const deleteMyAccount = onCall(
         'Please sign in again before deleting your account.',
       );
     }
+
     logger.info('deleteMyAccount started', { uid });
-
     const summary = await wipeUserData(uid);
-
-    try {
-      await getAuth().deleteUser(uid);
-    } catch (error) {
-      const code =
-        typeof error === 'object' && error !== null && 'code' in error
-          ? String((error as { code?: unknown }).code)
-          : '';
-      // Already gone — treat as success (idempotent).
-      if (code !== 'auth/user-not-found') {
-        logger.error('Auth delete failed after data wipe', { uid, error });
-        throw new HttpsError(
-          'internal',
-          'Account data was removed but Auth deletion failed. Contact support.',
-        );
-      }
-    }
-
     logger.info('deleteMyAccount finished', { uid, ...summary });
     return { ok: true as const, ...summary };
   },

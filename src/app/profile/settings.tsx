@@ -174,16 +174,7 @@ export default function SettingsScreen() {
             colors={colors}
             icon="manage-accounts"
             label="Account settings"
-            subtitle="Password & security"
-            onPress={() => router.push("/profile/account" as Href)}
-          />
-          <Divider colors={colors} />
-          <Row
-            colors={colors}
-            icon="delete-forever"
-            label="Delete account"
-            subtitle="Permanently remove your data"
-            danger
+            subtitle="Sign-in, password & account deletion"
             onPress={() => router.push("/profile/account" as Href)}
           />
         </FormSection>
