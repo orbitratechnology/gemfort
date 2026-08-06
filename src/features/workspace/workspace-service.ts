@@ -566,7 +566,12 @@ export async function createService(
 export async function completeService(
   serviceId: string,
   ownerUid: string,
-  input: { weightAfter: number; finalCost: number; resultNotes?: string },
+  input: {
+    weightAfter: number;
+    finalCost: number;
+    currency?: string;
+    resultNotes?: string;
+  },
 ) {
   const snap = await getDoc(
     doc(getFirebaseDb(), "gemtrack_services", serviceId),
@@ -579,54 +584,69 @@ export async function completeService(
     input.weightAfter,
   );
 
+  const currency =
+    input.currency?.trim() ||
+    service.finalCostCurrency ||
+    service.agreedPriceCurrency ||
+    "LKR";
+  const finalCostBase = await convertToBase(input.finalCost, currency);
+
   queueDocUpdate("gemtrack_services", serviceId, {
-      status: "received_back",
-      dateReturned: now,
-      weightAfter: input.weightAfter,
-      weightLossPercent: weightLoss,
-      finalCost: input.finalCost,
-      finalCostCurrency: "LKR",
-      paymentStatus: "paid",
-      resultNotes: input.resultNotes ?? null,
-      updatedAt: now,
-    });
+    status: "received_back",
+    dateReturned: now,
+    weightAfter: input.weightAfter,
+    weightLossPercent: weightLoss,
+    finalCost: input.finalCost,
+    finalCostCurrency: currency,
+    paymentStatus: "paid",
+    resultNotes: input.resultNotes ?? null,
+    updatedAt: now,
+  });
 
   const gem = await fetchGem(service.gemId);
   if (gem) {
-    const newTotal = gem.totalCost + input.finalCost;
+    const newTotal = gem.totalCost + finalCostBase;
+    const newStatus: GemStatus =
+      service.serviceType === "heating" ||
+      service.serviceType === "heat_treatment"
+        ? "heated"
+        : service.serviceType === "polishing"
+          ? "polished"
+          : "cut";
+
     queueDocUpdate("gemtrack_gems", service.gemId, {
-        currentWeight: input.weightAfter,
-        totalCost: newTotal,
-        status: "cut",
-        updatedAt: now,
-      });
+      currentWeight: input.weightAfter,
+      totalCost: newTotal,
+      status: newStatus,
+      updatedAt: now,
+    });
     queueDocCreate("gemtrack_gem_costs", {
-        gemId: service.gemId,
-        ownerUid,
-        costType: service.serviceType,
-        description: `Service: ${service.serviceType}`,
-        amount: input.finalCost,
-        currency: "LKR",
-        amountBase: input.finalCost,
-        serviceRecordId: serviceId,
-        date: now,
-        createdAt: now,
-      });
+      gemId: service.gemId,
+      ownerUid,
+      costType: service.serviceType,
+      description: `Service: ${service.serviceType}`,
+      amount: input.finalCost,
+      currency,
+      amountBase: finalCostBase,
+      serviceRecordId: serviceId,
+      date: now,
+      createdAt: now,
+    });
     queueDocCreate("gemtrack_gem_events", {
-        gemId: service.gemId,
-        ownerUid,
-        eventType: "status_change",
-        fromStatus: gem.status,
-        toStatus: "cut",
-        description: `Returned from ${service.serviceType}. Weight: ${input.weightAfter} ct`,
-        weightAtEvent: input.weightAfter,
-        photoUrl: null,
-        costAdded: input.finalCost,
-        relatedServiceId: serviceId,
-        relatedApId: null,
-        createdByUid: ownerUid,
-        createdAt: now,
-      });
+      gemId: service.gemId,
+      ownerUid,
+      eventType: "status_change",
+      fromStatus: gem.status,
+      toStatus: newStatus,
+      description: `Returned from ${service.serviceType}. Weight: ${input.weightAfter} ct`,
+      weightAtEvent: input.weightAfter,
+      photoUrl: null,
+      costAdded: input.finalCost,
+      relatedServiceId: serviceId,
+      relatedApId: null,
+      createdByUid: ownerUid,
+      createdAt: now,
+    });
   }
 }
 
@@ -644,6 +664,37 @@ export async function deleteService(serviceId: string, ownerUid: string) {
       "Only completed or cancelled services can be deleted. Request cancellation first.",
     );
   }
+
+  try {
+    const costsSnap = await getDocs(
+      query(
+        collection(getFirebaseDb(), "gemtrack_gem_costs"),
+        where("serviceRecordId", "==", serviceId),
+        where("ownerUid", "==", ownerUid),
+      ),
+    );
+
+    let totalCostBaseToRemove = 0;
+    for (const d of costsSnap.docs) {
+      const data = d.data();
+      totalCostBaseToRemove += Number(data.amountBase ?? data.amount ?? 0);
+      queueDocDelete("gemtrack_gem_costs", d.id);
+    }
+
+    if (totalCostBaseToRemove > 0 && service.gemId) {
+      const gem = await fetchGem(service.gemId);
+      if (gem && gem.ownerUid === ownerUid) {
+        const updatedTotalCost = Math.max(0, gem.totalCost - totalCostBaseToRemove);
+        queueDocUpdate("gemtrack_gems", service.gemId, {
+          totalCost: updatedTotalCost,
+          updatedAt: Timestamp.now(),
+        });
+      }
+    }
+  } catch {
+    // Fallthrough to main service doc deletion if cost query fails offline
+  }
+
   queueDocDelete("gemtrack_services", serviceId);
 }
 

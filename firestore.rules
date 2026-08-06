@@ -164,9 +164,10 @@ service cloud.firestore {
       allow list: if resource.data.verificationStatus == 'verified'
                   && resource.data.isActive == true;
 
-      // Direct get by ID (e.g. from a public listing's businessId) — any active
-      // business is readable so listing cards show owner name/logo/contacts.
-      allow get: if resource.data.isActive == true;
+      // Direct get by ID (e.g. from a public listing's businessId) — verified + active
+      // businesses are readable so listing cards show owner name/logo/contacts.
+      allow get: if resource.data.isActive == true
+                  && resource.data.verificationStatus == 'verified';
 
       // Owner reads own (even pending / inactive)
       allow get, list: if isSignedIn()

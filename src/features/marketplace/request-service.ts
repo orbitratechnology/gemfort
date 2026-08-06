@@ -230,11 +230,13 @@ export async function publishCertificate(input: {
   resultsSummary?: PublicCertificate['resultsSummary'];
 }): Promise<string> {
   const now = nowTs();
+  const certNumber = input.certificateNumber.trim();
   const id = queueDocCreate('certificates', {
     labUid: input.labUid,
     labBusinessId: input.labBusinessId,
     labName: input.labName,
-    certificateNumber: input.certificateNumber.trim(),
+    certificateNumber: certNumber,
+    certificateNumberUpper: certNumber.toUpperCase(),
     verificationCode: input.verificationCode?.trim() || null,
     reportType: input.reportType,
     certificateDate: now,
@@ -281,16 +283,56 @@ export async function fetchLabCertificates(labUid: string): Promise<PublicCertif
 export async function verifyCertificateByNumber(
   certificateNumber: string,
 ): Promise<PublicCertificate | null> {
-  const q = query(
-    collection(getFirebaseDb(), 'certificates'),
-    where('certificateNumber', '==', certificateNumber.trim()),
+  const raw = certificateNumber.trim();
+  if (!raw) return null;
+  const db = getFirebaseDb();
+
+  // 1. Try case-insensitive upper field search
+  try {
+    const qUpper = query(
+      collection(db, 'certificates'),
+      where('certificateNumberUpper', '==', raw.toUpperCase()),
+      where('visibility', '==', 'public'),
+      limit(1),
+    );
+    const snapUpper = await getDocs(qUpper);
+    if (!snapUpper.empty) {
+      const d = snapUpper.docs[0];
+      return { id: d.id, ...d.data() } as PublicCertificate;
+    }
+  } catch {
+    // If index or field is missing, fall through to legacy field search
+  }
+
+  // 2. Exact match on raw certificateNumber
+  const qExact = query(
+    collection(db, 'certificates'),
+    where('certificateNumber', '==', raw),
     where('visibility', '==', 'public'),
     limit(1),
   );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as PublicCertificate;
+  const snapExact = await getDocs(qExact);
+  if (!snapExact.empty) {
+    const d = snapExact.docs[0];
+    return { id: d.id, ...d.data() } as PublicCertificate;
+  }
+
+  // 3. Fallback match on uppercase certificateNumber for legacy docs
+  if (raw !== raw.toUpperCase()) {
+    const qUpperFallback = query(
+      collection(db, 'certificates'),
+      where('certificateNumber', '==', raw.toUpperCase()),
+      where('visibility', '==', 'public'),
+      limit(1),
+    );
+    const snapUpperFallback = await getDocs(qUpperFallback);
+    if (!snapUpperFallback.empty) {
+      const d = snapUpperFallback.docs[0];
+      return { id: d.id, ...d.data() } as PublicCertificate;
+    }
+  }
+
+  return null;
 }
 
 export async function createClientNotification(input: {
