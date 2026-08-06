@@ -444,18 +444,28 @@ export type Transaction = {
   contactId: string | null;
   date: Timestamp;
   createdAt: Timestamp;
+  /**
+   * Originating record this transaction was created from
+   * (e.g. "bill", "ap", "trip", "receivable", "payable", "cheque", "service").
+   */
+  sourceType?: string | null;
+  sourceId?: string | null;
 };
 
 export type Receivable = {
   id: string;
   ownerUid: string;
-  contactId: string;
+  /** Counterparty contact — optional, `null` when no contact was chosen. */
+  contactId: string | null;
   amount: number;
   amountReceived: number;
   currency: string;
   /** LKR equivalent of `amount` at create/update time. */
   amountBase?: number;
-  description: string;
+  /** Required title/reason of the receivable. */
+  title: string;
+  /** Legacy free-form description (kept for backward compatibility). */
+  description?: string | null;
   dueDate: Timestamp;
   status: "pending" | "partial" | "paid" | "overdue";
   createdAt: Timestamp;
@@ -465,13 +475,17 @@ export type Receivable = {
 export type Payable = {
   id: string;
   ownerUid: string;
-  contactId: string;
+  /** Counterparty contact — optional, `null` when no contact was chosen. */
+  contactId: string | null;
   amount: number;
   amountPaid: number;
   currency: string;
   /** LKR equivalent of `amount` at create/update time. */
   amountBase?: number;
-  description: string;
+  /** Required title/reason of the payable. */
+  title: string;
+  /** Legacy free-form description (kept for backward compatibility). */
+  description?: string | null;
   dueDate: Timestamp;
   status: "pending" | "partial" | "paid" | "overdue";
   createdAt: Timestamp;
@@ -495,6 +509,12 @@ export type Payment = {
   gemId: string | null;
   contactId: string | null;
   transactionId: string | null;
+  /**
+   * Originating record this payment was created from
+   * (e.g. "receivable", "payable", "bill", "ap", "cheque", "service", "trip").
+   */
+  sourceType?: string | null;
+  sourceId?: string | null;
   notes: string | null;
   paymentDate: Timestamp;
   createdAt: Timestamp;

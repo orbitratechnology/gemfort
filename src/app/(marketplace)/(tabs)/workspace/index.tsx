@@ -114,6 +114,49 @@ function toneColors(tone: AlertItem["tone"], colors: ThemeColors) {
   }
 }
 
+function jobStatusTone(
+  status: "queued" | "in_progress" | "ready" | "returned" | "cancelled",
+  colors: ThemeColors,
+): { label: string; fg: string; bg: string; icon: IconName } {
+  switch (status) {
+    case "in_progress":
+      return {
+        label: "In progress",
+        fg: colors.primary,
+        bg: colors.primary + "14",
+        icon: "sync" as IconName,
+      };
+    case "ready":
+      return {
+        label: "Ready",
+        fg: colors.successEmerald,
+        bg: colors.successEmerald + "18",
+        icon: "check-circle" as IconName,
+      };
+    case "returned":
+      return {
+        label: "Returned",
+        fg: colors.successEmerald,
+        bg: colors.successEmerald + "18",
+        icon: "done-all" as IconName,
+      };
+    case "cancelled":
+      return {
+        label: "Cancelled",
+        fg: colors.textMuted,
+        bg: colors.surfaceContainerHigh + "AA",
+        icon: "cancel" as IconName,
+      };
+    default:
+      return {
+        label: "Queued",
+        fg: colors.warningAmber,
+        bg: colors.warningAmber + "18",
+        icon: "hourglass-top" as IconName,
+      };
+  }
+}
+
 export default function WorkspaceHub() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -349,8 +392,11 @@ export default function WorkspaceHub() {
       label: "Jobs",
       value: jobs.length,
       icon: "construction",
+      image: require("@/assets/images/lapidary-icon.png"),
       route: `${WORKSPACE}/jobs`,
       group: "inventory",
+      featured: role === "lapidary",
+      featuredHint: "Workshop jobs",
     },
     {
       label: "Services",
@@ -415,7 +461,7 @@ export default function WorkspaceHub() {
       return canAccessModule(role, "certificates");
     if (m.label === "Gems") return canAccessModule(role, "gems");
     if (m.label === "Services")
-      return canAccessModule(role, "services") || role === "lapidary";
+      return canAccessModule(role, "services");
     if (m.label === "Trips") return canAccessModule(role, "trips");
     if (m.label === "AP") return canAccessModule(role, "ap");
     if (m.label === "Cheques") return canAccessModule(role, "cheques");
@@ -471,11 +517,6 @@ export default function WorkspaceHub() {
               label: "Contacts",
               icon: "group",
               route: `${WORKSPACE}/contacts`,
-            },
-            {
-              label: "Services",
-              icon: "handyman",
-              route: `${WORKSPACE}/services`,
             },
           ]
         : [
@@ -923,6 +964,85 @@ export default function WorkspaceHub() {
         {/* Modules — gradient group panels + tiles */}
         <WorkspaceModules groups={moduleGroups} colors={colors} />
 
+        {/* Recent jobs — lapidary workshop feed */}
+        {canAccessModule(role, "jobs") && jobs.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: colors.onSurface, marginBottom: 0 },
+                ]}
+              >
+                Recent jobs
+              </Text>
+              <Pressable
+                onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="See all jobs"
+              >
+                <Text style={[styles.seeAll, { color: colors.primary }]}>
+                  See all
+                </Text>
+              </Pressable>
+            </View>
+            <View
+              style={[
+                styles.alertList,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}
+            >
+              {jobs.slice(0, 4).map((j) => {
+                const tone = jobStatusTone(j.status, colors);
+                return (
+                  <Pressable
+                    key={j.id}
+                    onPress={() => router.push(`${WORKSPACE}/jobs` as never)}
+                    style={({ pressed }) => [
+                      styles.alertRow,
+                      {
+                        backgroundColor: pressed
+                          ? colors.surfaceContainerLow
+                          : colors.surfaceContainerLowest,
+                        transform: [{ scale: pressed ? 0.985 : 1 }],
+                        boxShadow: pressed
+                          ? "0 1px 4px rgba(0, 0, 0, 0.04)"
+                          : "0 2px 12px rgba(0, 0, 0, 0.06)",
+                      },
+                    ]}
+                  >
+                    <View style={[styles.alertIcon, { backgroundColor: tone.bg }]}>
+                      <Icon name={tone.icon} size={18} color={tone.fg} />
+                    </View>
+                    <View style={styles.alertText}>
+                      <Text
+                        style={[
+                          styles.alertTitle,
+                          { color: colors.onSurface },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {j.gemName}
+                      </Text>
+                      <Text
+                        style={[styles.alertSub, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {j.serviceTypes.map((t) => t.replace(/_/g, " ")).join(", ")}
+                        {j.notes ? ` · ${j.notes}` : ""}
+                      </Text>
+                    </View>
+                    <Text style={[styles.jobStatus, { color: tone.fg }]}>
+                      {tone.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {/* Recent calls — Android only (matched to contacts / businesses) */}
         {showContacts && callLogsSupported && recentCallPreview.length > 0 ? (
           <View style={styles.section}>
@@ -1119,4 +1239,5 @@ const styles = StyleSheet.create({
   alertText: { flex: 1, gap: 2, minWidth: 0 },
   alertTitle: { ...Typography.bodyLg, fontWeight: "600" },
   alertSub: { ...Typography.bodyMd },
+  jobStatus: { ...Typography.labelMd, fontWeight: "700" },
 });

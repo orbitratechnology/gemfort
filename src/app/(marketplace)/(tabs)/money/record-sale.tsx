@@ -156,6 +156,8 @@ export default function RecordSaleScreen() {
           description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
           gemId: gem.id,
           contactId: buyerContactId || null,
+          sourceType: "gem",
+          sourceId: gem.id,
           date: Timestamp.now(),
         });
         await updateGemStatus(

@@ -64,6 +64,10 @@ type ContactPickerSheetProps = {
   customName?: string;
   onSelectCustomName?: (name: string) => void;
   customNameLabel?: string;
+  /** Show a "No contact" row so the picker field can be left blank. */
+  allowClear?: boolean;
+  onClear?: () => void;
+  clearLabel?: string;
 };
 
 export type PartyPickerSheetProps = {
@@ -287,6 +291,9 @@ export function ContactPickerSheet({
   customName = '',
   onSelectCustomName,
   customNameLabel = 'Use this name',
+  allowClear = false,
+  onClear,
+  clearLabel = 'No contact (optional)',
 }: ContactPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
@@ -341,6 +348,44 @@ export function ContactPickerSheet({
           ) : (
             <Icon name="arrow-forward" size={20} color={colors.onPrimaryContainer} />
           )}
+        </Pressable>
+      ) : null}
+      {allowClear && onClear ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={clearLabel}
+          onPress={() => {
+            onClear();
+            closeSheet();
+          }}
+          style={({ pressed }) => [
+            styles.clearRow,
+            {
+              borderColor: value ? colors.outlineVariant : colors.primary + '55',
+              backgroundColor: value ? colors.surfaceContainerLow : 'transparent',
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}>
+          <View
+            style={[
+              styles.fieldIcon,
+              { backgroundColor: value ? colors.surfaceContainerHigh : colors.primary + '1A' },
+            ]}>
+            <Icon
+              name={value ? 'close' : 'person-off'}
+              size={18}
+              color={value ? colors.onSurfaceVariant : colors.primary}
+            />
+          </View>
+          <View style={styles.fieldBody}>
+            <Text
+              style={[
+                styles.name,
+                { color: value ? colors.onSurfaceVariant : colors.primary },
+              ]}>
+              {value ? 'Clear selection' : clearLabel}
+            </Text>
+          </View>
         </Pressable>
       ) : null}
       <FlashList
@@ -727,6 +772,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Radius.lg,
+    marginBottom: Spacing.stackMd,
+    minHeight: 56,
+  },
+  clearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderCurve: 'continuous',
     marginBottom: Spacing.stackMd,
     minHeight: 56,
   },

@@ -1072,6 +1072,8 @@ export async function createTransaction(
   ownerUid: string,
   input: Omit<Transaction, "id" | "ownerUid" | "createdAt" | "amountBase"> & {
     amountBase?: number;
+    sourceType?: string | null;
+    sourceId?: string | null;
   },
 ) {
   const now = Timestamp.now();
@@ -1084,6 +1086,8 @@ export async function createTransaction(
     ...input,
     ownerUid,
     amountBase,
+    sourceType: input.sourceType ?? null,
+    sourceId: input.sourceId ?? null,
     date: input.date ?? now,
     createdAt: now,
   });
@@ -1118,17 +1122,24 @@ export async function createReceivable(
   ownerUid: string,
   input: Omit<
     Receivable,
-    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountReceived" | "amountBase"
-  >,
+    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountReceived" | "amountBase" | "title" | "description"
+  > & {
+    title?: string | null;
+    description?: string | null;
+  },
 ) {
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
+  const title = input.title?.trim() || input.description?.trim() || "Receivable";
   const id = queueDocCreate("gemtrack_receivables", {
     ...input,
     currency,
     amountBase,
     ownerUid,
+    contactId: input.contactId ?? null,
+    title,
+    description: input.description?.trim() || null,
     amountReceived: 0,
     status: "pending",
     createdAt: now,
@@ -1141,17 +1152,24 @@ export async function createPayable(
   ownerUid: string,
   input: Omit<
     Payable,
-    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountPaid" | "amountBase"
-  >,
+    "id" | "ownerUid" | "createdAt" | "updatedAt" | "status" | "amountPaid" | "amountBase" | "title" | "description"
+  > & {
+    title?: string | null;
+    description?: string | null;
+  },
 ) {
   const now = Timestamp.now();
   const currency = input.currency ?? "LKR";
   const amountBase = await convertToBase(input.amount, currency);
+  const title = input.title?.trim() || input.description?.trim() || "Payable";
   const id = queueDocCreate("gemtrack_payables", {
     ...input,
     currency,
     amountBase,
     ownerUid,
+    contactId: input.contactId ?? null,
+    title,
+    description: input.description?.trim() || null,
     amountPaid: 0,
     status: "pending",
     createdAt: now,
@@ -1176,6 +1194,12 @@ export async function recordReceivablePayment(
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Receivable not found");
   const data = snap.data() as Receivable;
+  const remaining = Math.round((data.amount - data.amountReceived) * 100) / 100;
+  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
+    throw new Error(
+      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+    );
+  }
   const newReceived = Math.min(
     data.amount,
     data.amountReceived + paymentAmount,
@@ -1204,9 +1228,11 @@ export async function recordReceivablePayment(
     currency,
     amountBase,
     category: "other_income",
-    description: `Payment received: ${data.description}`,
+    description: `Payment received: ${data.title || data.description || "Receivable"}`,
     gemId: null,
     contactId: data.contactId,
+    sourceType: "receivable",
+    sourceId: receivableId,
     date: now,
   });
 
@@ -1224,6 +1250,8 @@ export async function recordReceivablePayment(
       gemId: null,
       contactId: data.contactId,
       transactionId: txnId,
+      sourceType: "receivable",
+      sourceId: receivableId,
       notes: options?.notes ?? null,
       paymentDate: now,
       createdAt: now,
@@ -1246,6 +1274,12 @@ export async function recordPayablePayment(
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Payable not found");
   const data = snap.data() as Payable;
+  const remaining = Math.round((data.amount - data.amountPaid) * 100) / 100;
+  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
+    throw new Error(
+      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+    );
+  }
   const newPaid = Math.min(data.amount, data.amountPaid + paymentAmount);
   const status =
     newPaid >= data.amount ? "paid" : newPaid > 0 ? "partial" : "pending";
@@ -1267,9 +1301,11 @@ export async function recordPayablePayment(
     currency,
     amountBase,
     category: "other_expense",
-    description: `Payment made: ${data.description}`,
+    description: `Payment made: ${data.title || data.description || "Payable"}`,
     gemId: null,
     contactId: data.contactId,
+    sourceType: "payable",
+    sourceId: payableId,
     date: now,
   });
 
@@ -1287,6 +1323,8 @@ export async function recordPayablePayment(
       gemId: null,
       contactId: data.contactId,
       transactionId: txnId,
+      sourceType: "payable",
+      sourceId: payableId,
       notes: options?.notes ?? null,
       paymentDate: now,
       createdAt: now,
@@ -1481,6 +1519,13 @@ export async function recordBillPayment(
     throw new Error("Bill cannot accept payment");
   }
 
+  const remaining = Math.round((data.amount - data.amountSettled) * 100) / 100;
+  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
+    throw new Error(
+      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+    );
+  }
+
   const newSettled = Math.min(
     data.amount,
     data.amountSettled + paymentAmount,
@@ -1499,10 +1544,6 @@ export async function recordBillPayment(
     data.commissionPercent != null && data.commissionPercent > 0
       ? Math.round(paymentAmount * (data.commissionPercent / 100) * 100) / 100
       : 0;
-  const net = Math.max(
-    0,
-    Math.round((paymentAmount - commission) * 100) / 100,
-  );
   const primaryGemId =
     data.gemId ??
     (Array.isArray(data.gemIds) && data.gemIds.length > 0
@@ -1519,54 +1560,26 @@ export async function recordBillPayment(
   );
 
   const isReceivable = data.direction === "receivable";
-  /**
-   * Payable: commission is yours → expense net to counterparty + income commission.
-   * Receivable: commission is theirs → income net you keep + expense their commission.
-   */
-  const principalAmount = commission > 0 ? net : paymentAmount;
-  const principalBase = await convertToBase(principalAmount, currency);
+  // The commission is a bill/payment metadata concept (your withheld cut or the
+  // counterparty's), not a separate cash flow — matching the AP model where the
+  // full sale is booked and the commission is tracked on the record only. Booking
+  // the gross here keeps the ledger reconciled with the recorded payment amount.
+  const principalBase = await convertToBase(paymentAmount, currency);
   const txnId = await createTransaction(ownerUid, {
     type: isReceivable ? "income" : "expense",
-    amount: principalAmount,
+    amount: paymentAmount,
     currency,
     amountBase: principalBase,
     category: isReceivable ? "other_income" : "other_expense",
     description: isReceivable
-      ? `Bill received: ${noteLabel}${commission > 0 ? " (after commission)" : ""}`
-      : `Bill paid: ${noteLabel}${commission > 0 ? " (after commission)" : ""}`,
+      ? `Bill received: ${noteLabel}`
+      : `Bill paid: ${noteLabel}`,
     gemId: primaryGemId,
     contactId: data.counterpartyContactId,
+    sourceType: "bill",
+    sourceId: billId,
     date: now,
   });
-
-  if (commission > 0) {
-    const commissionBase = await convertToBase(commission, currency);
-    if (isReceivable) {
-      void createTransaction(ownerUid, {
-        type: "expense",
-        amount: commission,
-        currency,
-        amountBase: commissionBase,
-        category: "other_expense",
-        description: `Bill commission to counterparty: ${noteLabel}`,
-        gemId: primaryGemId,
-        contactId: data.counterpartyContactId,
-        date: now,
-      });
-    } else {
-      void createTransaction(ownerUid, {
-        type: "income",
-        amount: commission,
-        currency,
-        amountBase: commissionBase,
-        category: "other_income",
-        description: `Bill commission earned: ${noteLabel}`,
-        gemId: primaryGemId,
-        contactId: data.counterpartyContactId,
-        date: now,
-      });
-    }
-  }
 
   const settlementBase = await convertToBase(paymentAmount, currency);
   queueDocCreate("gemtrack_payments", {
@@ -1583,6 +1596,8 @@ export async function recordBillPayment(
       gemId: primaryGemId,
       contactId: data.counterpartyContactId,
       transactionId: txnId,
+      sourceType: "bill",
+      sourceId: billId,
       notes: options?.notes ?? null,
       paymentDate: now,
       createdAt: now,
@@ -1932,6 +1947,8 @@ export async function addTripExpense(
     description: input.description?.trim() || `Trip expense: ${input.category}`,
     gemId: null,
     contactId: null,
+    sourceType: "trip",
+    sourceId: tripId,
     date: input.date ?? now,
   });
 
@@ -2071,6 +2088,8 @@ export async function recordTripGemSale(
     description: "Sale during selling trip",
     gemId,
     contactId: null,
+    sourceType: "trip",
+    sourceId: tripId,
     date: now,
   });
   void refreshTripSummary(tripId, ownerUid);

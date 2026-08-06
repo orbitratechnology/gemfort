@@ -29,6 +29,9 @@ type ContactPickerProps = {
   customName?: string;
   onCustomNameChange?: (name: string) => void;
   customNameLabel?: string;
+  /** Show a "No contact" row in the sheet so the field can be left blank. */
+  allowClear?: boolean;
+  clearLabel?: string;
   /**
    * When set, opens the unified GemFort + Contacts sheet filtered to these roles.
    * Selecting a business creates/links a contact (1:1 by phone) and returns its id.
@@ -52,6 +55,8 @@ export function ContactPicker({
   customName = '',
   onCustomNameChange,
   customNameLabel = 'Use this name',
+  allowClear = false,
+  clearLabel = 'No contact (optional)',
   allowedBusinessKinds,
 }: ContactPickerProps) {
   const { user } = useAuth();
@@ -179,6 +184,12 @@ export function ContactPicker({
           allowCustomName={allowCustomName}
           customName={customName}
           customNameLabel={customNameLabel}
+          allowClear={allowClear}
+          clearLabel={clearLabel}
+          onClear={() => {
+            onChange('');
+            onCustomNameChange?.('');
+          }}
           onSelect={(contact) => {
             onChange(contact.id);
             onCustomNameChange?.('');

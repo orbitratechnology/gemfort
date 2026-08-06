@@ -4,6 +4,7 @@ import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react
 import { ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,11 @@ import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import {
+  getPaymentSourceMeta,
+  paymentSourceHref,
+  sourceOfTransaction,
+} from '@/features/workspace/payment-source';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
 import { subscribeGems, subscribeTransactions } from '@/features/workspace/firestore-subscriptions';
 import {
@@ -197,8 +203,21 @@ export default function TransactionsScreen() {
           renderItem={({ item }) => {
             const linkedGem = item.gemId ? gemById.get(item.gemId) : null;
             const isIncome = item.type === 'income';
+            const source = sourceOfTransaction(item);
+            const sourceMeta = getPaymentSourceMeta(source?.type);
+            const href = source ? paymentSourceHref(source.type, source.id) : null;
             return (
-              <View style={[styles.txCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant + '80' }]}>
+              <Pressable
+                onPress={() => (href ? router.push(href) : undefined)}
+                disabled={!href}
+                style={({ pressed }) => [
+                  styles.txCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.surfaceVariant + '80',
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}>
                 <View style={styles.txLeft}>
                   <View style={[styles.txIconWrap, { backgroundColor: isIncome ? colors.successEmerald + '1A' : colors.error + '1A' }]}>
                     <Icon
@@ -221,6 +240,17 @@ export default function TransactionsScreen() {
                     </View>
                     <View style={styles.txMetaRow}>
                       <Text style={[styles.txMeta, { color: colors.textMuted }]}>{item.category || 'General'}</Text>
+                      {source ? (
+                        <>
+                          <View style={[styles.dot, { backgroundColor: colors.outline + '4D' }]} />
+                          <View style={[styles.sourceChip, { backgroundColor: colors.surfaceContainerHigh }]}>
+                            <Icon name={sourceMeta.icon} size={12} color={colors.onSurfaceVariant} />
+                            <Text style={[styles.sourceText, { color: colors.onSurfaceVariant }]}>
+                              {sourceMeta.label}
+                            </Text>
+                          </View>
+                        </>
+                      ) : null}
                       <View style={[styles.dot, { backgroundColor: colors.outline + '4D' }]} />
                       <Text style={[styles.txMeta, { color: colors.textMuted }]}>
                         {item.date?.toDate ? item.date.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(item.date as any).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -231,7 +261,7 @@ export default function TransactionsScreen() {
                     )}
                   </View>
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -291,6 +321,15 @@ const styles = StyleSheet.create({
   txMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   txMeta: { ...Typography.bodyMd },
   dot: { width: 4, height: 4, borderRadius: 2 },
+  sourceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  sourceText: { ...Typography.caption, fontWeight: '600' },
   txNotes: { ...Typography.bodyMd, fontStyle: 'italic', fontSize: 12, marginTop: 4 },
 
   fab: {

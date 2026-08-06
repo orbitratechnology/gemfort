@@ -55,7 +55,7 @@ export default function PayablesScreen() {
     amount: '',
     currency: preferred,
   });
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
@@ -91,7 +91,7 @@ export default function PayablesScreen() {
     const result = parseForm(addPayableSchema, {
       contactId,
       amount: money.amount,
-      description: description || undefined,
+      title: title || undefined,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -103,16 +103,16 @@ export default function PayablesScreen() {
       await withLoading(async () => {
         const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
         await createPayable(user.uid, {
-          contactId: result.data.contactId,
+          contactId: result.data.contactId ?? null,
           amount: result.data.amount,
           currency: money.currency,
-          description: result.data.description || 'Payable',
+          title: result.data.title,
           dueDate: due,
         });
         await queryClient.invalidateQueries({ queryKey: ['payables'] });
         toast.success('Payable added');
         setMoney({ amount: '', currency: preferred });
-        setDescription('');
+        setTitle('');
         setContactId('');
         setShowForm(false);
       }, 'Adding…');
@@ -206,7 +206,9 @@ export default function PayablesScreen() {
             </Text>
           </View>
         </View>
-        <Text style={[styles.desc, { color: colors.onSurface }]}>{item.description}</Text>
+        <Text style={[styles.desc, { color: colors.onSurface }]}>
+          {item.title || item.description || "Payable"}
+        </Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
           Due {formatRelativeDue(item.dueDate)}
           {item.amountPaid > 0
@@ -310,9 +312,10 @@ export default function PayablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker
-                  label="To contact"
+                  label="To contact (optional)"
                   contacts={contacts}
                   value={contactId}
+                  allowClear
                   onChange={(id) => {
                     setContactId(id);
                     setErrors((e) => {
@@ -322,7 +325,6 @@ export default function PayablesScreen() {
                       return next;
                     });
                   }}
-                  error={errors.contactId}
                 />
                 <CurrencyAmountField
                   label="Amount"
@@ -338,7 +340,22 @@ export default function PayablesScreen() {
                   }}
                   error={errors.amount}
                 />
-                <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
+                <Input
+                  label="Title / Reason (required)"
+                  value={title}
+                  onChangeText={(t) => {
+                    setTitle(t);
+                    setErrors((e) => {
+                      if (!e.title) return e;
+                      const next = { ...e };
+                      delete next.title;
+                      return next;
+                    });
+                  }}
+                  placeholder="e.g. Advance for parcel"
+                  leftIcon="notes"
+                  error={errors.title}
+                />
                 <Button title="Add Payable" icon="add" onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>

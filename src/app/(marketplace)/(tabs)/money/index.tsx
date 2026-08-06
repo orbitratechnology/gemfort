@@ -23,6 +23,11 @@ import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
 import {
+    getPaymentSourceMeta,
+    paymentSourceHref,
+    sourceOfTransaction,
+} from "@/features/workspace/payment-source";
+import {
     MONEY_PERIODS,
     type DateRange,
     type MoneyPeriod,
@@ -572,15 +577,21 @@ export default function MoneyDashboard() {
               const meta = getCategoryMeta(t.category);
               const isIncome = t.type === "income";
               const tone = isIncome ? colors.successEmerald : colors.error;
+              const source = sourceOfTransaction(t);
+              const sourceMeta = getPaymentSourceMeta(source?.type);
+              const href = source ? paymentSourceHref(source.type, source.id) : null;
               return (
-                <View
+                <Pressable
                   key={t.id}
-                  style={[
+                  onPress={() => (href ? router.push(href) : undefined)}
+                  disabled={!href}
+                  style={({ pressed }) => [
                     styles.txRow,
                     i > 0 && {
                       borderTopWidth: 1,
                       borderTopColor: colors.surfaceVariant,
                     },
+                    pressed && { opacity: 0.85 },
                   ]}
                 >
                   <View
@@ -599,15 +610,39 @@ export default function MoneyDashboard() {
                     >
                       {t.description || meta.label}
                     </Text>
-                    <Text
-                      style={[styles.txSub, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {meta.label} ·{" "}
-                      {t.date?.toDate
-                        ? t.date.toDate().toLocaleDateString()
-                        : ""}
-                    </Text>
+                    <View style={styles.txSubRow}>
+                      <Text
+                        style={[styles.txSub, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {meta.label}
+                        {t.date?.toDate
+                          ? ` · ${t.date.toDate().toLocaleDateString()}`
+                          : ""}
+                      </Text>
+                      {source ? (
+                        <View
+                          style={[
+                            styles.sourceChip,
+                            { backgroundColor: colors.surfaceContainerHigh },
+                          ]}
+                        >
+                          <Icon
+                            name={sourceMeta.icon}
+                            size={12}
+                            color={colors.onSurfaceVariant}
+                          />
+                          <Text
+                            style={[
+                              styles.sourceText,
+                              { color: colors.onSurfaceVariant },
+                            ]}
+                          >
+                            {sourceMeta.label}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                   <Text style={[styles.txAmount, { color: tone }]}>
                     {isIncome ? "+" : "−"}
@@ -617,7 +652,7 @@ export default function MoneyDashboard() {
                       amountBase: t.amountBase,
                     })}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
           </FormSection>
@@ -885,6 +920,21 @@ const styles = StyleSheet.create({
   txBody: { flex: 1, gap: 2 },
   txTitle: { ...Typography.bodyLg, fontWeight: "600" },
   txSub: { ...Typography.bodyMd },
+  txSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  sourceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  sourceText: { ...Typography.caption, fontWeight: "600" },
   txAmount: { ...Typography.bodyLg, fontWeight: "700" },
 
   emptyBox: {

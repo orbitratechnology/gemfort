@@ -391,7 +391,7 @@ export async function recordApGemSale(input: {
   }
 
   const soldPrice = Number(input.soldPrice);
-  if (!Number.isFinite(soldPrice) || soldPrice < 0) {
+  if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
     throw new Error("Enter a valid sold price.");
   }
 
@@ -409,6 +409,9 @@ export async function recordApGemSale(input: {
       ? Number(input.ownerReceives)
       : line.agreedPrice;
   const commission = soldPrice - ownerReceives;
+  if (commission < 0) {
+    throw new Error("ownerReceives cannot exceed soldPrice.");
+  }
   let paymentDueDate: Timestamp | null = null;
   if (input.paymentDueDateIso) {
     const d = new Date(input.paymentDueDateIso);
@@ -458,6 +461,8 @@ export async function recordApGemSale(input: {
     description: `AP sale: ${line.gemLabel}${input.soldToName ? ` → ${input.soldToName}` : ""}`,
     gemId: line.gemId,
     contactId: null,
+    sourceType: "ap",
+    sourceId: input.apId,
     date: now,
     createdAt: now,
   });
@@ -522,6 +527,9 @@ export async function apPaymentSent(input: {
     input.amount != null && Number.isFinite(Number(input.amount))
       ? Number(input.amount)
       : owed;
+  if (amount <= 0) {
+    throw new Error("Payment amount must be positive.");
+  }
   const now = Timestamp.now();
   queueDocUpdate("gemtrack_ap_records", input.apId, {
     status: "payment_sent",
@@ -573,6 +581,9 @@ export async function apPaymentReceived(
 
   const now = Timestamp.now();
   const amount = ap.paymentAmount ?? 0;
+  if (amount <= 0) {
+    throw new Error("Cannot confirm an empty payment.");
+  }
   const currency = ap.items?.[0]?.currency || "LKR";
   const soldTotal = (ap.items ?? [])
     .filter((i) => i.lineStatus === "sold")
@@ -611,6 +622,8 @@ export async function apPaymentReceived(
     description: `AP payment from ${ap.receiverName}`,
     gemId: null,
     contactId: ap.receiverContactId,
+    sourceType: "ap",
+    sourceId: apId,
     date: now,
     createdAt: now,
   });
@@ -642,7 +655,14 @@ export async function ensureApReceiverPayoutExpense(ap: ApRecord): Promise<void>
   );
   try {
     const snap = await getDocs(q);
-    if (!snap.empty) return;
+    const alreadyBooked = snap.docs.some((d) => {
+      const txn = d.data() as {
+        sourceType?: string | null;
+        sourceId?: string | null;
+      };
+      return txn.sourceType === "ap" && txn.sourceId === ap.id;
+    });
+    if (alreadyBooked) return;
   } catch {
     // Proceed to create if query fails offline without index.
   }
@@ -657,6 +677,8 @@ export async function ensureApReceiverPayoutExpense(ap: ApRecord): Promise<void>
     description: `AP payout to ${ap.senderName}`,
     gemId: null,
     contactId: null,
+    sourceType: "ap",
+    sourceId: ap.id,
     date: now,
     createdAt: now,
   });

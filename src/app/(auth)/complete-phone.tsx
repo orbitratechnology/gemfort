@@ -18,7 +18,7 @@ export default function CompletePhoneScreen() {
       await withLoading(async () => {
         const verifiedPhone = await savePhoneForVerification(phone);
         router.replace({ pathname: '/(auth)/verify-otp', params: { phone: verifiedPhone } });
-      }, 'Saving phone numberâ€¦');
+      }, 'Saving phone number…');
     } catch (error) {
       toast.error(friendlyError(error, 'Enter a valid mobile number to continue.'));
     }

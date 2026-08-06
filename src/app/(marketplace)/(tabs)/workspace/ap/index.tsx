@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import {
     Pressable,
     RefreshControl,
@@ -30,6 +30,7 @@ import {
 } from "@/features/marketplace/marketplace-service";
 import {
     deleteApRecord,
+    ensureApReceiverPayoutExpense,
     fetchGivenApRecords,
     fetchTakenApRecords,
     requestApCancellation,
@@ -498,6 +499,14 @@ export default function ApListScreen() {
     () => [...(givenQ.data ?? []), ...(takenQ.data ?? [])],
     [givenQ.data, takenQ.data],
   );
+
+  useEffect(() => {
+    for (const r of takenQ.data ?? []) {
+      if (r.status === "done") {
+        void ensureApReceiverPayoutExpense(r).catch(() => {});
+      }
+    }
+  }, [takenQ.data]);
 
   const missingGemIds = useMemo(() => {
     const known = new Set(ownedGems.map((g) => g.id));

@@ -26,9 +26,9 @@ describe('role module matrix', () => {
     expect(canAccessModule('trader', 'certificates')).toBe(false);
   });
 
-  it('gives lapidaries jobs/services/bills/contacts but not trips or AP', () => {
+  it('gives lapidaries jobs/bills/contacts but not services, trips or AP', () => {
     expect(canAccessModule('lapidary', 'jobs')).toBe(true);
-    expect(canAccessModule('lapidary', 'services')).toBe(true);
+    expect(canAccessModule('lapidary', 'services')).toBe(false);
     expect(canAccessModule('lapidary', 'bills')).toBe(true);
     expect(canAccessModule('lapidary', 'contacts')).toBe(true);
     expect(canAccessModule('lapidary', 'money')).toBe(true);

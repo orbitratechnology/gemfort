@@ -1,12 +1,18 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import {
+  getPaymentSourceMeta,
+  paymentSourceHref,
+  sourceOfPayment,
+} from '@/features/workspace/payment-source';
 import { subscribePayments } from '@/features/workspace/firestore-subscriptions';
 import { fetchPayments } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -30,16 +36,39 @@ export default function PaymentsScreen() {
   function renderRow({ item }: { item: Payment }) {
     const isIn = item.direction === 'in';
     const tone = isIn ? colors.successEmerald : colors.error;
+    const source = sourceOfPayment(item);
+    const sourceMeta = getPaymentSourceMeta(source?.type);
+    const href = source ? paymentSourceHref(source.type, source.id) : null;
 
     return (
-      <View style={[styles.row, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
+      <Pressable
+        onPress={() => (href ? router.push(href) : undefined)}
+        disabled={!href}
+        style={({ pressed }) => [
+          styles.row,
+          {
+            backgroundColor: colors.surfaceContainerLowest,
+            borderColor: colors.outlineVariant,
+            opacity: pressed ? 0.85 : 1,
+          },
+        ]}>
         <View style={[styles.icon, { backgroundColor: tone + '1A' }]}>
           <Icon name={isIn ? 'south-west' : 'north-east'} size={18} color={tone} />
         </View>
         <View style={styles.body}>
-          <Text style={[styles.title, { color: colors.onSurface }]}>
-            {isIn ? 'Payment received' : 'Payment made'}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.onSurface }]}>
+              {isIn ? 'Payment received' : 'Payment made'}
+            </Text>
+            {source ? (
+              <View style={[styles.sourceChip, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <Icon name={sourceMeta.icon} size={12} color={colors.onSurfaceVariant} />
+                <Text style={[styles.sourceText, { color: colors.onSurfaceVariant }]}>
+                  {sourceMeta.label}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={[styles.sub, { color: colors.textMuted }]}>
             {formatRelativeTime(item.paymentDate)}
             {item.paymentMethod ? ` · ${item.paymentMethod}` : ''}
@@ -66,7 +95,7 @@ export default function PaymentsScreen() {
             })}
           </Text>
         </View>
-      </View>
+      </Pressable>
     );
   }
 
@@ -112,7 +141,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   title: { ...Typography.labelMd, fontWeight: '600' },
+  sourceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  sourceText: { ...Typography.caption, fontWeight: '600' },
   sub: { ...Typography.bodySmall },
   notes: { ...Typography.bodySmall, marginTop: 2 },
   amountCol: { alignItems: 'flex-end', gap: 2 },

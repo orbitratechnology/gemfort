@@ -22,6 +22,10 @@ export type WorkspaceModuleItem = {
   image?: ImageSource;
   route: string;
   group: ModuleGroupId;
+  /** Full-width hero tile — renders the module as the workspace's main card. */
+  featured?: boolean;
+  /** Secondary line under the label on a featured tile. */
+  featuredHint?: string;
 };
 
 export type WorkspaceModuleGroup = {
@@ -127,6 +131,7 @@ function ModuleTile({
 }) {
   const countLabel = formatModuleCount(item.value);
   const palette = tilePalette(index, colors, isDark);
+  const featured = item.featured === true;
 
   return (
     <Animated.View
@@ -134,7 +139,7 @@ function ModuleTile({
         .duration(280)
         .springify()
         .damping(18)}
-      style={styles.tileShell}
+      style={[styles.tileShell, featured && styles.tileShellFeatured]}
     >
       <Pressable
         accessibilityRole="button"
@@ -142,6 +147,7 @@ function ModuleTile({
         onPress={() => router.push(item.route as never)}
         style={({ pressed }) => [
           styles.tile,
+          featured && styles.tileFeatured,
           {
             experimental_backgroundImage: palette.wash,
             backgroundColor: isDark
@@ -173,13 +179,22 @@ function ModuleTile({
           >
             {item.label}
           </Text>
+
+          {featured && item.featuredHint ? (
+            <Text
+              style={[styles.featuredHint, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {item.featuredHint}
+            </Text>
+          ) : null}
         </View>
 
-        <View style={styles.artCol} pointerEvents="none">
+        <View style={[styles.artCol, featured && styles.artColFeatured]} pointerEvents="none">
           {item.image ? (
             <Image
               source={item.image}
-              style={styles.artImage}
+              style={[styles.artImage, featured && styles.artImageFeatured]}
               contentFit="contain"
               accessibilityIgnoresInvertColors
             />
@@ -187,12 +202,13 @@ function ModuleTile({
             <View
               style={[
                 styles.artDisc,
+                featured && styles.artDiscFeatured,
                 { backgroundColor: colors.primaryContainer },
               ]}
             >
               <Icon
                 name={item.icon}
-                size={32}
+                size={featured ? 44 : 32}
                 color={colors.onPrimaryContainer}
               />
             </View>
@@ -288,6 +304,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: "46%",
   },
+  tileShellFeatured: {
+    width: "100%",
+    minWidth: "100%",
+    flexGrow: 1,
+  },
   tile: {
     minHeight: 96,
     borderRadius: 15,
@@ -296,6 +317,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "stretch",
+  },
+  tileFeatured: {
+    minHeight: 128,
   },
   copyCol: {
     flex: 1,
@@ -329,16 +353,29 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "700",
   },
+  featuredHint: {
+    ...Typography.bodySmall,
+    marginTop: 2,
+  },
   artCol: {
     width: "42%",
     minWidth: 72,
     alignItems: "flex-end",
     justifyContent: "center",
   },
+  artColFeatured: {
+    width: "36%",
+    minWidth: 84,
+  },
   artImage: {
     width: 76,
     height: 76,
     marginRight: 10,
+  },
+  artImageFeatured: {
+    width: 96,
+    height: 96,
+    marginRight: 14,
   },
   artDisc: {
     width: 56,
@@ -348,5 +385,11 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
+  },
+  artDiscFeatured: {
+    width: 72,
+    height: 72,
+    marginRight: 14,
+    borderRadius: 20,
   },
 });

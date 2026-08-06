@@ -58,7 +58,7 @@ export default function ReceivablesScreen() {
     amount: '',
     currency: preferred,
   });
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
@@ -98,7 +98,7 @@ export default function ReceivablesScreen() {
     const result = parseForm(addReceivableSchema, {
       contactId,
       amount: money.amount,
-      description: description || undefined,
+      title: title || undefined,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -110,16 +110,16 @@ export default function ReceivablesScreen() {
       await withLoading(async () => {
         const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
         await createReceivable(user.uid, {
-          contactId: result.data.contactId,
+          contactId: result.data.contactId ?? null,
           amount: result.data.amount,
           currency: money.currency,
-          description: result.data.description || 'Receivable',
+          title: result.data.title,
           dueDate: due,
         });
         await queryClient.invalidateQueries({ queryKey: ['receivables'] });
         toast.success('Receivable added');
         setMoney({ amount: '', currency: preferred });
-        setDescription('');
+        setTitle('');
         setContactId('');
         setShowForm(false);
       }, 'Adding…');
@@ -215,7 +215,9 @@ export default function ReceivablesScreen() {
             </Text>
           </View>
         </View>
-        <Text style={[styles.desc, { color: colors.onSurface }]}>{item.description}</Text>
+        <Text style={[styles.desc, { color: colors.onSurface }]}>
+          {item.title || item.description || "Receivable"}
+        </Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>
           Due {formatRelativeDue(item.dueDate)}
           {item.amountReceived > 0
@@ -322,9 +324,10 @@ export default function ReceivablesScreen() {
             {showForm ? (
               <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <ContactPicker
-                  label="From contact"
+                  label="From contact (optional)"
                   contacts={contacts}
                   value={contactId}
+                  allowClear
                   onChange={(id) => {
                     setContactId(id);
                     setErrors((e) => {
@@ -334,7 +337,6 @@ export default function ReceivablesScreen() {
                       return next;
                     });
                   }}
-                  error={errors.contactId}
                 />
                 <CurrencyAmountField
                   label="Amount"
@@ -350,7 +352,22 @@ export default function ReceivablesScreen() {
                   }}
                   error={errors.amount}
                 />
-                <Input label="Description" value={description} onChangeText={setDescription} leftIcon="notes" />
+                <Input
+                  label="Title / Reason (required)"
+                  value={title}
+                  onChangeText={(t) => {
+                    setTitle(t);
+                    setErrors((e) => {
+                      if (!e.title) return e;
+                      const next = { ...e };
+                      delete next.title;
+                      return next;
+                    });
+                  }}
+                  placeholder="e.g. Sale on credit"
+                  leftIcon="notes"
+                  error={errors.title}
+                />
                 <Button title="Add Receivable" icon="add" onPress={handleAdd} />
                 <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
               </View>

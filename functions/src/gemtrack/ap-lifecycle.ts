@@ -385,6 +385,12 @@ export const recordApGemSale = onCall(
         ? Number(data.ownerReceives)
         : line.agreedPrice;
     const commission = soldPrice - ownerReceives;
+    if (commission < 0) {
+      throw new HttpsError('invalid-argument', 'ownerReceives cannot exceed soldPrice.');
+    }
+    if (soldPrice <= 0) {
+      throw new HttpsError('invalid-argument', 'soldPrice must be positive.');
+    }
     let paymentDueDate: Timestamp | null = null;
     if (data.paymentDueDateIso) {
       const d = new Date(data.paymentDueDateIso);
@@ -435,6 +441,8 @@ export const recordApGemSale = onCall(
       description: `AP sale: ${line.gemLabel}${data.soldToName ? ` → ${data.soldToName}` : ''}`,
       gemId: line.gemId,
       contactId: null,
+      sourceType: 'ap',
+      sourceId: data.apId,
       date: now,
       createdAt: now,
     });
@@ -526,6 +534,9 @@ export const apPaymentSent = onCall(
     const amount = data.amount != null && Number.isFinite(Number(data.amount))
       ? Number(data.amount)
       : owed;
+    if (amount <= 0) {
+      throw new HttpsError('invalid-argument', 'Payment amount must be positive.');
+    }
     const now = Timestamp.now();
 
     const batch = db.batch();
@@ -593,6 +604,9 @@ export const apPaymentReceived = onCall(
 
     const now = Timestamp.now();
     const amount = ap.paymentAmount ?? 0;
+    if (amount <= 0) {
+      throw new HttpsError('failed-precondition', 'Cannot confirm an empty payment.');
+    }
     const currency = (ap.items?.[0]?.currency as string) || 'LKR';
     const soldTotal = (ap.items ?? [])
       .filter((i) => i.lineStatus === 'sold')
@@ -632,6 +646,8 @@ export const apPaymentReceived = onCall(
       description: `AP payment from ${ap.receiverName}`,
       gemId: null,
       contactId: ap.receiverContactId,
+      sourceType: 'ap',
+      sourceId: apId,
       date: now,
       createdAt: now,
     });
@@ -645,6 +661,8 @@ export const apPaymentReceived = onCall(
       description: `AP payout to ${ap.senderName}`,
       gemId: null,
       contactId: null,
+      sourceType: 'ap',
+      sourceId: apId,
       date: now,
       createdAt: now,
     });

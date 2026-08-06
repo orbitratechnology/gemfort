@@ -284,25 +284,25 @@ export const addTransactionSchema = z.object({
 export type AddTransactionForm = z.infer<typeof addTransactionSchema>;
 
 export const addPayableSchema = z.object({
-  contactId: z.string().min(1, "Select a contact"),
-  amount: positiveNumber("Amount"),
-  description: z
+  contactId: optionalTrimmed,
+  title: z
     .string()
     .trim()
-    .max(200, "Description is too long")
-    .optional(),
+    .min(1, "Enter a title/reason")
+    .max(120, "Title is too long"),
+  amount: positiveNumber("Amount"),
 });
 
 export type AddPayableForm = z.infer<typeof addPayableSchema>;
 
 export const addReceivableSchema = z.object({
-  contactId: z.string().min(1, "Select a contact"),
-  amount: positiveNumber("Amount"),
-  description: z
+  contactId: optionalTrimmed,
+  title: z
     .string()
     .trim()
-    .max(200, "Description is too long")
-    .optional(),
+    .min(1, "Enter a title/reason")
+    .max(120, "Title is too long"),
+  amount: positiveNumber("Amount"),
   commission: optionalPositiveNumber("Commission"),
 });
 

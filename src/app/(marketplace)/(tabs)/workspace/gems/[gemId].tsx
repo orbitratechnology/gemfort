@@ -305,6 +305,8 @@ export default function GemDetailScreen() {
           description: `Cash sale of ${gem.sku}`,
           gemId: gem.id,
           contactId: null,
+          sourceType: "gem",
+          sourceId: gem.id,
           date: Timestamp.now(),
         });
         await updateGemLifecycle(
