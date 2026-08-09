@@ -105,7 +105,9 @@
     "seed:news": "node scripts/seed-gem-news.mjs",
     "update:dev": "eas update --channel development --environment development",
     "update:preview": "eas update --channel preview --environment preview",
-    "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions"
+    "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions",
+    "firebase:sync": "node scripts/sync-firebase-native-configs.mjs",
+    "firebase:sync:eas": "node scripts/sync-firebase-native-configs.mjs --upload-eas"
   },
   "private": true,
   "overrides": {
