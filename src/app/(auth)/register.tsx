@@ -32,7 +32,7 @@ import {
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
-import { authDiagnostic, friendlyError } from "@/lib/errors";
+import { friendlyError } from "@/lib/errors";
 import { registerUser } from "@/lib/firebase/auth-service";
 import {
     completePendingSocialRegistration,
@@ -98,17 +98,7 @@ export default function RegisterScreen() {
         router.replace("/(auth)/complete-phone");
       }, "Finishing your account...");
     } catch (error) {
-      const diagnostic = authDiagnostic(error);
-      console.error(
-        "[Auth] pending social registration failed",
-        diagnostic,
-        error,
-      );
-      toast.error(
-        __DEV__
-          ? `Google diagnostic: ${diagnostic}`
-          : friendlyError(error, "Could not finish creating your account."),
-      );
+      toast.error(friendlyError(error, "Could not finish creating your account."));
     }
   }
 
@@ -180,18 +170,9 @@ export default function RegisterScreen() {
       await withLoading(async () => {
         await signIn(role);
         router.replace("/(auth)/complete-phone");
-      }, "Creating accountâ€¦");
+      }, "Creating account...");
     } catch (error) {
-      const diagnostic = authDiagnostic(error);
-      console.error("[Auth] social registration failed", diagnostic, error);
-      toast.error(
-        __DEV__
-          ? `Google diagnostic: ${diagnostic}`
-          : friendlyError(
-              error,
-              "Google or Apple Sign-In could not be completed.",
-            ),
-      );
+      toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));
     }
   }
 

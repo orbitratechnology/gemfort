@@ -121,6 +121,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-status-bar",
     "expo-web-browser",
     "expo-apple-authentication",
+    [
+      "expo-local-authentication",
+      {
+        faceIDPermission: "Allow GemFort to use Face ID to protect your account.",
+      },
+    ],
     "react-native-nitro-google-signin",
     "@react-native-firebase/app",
     "@react-native-firebase/auth",

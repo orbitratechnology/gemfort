@@ -27,6 +27,7 @@ import {
 } from "@/lib/firebase/auth-service";
 import { registerPushTokenForUser } from "@/lib/notifications/register-push-token";
 import { useAuth } from "@/providers/auth-provider";
+import { useBiometricLock } from "@/providers/biometric-lock-provider";
 import { useToast } from "@/providers/toast-provider";
 
 const TERMS_URL = "https://orbitratech.net";
@@ -100,8 +101,10 @@ function Row({
 export default function SettingsScreen() {
   const { colors } = useAppTheme();
   const { user, profile, refreshProfile } = useAuth();
+  const biometric = useBiometricLock();
   const toast = useToast();
   const [togglingPush, setTogglingPush] = useState(false);
+  const [togglingBiometric, setTogglingBiometric] = useState(false);
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -134,6 +137,19 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleBiometricToggle(next: boolean) {
+    if (togglingBiometric) return;
+    setTogglingBiometric(true);
+    try {
+      await biometric.setEnabled(next);
+      toast.success(next ? "Biometric lock enabled." : "Biometric lock disabled.");
+    } catch (error) {
+      toast.error(friendlyError(error, "Could not update biometric lock."));
+    } finally {
+      setTogglingBiometric(false);
+    }
+  }
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -162,6 +178,38 @@ export default function SettingsScreen() {
                   true: colors.primaryMuted,
                 }}
                 thumbColor={pushEnabled ? colors.primary : colors.surface}
+                ios_backgroundColor={colors.outlineVariant}
+              />
+            }
+          />
+        </FormSection>
+
+        <FormSectionLabel title="SECURITY" />
+        <FormSection padded={false}>
+          <Row
+            colors={colors}
+            icon="fingerprint"
+            label="Biometric lock"
+            subtitle={
+              biometric.available
+                ? `Require ${biometric.methodLabel} when GemFort opens`
+                : "Set up Face ID or fingerprint on this device first"
+            }
+            trailing={
+              <Switch
+                value={biometric.enabled}
+                onValueChange={(value) => void handleBiometricToggle(value)}
+                disabled={
+                  biometric.isLoading ||
+                  biometric.isAuthenticating ||
+                  togglingBiometric ||
+                  !biometric.available
+                }
+                trackColor={{
+                  false: colors.outlineVariant,
+                  true: colors.primaryMuted,
+                }}
+                thumbColor={biometric.enabled ? colors.primary : colors.surface}
                 ios_backgroundColor={colors.outlineVariant}
               />
             }

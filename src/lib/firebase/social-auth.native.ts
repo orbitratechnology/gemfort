@@ -46,19 +46,6 @@ export class SocialRegistrationRequiredError extends Error {
 let googleConfigured = false;
 let pendingSocialRegistration: PendingSocialRegistration | null = null;
 
-function logGoogleDiagnostic(stage: string, error: unknown) {
-  const details =
-    typeof error === 'object' && error !== null
-      ? {
-          name: 'name' in error ? String(error.name ?? '') : undefined,
-          code: 'code' in error ? String(error.code ?? '') : undefined,
-          message: 'message' in error ? String(error.message ?? '') : undefined,
-        }
-      : { message: String(error) };
-
-  console.error(`[GoogleSignIn] ${stage}`, details);
-}
-
 function configureGoogle() {
   if (googleConfigured) return;
   GoogleOneTapSignIn.configure({ webClientId: 'autoDetect' });
@@ -139,46 +126,29 @@ async function finishSocialSignIn(
 }
 
 export async function signInWithGoogle(role?: UserRole): Promise<SocialSignInResult> {
-  try {
-    configureGoogle();
-    console.info('[GoogleSignIn] configured');
+  configureGoogle();
+  await GoogleOneTapSignIn.checkPlayServices(true);
 
-    await GoogleOneTapSignIn.checkPlayServices(true);
-    console.info('[GoogleSignIn] Play Services available');
-
-    let response = await GoogleOneTapSignIn.signIn();
-    console.info('[GoogleSignIn] signIn response', {
-      type: response.type,
-      hasIdToken: isSuccessResponse(response) && Boolean(response.data?.idToken),
-    });
-    if (isNoSavedCredentialFoundResponse(response)) {
-      response = await GoogleOneTapSignIn.createAccount();
-      console.info('[GoogleSignIn] createAccount response', { type: response.type });
-    }
-    if (isNoSavedCredentialFoundResponse(response)) {
-      response = await GoogleOneTapSignIn.presentExplicitSignIn();
-      console.info('[GoogleSignIn] explicitSignIn response', { type: response.type });
-    }
-    if (!isSuccessResponse(response) || !response.data?.idToken) {
-      const error = new Error('Google Sign-In was cancelled or did not return an ID token.');
-      logGoogleDiagnostic('no ID token', error);
-      throw error;
-    }
-
-    console.info('[GoogleSignIn] ID token received; exchanging with Firebase');
-    return await finishSocialSignIn(
-      GoogleAuthProvider.credential(response.data.idToken),
-      role,
-      {
-        email: response.data.user.email,
-        displayName: response.data.user.name,
-      },
-      'google',
-    );
-  } catch (error) {
-    logGoogleDiagnostic('sign-in failed', error);
-    throw error;
+  let response = await GoogleOneTapSignIn.signIn();
+  if (isNoSavedCredentialFoundResponse(response)) {
+    response = await GoogleOneTapSignIn.createAccount();
   }
+  if (isNoSavedCredentialFoundResponse(response)) {
+    response = await GoogleOneTapSignIn.presentExplicitSignIn();
+  }
+  if (!isSuccessResponse(response) || !response.data?.idToken) {
+    throw new Error('Google Sign-In was cancelled or did not return an ID token.');
+  }
+
+  return finishSocialSignIn(
+    GoogleAuthProvider.credential(response.data.idToken),
+    role,
+    {
+      email: response.data.user.email,
+      displayName: response.data.user.name,
+    },
+    'google',
+  );
 }
 
 export async function signInWithApple(role?: UserRole): Promise<SocialSignInResult> {

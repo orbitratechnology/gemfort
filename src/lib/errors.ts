@@ -77,22 +77,6 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
   return fallback;
 }
 
-/** Returns a short, sanitized diagnostic for local auth debugging. */
-export function authDiagnostic(error: unknown): string {
-  const code =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? String((error as { code?: unknown }).code ?? '')
-      : '';
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  const sanitized = message
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted-token]')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-
-  return [code, sanitized].filter(Boolean).join(': ') || 'unknown-error';
-}
-
 /** Ensures strings received by a UI component cannot reveal implementation details. */
 export function safeUserMessage(message: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (typeof message !== 'string') return fallback;

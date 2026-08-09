@@ -9,6 +9,7 @@ import {
   silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
+import { BiometricLockProvider } from "@/providers/biometric-lock-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { LoadingProvider } from "@/providers/loading-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
@@ -164,10 +165,12 @@ export default function RootLayout() {
               <ConfirmProvider>
                 <QueryProvider>
                   <AuthProvider>
-                    <PushNotificationRegistrar />
-                    <QuickActionsRegistrar />
-                    <RootNavigator />
-                    <KeyboardToolbar />
+                    <BiometricLockProvider>
+                      <PushNotificationRegistrar />
+                      <QuickActionsRegistrar />
+                      <RootNavigator />
+                      <KeyboardToolbar />
+                    </BiometricLockProvider>
                   </AuthProvider>
                 </QueryProvider>
               </ConfirmProvider>

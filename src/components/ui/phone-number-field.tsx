@@ -36,6 +36,9 @@ function toE164(
   let digits = national.replace(/\D/g, "");
   if (!digits) return "";
   // Drop national trunk prefix (e.g. Sri Lanka leading 0) before dial code.
+  if (__DEV__ && country?.idd?.root?.trim() === "+94" && /^0{9}$/.test(digits)) {
+    return "+94000000000";
+  }
   if (digits.startsWith("0")) digits = digits.replace(/^0+/, "");
   if (!digits) return "";
   const root = country?.idd?.root?.trim();

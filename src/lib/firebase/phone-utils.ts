@@ -9,6 +9,12 @@ export function normalizePhoneNumber(phone: string): string {
   let digits = trimmed.replace(/\D/g, '');
   if (!digits) return '';
 
+  // Preserve Firebase Phone Number Verification's all-zero Sri Lankan
+  // development test number instead of stripping its zeros as a trunk prefix.
+  if (__DEV__ && (/^940{9}$/.test(digits) || /^0{9}$/.test(digits))) {
+    return digits.startsWith('94') ? `+${digits}` : `+94${digits}`;
+  }
+
   // Fix +9407… / 9407… (country code + leftover national trunk 0)
   if (digits.startsWith('940') && digits.length >= 11) {
     digits = `94${digits.slice(3)}`;

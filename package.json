@@ -35,6 +35,7 @@
     "expo-image": "~57.0.1",
     "expo-image-picker": "~57.0.6",
     "expo-linking": "~57.0.4",
+    "expo-local-authentication": "~57.0.2",
     "expo-notifications": "~57.0.7",
     "expo-print": "~57.0.1",
     "expo-quick-actions": "^6.0.2",

@@ -26,7 +26,7 @@ import {
     loadRememberedEmail,
     saveRememberedEmail,
 } from "@/lib/auth/remember-email";
-import { authDiagnostic, friendlyError } from "@/lib/errors";
+import { friendlyError } from "@/lib/errors";
 import {
     getUserProfile,
     loginUser,
@@ -130,13 +130,7 @@ export default function LoginScreen() {
         });
         return;
       }
-      const diagnostic = authDiagnostic(error);
-      console.error("[Auth] social sign-in failed", diagnostic, error);
-      toast.error(
-        __DEV__
-          ? `Google diagnostic: ${diagnostic}`
-          : friendlyError(error, "Google or Apple Sign-In could not be completed."),
-      );
+      toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));
     }
   }
 
