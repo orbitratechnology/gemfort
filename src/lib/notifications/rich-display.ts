@@ -1,5 +1,6 @@
 import notifee, {
   AndroidCategory,
+  AndroidGroupAlertBehavior,
   AndroidImportance,
   AndroidStyle,
   AndroidVisibility,
@@ -12,6 +13,10 @@ import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
 import { ANDROID_CHANNELS } from '@/lib/notifications/categories';
+import {
+  notificationGroupForType,
+  notificationThreadIdForType,
+} from '@/lib/notifications/grouping';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
 import { safeUserMessage } from '@/lib/errors';
 
@@ -29,6 +34,8 @@ export type RichPushData = {
   actorPhotoUrl?: string;
   imageUrl?: string;
   largeIconUrl?: string;
+  groupKey?: string;
+  threadId?: string;
 };
 
 const BRAND_INK = '#171717';
@@ -64,6 +71,8 @@ export function parseRichPushData(
     actorPhotoUrl: asString(raw.actorPhotoUrl) || undefined,
     imageUrl: asString(raw.imageUrl) || undefined,
     largeIconUrl: asString(raw.largeIconUrl) || undefined,
+    groupKey: asString(raw.groupKey) || undefined,
+    threadId: asString(raw.threadId) || undefined,
   };
 }
 
@@ -184,9 +193,31 @@ export async function displayRichNotification(data: RichPushData) {
     data.actorPhotoUrl?.trim() || data.largeIconUrl?.trim() || undefined;
   const gemUrl = data.imageUrl?.trim() || undefined;
   const channelId = channelForPriority(data.priority);
+  const group = notificationGroupForType(data.type ?? '');
+  const threadId = data.threadId || notificationThreadIdForType(data.type ?? '');
+  // Keep high-priority security / overdue alerts individually prominent.
+  const shouldGroup = data.priority !== 'high';
 
   if (Platform.OS === 'android') {
     const senderIcon = profileUrl || fallbackLargeIcon(data.referenceType);
+    if (shouldGroup) {
+      // Android requires the summary to exist before child notifications can be
+      // displayed as one expandable group in the system shade.
+      await notifee.displayNotification({
+        id: `summary:${group.key}`,
+        title: group.label,
+        body: 'Open GemFort to view related activity.',
+        android: {
+          channelId,
+          smallIcon: 'notification_icon',
+          groupId: threadId,
+          groupSummary: true,
+          groupAlertBehavior: AndroidGroupAlertBehavior.CHILDREN,
+          onlyAlertOnce: true,
+          pressAction: { id: 'default', launchActivity: 'default' },
+        },
+      });
+    }
     await notifee.displayNotification({
       id: [data.type, data.referenceId].filter(Boolean).join(':') || undefined,
       title: title || 'GemFort',
@@ -212,6 +243,12 @@ export async function displayRichNotification(data: RichPushData) {
             : data.priority === 'medium'
               ? AndroidImportance.DEFAULT
               : AndroidImportance.LOW,
+        ...(shouldGroup
+          ? {
+              groupId: threadId,
+              groupAlertBehavior: AndroidGroupAlertBehavior.CHILDREN,
+            }
+          : {}),
         pressAction: { id: 'default', launchActivity: 'default' },
         actions: actionsForCategory(data.categoryId),
         onlyAlertOnce: true,

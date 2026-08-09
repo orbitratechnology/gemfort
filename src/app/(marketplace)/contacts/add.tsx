@@ -1,36 +1,36 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button } from '@/components/ui/button';
-import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Icon } from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
-import { PhoneNumberField } from '@/components/ui/phone-number-field';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { StackHeader } from '@/components/ui/stack-header';
-import { ContactAvatar } from '@/components/workspace/contact-avatar';
-import { CONTACT_TYPES } from '@/constants/contact-types';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { presentDeviceContactPicker } from '@/features/workspace/device-contacts-service';
+import { Button } from "@/components/ui/button";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { ThemedScrollView } from "@/components/ui/screen";
+import { StackHeader } from "@/components/ui/stack-header";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { CONTACT_TYPES } from "@/constants/contact-types";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
 import {
-  createContact,
-  importDeviceContactToWorkspace,
-  updateContact,
-} from '@/features/workspace/workspace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { friendlyError } from '@/lib/errors';
-import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
-import { decodeShareParam } from '@/lib/incoming-share';
-import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
-import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
-import { useToast } from '@/providers/toast-provider';
+    createContact,
+    importDeviceContactToWorkspace,
+    updateContact,
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { friendlyError } from "@/lib/errors";
+import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
+import { decodeShareParam } from "@/lib/incoming-share";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
+import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
+import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
-  if (Array.isArray(v)) return v[0] ?? '';
-  return v ?? '';
+  if (Array.isArray(v)) return v[0] ?? "";
+  return v ?? "";
 }
 
 export default function AddContactScreen() {
@@ -45,12 +45,14 @@ export default function AddContactScreen() {
     sharedPhotoUri?: string;
   }>();
 
-  const [displayName, setDisplayName] = useState(decodeShareParam(raw.displayName));
-  const [companyName, setCompanyName] = useState('');
+  const [displayName, setDisplayName] = useState(
+    decodeShareParam(raw.displayName),
+  );
+  const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState(firstParam(raw.phone));
   const [whatsapp, setWhatsapp] = useState(firstParam(raw.phone));
   const [email, setEmail] = useState(decodeShareParam(raw.email));
-  const [contactTypes, setContactTypes] = useState<string[]>(['broker']);
+  const [contactTypes, setContactTypes] = useState<string[]>(["broker"]);
   const [notes, setNotes] = useState(decodeShareParam(raw.notes));
   const [deviceContactId, setDeviceContactId] = useState<string | null>(null);
   const sharedPhotoUri = firstParam(raw.sharedPhotoUri);
@@ -60,7 +62,9 @@ export default function AddContactScreen() {
   const [picking, setPicking] = useState(false);
 
   function toggleType(t: string) {
-    setContactTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+    setContactTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+    );
   }
 
   async function handlePickFromPhone() {
@@ -74,10 +78,10 @@ export default function AddContactScreen() {
       const { id } = await importDeviceContactToWorkspace(user.uid, device, {
         contactTypes,
       });
-      toast.success('Contact imported from phone.');
+      toast.success("Contact imported from phone.");
       replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not pick a phone contact.'));
+      toast.error(friendlyError(e, "Could not pick a phone contact."));
     } finally {
       setPicking(false);
     }
@@ -89,15 +93,15 @@ export default function AddContactScreen() {
       const device = await presentDeviceContactPicker();
       if (!device) return;
       setDisplayName(device.displayName);
-      setCompanyName(device.companyName ?? '');
-      setPhone(device.phone ?? '');
-      setWhatsapp(device.phone ?? '');
-      setEmail(device.email ?? '');
+      setCompanyName(device.companyName ?? "");
+      setPhone(device.phone ?? "");
+      setWhatsapp(device.phone ?? "");
+      setEmail(device.email ?? "");
       setDeviceContactId(device.id);
       setLocalPhotoUri(device.imageUri);
-      toast.success('Filled from phone contact.');
+      toast.success("Filled from phone contact.");
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not pick a phone contact.'));
+      toast.error(friendlyError(e, "Could not pick a phone contact."));
     } finally {
       setPicking(false);
     }
@@ -105,7 +109,7 @@ export default function AddContactScreen() {
 
   async function handleSubmit() {
     if (!user || !displayName.trim()) {
-      toast.error('Contact name is required.');
+      toast.error("Contact name is required.");
       return;
     }
     try {
@@ -130,7 +134,7 @@ export default function AddContactScreen() {
             contactTypes,
             companyName: companyName || null,
           });
-          toast.success('Contact saved');
+          toast.success("Contact saved");
           replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
           return;
         }
@@ -152,74 +156,126 @@ export default function AddContactScreen() {
         });
         if (localPhotoUri) {
           const ext =
-            localPhotoUri.split('?')[0]?.split('.').pop()?.toLowerCase() ?? 'jpg';
-          const safeExt = ext.length <= 5 ? ext : 'jpg';
+            localPhotoUri.split("?")[0]?.split(".").pop()?.toLowerCase() ??
+            "jpg";
+          const safeExt = ext.length <= 5 ? ext : "jpg";
           const photoUrl = await uploadBlobToStorage(
             localPhotoUri,
             `users/${user.uid}/contacts/${id}.${safeExt}`,
           );
           await updateContact(id, { photoUrl });
         }
-        toast.success('Contact added');
+        toast.success("Contact added");
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
-      }, 'Adding contact…');
+      }, "Adding contact…");
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not add contact.'));
+      toast.error(friendlyError(e, "Could not add contact."));
     }
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title="Add Contact" closeIcon />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.lead}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void handlePickFromPhone()}
-          disabled={picking}
-          style={({ pressed }) => [
-            styles.phoneCard,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              borderColor: colors.outlineVariant,
-              opacity: picking ? 0.7 : pressed ? 0.92 : 1,
-            },
-          ]}>
-          <View style={[styles.phoneIcon, { backgroundColor: colors.primaryContainer }]}>
-            <Icon name="contacts" size={22} color={colors.onPrimaryContainer} />
-          </View>
-          <View style={styles.phoneBody}>
-            <Text style={[styles.phoneTitle, { color: colors.onSurface }]}>Pick from phone</Text>
-          </View>
-          <Icon name="chevron-right" size={22} color={colors.onSurfaceVariant} />
-        </Pressable>
-
-        <Pressable onPress={() => void handlePrefillFromPhone()} disabled={picking}>
-          <Text style={[styles.prefillLink, { color: colors.primary }]}>
-            Or fill this form from a phone contact
-          </Text>
-        </Pressable>
-
-        {(localPhotoUri || displayName) && (
-          <View style={styles.previewRow}>
-            <ContactAvatar
-              name={displayName || 'Contact'}
-              photoUrl={localPhotoUri}
-              size={56}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void handlePickFromPhone()}
+            disabled={picking}
+            style={({ pressed }) => [
+              styles.phoneCard,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                borderColor: colors.outlineVariant,
+                opacity: picking ? 0.7 : pressed ? 0.92 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.phoneIcon,
+                { backgroundColor: colors.primaryContainer },
+              ]}
+            >
+              <Icon
+                name="contacts"
+                size={22}
+                color={colors.onPrimaryContainer}
+              />
+            </View>
+            <View style={styles.phoneBody}>
+              <Text style={[styles.phoneTitle, { color: colors.onSurface }]}>
+                Pick from phone
+              </Text>
+            </View>
+            <Icon
+              name="chevron-right"
+              size={22}
+              color={colors.onSurfaceVariant}
             />
-            {deviceContactId ? (
-              <Text style={[styles.linked, { color: colors.textMuted }]}>Linked to phone contact</Text>
-            ) : null}
-          </View>
-        )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => void handlePrefillFromPhone()}
+            disabled={picking}
+          >
+            <Text style={[styles.prefillLink, { color: colors.primary }]}>
+              Or fill this form from a phone contact
+            </Text>
+          </Pressable>
+
+          {(localPhotoUri || displayName) && (
+            <View style={styles.previewRow}>
+              <ContactAvatar
+                name={displayName || "Contact"}
+                photoUrl={localPhotoUri}
+                size={56}
+              />
+              {deviceContactId ? (
+                <Text style={[styles.linked, { color: colors.textMuted }]}>
+                  Linked to phone contact
+                </Text>
+              ) : null}
+            </View>
+          )}
         </ScreenInset>
 
         <FormSection title="Contact">
-          <Input label="Name" value={displayName} onChangeText={setDisplayName} placeholder="Full name" leftIcon="person" />
-          <Input label="Company" value={companyName} onChangeText={setCompanyName} placeholder="Optional" leftIcon="business" />
-          <PhoneNumberField label="Phone" value={phone} onChangeText={setPhone} />
-          <PhoneNumberField label="WhatsApp" value={whatsapp} onChangeText={setWhatsapp} />
-          <Input label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" leftIcon="email" />
+          <Input
+            label="Name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Full name"
+            leftIcon="person"
+          />
+          <Input
+            label="Company"
+            value={companyName}
+            onChangeText={setCompanyName}
+            placeholder="Optional"
+            leftIcon="business"
+          />
+          <PhoneNumberField
+            label="Phone"
+            value={phone}
+            onChangeText={setPhone}
+          />
+          <PhoneNumberField
+            label="WhatsApp"
+            value={whatsapp}
+            onChangeText={setWhatsapp}
+          />
+          <Input
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            leftIcon="email"
+          />
         </FormSection>
 
         <FormSection title="Contact types" padded={false}>
@@ -233,13 +289,26 @@ export default function AddContactScreen() {
                   style={[
                     styles.chip,
                     active
-                      ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
                       : {
                           backgroundColor: colors.surfaceContainerLowest,
                           borderColor: colors.outlineVariant,
                         },
-                  ]}>
-                  <Text style={[styles.chipText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      {
+                        color: active
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                      },
+                    ]}
+                  >
                     {t}
                   </Text>
                 </Pressable>
@@ -249,11 +318,22 @@ export default function AddContactScreen() {
         </FormSection>
 
         <FormSection title="Notes">
-          <Input label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" leftIcon="notes" />
+          <Input
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            placeholder="Optional notes"
+            leftIcon="notes"
+          />
         </FormSection>
 
         <ScreenInset>
-          <Button title="Save Contact" icon="person-add" onPress={handleSubmit} />
+          <Button
+            title="Add Contact"
+            icon="person-add"
+            onPress={handleSubmit}
+          />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
@@ -265,12 +345,12 @@ const styles = StyleSheet.create({
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   lead: { gap: Spacing.lg },
   phoneCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     padding: 14,
     borderRadius: Radius.lg,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     borderWidth: 1,
     minHeight: 64,
   },
@@ -278,21 +358,30 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   phoneBody: { flex: 1, minWidth: 0, gap: 2 },
-  phoneTitle: { ...Typography.labelMd, fontWeight: '700' },
-  prefillLink: { ...Typography.labelMd, fontWeight: '600', textAlign: 'center' },
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  phoneTitle: { ...Typography.labelMd, fontWeight: "700" },
+  prefillLink: {
+    ...Typography.labelMd,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  previewRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   linked: { ...Typography.caption },
   types: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.containerMargin,
     paddingVertical: Spacing.lg,
   },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full, borderWidth: 1 },
-  chipText: { ...Typography.labelMd, textTransform: 'capitalize' },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  chipText: { ...Typography.labelMd, textTransform: "capitalize" },
 });

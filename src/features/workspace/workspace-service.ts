@@ -551,6 +551,7 @@ export async function createService(
     finalCostCurrency: null,
     paymentStatus: "unpaid",
     resultNotes: null,
+    receiptUrl: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -571,6 +572,7 @@ export async function completeService(
     finalCost: number;
     currency?: string;
     resultNotes?: string;
+    receiptUrl?: string | null;
   },
 ) {
   const snap = await getDoc(
@@ -600,6 +602,7 @@ export async function completeService(
     finalCostCurrency: currency,
     paymentStatus: "paid",
     resultNotes: input.resultNotes ?? null,
+    receiptUrl: input.receiptUrl ?? null,
     updatedAt: now,
   });
 
@@ -1125,6 +1128,7 @@ export async function createTransaction(
     amountBase?: number;
     sourceType?: string | null;
     sourceId?: string | null;
+    receiptUrl?: string | null;
   },
 ) {
   const now = Timestamp.now();
@@ -1139,6 +1143,7 @@ export async function createTransaction(
     amountBase,
     sourceType: input.sourceType ?? null,
     sourceId: input.sourceId ?? null,
+    receiptUrl: input.receiptUrl ?? null,
     date: input.date ?? now,
     createdAt: now,
   });
@@ -1238,6 +1243,7 @@ export async function recordReceivablePayment(
     paymentMethod?: string | null;
     commission?: number | null;
     notes?: string | null;
+    receiptUrl?: string | null;
   },
 ) {
   if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
@@ -1284,6 +1290,7 @@ export async function recordReceivablePayment(
     contactId: data.contactId,
     sourceType: "receivable",
     sourceId: receivableId,
+    receiptUrl: options?.receiptUrl ?? null,
     date: now,
   });
 
@@ -1304,6 +1311,7 @@ export async function recordReceivablePayment(
       sourceType: "receivable",
       sourceId: receivableId,
       notes: options?.notes ?? null,
+      receiptUrl: options?.receiptUrl ?? null,
       paymentDate: now,
       createdAt: now,
     });
@@ -1318,6 +1326,7 @@ export async function recordPayablePayment(
     paymentMethod?: string | null;
     commission?: number | null;
     notes?: string | null;
+    receiptUrl?: string | null;
   },
 ) {
   if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
@@ -1357,6 +1366,7 @@ export async function recordPayablePayment(
     contactId: data.contactId,
     sourceType: "payable",
     sourceId: payableId,
+    receiptUrl: options?.receiptUrl ?? null,
     date: now,
   });
 
@@ -1377,6 +1387,7 @@ export async function recordPayablePayment(
       sourceType: "payable",
       sourceId: payableId,
       notes: options?.notes ?? null,
+      receiptUrl: options?.receiptUrl ?? null,
       paymentDate: now,
       createdAt: now,
     });
@@ -1451,6 +1462,7 @@ export async function createBill(
     /** Defaults to `open`; lapidary job bills use `ongoing`. */
     status?: BillStatus;
     notes?: string | null;
+    receiptUrl?: string | null;
   },
 ): Promise<string> {
   const now = Timestamp.now();
@@ -1488,6 +1500,7 @@ export async function createBill(
     gemIds,
     jobId,
     notes: input.notes?.trim() ?? null,
+    receiptUrl: input.receiptUrl ?? null,
     createdAt: now,
     updatedAt: now,
   });
@@ -1558,6 +1571,7 @@ export async function recordBillPayment(
     currency?: string;
     paymentMethod?: string | null;
     notes?: string | null;
+    receiptUrl?: string | null;
   },
 ) {
   if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
@@ -1629,6 +1643,7 @@ export async function recordBillPayment(
     contactId: data.counterpartyContactId,
     sourceType: "bill",
     sourceId: billId,
+    receiptUrl: options?.receiptUrl ?? null,
     date: now,
   });
 
@@ -1650,6 +1665,7 @@ export async function recordBillPayment(
       sourceType: "bill",
       sourceId: billId,
       notes: options?.notes ?? null,
+      receiptUrl: options?.receiptUrl ?? null,
       paymentDate: now,
       createdAt: now,
     });
@@ -1690,6 +1706,7 @@ export async function createCheque(
     maturityDate: Timestamp;
     status?: ChequeStatus;
     photoUrl?: string | null;
+    receiptUrl?: string | null;
     gemId?: string | null;
     apRecordId?: string | null;
     billId?: string | null;
@@ -1719,6 +1736,7 @@ export async function createCheque(
     bouncedReason: null,
     replacementChequeId: null,
     photoUrl: input.photoUrl ?? null,
+    receiptUrl: input.receiptUrl ?? null,
     gemId: input.gemId ?? null,
     apRecordId: input.apRecordId ?? null,
     billId: input.billId ?? null,

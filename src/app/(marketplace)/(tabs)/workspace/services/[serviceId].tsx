@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -48,6 +49,8 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -171,6 +174,7 @@ export default function ServiceDetailScreen() {
   const queryClient = useQueryClient();
   const [weightAfter, setWeightAfter] = useState("");
   const [finalCost, setFinalCost] = useState("");
+  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: services = [] } = useFirestoreLiveQuery({
@@ -316,6 +320,7 @@ export default function ServiceDetailScreen() {
         await completeService(serviceId!, user.uid, {
           weightAfter: result.data.weightAfter,
           finalCost: result.data.finalCost,
+          receiptUrl: await uploadReceipt(user.uid, receipt),
         });
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
         await invalidate();
@@ -813,6 +818,7 @@ export default function ServiceDetailScreen() {
               leftIcon="payments"
               error={errors.finalCost}
             />
+            <ReceiptField value={receipt} onChange={setReceipt} />
             <Button
               title="Mark Received & Complete"
               icon="check-circle"

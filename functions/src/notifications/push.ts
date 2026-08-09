@@ -6,6 +6,8 @@ import {
   PUSH_MANDATORY_TYPES,
   pushCategoryForType,
   pushChannelForType,
+  notificationGroupKeyForType,
+  notificationThreadIdForType,
   type NotificationType,
   type StoredNotification,
   type UserDoc,
@@ -81,6 +83,8 @@ export async function sendPushForNotification(
   const priority = notification.priority ?? 'medium';
   const channelId = pushChannelForType(notification.type, priority);
   const categoryId = pushCategoryForType(notification.type);
+  const groupKey = notificationGroupKeyForType(notification.type);
+  const threadId = notificationThreadIdForType(notification.type);
   const richImage = pickFcmRichImage(media.actorPhotoUrl, media.imageUrl);
   const subtitle = media.actorName || undefined;
 
@@ -94,6 +98,8 @@ export async function sendPushForNotification(
     priority,
     categoryId,
     channelId,
+    groupKey,
+    threadId,
     actorName: media.actorName ?? '',
     actorPhotoUrl: media.actorPhotoUrl ?? '',
     imageUrl: media.imageUrl ?? '',
@@ -114,6 +120,7 @@ export async function sendPushForNotification(
           aps: {
             sound: priority === 'high' ? 'default' : undefined,
             category: categoryId,
+            'thread-id': threadId,
             ...(richImage ? { 'mutable-content': 1 } : {}),
             alert: {
               title: notification.title,

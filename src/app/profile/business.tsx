@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
 import { CityField } from "@/components/ui/city-field";
+import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
@@ -25,6 +26,7 @@ import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { cityBelongsToCountry } from "@/constants/cities";
+import type { CurrencyCode } from "@/constants/currencies";
 import {
     Radius,
     Spacing,
@@ -57,11 +59,25 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { Business, LabCertificateOffering, UserProfile } from "@/types";
+import type {
+  Business,
+  LabCertificateOffering,
+  LapidaryServiceOffering,
+  UserProfile,
+} from "@/types";
 
 type CertDraft = {
   id: string;
   title: string;
+  description: string;
+  priceText: string;
+  currency: string;
+  isActive: boolean;
+};
+
+type LapidaryServiceDraft = {
+  serviceId: string;
+  name: string;
   description: string;
   priceText: string;
   currency: string;
@@ -94,6 +110,52 @@ function offeringsFromDrafts(drafts: CertDraft[]): LabCertificateOffering[] {
       isActive: d.isActive,
     };
   });
+}
+
+function lapidaryDraftsFromBusiness(
+  business: Business | null | undefined,
+): LapidaryServiceDraft[] {
+  return (business?.providerProfile?.services ?? []).map((service) => ({
+    serviceId: service.serviceId,
+    name: service.name,
+    description: service.description,
+    priceText: String(service.priceMin),
+    currency: service.currency || "LKR",
+    isActive: service.isActive,
+  }));
+}
+
+function lapidaryOfferingsFromDrafts(
+  drafts: LapidaryServiceDraft[],
+): LapidaryServiceOffering[] {
+  return drafts.flatMap((draft) => {
+    const price = parseAmountInput(draft.priceText);
+    const name = draft.name.trim();
+    if (!name || !Number.isFinite(price) || price < 0) return [];
+    return [{
+      serviceId: draft.serviceId,
+      name,
+      description: draft.description.trim(),
+      pricingType: "fixed" as const,
+      priceMin: price,
+      priceMax: price,
+      currency: draft.currency || "LKR",
+      turnaroundDaysMin: 0,
+      turnaroundDaysMax: 0,
+      isActive: draft.isActive,
+    }];
+  });
+}
+
+function newLapidaryServiceDraft(): LapidaryServiceDraft {
+  return {
+    serviceId: `service_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: "",
+    description: "",
+    priceText: "",
+    currency: "LKR",
+    isActive: true,
+  };
 }
 const BANNER_H = COVER_BANNER_HEIGHT;
 const AVATAR = 96;
@@ -155,6 +217,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
     draftsFromBusiness(business),
   );
+  const [lapidaryServiceDrafts, setLapidaryServiceDrafts] = useState<
+    LapidaryServiceDraft[]
+  >(() => lapidaryDraftsFromBusiness(business));
   /** Business gallery — existing photos surface as their storage URLs. */
   const [galleryLocal, setGalleryLocal] = useState<LocalMedia[]>(() =>
     (business?.galleryPhotos ?? []).map((p) => ({
@@ -177,6 +242,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     business?.businessType === "gem_lab" ||
     business?.businessType === "lab" ||
     !!business?.labProfile;
+  const isLapidary =
+    derivedBusinessType === "lapidary" ||
+    business?.businessType === "lapidary" ||
+    !!business?.providerProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
@@ -184,6 +253,16 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   function updateCertDraft(id: string, patch: Partial<CertDraft>) {
     setCertDrafts((prev) =>
       prev.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    );
+  }
+  function updateLapidaryServiceDraft(
+    serviceId: string,
+    patch: Partial<LapidaryServiceDraft>,
+  ) {
+    setLapidaryServiceDrafts((prev) =>
+      prev.map((service) =>
+        service.serviceId === serviceId ? { ...service, ...patch } : service,
+      ),
     );
   }
   const canSave =
@@ -194,7 +273,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   async function pickCover() {
     try {
-      const media = await pickLocalMedia({ allows: "images" });
+      const media = await pickLocalMedia({ allows: "images", aspect: [3, 1] });
       if (!media) return;
       setCoverLocal(media);
       setCoverUri(media.uri);
@@ -205,7 +284,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   async function pickLogo() {
     try {
-      const media = await pickLocalMedia({ allows: "images" });
+      const media = await pickLocalMedia({ allows: "images", aspect: [1, 1] });
       if (!media) return;
       setLogoLocal(media);
       setLogoUri(media.uri);
@@ -278,6 +357,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             ...(isLab
               ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
               : {}),
+            ...(isLapidary
+              ? {
+                  lapidaryServiceOfferings: lapidaryOfferingsFromDrafts(
+                    lapidaryServiceDrafts,
+                  ),
+                }
+              : {}),
           });
         } else {
           if (!derivedBusinessType) {
@@ -307,6 +393,11 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           if (galleryEntries.length > 0) mediaAndCert.galleryPhotos = galleryEntries;
           if (isLab) {
             mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
+          }
+          if (isLapidary) {
+            mediaAndCert.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
+              lapidaryServiceDrafts,
+            );
           }
           if (Object.keys(mediaAndCert).length > 0) {
             await updateBusinessProfile(id, mediaAndCert);
@@ -571,6 +662,120 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
                 ) : null}
               </View>
             ))}
+          </FormSection>
+        </>
+      ) : null}
+
+      {isLapidary ? (
+        <>
+          <FormSectionLabel title="PUBLIC SERVICES" />
+          <FormSection>
+            <Text style={[styles.certHint, { color: colors.textMuted }]}>
+              Add the services you provide. Active services and their prices are
+              shown on your public profile.
+            </Text>
+            {lapidaryServiceDrafts.map((service) => (
+              <View
+                key={service.serviceId}
+                style={[
+                  styles.certCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    opacity: service.isActive ? 1 : 0.72,
+                  },
+                ]}
+              >
+                <View style={styles.serviceCardHeader}>
+                  <Pressable
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: service.isActive }}
+                    accessibilityLabel={`${service.name || "New service"}, ${service.isActive ? "shown publicly" : "hidden"}`}
+                    onPress={() =>
+                      updateLapidaryServiceDraft(service.serviceId, {
+                        isActive: !service.isActive,
+                      })
+                    }
+                    style={styles.certHeaderCopy}
+                  >
+                    <Text style={[styles.certTitle, { color: colors.onSurface }]}>
+                      {service.name || "New service"}
+                    </Text>
+                    <Text style={[styles.certDesc, { color: colors.onSurfaceVariant }]}>
+                      {service.isActive ? "Visible on your profile" : "Hidden from your profile"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${service.name || "service"}`}
+                    onPress={() =>
+                      setLapidaryServiceDrafts((prev) =>
+                        prev.filter((item) => item.serviceId !== service.serviceId),
+                      )
+                    }
+                    hitSlop={8}
+                    style={styles.removeServiceButton}
+                  >
+                    <Icon name="delete-outline" size={20} color={colors.error} />
+                  </Pressable>
+                </View>
+                <Input
+                  label="Service name"
+                  value={service.name}
+                  onChangeText={(name) =>
+                    updateLapidaryServiceDraft(service.serviceId, { name })
+                  }
+                  placeholder="e.g. Precision recutting"
+                  leftIcon="handyman"
+                />
+                <Input
+                  label="Description"
+                  value={service.description}
+                  onChangeText={(description) =>
+                    updateLapidaryServiceDraft(service.serviceId, { description })
+                  }
+                  placeholder="What is included?"
+                  multiline
+                  style={styles.serviceDescription}
+                />
+                <CurrencyAmountField
+                  label="Price"
+                  value={{
+                    amount: service.priceText,
+                    currency: service.currency as CurrencyCode,
+                  }}
+                  onChange={({ amount, currency }) =>
+                    updateLapidaryServiceDraft(service.serviceId, {
+                      priceText: amount,
+                      currency,
+                    })
+                  }
+                  placeholder="0"
+                />
+              </View>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add service"
+              onPress={() =>
+                setLapidaryServiceDrafts((prev) => [
+                  ...prev,
+                  newLapidaryServiceDraft(),
+                ])
+              }
+              style={({ pressed }) => [
+                styles.addServiceButton,
+                {
+                  borderColor: colors.outlineVariant,
+                  backgroundColor: colors.surfaceContainerLow,
+                  opacity: pressed ? 0.72 : 1,
+                },
+              ]}
+            >
+              <Icon name="add" size={20} color={colors.primary} />
+              <Text style={[styles.addServiceText, { color: colors.primary }]}>
+                Add service
+              </Text>
+            </Pressable>
           </FormSection>
         </>
       ) : null}
@@ -888,4 +1093,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  serviceCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  removeServiceButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceDescription: {
+    minHeight: 76,
+    textAlignVertical: "top",
+    paddingTop: 12,
+  },
+  addServiceButton: {
+    minHeight: 48,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  addServiceText: { ...Typography.labelMd, fontWeight: "700" },
 });

@@ -146,6 +146,7 @@ export function normalizeApRecord(raw: ApRecord & Record<string, unknown>): ApRe
     paymentSentAt: (raw.paymentSentAt as Timestamp | null) ?? null,
     paymentReceivedAt: (raw.paymentReceivedAt as Timestamp | null) ?? null,
     paymentChequeId: (raw.paymentChequeId as string | null) ?? null,
+    paymentReceiptUrl: (raw.paymentReceiptUrl as string | null) ?? null,
     rejectionReason: (raw.rejectionReason as string | null) ?? null,
     createdAt: raw.createdAt as Timestamp,
     updatedAt: raw.updatedAt as Timestamp,

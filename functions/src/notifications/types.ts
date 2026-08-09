@@ -55,6 +55,26 @@ export type NotificationType = GemTrackNotificationType | GemNetNotificationType
 
 export type NotificationPriority = 'high' | 'medium' | 'low';
 
+/** Stable category for collapsed mobile inboxes and native notification threads. */
+export function notificationGroupKeyForType(type: string): string {
+  if (type.startsWith('cheque_') || type.startsWith('bill_') || type.startsWith('payment_')) {
+    return 'finance';
+  }
+  if (type.startsWith('ap_')) return 'ap';
+  if (type.startsWith('service_')) return 'services';
+  if (type.startsWith('cert_')) return 'certificates';
+  if (type.startsWith('listing_') || type.startsWith('like_')) return 'market';
+  if (type.startsWith('announcement_')) return 'news';
+  if (type.startsWith('account_') || type.startsWith('verification_') || type.startsWith('report_')) {
+    return 'account';
+  }
+  return 'updates';
+}
+
+export function notificationThreadIdForType(type: string): string {
+  return `gemfort.${notificationGroupKeyForType(type)}`;
+}
+
 export type NotificationInput = {
   recipientUid: string;
   type: NotificationType;
@@ -72,6 +92,7 @@ export type NotificationInput = {
 };
 
 export type StoredNotification = NotificationInput & {
+  groupKey?: string;
   isRead: boolean;
   isPushSent: boolean;
   createdAt: Timestamp;

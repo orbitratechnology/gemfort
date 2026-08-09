@@ -128,7 +128,13 @@ export default function LabCertificatesScreen() {
           <FormSection title="New certificate">
             <Input label="Certificate / report number" value={certNumber} onChangeText={setCertNumber} />
             <Input label="Report type" value={reportType} onChangeText={setReportType} />
-            <MediaField label="Certificate file / photo" value={file} onChange={setFile} allows="all" />
+            <MediaField
+              label="Certificate file / photo"
+              value={file}
+              onChange={setFile}
+              allows="imagesOrDocuments"
+              emptySubtitle="Photos are edited and saved as WebP; documents stay unchanged."
+            />
             <Button title="Publish" onPress={() => void publish()} />
           </FormSection>
         ) : null}

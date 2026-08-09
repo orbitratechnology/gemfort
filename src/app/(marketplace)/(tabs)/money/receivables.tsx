@@ -13,6 +13,7 @@ import {
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import { Input } from '@/components/ui/input';
+import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContactPicker } from '@/components/workspace/contact-picker';
@@ -44,6 +45,8 @@ import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
+import { uploadReceipt } from '@/lib/firebase/receipt-service';
+import type { LocalMedia } from '@/lib/firebase/storage-service';
 import type { Receivable } from '@/types';
 
 export default function ReceivablesScreen() {
@@ -66,6 +69,7 @@ export default function ReceivablesScreen() {
     currency: preferred,
   });
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentReceipt, setPaymentReceipt] = useState<LocalMedia | null>(null);
   const [commission, setCommission] = useState<CurrencyAmountValue>({
     amount: '',
     currency: preferred,
@@ -141,10 +145,12 @@ export default function ReceivablesScreen() {
     setPaymentError(null);
     try {
       await withLoading(async () => {
+        const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
         await recordReceivablePayment(user.uid, item.id, result.data.amount, {
           currency: paymentMoney.currency,
           paymentMethod: paymentMethod || null,
           commission: commission.amount ? parseFloat(commission.amount) : null,
+          receiptUrl,
         });
         await queryClient.invalidateQueries({ queryKey: ['receivables'] });
         await queryClient.invalidateQueries({ queryKey: ['payments'] });
@@ -154,6 +160,7 @@ export default function ReceivablesScreen() {
         setPaymentMoney({ amount: '', currency: preferred });
         setPaymentMethod('');
         setCommission({ amount: '', currency: preferred });
+        setPaymentReceipt(null);
       }, 'Recording payment…');
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
@@ -245,6 +252,7 @@ export default function ReceivablesScreen() {
                 error={paymentError ?? undefined}
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
+              <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
               <CurrencyAmountField
                 label="Commission (optional)"
                 value={commission}

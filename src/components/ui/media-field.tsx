@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ActionSheet } from '@/components/ui/action-sheet';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -25,9 +27,13 @@ type MediaFieldProps = {
   emptySubtitle?: string;
   /** Compact row style vs tall preview card */
   variant?: 'card' | 'row';
+  /** Copy used when choosing between a photo and a document. */
+  sourcePickerTitle?: string;
+  sourcePickerMessage?: string;
 };
 
 function emptyIcon(allows: PickMediaOptions['allows']): IconName {
+  if (allows === 'imagesOrDocuments') return 'perm-media';
   if (allows === 'documents') return 'attach-file';
   if (allows === 'videos') return 'videocam';
   if (allows === 'all') return 'perm-media';
@@ -55,17 +61,28 @@ export function MediaField({
   emptyTitle,
   emptySubtitle,
   variant = 'card',
+  sourcePickerTitle = 'Add certificate or report',
+  sourcePickerMessage = 'Photos open the editor before being saved as WebP. Documents stay unchanged.',
 }: MediaFieldProps) {
   const { colors } = useAppTheme();
   const toast = useToast();
+  const [sourcePickerVisible, setSourcePickerVisible] = useState(false);
 
-  async function handlePick() {
+  async function pickMedia(pickAllows: PickMediaOptions['allows'] = allows) {
     try {
-      const media = await pickLocalMedia({ allows });
+      const media = await pickLocalMedia({ allows: pickAllows });
       if (media) onChange(media);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not open media picker.'));
     }
+  }
+
+  function handlePick() {
+    if (allows === 'imagesOrDocuments') {
+      setSourcePickerVisible(true);
+      return;
+    }
+    void pickMedia();
   }
 
   function handleRemove() {
@@ -235,6 +252,17 @@ export function MediaField({
           {error}
         </Text>
       ) : null}
+
+      <ActionSheet
+        visible={sourcePickerVisible}
+        title={sourcePickerTitle}
+        message={sourcePickerMessage}
+        actions={[
+          { label: 'Choose photo', onPress: () => void pickMedia('images') },
+          { label: 'Choose document', onPress: () => void pickMedia('documents') },
+        ]}
+        onClose={() => setSourcePickerVisible(false)}
+      />
     </View>
   );
 }

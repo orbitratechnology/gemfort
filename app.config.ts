@@ -124,7 +124,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-local-authentication",
       {
-        faceIDPermission: "Allow GemFort to use Face ID to protect your account.",
+        faceIDPermission:
+          "Allow GemFort to use Face ID to protect your account.",
       },
     ],
     "react-native-nitro-google-signin",
@@ -144,6 +145,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "RNFBStorage",
           ],
         },
+        // android: {
+        //   enableProguardInReleaseBuilds: true,
+        //   enableShrinkResourcesInReleaseBuilds: true,
+        // },
       },
     ],
     [

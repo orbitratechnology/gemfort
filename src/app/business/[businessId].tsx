@@ -762,14 +762,16 @@ export default function BusinessProfileScreen() {
                           ? ` - ${formatFace(s.priceMax, s.currency)}`
                           : ""}
                       </Text>
-                      <Text
-                        style={[
-                          styles.serviceMetaMuted,
-                          { color: colors.textMuted },
-                        ]}
-                      >
-                        {s.turnaroundDaysMin}-{s.turnaroundDaysMax} days
-                      </Text>
+                      {s.turnaroundDaysMin > 0 || s.turnaroundDaysMax > 0 ? (
+                        <Text
+                          style={[
+                            styles.serviceMetaMuted,
+                            { color: colors.textMuted },
+                          ]}
+                        >
+                          {s.turnaroundDaysMin}-{s.turnaroundDaysMax} days
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
                 </View>

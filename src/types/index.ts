@@ -58,6 +58,20 @@ export type LabCertificateOffering = {
   isActive: boolean;
 };
 
+/** A fixed-price service displayed by a lapidary on their public profile. */
+export type LapidaryServiceOffering = {
+  serviceId: string;
+  name: string;
+  description: string;
+  pricingType: "fixed";
+  priceMin: number;
+  priceMax: number;
+  currency: string;
+  turnaroundDaysMin: number;
+  turnaroundDaysMax: number;
+  isActive: boolean;
+};
+
 export type Business = {
   id: string;
   ownerUid: string;
@@ -97,19 +111,7 @@ export type Business = {
     preferredCurrencies: string[];
   } | null;
   providerProfile: {
-    services: {
-      serviceId: string;
-      name: string;
-      category: string;
-      pricingType: string;
-      priceMin: number;
-      priceMax: number;
-      currency: string;
-      turnaroundDaysMin: number;
-      turnaroundDaysMax: number;
-      description: string;
-      isActive: boolean;
-    }[];
+    services: LapidaryServiceOffering[];
     servicesOffered?: string[];
     gemSpecializations: string[];
     isAcceptingOrders: boolean;
@@ -267,6 +269,8 @@ export type GemEvent = {
   description: string;
   weightAtEvent: number | null;
   photoUrl: string | null;
+  /** Optional Firebase Storage URL for proof of the cheque transaction. */
+  receiptUrl?: string | null;
   costAdded: number | null;
   relatedServiceId: string | null;
   relatedApId: string | null;
@@ -323,6 +327,8 @@ export type ServiceRecord = {
   weightLossPercent: number | null;
   photoAfterUrls: string[];
   resultNotes: string | null;
+  /** Optional Firebase Storage URL for the completed service receipt. */
+  receiptUrl?: string | null;
   status: ServiceRecordStatus;
   finalCost: number | null;
   finalCostCurrency: string | null;
@@ -393,6 +399,7 @@ export type ApRecord = {
   paymentSentAt: Timestamp | null;
   paymentReceivedAt: Timestamp | null;
   paymentChequeId: string | null;
+  paymentReceiptUrl?: string | null;
   rejectionReason: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -450,6 +457,8 @@ export type Transaction = {
    */
   sourceType?: string | null;
   sourceId?: string | null;
+  /** Optional Firebase Storage URL for the transaction receipt. */
+  receiptUrl?: string | null;
 };
 
 export type Receivable = {
@@ -516,6 +525,8 @@ export type Payment = {
   sourceType?: string | null;
   sourceId?: string | null;
   notes: string | null;
+  /** Optional Firebase Storage URL for the payment receipt. */
+  receiptUrl?: string | null;
   paymentDate: Timestamp;
   createdAt: Timestamp;
 };
@@ -565,6 +576,8 @@ export type Bill = {
   /** Linked lapidary workshop job (optional; used by lapidary bills). */
   jobId: string | null;
   notes: string | null;
+  /** Optional Firebase Storage URL for the bill document/receipt. */
+  receiptUrl?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -771,6 +784,8 @@ export type AppNotification = {
   /** Secondary rich media (gem, listing, announcement art). */
   imageUrl?: string | null;
   priority?: "high" | "medium" | "low";
+  /** Stable category used to group related inbox and system notifications. */
+  groupKey?: string;
   isRead: boolean;
   isPushSent?: boolean;
   createdAt: Timestamp;

@@ -506,6 +506,7 @@ export async function apPaymentSent(input: {
   method: ApPaymentMethod;
   amount?: number;
   chequeId?: string | null;
+  receiptUrl?: string | null;
 }) {
   const uid = requireUid();
   if (!input.method || !["cash", "transfer", "cheque"].includes(input.method)) {
@@ -537,6 +538,7 @@ export async function apPaymentSent(input: {
     paymentAmount: amount,
     paymentSentAt: now,
     paymentChequeId: input.chequeId ?? null,
+    paymentReceiptUrl: input.receiptUrl ?? null,
     updatedAt: now,
   });
   writeApPaymentEvent({
@@ -562,7 +564,11 @@ export async function apPaymentSent(input: {
 
 export async function apPaymentReceived(
   apId: string,
-  options?: { method?: ApPaymentMethod; chequeId?: string | null },
+  options?: {
+    method?: ApPaymentMethod;
+    chequeId?: string | null;
+    receiptUrl?: string | null;
+  },
 ) {
   const uid = requireUid();
   const ap = await loadAp(apId);
@@ -597,6 +603,9 @@ export async function apPaymentReceived(
     paymentReceivedAt: now,
     ...(options?.method ? { paymentMethod: options.method } : {}),
     ...(options?.chequeId !== undefined ? { paymentChequeId: chequeId } : {}),
+    ...(options?.receiptUrl !== undefined
+      ? { paymentReceiptUrl: options.receiptUrl }
+      : {}),
     updatedAt: now,
   });
 
@@ -624,6 +633,7 @@ export async function apPaymentReceived(
     contactId: ap.receiverContactId,
     sourceType: "ap",
     sourceId: apId,
+    receiptUrl: options?.receiptUrl ?? ap.paymentReceiptUrl ?? null,
     date: now,
     createdAt: now,
   });

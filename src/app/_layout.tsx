@@ -6,6 +6,7 @@ import { warmUpFirestore } from "@/lib/firebase/init";
 import "@/lib/notifications/rich-display";
 import {
   formSheetFitContentOptions,
+  formSheetScreenOptions,
   silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -113,6 +114,13 @@ function RootNavigator() {
         name="verify-certificate"
         options={{
           ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="verify-certificate-portals"
+        options={{
+          ...formSheetScreenOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />

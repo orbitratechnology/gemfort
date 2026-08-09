@@ -763,7 +763,7 @@ export default function AddGemScreen() {
               <MediaField
                 value={certificate}
                 onChange={setCertificate}
-                allows="documents"
+                allows="imagesOrDocuments"
                 emptyTitle="Add certificate or report"
                 emptySubtitle="Optional — skip now and add later from Edit"
               />
@@ -838,7 +838,7 @@ export default function AddGemScreen() {
       <FormFooter
         title={
           step === 2
-            ? "Save gem"
+            ? "Add Gem"
             : step === 1 && photos.length === 0
               ? "Continue"
               : "Continue"

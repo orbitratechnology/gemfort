@@ -13,6 +13,7 @@ import {
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import { Input } from '@/components/ui/input';
+import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ContactPicker } from '@/components/workspace/contact-picker';
@@ -41,6 +42,8 @@ import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
+import { uploadReceipt } from '@/lib/firebase/receipt-service';
+import type { LocalMedia } from '@/lib/firebase/storage-service';
 import type { Payable } from '@/types';
 
 export default function PayablesScreen() {
@@ -63,6 +66,7 @@ export default function PayablesScreen() {
     currency: preferred,
   });
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentReceipt, setPaymentReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
@@ -134,9 +138,11 @@ export default function PayablesScreen() {
     setPaymentError(null);
     try {
       await withLoading(async () => {
+        const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
         await recordPayablePayment(user.uid, item.id, result.data.amount, {
           currency: paymentMoney.currency,
           paymentMethod: paymentMethod || null,
+          receiptUrl,
         });
         await queryClient.invalidateQueries({ queryKey: ['payables'] });
         await queryClient.invalidateQueries({ queryKey: ['payments'] });
@@ -145,6 +151,7 @@ export default function PayablesScreen() {
         setPayingId(null);
         setPaymentMoney({ amount: '', currency: preferred });
         setPaymentMethod('');
+        setPaymentReceipt(null);
       }, 'Recording payment…');
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
@@ -236,6 +243,7 @@ export default function PayablesScreen() {
                 error={paymentError ?? undefined}
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
+              <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
               <Button title="Confirm Payment" icon="check-circle" onPress={() => handleRecordPayment(item)} />
               <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
             </View>

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { JOB_STATUS_LABELS } from "@/components/workspace/job-picker-sheet";
@@ -55,6 +56,8 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import {
   formatDate,
   formatRelativeDue,
@@ -156,6 +159,7 @@ export default function BillDetailScreen() {
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
+  const [paymentReceipt, setPaymentReceipt] = useState<LocalMedia | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const { data: bill, isLoading } = useFirestoreLiveQuery({
@@ -257,9 +261,11 @@ export default function BillDetailScreen() {
 
     try {
       await withLoading(async () => {
+        const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
         await recordBillPayment(user.uid, bill.id, result.data.amount, {
           currency: bill.currency,
           paymentMethod: payMethod,
+          receiptUrl,
         });
         await invalidate();
         toast.success(
@@ -270,6 +276,7 @@ export default function BillDetailScreen() {
         setPaySheetOpen(false);
         setPaymentAmount("");
         setPayMethod("cash");
+        setPaymentReceipt(null);
       }, "Recording payment…");
     } catch (e) {
       toast.error(friendlyError(e, "Payment could not be recorded."));
@@ -1023,6 +1030,7 @@ export default function BillDetailScreen() {
           onChange={setPayMethod}
           layout="split"
         />
+        <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
       </BottomSheet>
     </SafeAreaView>
   );

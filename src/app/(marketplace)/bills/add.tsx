@@ -3,59 +3,65 @@ import { addDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ChoicePreviewCard, ChoiceTileGrid } from "@/components/ui/choice-tile-grid";
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    ChoicePreviewCard,
+    ChoiceTileGrid,
+} from "@/components/ui/choice-tile-grid";
+import {
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import {
-  GemPickerSheet,
-  GemSelectField,
+    GemPickerSheet,
+    GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
 import {
-  JobPickerSheet,
-  JobSelectField,
+    JobPickerSheet,
+    JobSelectField,
 } from "@/components/workspace/job-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { resolveProfileRole } from "@/constants/roles";
 import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import {
-  subscribeContacts,
-  subscribeGems,
-  subscribeLapidaryJobs,
-} from "@/features/workspace/firestore-subscriptions";
-import {
-  billCommissionAmount,
-  billNetAfterCommission,
+    billCommissionAmount,
+    billNetAfterCommission,
 } from "@/features/workspace/bill-utils";
 import {
-  createBill,
-  fetchContacts,
-  fetchGems,
-  updateGemLifecycle,
+    subscribeContacts,
+    subscribeGems,
+    subscribeLapidaryJobs,
+} from "@/features/workspace/firestore-subscriptions";
+import {
+    createBill,
+    fetchContacts,
+    fetchGems,
+    updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -123,6 +129,7 @@ export default function AddBillScreen() {
   const [dueDays, setDueDays] = useState("7");
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
+  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [gemIds, setGemIds] = useState<string[]>(
     paramGemId ? [paramGemId] : [],
   );
@@ -253,11 +260,13 @@ export default function AddBillScreen() {
         const dueDate = Timestamp.fromDate(
           addDays(new Date(), result.data.dueDays),
         );
+        const receiptUrl = await uploadReceipt(user.uid, receipt);
         const id = await createBill(user.uid, {
           direction: result.data.direction,
           amount: result.data.amount,
           currency: money.currency,
           counterpartyContactId: result.data.contactId,
+          receiptUrl,
           dueDate,
           commissionPercent: isLapidary ? null : result.data.commissionPercent,
           notes: result.data.notes,
@@ -277,7 +286,9 @@ export default function AddBillScreen() {
               soldPriceCurrency: money.currency,
             },
           ).catch(() => {
-            toast.error("Bill saved, but gem sold status may still be syncing.");
+            toast.error(
+              "Bill saved, but gem sold status may still be syncing.",
+            );
           });
           void queryClient.invalidateQueries({ queryKey: ["gems"] });
           void queryClient.invalidateQueries({
@@ -306,10 +317,7 @@ export default function AddBillScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader
-        title={step === 0 ? "Direction" : "Add Bill"}
-        closeIcon
-      />
+      <StackHeader title={step === 0 ? "Direction" : "Add Bill"} closeIcon />
 
       {step === 0 ? (
         <View
@@ -337,9 +345,7 @@ export default function AddBillScreen() {
               <ChoicePreviewCard
                 label={directionMeta.label}
                 icon={directionMeta.icon}
-                onPress={
-                  canChangeDirection ? () => setStep(0) : undefined
-                }
+                onPress={canChangeDirection ? () => setStep(0) : undefined}
               />
             ) : null}
 
@@ -354,8 +360,8 @@ export default function AddBillScreen() {
                   error={errors.jobId}
                 />
                 <Text style={[styles.helper, { color: colors.textMuted }]}>
-                  Tracks payment for a received gem service request until the due
-                  date.
+                  Tracks payment for a received gem service request until the
+                  due date.
                 </Text>
               </FormSection>
             ) : (
@@ -374,10 +380,7 @@ export default function AddBillScreen() {
                     <View style={styles.gemHeader}>
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text
-                          style={[
-                            styles.gemTitle,
-                            { color: colors.onSurface },
-                          ]}
+                          style={[styles.gemTitle, { color: colors.onSurface }]}
                           numberOfLines={1}
                         >
                           {gem.variety?.trim() ||
@@ -396,11 +399,7 @@ export default function AddBillScreen() {
                         accessibilityLabel="Remove gem"
                         hitSlop={8}
                       >
-                        <Icon
-                          name="close"
-                          size={20}
-                          color={colors.textMuted}
-                        />
+                        <Icon name="close" size={20} color={colors.textMuted} />
                       </Pressable>
                     </View>
                   </View>
@@ -531,17 +530,16 @@ export default function AddBillScreen() {
                 leftIcon="notes"
                 multiline
               />
+              <ReceiptField value={receipt} onChange={setReceipt} />
             </FormSection>
           </ThemedScrollView>
 
           <FormFooter
-            title="Save bill"
+            title="Add bill"
             onPress={handleSubmit}
             icon="check"
             secondaryTitle={canChangeDirection ? "Back" : undefined}
-            onSecondaryPress={
-              canChangeDirection ? () => setStep(0) : undefined
-            }
+            onSecondaryPress={canChangeDirection ? () => setStep(0) : undefined}
           />
         </>
       )}

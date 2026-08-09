@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  notificationGroupKeyForType,
+  notificationThreadIdForType,
   priorityForType,
   pushCategoryForType,
   pushChannelForType,
@@ -25,6 +27,15 @@ describe('priorityForType', () => {
   it('defaults remaining types to low', () => {
     assert.equal(priorityForType('announcement_platform'), 'low');
     assert.equal(priorityForType('cert_ready'), 'low');
+  });
+});
+
+describe('notification grouping', () => {
+  it('keeps related notifications in a stable category and native thread', () => {
+    assert.equal(notificationGroupKeyForType('service_job_updated'), 'services');
+    assert.equal(notificationGroupKeyForType('cert_ready'), 'certificates');
+    assert.equal(notificationGroupKeyForType('bill_due_today'), 'finance');
+    assert.equal(notificationThreadIdForType('service_job_updated'), 'gemfort.services');
   });
 });
 

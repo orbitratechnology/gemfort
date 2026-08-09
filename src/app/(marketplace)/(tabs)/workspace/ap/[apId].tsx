@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sale-split";
@@ -65,6 +66,8 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { haptics } from "@/lib/haptics";
 import { formatDate, formatRelativeDue } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
@@ -188,6 +191,8 @@ export default function ApDetailScreen() {
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
   const [payAmount, setPayAmount] = useState("");
   const [paySheetOpen, setPaySheetOpen] = useState(false);
+  const [sentReceipt, setSentReceipt] = useState<LocalMedia | null>(null);
+  const [receivedReceipt, setReceivedReceipt] = useState<LocalMedia | null>(null);
   const [receiveMethodOverride, setReceiveMethodOverride] =
     useState<ApPaymentMethod | null>(null);
 
@@ -917,11 +922,12 @@ export default function ApDetailScreen() {
                   return;
                 }
                 run(
-                  () =>
+                  async () =>
                     apPaymentSent({
                       apId: ap.id,
                       method: payMethod,
                       amount,
+                      receiptUrl: await uploadReceipt(user!.uid, sentReceipt),
                     }),
                   "Payment marked sent",
                 );
@@ -957,6 +963,7 @@ export default function ApDetailScreen() {
             onChangeText={setPayAmount}
             leftIcon="payments"
           />
+          <ReceiptField value={sentReceipt} onChange={setSentReceipt} />
         </BottomSheet>
 
         {isSender && ap.status === "payment_sent" ? (
@@ -1001,11 +1008,16 @@ export default function ApDetailScreen() {
                   return;
                 }
                 run(
-                  () => apPaymentReceived(ap.id, { method: receiveMethod }),
+                  async () =>
+                    apPaymentReceived(ap.id, {
+                      method: receiveMethod,
+                      receiptUrl: await uploadReceipt(user!.uid, receivedReceipt),
+                    }),
                   "Payment confirmed — done",
                 );
               }}
             />
+            <ReceiptField value={receivedReceipt} onChange={setReceivedReceipt} />
           </FormSection>
         ) : null}
 

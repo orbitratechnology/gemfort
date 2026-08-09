@@ -36,7 +36,8 @@ import type {
     Business,
     BusinessType,
     FraudReportType,
-    LabCertificateOffering,
+  LabCertificateOffering,
+  LapidaryServiceOffering,
     ListingOffer,
     MarketplaceListing,
     UserRole,
@@ -382,6 +383,8 @@ export async function updateBusinessProfile(
     };
     /** Gem Lab certificate menu (prices + active tiers). */
     certificateOfferings?: LabCertificateOffering[];
+    /** Public fixed-price service menu for a lapidary. */
+    lapidaryServiceOfferings?: LapidaryServiceOffering[];
     /** Business gallery photos (works, work samples, showroom, business photos). */
     galleryPhotos?: Business["galleryPhotos"];
   },
@@ -421,6 +424,27 @@ export async function updateBusinessProfile(
     updates["labProfile.certificateOfferings"] = certificateOfferings;
     updates["labProfile.reportTypes"] =
       reportTypesFromOfferings(certificateOfferings);
+  }
+  if (data.lapidaryServiceOfferings !== undefined) {
+    const services = data.lapidaryServiceOfferings
+      .slice(0, 20)
+      .map((service) => ({
+        serviceId: service.serviceId.trim(),
+        name: service.name.trim().slice(0, 80),
+        description: service.description.trim().slice(0, 500),
+        pricingType: "fixed" as const,
+        priceMin: Math.max(0, Number(service.priceMin) || 0),
+        priceMax: Math.max(0, Number(service.priceMax) || 0),
+        currency: service.currency.trim().toUpperCase().slice(0, 8) || "LKR",
+        turnaroundDaysMin: Math.max(0, Number(service.turnaroundDaysMin) || 0),
+        turnaroundDaysMax: Math.max(0, Number(service.turnaroundDaysMax) || 0),
+        isActive: service.isActive !== false,
+      }))
+      .filter((service) => service.serviceId && service.name);
+    updates["providerProfile.services"] = services;
+    updates["providerProfile.servicesOffered"] = services
+      .filter((service) => service.isActive)
+      .map((service) => service.name);
   }
   if (data.galleryPhotos !== undefined) {
     updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);

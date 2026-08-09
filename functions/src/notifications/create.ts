@@ -1,7 +1,11 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { db } from '../admin';
-import { priorityForType, type NotificationInput } from './types';
+import {
+  notificationGroupKeyForType,
+  priorityForType,
+  type NotificationInput,
+} from './types';
 
 export async function notificationExists(
   recipientUid: string,
@@ -52,6 +56,7 @@ export async function createNotificationDoc(input: NotificationInput): Promise<s
     actorPhotoUrl: input.actorPhotoUrl ?? null,
     imageUrl: input.imageUrl ?? null,
     priority: input.priority ?? priorityForType(input.type),
+    groupKey: notificationGroupKeyForType(input.type),
     isRead: false,
     isPushSent: false,
     createdAt: FieldValue.serverTimestamp(),

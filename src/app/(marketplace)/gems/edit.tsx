@@ -593,7 +593,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
           <MediaField
             value={certificate}
             onChange={setCertificate}
-            allows="documents"
+            allows="imagesOrDocuments"
             emptyTitle="Add certificate or report"
             emptySubtitle="Optional — a report makes this gem certified"
           />

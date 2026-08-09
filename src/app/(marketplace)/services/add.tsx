@@ -1,71 +1,81 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button } from '@/components/ui/button';
-import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { MaskedInput } from '@/components/ui/masked-input';
-import { ThemedScrollView } from '@/components/ui/screen';
-import { StackHeader } from '@/components/ui/stack-header';
+import { Button } from "@/components/ui/button";
+import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { MaskedInput } from "@/components/ui/masked-input";
+import { ThemedScrollView } from "@/components/ui/screen";
+import { StackHeader } from "@/components/ui/stack-header";
 import {
-  PickerSelectField,
-  ProviderPickerSheet,
-  type ProviderSelection,
-} from '@/components/workspace/contact-picker-sheet';
-import { GemPickerSheet, GemSelectField } from '@/components/workspace/gem-picker-sheet';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { fetchBusiness } from '@/features/marketplace/marketplace-service';
+    PickerSelectField,
+    ProviderPickerSheet,
+    type ProviderSelection,
+} from "@/components/workspace/contact-picker-sheet";
 import {
-  subscribeContacts,
-  subscribeGems,
-} from '@/features/workspace/firestore-subscriptions';
-import { createService, fetchContacts, fetchGems } from '@/features/workspace/workspace-service';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
-import { friendlyError } from '@/lib/errors';
-import { Timestamp } from '@/lib/firebase/db';
-import { addServiceSchema, parseForm } from '@/lib/validation/form-schemas';
-import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
-import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
-import { useToast } from '@/providers/toast-provider';
+    GemPickerSheet,
+    GemSelectField,
+} from "@/components/workspace/gem-picker-sheet";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { fetchBusiness } from "@/features/marketplace/marketplace-service";
+import {
+    subscribeContacts,
+    subscribeGems,
+} from "@/features/workspace/firestore-subscriptions";
+import {
+    createService,
+    fetchContacts,
+    fetchGems,
+} from "@/features/workspace/workspace-service";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { friendlyError } from "@/lib/errors";
+import { Timestamp } from "@/lib/firebase/db";
+import { addServiceSchema, parseForm } from "@/lib/validation/form-schemas";
+import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
+import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
+import { useToast } from "@/providers/toast-provider";
 
 const SERVICE_TYPES = [
-  { id: 'cutting', label: 'Cutting' },
-  { id: 'heating', label: 'Heating' },
-  { id: 'polishing', label: 'Polishing' },
-  { id: 'certification', label: 'Certification' },
-  { id: 'recutting', label: 'Recutting' },
-  { id: 'appraisal', label: 'Appraisal' },
+  { id: "cutting", label: "Cutting" },
+  { id: "heating", label: "Heating" },
+  { id: "polishing", label: "Polishing" },
+  { id: "certification", label: "Certification" },
+  { id: "recutting", label: "Recutting" },
+  { id: "appraisal", label: "Appraisal" },
 ];
 
 export default function AddServiceScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
-  const { gemId: preselectedGemId } = useLocalSearchParams<{ gemId?: string }>();
+  const { gemId: preselectedGemId } = useLocalSearchParams<{
+    gemId?: string;
+  }>();
 
-  const [gemId, setGemId] = useState(preselectedGemId ?? '');
+  const [gemId, setGemId] = useState(preselectedGemId ?? "");
   const [provider, setProvider] = useState<ProviderSelection | null>(null);
-  const [serviceType, setServiceType] = useState('cutting');
-  const [weightBefore, setWeightBefore] = useState('');
-  const [daysUntilReturn, setDaysUntilReturn] = useState('14');
+  const [serviceType, setServiceType] = useState("cutting");
+  const [weightBefore, setWeightBefore] = useState("");
+  const [daysUntilReturn, setDaysUntilReturn] = useState("14");
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [providerSheetOpen, setProviderSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useFirestoreLiveQuery({
-    queryKey: ['gems', user?.uid],
+    queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
     subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
     enabled: !!user,
   });
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
-    queryKey: ['contacts', user?.uid],
+    queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -75,7 +85,7 @@ export default function AddServiceScreen() {
   );
 
   const weightBeforeValue =
-    weightBefore || (selectedGem ? String(selectedGem.currentWeight) : '');
+    weightBefore || (selectedGem ? String(selectedGem.currentWeight) : "");
 
   async function handleSubmit() {
     if (!user) return;
@@ -102,7 +112,7 @@ export default function AddServiceScreen() {
     try {
       await withLoading(async () => {
         let providerUid: string | null = null;
-        if (provider.source === 'business') {
+        if (provider.source === "business") {
           const biz = await fetchBusiness(provider.businessId);
           providerUid = biz?.ownerUid ?? null;
         }
@@ -112,8 +122,10 @@ export default function AddServiceScreen() {
         const id = await createService(user.uid, {
           gemId: result.data.gemId,
           serviceType: result.data.serviceType,
-          providerContactId: provider.source === 'contact' ? provider.contactId : '',
-          providerBusinessId: provider.source === 'business' ? provider.businessId : null,
+          providerContactId:
+            provider.source === "contact" ? provider.contactId : "",
+          providerBusinessId:
+            provider.source === "business" ? provider.businessId : null,
           providerUid,
           providerName: provider.label,
           dateGiven: Timestamp.now(),
@@ -125,25 +137,31 @@ export default function AddServiceScreen() {
           agreedPriceCurrency: null,
           advancePaid: 0,
         });
-        toast.success('Service record created');
+        toast.success("Service record created");
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
-      }, 'Adding service…');
+      }, "Adding service…");
     } catch (e) {
-      toast.error(friendlyError(e, 'Could not create service.'));
+      toast.error(friendlyError(e, "Could not create service."));
     }
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <StackHeader title="Add Service" closeIcon />
-      <ThemedScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ThemedScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <ScreenInset>
-        <GemSelectField
-          label="Gem"
-          gem={selectedGem}
-          onPress={() => setGemSheetOpen(true)}
-          error={errors.gemId}
-        />
+          <GemSelectField
+            label="Gem"
+            gem={selectedGem}
+            onPress={() => setGemSheetOpen(true)}
+            error={errors.gemId}
+          />
         </ScreenInset>
 
         <FormSection title="Service type" padded={false}>
@@ -157,17 +175,26 @@ export default function AddServiceScreen() {
                   style={[
                     styles.chip,
                     active
-                      ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
                       : {
                           backgroundColor: colors.surfaceContainerLowest,
                           borderColor: colors.outlineVariant,
                         },
-                  ]}>
+                  ]}
+                >
                   <Text
                     style={[
                       styles.chipText,
-                      { color: active ? colors.onPrimary : colors.onSurfaceVariant },
-                    ]}>
+                      {
+                        color: active
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                      },
+                    ]}
+                  >
                     {t.label}
                   </Text>
                 </Pressable>
@@ -214,23 +241,23 @@ export default function AddServiceScreen() {
         </FormSection>
 
         <ScreenInset style={styles.footer}>
-        <PickerSelectField
-          label="Provider"
-          valueLabel={provider?.label ?? null}
-          subtitle={
-            provider?.source === 'business'
-              ? provider.businessType.replace(/_/g, ' ')
-              : provider?.source === 'contact'
-                ? 'Saved contact'
-                : null
-          }
-          placeholder="Search lapidaries or contacts…"
-          icon="handyman"
-          onPress={() => setProviderSheetOpen(true)}
-          error={errors.provider}
-        />
+          <PickerSelectField
+            label="Provider"
+            valueLabel={provider?.label ?? null}
+            subtitle={
+              provider?.source === "business"
+                ? provider.businessType.replace(/_/g, " ")
+                : provider?.source === "contact"
+                  ? "Saved contact"
+                  : null
+            }
+            placeholder="Search lapidaries or contacts…"
+            icon="handyman"
+            onPress={() => setProviderSheetOpen(true)}
+            error={errors.provider}
+          />
 
-        <Button title="Create Service Record" icon="handyman" onPress={handleSubmit} />
+          <Button title="Add Service" icon="handyman" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
 
@@ -255,7 +282,7 @@ export default function AddServiceScreen() {
         onClose={() => setProviderSheetOpen(false)}
         contacts={contacts}
         value={provider}
-        allowedBusinessKinds={['lapidaries']}
+        allowedBusinessKinds={["lapidaries"]}
         contactTypeFilter={null}
         onSelect={(selection) => {
           setProvider(selection);
@@ -274,13 +301,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.containerMargin,
     paddingVertical: Spacing.lg,
   },
-  chip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md, borderWidth: 1 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
   chipText: { ...Typography.labelMd },
   footer: { gap: Spacing.lg },
 });

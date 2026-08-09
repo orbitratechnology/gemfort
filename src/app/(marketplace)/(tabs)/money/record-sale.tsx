@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -31,6 +32,8 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { convertToBaseSync } from "@/lib/exchange-rates";
 import { Timestamp } from "@/lib/firebase/db";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
@@ -65,6 +68,7 @@ export default function RecordSaleScreen() {
   const [buyerContactId, setBuyerContactId] = useState("");
   const [buyerCustomName, setBuyerCustomName] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("transfer");
+  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useFirestoreLiveQuery({
@@ -148,6 +152,7 @@ export default function RecordSaleScreen() {
     try {
       await withLoading(async () => {
         const data = result.data;
+        const receiptUrl = await uploadReceipt(user.uid, receipt);
         await createTransaction(user.uid, {
           type: "income",
           amount: data.price,
@@ -158,6 +163,7 @@ export default function RecordSaleScreen() {
           contactId: buyerContactId || null,
           sourceType: "gem",
           sourceId: gem.id,
+          receiptUrl,
           date: Timestamp.now(),
         });
         await updateGemStatus(
@@ -250,6 +256,7 @@ export default function RecordSaleScreen() {
             }}
             error={errors.method}
           />
+          <ReceiptField value={receipt} onChange={setReceipt} />
         </FormSection>
 
         {gem && salePrice > 0 ? (

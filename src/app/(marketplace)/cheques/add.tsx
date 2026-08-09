@@ -6,49 +6,54 @@ import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
-import { ChoicePreviewCard, ChoiceTileGrid } from "@/components/ui/choice-tile-grid";
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    ChoicePreviewCard,
+    ChoiceTileGrid,
+} from "@/components/ui/choice-tile-grid";
+import {
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaField } from "@/components/ui/media-field";
+import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-  BankPickerSheet,
-  BankSelectField,
-  BranchPickerSheet,
-  BranchSelectField,
+    BankPickerSheet,
+    BankSelectField,
+    BranchPickerSheet,
+    BranchSelectField,
 } from "@/components/workspace/bank-picker-sheet";
 import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
 import { bankHasBranches } from "@/constants/sri-lanka-branches";
+import {
+    apPaymentReceived,
+    apPaymentSent,
+} from "@/features/workspace/ap-lifecycle-service";
 import { subscribeContacts } from "@/features/workspace/firestore-subscriptions";
 import {
-  createCheque,
-  fetchContacts,
-  recordBillPayment,
-  updateGemLifecycle,
+    createCheque,
+    fetchContacts,
+    recordBillPayment,
+    updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
-import {
-  apPaymentReceived,
-  apPaymentSent,
-} from "@/features/workspace/ap-lifecycle-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
 import {
-  extensionForMedia,
-  uploadLocalMedia,
-  type LocalMedia,
+    extensionForMedia,
+    uploadLocalMedia,
+    type LocalMedia,
 } from "@/lib/firebase/storage-service";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -142,6 +147,7 @@ export default function AddChequeScreen() {
         }
       : null,
   );
+  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
@@ -233,6 +239,7 @@ export default function AddChequeScreen() {
             `cheques/${user.uid}/${Date.now()}.${ext}`,
           );
         }
+        const receiptUrl = await uploadReceipt(user.uid, receipt);
 
         const id = await createCheque(user.uid, {
           direction: data.direction,
@@ -247,6 +254,7 @@ export default function AddChequeScreen() {
           issueDate: now,
           maturityDate: maturity,
           photoUrl,
+          receiptUrl,
           gemId: paramGemId,
           apRecordId: paramApRecordId,
           billId: paramBillId,
@@ -264,7 +272,9 @@ export default function AddChequeScreen() {
               soldPriceCurrency: money.currency,
             },
           ).catch(() => {
-            toast.error("Cheque saved, but gem sold status may still be syncing.");
+            toast.error(
+              "Cheque saved, but gem sold status may still be syncing.",
+            );
           });
           void queryClient.invalidateQueries({ queryKey: ["gems"] });
           void queryClient.invalidateQueries({
@@ -278,6 +288,7 @@ export default function AddChequeScreen() {
             void recordBillPayment(user.uid, paramBillId, settle, {
               paymentMethod: "cheque",
               notes: `Cheque ${data.chequeNumber}`,
+              receiptUrl,
             });
             void queryClient.invalidateQueries({ queryKey: ["bills"] });
             void queryClient.invalidateQueries({
@@ -294,6 +305,7 @@ export default function AddChequeScreen() {
             method: "cheque",
             amount: data.amount,
             chequeId: id,
+            receiptUrl,
           });
           await queryClient.invalidateQueries({ queryKey: ["ap"] });
         }
@@ -302,6 +314,7 @@ export default function AddChequeScreen() {
           await apPaymentReceived(paramApRecordId, {
             method: "cheque",
             chequeId: id,
+            receiptUrl,
           });
           await queryClient.invalidateQueries({ queryKey: ["ap"] });
           await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -351,10 +364,7 @@ export default function AddChequeScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader
-        title={step === 0 ? "Direction" : "Add cheque"}
-        closeIcon
-      />
+      <StackHeader title={step === 0 ? "Direction" : "Add cheque"} closeIcon />
 
       {step === 0 ? (
         <View
@@ -382,9 +392,7 @@ export default function AddChequeScreen() {
               <ChoicePreviewCard
                 label={directionMeta.label}
                 icon={directionMeta.icon}
-                onPress={
-                  presetDirection ? undefined : () => setStep(0)
-                }
+                onPress={presetDirection ? undefined : () => setStep(0)}
               />
             ) : null}
 
@@ -479,6 +487,10 @@ export default function AddChequeScreen() {
             </FormSection>
 
             <FormSection>
+              <ReceiptField value={receipt} onChange={setReceipt} />
+            </FormSection>
+
+            <FormSection>
               <Input
                 label="Notes"
                 value={notes}
@@ -506,13 +518,11 @@ export default function AddChequeScreen() {
           </ThemedScrollView>
 
           <FormFooter
-            title="Save cheque"
+            title="Add"
             icon="shield"
             onPress={handleSubmit}
             secondaryTitle={presetDirection ? undefined : "Back"}
-            onSecondaryPress={
-              presetDirection ? undefined : () => setStep(0)
-            }
+            onSecondaryPress={presetDirection ? undefined : () => setStep(0)}
           />
         </>
       )}

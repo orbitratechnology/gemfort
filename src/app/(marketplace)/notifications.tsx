@@ -1,7 +1,7 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { Redirect, Stack } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -33,9 +33,42 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { navigateFromNotificationRef } from "@/lib/notification-navigation";
+import {
+  notificationGroupForType,
+  type NotificationGroup,
+} from "@/lib/notifications/grouping";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { AppNotification } from "@/types";
+
+type NotificationGroupRow = {
+  kind: "group";
+  group: NotificationGroup;
+  notifications: AppNotification[];
+};
+
+type NotificationItemRow = {
+  kind: "notification";
+  notification: AppNotification;
+};
+
+type InboxListRow = NotificationGroupRow | NotificationItemRow;
+
+function buildNotificationGroups(
+  notifications: AppNotification[],
+): NotificationGroupRow[] {
+  const groups = new Map<string, NotificationGroupRow>();
+  for (const notification of notifications) {
+    const group = notificationGroupForType(notification.type);
+    const existing = groups.get(group.key);
+    if (existing) {
+      existing.notifications.push(notification);
+    } else {
+      groups.set(group.key, { kind: "group", group, notifications: [notification] });
+    }
+  }
+  return [...groups.values()];
+}
 
 function HeaderIconButton({
   label,
@@ -74,6 +107,9 @@ export default function NotificationsScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<string[] | null>(
+    null,
+  );
 
   const {
     data: notifications = [],
@@ -104,6 +140,47 @@ export default function NotificationsScreen() {
   });
 
   const unread = notifications.filter((n) => !n.isRead).length;
+  const notificationGroups = useMemo(
+    () => buildNotificationGroups(notifications),
+    [notifications],
+  );
+  const expandedKeys = useMemo(
+    () =>
+      new Set(
+        expandedGroupKeys ??
+          notificationGroups.slice(0, 1).map((g) => g.group.key),
+      ),
+    [expandedGroupKeys, notificationGroups],
+  );
+  const inboxRows = useMemo<InboxListRow[]>(
+    () =>
+      notificationGroups.flatMap((group) => [
+        group,
+        ...(expandedKeys.has(group.group.key)
+          ? group.notifications.map(
+              (notification): NotificationItemRow => ({
+                kind: "notification",
+                notification,
+              }),
+            )
+          : []),
+      ]),
+    [expandedKeys, notificationGroups],
+  );
+
+  const toggleGroup = useCallback(
+    (groupKey: string) => {
+      setExpandedGroupKeys((current) => {
+        const keys = new Set(
+          current ?? notificationGroups.slice(0, 1).map((g) => g.group.key),
+        );
+        if (keys.has(groupKey)) keys.delete(groupKey);
+        else keys.add(groupKey);
+        return [...keys];
+      });
+    },
+    [notificationGroups],
+  );
 
   const markRead = useCallback(
     async (n: AppNotification) => {
@@ -297,8 +374,13 @@ export default function NotificationsScreen() {
       />
 
       <FlashList
-        data={notifications}
-        keyExtractor={(n) => n.id}
+        data={inboxRows}
+        getItemType={(item) => item.kind}
+        keyExtractor={(item) =>
+          item.kind === "group"
+            ? `group:${item.group.key}`
+            : `notification:${item.notification.id}`
+        }
         style={{ flex: 1, backgroundColor: colors.background }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
@@ -340,20 +422,82 @@ export default function NotificationsScreen() {
           )
         }
         renderItem={({ item }) => {
+          if (item.kind === "group") {
+            const isExpanded = expandedKeys.has(item.group.key);
+            const unreadInGroup = item.notifications.filter((n) => !n.isRead)
+              .length;
+            return (
+              <Pressable
+                onPress={() => toggleGroup(item.group.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.group.label}, ${item.notifications.length} notifications${unreadInGroup ? `, ${unreadInGroup} unread` : ""}`}
+                accessibilityState={{ expanded: isExpanded }}
+                style={({ pressed }) => ({
+                  minHeight: 54,
+                  paddingHorizontal: Spacing.containerMargin,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.sm,
+                  backgroundColor: colors.surfaceContainerLow,
+                  opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                <Icon
+                  name={isExpanded ? "expand-less" : "expand-more"}
+                  size={22}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{ ...Typography.labelMd, color: colors.onSurface, flex: 1 }}
+                >
+                  {item.group.label}
+                </Text>
+                <Text
+                  style={{ ...Typography.labelMd, color: colors.textMuted }}
+                >
+                  {item.notifications.length}
+                </Text>
+                {unreadInGroup > 0 ? (
+                  <View
+                    style={{
+                      minWidth: 20,
+                      height: 20,
+                      paddingHorizontal: 5,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.primary,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        ...Typography.caption,
+                        color: colors.onPrimary,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {unreadInGroup > 99 ? "99+" : unreadInGroup}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          }
+          const notification = item.notification;
           const busyActionId =
-            busyKey?.startsWith(`${item.id}:`)
-              ? (busyKey.slice(item.id.length + 1) as InboxActionId)
+            busyKey?.startsWith(`${notification.id}:`)
+              ? (busyKey.slice(notification.id.length + 1) as InboxActionId)
               : null;
           return (
             <NotificationRow
-              notification={item}
+              notification={notification}
               // Render the notification's persisted avatar/media immediately.
               // The async resolver only adds richer data for older records.
               visual={
-                visuals[item.id] ?? notificationVisualFromNotification(item)
+                visuals[notification.id] ?? notificationVisualFromNotification(notification)
               }
-              onPress={() => openNotification(item)}
-              onAction={(actionId) => handleAction(item, actionId)}
+              onPress={() => openNotification(notification)}
+              onAction={(actionId) => handleAction(notification, actionId)}
               busyActionId={busyActionId}
             />
           );

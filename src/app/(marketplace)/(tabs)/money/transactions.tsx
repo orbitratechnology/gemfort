@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
+import { ReceiptField } from '@/components/ui/receipt-field';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   getPaymentSourceMeta,
@@ -35,6 +36,8 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
+import { uploadReceipt } from '@/lib/firebase/receipt-service';
+import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
@@ -53,6 +56,7 @@ export default function TransactionsScreen() {
     currency: preferred,
   });
   const [description, setDescription] = useState('');
+  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [gemId, setGemId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
@@ -100,6 +104,7 @@ export default function TransactionsScreen() {
     setErrors({});
     try {
       await withLoading(async () => {
+        const receiptUrl = await uploadReceipt(user.uid, receipt);
         await createTransaction(user.uid, {
           type: result.data.type,
           amount: result.data.amount,
@@ -110,10 +115,12 @@ export default function TransactionsScreen() {
             (type === 'income' ? 'Income' : 'Expense'),
           gemId,
           contactId: null,
+          receiptUrl,
           date: Timestamp.now(),
         });
         setMoney({ amount: '', currency: preferred });
         setDescription('');
+        setReceipt(null);
         setGemId(null);
         setShowForm(false);
         await queryClient.invalidateQueries({ queryKey: ['transactions'] });
@@ -181,6 +188,7 @@ export default function TransactionsScreen() {
               error={errors.amount}
             />
             <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
+            <ReceiptField value={receipt} onChange={setReceipt} />
             <Button title="Add Transaction" icon="add" onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>
         )}
