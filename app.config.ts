@@ -45,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       env === "production" || env === "preview" ? ["applinks:gemfort.app"] : [],
     googleServicesFile:
       process.env.GOOGLE_SERVICES_PLIST ??
-      `./google-services/GoogleService-Info${googleServicesSuffix}.plist`,
+      `GoogleService-Info${googleServicesSuffix}.plist`,
   },
   android: {
     package: bundleId,
@@ -62,7 +62,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: "./assets/images/icon.png",
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ??
-      `./google-services/google-services${googleServicesSuffix}.json`,
+      `google-services${googleServicesSuffix}.json`,
     permissions: [
       "android.permission.READ_CALL_LOG",
       "android.permission.READ_PHONE_STATE",

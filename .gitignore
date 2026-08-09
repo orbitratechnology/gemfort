@@ -52,7 +52,10 @@ example
 
 # Firebase native configuration is supplied to cloud builds through sensitive
 # EAS file environment variables. Keep only ignored local copies for native runs.
-/google-services/
-/google-services/*
+google-services.json
+google-services*.json
+GoogleService-Info.plist
+GoogleService-Info*.plist
+
 
 *.log
