@@ -358,6 +358,9 @@ export async function createBusinessProfile(
   return id;
 }
 
+/** Maximum number of business gallery photos (works / work samples / business photos). */
+export const MAX_GALLERY_PHOTOS = 10;
+
 export async function updateBusinessProfile(
   businessId: string,
   data: {
@@ -379,6 +382,8 @@ export async function updateBusinessProfile(
     };
     /** Gem Lab certificate menu (prices + active tiers). */
     certificateOfferings?: LabCertificateOffering[];
+    /** Business gallery photos (works, work samples, showroom, business photos). */
+    galleryPhotos?: Business["galleryPhotos"];
   },
 ) {
   const updates: Record<string, unknown> = { updatedAt: serverTimestamp() };
@@ -416,6 +421,9 @@ export async function updateBusinessProfile(
     updates["labProfile.certificateOfferings"] = certificateOfferings;
     updates["labProfile.reportTypes"] =
       reportTypesFromOfferings(certificateOfferings);
+  }
+  if (data.galleryPhotos !== undefined) {
+    updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);
   }
   queueDocUpdate("businesses", businessId, updates);
 }

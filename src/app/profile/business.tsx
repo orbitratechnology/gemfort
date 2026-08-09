@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
 import { CityField } from "@/components/ui/city-field";
+import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
@@ -36,12 +37,14 @@ import {
     createBusinessProfile,
     fetchBusinessByOwnerUid,
     isBusinessVerified,
+    MAX_GALLERY_PHOTOS,
     updateBusinessProfile,
 } from "@/features/marketplace/marketplace-service";
 import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { Timestamp } from "@/lib/firebase/db";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
 import { parseAmountInput } from "@/lib/money/mask";
@@ -152,6 +155,20 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
     draftsFromBusiness(business),
   );
+  /** Business gallery — existing photos surface as their storage URLs. */
+  const [galleryLocal, setGalleryLocal] = useState<LocalMedia[]>(() =>
+    (business?.galleryPhotos ?? []).map((p) => ({
+      uri: p.url,
+      kind: "image" as const,
+    })),
+  );
+
+  /** Already-uploaded gallery photos keyed by URL so save doesn't re-upload them. */
+  const existingGalleryByUrl = useMemo(() => {
+    const map = new Map<string, Business["galleryPhotos"][number]>();
+    for (const p of business?.galleryPhotos ?? []) map.set(p.url, p);
+    return map;
+  }, [business]);
 
   const accountTypeLabel = accountTypeLabelFromRegistration(profile);
   const derivedBusinessType = businessTypeFromRegistration(profile);
@@ -221,6 +238,30 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           );
         }
 
+        const stamp = Date.now();
+        const galleryEntries: Business["galleryPhotos"] = [];
+        for (let i = 0; i < galleryLocal.length; i++) {
+          const item = galleryLocal[i];
+          const existing = existingGalleryByUrl.get(item.uri);
+          if (existing) {
+            galleryEntries.push(existing);
+            continue;
+          }
+          const url = await uploadLocalMedia(
+            item,
+            `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
+          );
+          galleryEntries.push({
+            photoId: `${stamp}_${i}`,
+            url,
+            type: "work",
+            beforeUrl: null,
+            afterUrl: null,
+            caption: null,
+            uploadedAt: Timestamp.now(),
+          });
+        }
+
         if (business) {
           await updateBusinessProfile(business.id, {
             businessName,
@@ -233,6 +274,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             socialLinks,
             logoUrl: nextLogo,
             coverPhotoUrl: nextCover,
+            galleryPhotos: galleryEntries,
             ...(isLab
               ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
               : {}),
@@ -262,6 +304,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
           if (nextLogo) mediaAndCert.logoUrl = nextLogo;
           if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
+          if (galleryEntries.length > 0) mediaAndCert.galleryPhotos = galleryEntries;
           if (isLab) {
             mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
           }
@@ -387,6 +430,16 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           </Text>
         </View>
       </View>
+
+      <FormSection title="Business Photos">
+        <MediaAlbumField
+          value={galleryLocal}
+          onChange={setGalleryLocal}
+          max={MAX_GALLERY_PHOTOS}
+          emptyTitle="Add business photos"
+          emptySubtitle="Works, work samples, showroom, and business photos"
+        />
+      </FormSection>
 
       <FormSectionLabel title="IDENTITY" />
       <FormSection>

@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
 import { parseAmountInput } from "@/lib/money/mask";
 
 /** Map Zod flatten errors into a field → message record for inline UI. */
@@ -61,63 +60,63 @@ const wholeDays = (label: string, min: number, max: number) =>
     .refine((n) => n >= min && n <= max, `${label} must be ${min}-${max} days`);
 
 const gemTreatmentEnum = z.enum([
-  'natural',
-  'chemical_diffusion',
-  'coating',
-  'diffusion',
-  'doublet',
-  'dyeing',
-  'glass_plastic_resin_impregnation',
-  'glass_plastic_resin_infilling',
-  'heat_treatment',
-  'oiling_waxing',
-  'reconstitution',
-  'smoke_diffusion',
+  "natural",
+  "chemical_diffusion",
+  "coating",
+  "diffusion",
+  "doublet",
+  "dyeing",
+  "glass_plastic_resin_impregnation",
+  "glass_plastic_resin_infilling",
+  "heat_treatment",
+  "oiling_waxing",
+  "reconstitution",
+  "smoke_diffusion",
 ]);
 
 const gemStatusEnum = z.enum([
-  'rough',
-  'with_cutter',
-  'cut',
-  'with_heater',
-  'heated',
-  'with_polisher',
-  'polished',
-  'certified',
-  'ready_for_sale',
-  'on_ap',
-  'on_trip',
-  'listed',
-  'sold',
-  'returned',
+  "rough",
+  "with_cutter",
+  "cut",
+  "with_heater",
+  "heated",
+  "with_polisher",
+  "polished",
+  "certified",
+  "ready_for_sale",
+  "on_ap",
+  "on_trip",
+  "listed",
+  "sold",
+  "returned",
 ]);
 
 /** Empty string → undefined so optional picker fields stay optional. */
 const optionalTrimmed = z
   .string()
   .trim()
-  .transform((v) => (v === '' ? undefined : v));
+  .transform((v) => (v === "" ? undefined : v));
 
 export const addGemSchema = z.object({
   title: z
     .string()
     .trim()
-    .min(1, 'Enter a title')
-    .max(80, 'Title must be 80 characters or less'),
-  gemType: z.string().min(1, 'Choose a gem type'),
-  roughWeight: positiveNumber('Weight', 10_000),
-  acquisitionCost: positiveNumber('Purchase price'),
+    .min(1, "Enter a title")
+    .max(80, "Title must be 80 characters or less"),
+  gemType: z.string().min(1, "Choose a gem type"),
+  roughWeight: positiveNumber("Weight", 10_000),
+  acquisitionCost: positiveNumber("Purchase price"),
   originCountry: optionalTrimmed,
   colorPrimary: optionalTrimmed,
   clarity: optionalTrimmed,
   shape: optionalTrimmed,
   treatment: z
     .string()
-    .transform((v) => (v === '' ? undefined : v))
+    .transform((v) => (v === "" ? undefined : v))
     .pipe(gemTreatmentEnum.optional()),
   status: z
     .string()
-    .transform((v) => (v === '' ? undefined : v))
+    .transform((v) => (v === "" ? undefined : v))
     .pipe(gemStatusEnum.optional()),
 });
 
@@ -204,9 +203,7 @@ export type RecordSaleForm = z.infer<typeof recordSaleSchema>;
 export const addApSchema = z.object({
   holderId: z.string().min(1, "Select an AP holder"),
   days: wholeDays("Expected days", 1, 365),
-  gemCount: z
-    .number()
-    .min(1, "Add at least one gem"),
+  gemCount: z.number().min(1, "Add at least one gem"),
 });
 
 export type AddApForm = z.infer<typeof addApSchema>;
@@ -274,11 +271,7 @@ export type AddTripExpenseForm = z.infer<typeof addTripExpenseSchema>;
 export const addTransactionSchema = z.object({
   type: z.enum(["income", "expense"]),
   amount: positiveNumber("Amount"),
-  description: z
-    .string()
-    .trim()
-    .max(200, "Description is too long")
-    .optional(),
+  description: z.string().trim().max(200, "Description is too long").optional(),
 });
 
 export type AddTransactionForm = z.infer<typeof addTransactionSchema>;
@@ -338,11 +331,7 @@ const nonNegativeNumber = (label: string, max = 99_999_999) =>
 export const sellApGemSchema = z.object({
   ownerReceives: positiveNumber("Sender amount"),
   receiverKeeps: nonNegativeNumber("Your amount"),
-  soldToName: z
-    .string()
-    .trim()
-    .max(80, "Name is too long")
-    .optional(),
+  soldToName: z.string().trim().max(80, "Name is too long").optional(),
   paymentDueDays: wholeDays("Payment due", 0, 730),
 });
 
@@ -378,14 +367,6 @@ export const registerSchema = z.object({
     .min(2, "Enter your full name")
     .max(60, "Name is too long"),
   email: z.string().trim().email("Enter a valid email address"),
-  phone: z
-    .string()
-    .trim()
-    .min(9, "Enter a valid phone number")
-    .refine((v) => {
-      const n = normalizePhoneNumber(v);
-      return /^\+\d{10,15}$/.test(n);
-    }, "Select your country and enter a valid mobile number"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary", "gem_lab"]),
 });
@@ -420,7 +401,7 @@ export const deleteAccountSchema = z.object({
   confirmText: z
     .string()
     .trim()
-    .refine((v) => v.toUpperCase() === "DELETE", 'Type DELETE to confirm'),
+    .refine((v) => v.toUpperCase() === "DELETE", "Type DELETE to confirm"),
 });
 
 export type DeleteAccountForm = z.infer<typeof deleteAccountSchema>;
@@ -446,7 +427,11 @@ export const verificationDateOfBirthSchema = z
       today.getUTCMonth(),
       today.getUTCDate(),
     );
-    const minUtc = Date.UTC(today.getUTCFullYear() - 120, today.getUTCMonth(), today.getUTCDate());
+    const minUtc = Date.UTC(
+      today.getUTCFullYear() - 120,
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    );
     return dob.getTime() <= todayUtc && dob.getTime() >= minUtc;
   }, "Enter a valid date of birth");
 

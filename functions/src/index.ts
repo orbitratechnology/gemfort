@@ -36,6 +36,7 @@ export { onLikeCreated } from './gemnet/likes';
 export { onNotificationCreated } from './notifications/on-created';
 
 export { deleteMyAccount, onAuthUserDeleted } from './account/delete-account';
+export { linkVerifiedPhone } from './auth/link-verified-phone';
 
 export { syncGemNews, runNewsSyncNow } from './news/sync-gem-news';
 export { syncExhibitions } from './news/sync-exhibitions';

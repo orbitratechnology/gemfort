@@ -32,8 +32,12 @@ export async function confirmPhoneVerificationCode(
   });
 }
 
-export async function skipPhoneVerificationForDev(uid: string): Promise<void> {
+export async function skipPhoneVerificationForDev(
+  uid: string,
+  phone?: string,
+): Promise<void> {
   await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+    phone: phone || '',
     phoneVerified: true,
     updatedAt: serverTimestamp(),
   });

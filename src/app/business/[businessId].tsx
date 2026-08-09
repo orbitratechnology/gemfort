@@ -15,6 +15,7 @@ import {
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BusinessGalleryCarousel } from "@/components/marketplace/business-gallery-carousel";
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { ListingCard } from "@/components/marketplace/listing-card";
@@ -211,6 +212,12 @@ export default function BusinessProfileScreen() {
         business.labProfile.reportTypes,
       ).filter((o) => o.isActive)
     : [];
+
+  const galleryPhotos = useMemo(
+    () =>
+      (business?.galleryPhotos ?? []).filter((p) => p?.url?.trim().length > 0),
+    [business],
+  );
 
   const isOwnBusiness = !!user && user.uid === business?.ownerUid;
   const isVerifiedMember =
@@ -616,6 +623,14 @@ export default function BusinessProfileScreen() {
             <Icon name="person-add" size={20} color={colors.onSurface} />
           </Pressable>
         </View>
+
+        {/* Business gallery — work samples & business photos (auto-scroll) */}
+        {galleryPhotos.length > 0 ? (
+          <View style={styles.gallerySection}>
+            <FormSectionLabel title="Photos" />
+            <BusinessGalleryCarousel photos={galleryPhotos} />
+          </View>
+        ) : null}
 
         {canRequestService ? (
           <View style={styles.requestWrap}>
@@ -1178,6 +1193,11 @@ const styles = StyleSheet.create({
   requestWrap: {
     paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackMd,
+  },
+
+  gallerySection: {
+    paddingTop: Spacing.gutterMd,
+    gap: Spacing.stackSm,
   },
 
   discoverSection: {

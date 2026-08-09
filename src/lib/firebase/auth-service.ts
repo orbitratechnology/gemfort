@@ -1,41 +1,40 @@
+import { isRegisterableRole } from "@/constants/roles";
 import {
-  createUserWithEmailAndPassword,
-  deleteUser,
-  EmailAuthProvider,
-  getIdToken,
-  reauthenticateWithCredential,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-  updatePassword,
-  updateProfile,
-} from '@/lib/firebase/auth';
-import { callFunction } from '@/lib/firebase/call-function';
-import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
+    createUserWithEmailAndPassword,
+    deleteUser,
+    EmailAuthProvider,
+    getIdToken,
+    reauthenticateWithCredential,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
+    signOut,
+    updatePassword,
+    updateProfile,
+} from "@/lib/firebase/auth";
+import { callFunction } from "@/lib/firebase/call-function";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
 import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from '@/lib/firebase/db';
-import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
-import { clearOnboardingState } from '@/lib/onboarding';
-import { clearThemePreference } from '@/lib/theme-preference';
-import { isRegisterableRole } from '@/constants/roles';
-import type { UserProfile, UserRole } from '@/types';
+    doc,
+    getDoc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+} from "@/lib/firebase/db";
+import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
+import { clearOnboardingState } from "@/lib/onboarding";
+import { clearThemePreference } from "@/lib/theme-preference";
+import type { UserProfile, UserRole } from "@/types";
 
-export type { AuthUser } from '@/lib/firebase/auth-types';
+export type { AuthUser } from "@/lib/firebase/auth-types";
 
 export async function registerUser(input: {
   email: string;
   password: string;
   displayName: string;
-  phone: string;
   role: UserRole;
 }) {
   if (!isRegisterableRole(input.role)) {
-    throw new Error('Select Trader, Lapidary, or Gem Lab to continue.');
+    throw new Error("Select Trader, Lapidary, or Gem Lab to continue.");
   }
 
   const auth = getFirebaseAuth();
@@ -50,20 +49,23 @@ export async function registerUser(input: {
   // Write Firestore BEFORE Auth profile updates. AuthProvider loads the user
   // doc on auth state change; if it's missing it signs out as an "orphan",
   // which races updateProfile and causes auth/no-current-user.
-  const profile: Omit<UserProfile, 'createdAt' | 'lastActiveAt' | 'updatedAt'> & {
+  const profile: Omit<
+    UserProfile,
+    "createdAt" | "lastActiveAt" | "updatedAt"
+  > & {
     createdAt: ReturnType<typeof serverTimestamp>;
     lastActiveAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
   } = {
     uid,
     email: input.email.trim().toLowerCase(),
-    phone: normalizePhoneNumber(input.phone),
+    phone: "",
     displayName,
     role: input.role,
     roleIntent: input.role,
-    verificationStatus: 'none',
-    preferredCurrency: 'LKR',
-    preferredLanguage: 'en',
+    verificationStatus: "none",
+    preferredCurrency: "LKR",
+    preferredLanguage: "en",
     isActive: true,
     isSuspended: false,
     suspendedReason: null,
@@ -76,7 +78,7 @@ export async function registerUser(input: {
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(doc(getFirebaseDb(), 'users', uid), profile);
+  await setDoc(doc(getFirebaseDb(), "users", uid), profile);
 
   // Auth displayName is optional — Firestore is the source of truth.
   const current = auth.currentUser;
@@ -88,17 +90,23 @@ export async function registerUser(input: {
     }
   }
 
-  return { user: credential.user, phone: normalizePhoneNumber(input.phone) };
+  return { user: credential.user, phone: "" };
 }
 
 export async function loginUser(email: string, password: string) {
-  const credential = await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+  const credential = await signInWithEmailAndPassword(
+    getFirebaseAuth(),
+    email.trim(),
+    password,
+  );
   const profile = await getUserProfile(credential.user.uid);
   if (profile?.isSuspended) {
     await signOut(getFirebaseAuth());
-    throw new Error(profile.suspendedReason ?? 'Your account has been suspended.');
+    throw new Error(
+      profile.suspendedReason ?? "Your account has been suspended.",
+    );
   }
-  await updateDoc(doc(getFirebaseDb(), 'users', credential.user.uid), {
+  await updateDoc(doc(getFirebaseDb(), "users", credential.user.uid), {
     lastActiveAt: serverTimestamp(),
   });
   return credential.user;
@@ -109,7 +117,7 @@ export async function logoutUser() {
   const uid = auth.currentUser?.uid;
   if (uid) {
     try {
-      await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+      await updateDoc(doc(getFirebaseDb(), "users", uid), {
         fcmToken: null,
         updatedAt: serverTimestamp(),
       });
@@ -129,7 +137,7 @@ export async function sendPasswordResetForCurrentUser() {
   const user = getFirebaseAuth().currentUser;
   const email = user?.email?.trim();
   if (!user || !email) {
-    throw new Error('Sign in with an email account to reset your password.');
+    throw new Error("Sign in with an email account to reset your password.");
   }
   await sendPasswordResetEmail(getFirebaseAuth(), email);
 }
@@ -137,7 +145,7 @@ export async function sendPasswordResetForCurrentUser() {
 async function requireCurrentUser() {
   const user = getFirebaseAuth().currentUser;
   if (!user?.email) {
-    throw new Error('Sign in with an email account to continue.');
+    throw new Error("Sign in with an email account to continue.");
   }
   return user;
 }
@@ -150,7 +158,10 @@ export async function reauthenticateWithPassword(password: string) {
   return user;
 }
 
-export async function changePassword(currentPassword: string, newPassword: string) {
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+) {
   const user = await reauthenticateWithPassword(currentPassword);
   await updatePassword(user, newPassword);
 }
@@ -164,12 +175,16 @@ export async function deleteAccount(password: string) {
   await deleteAuthenticatedAccount();
 }
 
-export async function deleteAccountWithProvider(providerId: 'google.com' | 'apple.com') {
-  if (providerId === 'google.com') {
-    const { reauthenticateWithGoogle } = await import('@/lib/firebase/social-auth');
+export async function deleteAccountWithProvider(
+  providerId: "google.com" | "apple.com",
+) {
+  if (providerId === "google.com") {
+    const { reauthenticateWithGoogle } =
+      await import("@/lib/firebase/social-auth");
     await reauthenticateWithGoogle();
   } else {
-    const { reauthenticateWithApple } = await import('@/lib/firebase/social-auth');
+    const { reauthenticateWithApple } =
+      await import("@/lib/firebase/social-auth");
     await reauthenticateWithApple();
   }
   await deleteAuthenticatedAccount();
@@ -178,12 +193,12 @@ export async function deleteAccountWithProvider(providerId: 'google.com' | 'appl
 async function deleteAuthenticatedAccount() {
   const user = getFirebaseAuth().currentUser;
   if (!user) {
-    throw new Error('You must be signed in to delete your account.');
+    throw new Error("You must be signed in to delete your account.");
   }
 
   // The function independently verifies a recent Firebase Auth event. Force a
   // new ID token after password/OAuth reauthentication so that proof reaches it.
-  await callFunction<{ ok: true }>('deleteMyAccount', undefined, {
+  await callFunction<{ ok: true }>("deleteMyAccount", undefined, {
     forceRefreshToken: true,
   });
   // React Native Firebase requires a recent sign-in before deleteUser. The
@@ -197,7 +212,7 @@ async function deleteAuthenticatedAccount() {
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), 'users', uid));
+  const snap = await getDoc(doc(getFirebaseDb(), "users", uid));
   if (!snap.exists()) return null;
   return { uid, ...snap.data() } as UserProfile;
 }
@@ -209,13 +224,13 @@ export function needsPhoneVerification(profile: UserProfile | null): boolean {
 /** Save the number selected before the signed-in user proves ownership by SMS. */
 export async function savePhoneForVerification(phone: string) {
   const user = getFirebaseAuth().currentUser;
-  if (!user) throw new Error('You must be signed in to add a phone number.');
+  if (!user) throw new Error("You must be signed in to add a phone number.");
   const normalizedPhone = normalizePhoneNumber(phone);
   if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
-    throw new Error('Select your country and enter a valid mobile number.');
+    throw new Error("Select your country and enter a valid mobile number.");
   }
 
-  await updateDoc(doc(getFirebaseDb(), 'users', user.uid), {
+  await updateDoc(doc(getFirebaseDb(), "users", user.uid), {
     phone: normalizedPhone,
     phoneVerified: false,
     updatedAt: serverTimestamp(),
@@ -227,13 +242,13 @@ export async function updateFcmToken(uid: string, token: string | null) {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error('Not signed in as the target user');
+    throw new Error("Not signed in as the target user");
   }
   // Ensure Auth ID token is attached before the Firestore write (avoids
   // permission-denied when push registration races auth restore on Android).
   await getIdToken(current);
 
-  await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+  await updateDoc(doc(getFirebaseDb(), "users", uid), {
     fcmToken: token,
     updatedAt: serverTimestamp(),
   });
@@ -246,10 +261,10 @@ export async function updatePreferredCurrency(
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error('Not signed in as the target user');
+    throw new Error("Not signed in as the target user");
   }
   await getIdToken(current);
-  await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+  await updateDoc(doc(getFirebaseDb(), "users", uid), {
     preferredCurrency,
     updatedAt: serverTimestamp(),
   });
@@ -257,15 +272,15 @@ export async function updatePreferredCurrency(
 
 export async function updateNotificationPreferences(
   uid: string,
-  prefs: NonNullable<UserProfile['notificationPreferences']>,
+  prefs: NonNullable<UserProfile["notificationPreferences"]>,
 ) {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error('Not signed in as the target user');
+    throw new Error("Not signed in as the target user");
   }
   await getIdToken(current);
-  await updateDoc(doc(getFirebaseDb(), 'users', uid), {
+  await updateDoc(doc(getFirebaseDb(), "users", uid), {
     notificationPreferences: prefs,
     updatedAt: serverTimestamp(),
   });

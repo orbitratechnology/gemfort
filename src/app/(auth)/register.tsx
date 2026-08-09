@@ -22,7 +22,6 @@ import { RegisterRoleCards } from "@/components/auth/register-role-cards";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import {
     Motion,
     Radius,
@@ -33,9 +32,14 @@ import {
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
-import { friendlyError } from "@/lib/errors";
+import { authDiagnostic, friendlyError } from "@/lib/errors";
 import { registerUser } from "@/lib/firebase/auth-service";
-import { signInWithApple, signInWithGoogle } from "@/lib/firebase/social-auth";
+import {
+    completePendingSocialRegistration,
+    getPendingSocialRegistration,
+    signInWithApple,
+    signInWithGoogle,
+} from "@/lib/firebase/social-auth";
 import { haptics } from "@/lib/haptics";
 import { parseForm, registerSchema } from "@/lib/validation/form-schemas";
 import { withLoading } from "@/providers/loading-provider";
@@ -51,11 +55,12 @@ export default function RegisterScreen() {
   const [step, setStep] = useState<Step>("role");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const pendingSocialProvider =
+    getPendingSocialRegistration()?.provider ?? null;
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -66,7 +71,7 @@ export default function RegisterScreen() {
     });
   }
 
-  function goToForm() {
+  async function goToForm() {
     if (!role) {
       setErrors({ role: "Choose a role to continue." });
       toast.error("Choose a role to continue.");
@@ -74,12 +79,50 @@ export default function RegisterScreen() {
     }
     clearField("role");
     haptics.selection();
+    if (pendingSocialProvider) {
+      await finishPendingSocial();
+      return;
+    }
     setStep("form");
   }
 
   function goToRole() {
     haptics.selection();
     setStep("role");
+  }
+
+  async function finishPendingSocial() {
+    try {
+      await withLoading(async () => {
+        await completePendingSocialRegistration(role!);
+        router.replace("/(auth)/complete-phone");
+      }, "Finishing your account...");
+    } catch (error) {
+      const diagnostic = authDiagnostic(error);
+      console.error(
+        "[Auth] pending social registration failed",
+        diagnostic,
+        error,
+      );
+      toast.error(
+        __DEV__
+          ? `Google diagnostic: ${diagnostic}`
+          : friendlyError(error, "Could not finish creating your account."),
+      );
+    }
+  }
+
+  async function handleGoogleRegister() {
+    if (!role) {
+      setErrors({ role: "Choose a role to continue." });
+      toast.error("Choose a role to continue.");
+      return;
+    }
+    if (pendingSocialProvider) {
+      await finishPendingSocial();
+      return;
+    }
+    await handleSocialRegister(signInWithGoogle);
   }
 
   async function handleRegister() {
@@ -93,7 +136,6 @@ export default function RegisterScreen() {
     const result = parseForm(registerSchema, {
       displayName,
       email,
-      phone,
       password,
       role,
     });
@@ -109,17 +151,15 @@ export default function RegisterScreen() {
     try {
       await withLoading(async () => {
         const data = result.data;
-        const { phone: verifiedPhone } = await registerUser({
+        const user = await registerUser({
           email: data.email,
           password: data.password,
           displayName: data.displayName,
-          phone: data.phone,
           role: data.role,
         });
-        router.replace({
-          pathname: "/(auth)/verify-otp",
-          params: { phone: verifiedPhone },
-        });
+        if (user) {
+          router.replace("/(auth)/complete-phone");
+        }
       }, "Creating account…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not create account. Try again."));
@@ -127,7 +167,9 @@ export default function RegisterScreen() {
   }
 
   async function handleSocialRegister(
-    signIn: (selectedRole: UserRole) => Promise<Awaited<ReturnType<typeof signInWithGoogle>>>,
+    signIn: (
+      selectedRole: UserRole,
+    ) => Promise<Awaited<ReturnType<typeof signInWithApple>>>,
   ) {
     if (!role) {
       setErrors({ role: "Choose a role to continue." });
@@ -137,10 +179,19 @@ export default function RegisterScreen() {
     try {
       await withLoading(async () => {
         await signIn(role);
-        router.replace('/(auth)/complete-phone');
-      }, 'Creating accountâ€¦');
+        router.replace("/(auth)/complete-phone");
+      }, "Creating accountâ€¦");
     } catch (error) {
-      toast.error(friendlyError(error, 'Google or Apple Sign-In could not be completed.'));
+      const diagnostic = authDiagnostic(error);
+      console.error("[Auth] social registration failed", diagnostic, error);
+      toast.error(
+        __DEV__
+          ? `Google diagnostic: ${diagnostic}`
+          : friendlyError(
+              error,
+              "Google or Apple Sign-In could not be completed.",
+            ),
+      );
     }
   }
 
@@ -170,11 +221,6 @@ export default function RegisterScreen() {
                 clearField("role");
               }}
               error={errors.role}
-            />
-            <SocialAuthButtons
-              appleButtonType="signUp"
-              onGooglePress={() => handleSocialRegister(signInWithGoogle)}
-              onApplePress={() => handleSocialRegister(signInWithApple)}
             />
             <Button
               title={continueTitle}
@@ -262,17 +308,6 @@ export default function RegisterScreen() {
               textContentType="emailAddress"
               error={errors.email}
             />
-            <PhoneNumberField
-              label="Mobile number"
-              appearance="pill"
-              value={phone}
-              onChangeText={(v) => {
-                setPhone(v);
-                clearField("phone");
-              }}
-              placeholder="Mobile number"
-              error={errors.phone}
-            />
             <AuthField
               label="Password"
               leftIcon="lock"
@@ -301,6 +336,11 @@ export default function RegisterScreen() {
               title="Sign Up"
               onPress={handleRegister}
               style={styles.cta}
+            />
+            <SocialAuthButtons
+              appleButtonType="signUp"
+              onGooglePress={handleGoogleRegister}
+              onApplePress={() => handleSocialRegister(signInWithApple)}
             />
           </View>
 

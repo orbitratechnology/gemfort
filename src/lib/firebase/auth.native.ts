@@ -19,5 +19,3 @@ export {
   deleteUser,
   getAdditionalUserInfo,
 } from '@react-native-firebase/auth';
-
-export type { FirebaseAuthTypes } from '@react-native-firebase/auth';

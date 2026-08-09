@@ -2,7 +2,6 @@ import { Image, type ImageSource } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
-import { Icon } from "@/components/ui/icon";
 import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { ROLE_LABELS, ROLE_SUBTITLES } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -56,7 +55,7 @@ export function RegisterRoleCards({
   onChange,
   error,
 }: RegisterRoleCardsProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const reduceMotion = useReduceMotion();
   const enterMs = reduceMotion ? Motion.fast : Motion.normal;
 
@@ -68,7 +67,6 @@ export function RegisterRoleCards({
     >
       {ROLE_CARDS.map((card, index) => {
         const active = value === card.value;
-        const borderColor = error ? colors.error : colors.outlineVariant;
 
         return (
           <Animated.View
@@ -87,18 +85,30 @@ export function RegisterRoleCards({
               accessibilityState={{ selected: active }}
               accessibilityLabel={card.label}
               accessibilityHint={card.subtitle}
-              android_ripple={{
-                color: colors.primary + "22",
-                foreground: true,
-              }}
               onPress={haptics.wrap("selection", () => onChange(card.value))}
               style={({ pressed }) => [
                 styles.card,
-                { borderColor, backgroundColor: colors.surface },
+                {
+                  backgroundColor: active
+                    ? colors.primary
+                    : colors.surfaceContainerLowest,
+                  boxShadow: isDark
+                    ? "0 8px 22px rgba(0, 0, 0, 0.34)"
+                    : "0 8px 22px rgba(0, 0, 0, 0.10)",
+                },
                 pressed && styles.cardPressed,
               ]}
             >
-              <View style={styles.art}>
+              <View
+                style={[
+                  styles.art,
+                  {
+                    backgroundColor: active
+                      ? colors.surfaceContainerHigh
+                      : colors.surfaceContainerLow,
+                  },
+                ]}
+              >
                 <Image
                   source={card.image}
                   style={styles.illustration}
@@ -110,32 +120,27 @@ export function RegisterRoleCards({
               </View>
 
               <View style={styles.copy}>
-                <Text style={[styles.label, { color: colors.text }]}>
+                {active ? (
+                  <Text style={[styles.selectedLabel, { color: colors.onPrimary }]}>
+                    Selected
+                  </Text>
+                ) : null}
+                <Text
+                  style={[
+                    styles.label,
+                    { color: active ? colors.onPrimary : colors.text },
+                  ]}
+                >
                   {card.label}
                 </Text>
                 <Text
-                  style={[styles.subtitle, { color: colors.textSecondary }]}
+                  style={[
+                    styles.subtitle,
+                    { color: active ? colors.onPrimary : colors.textSecondary },
+                  ]}
                 >
                   {card.subtitle}
                 </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.checkWrap,
-                  {
-                    backgroundColor: active ? colors.primary : "transparent",
-                    borderColor: active
-                      ? colors.primary
-                      : colors.outlineVariant,
-                  },
-                ]}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                {active ? (
-                  <Icon name="check" size={16} color={colors.onPrimary} />
-                ) : null}
               </View>
             </Pressable>
           </Animated.View>
@@ -163,16 +168,14 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 128,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
-    overflow: "hidden",
-    paddingRight: Spacing.md,
-    borderWidth: 1.5,
+    paddingRight: Spacing.lg,
+    minHeight: 136,
   },
   cardPressed: {
-    opacity: 0.94,
-    transform: [{ scale: 0.97 }],
+    opacity: 0.9,
+    transform: [{ scale: 0.985 }],
   },
   art: {
     width: ART_WIDTH,
@@ -183,6 +186,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.xs,
+    borderTopLeftRadius: Radius.xl,
+    borderBottomLeftRadius: Radius.xl,
   },
   illustration: {
     width: "100%",
@@ -198,6 +203,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     minWidth: 0,
   },
+  selectedLabel: {
+    ...Typography.labelMd,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Spacing.xs,
+  },
   label: {
     ...Typography.headlineSmMobile,
     fontWeight: "700",
@@ -206,14 +217,6 @@ const styles = StyleSheet.create({
   subtitle: {
     ...Typography.bodyMd,
     lineHeight: 20,
-  },
-  checkWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
   },
   error: {
     ...Typography.bodySmall,

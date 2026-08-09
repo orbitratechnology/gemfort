@@ -29,7 +29,6 @@ describe('registerSchema', () => {
   const valid = {
     displayName: 'QA Trader',
     email: 'new@gemfort.test',
-    phone: '0771234567',
     password: 'SecurePass1',
     role: 'trader' as const,
   };

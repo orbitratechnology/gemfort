@@ -16,14 +16,14 @@ setGlobalOptions({
 
 /**
  * Options for latency-critical user callables.
- * - minInstances keeps one warm container (idle billing) to avoid multi-second cold starts.
+ * - minInstances: 0 so no instance is kept warm (no idle billing); containers scale to zero.
  * - Full CPU + concurrency > 1 (overrides global gcf_gen1) so a warm instance absorbs spikes
  *   without forcing extra cold starts. See Firebase “Avoid low concurrency” guidance.
  */
 export const HOT_CALLABLE = {
   region: REGION,
   timeoutSeconds: 60,
-  minInstances: 1,
+  minInstances: 0,
   cpu: 1,
   concurrency: 40,
 } as const;

@@ -26,13 +26,17 @@ import {
     loadRememberedEmail,
     saveRememberedEmail,
 } from "@/lib/auth/remember-email";
-import { friendlyError } from "@/lib/errors";
+import { authDiagnostic, friendlyError } from "@/lib/errors";
 import {
     getUserProfile,
     loginUser,
     needsPhoneVerification,
 } from "@/lib/firebase/auth-service";
-import { signInWithApple, signInWithGoogle } from "@/lib/firebase/social-auth";
+import {
+  isSocialRegistrationRequired,
+  signInWithApple,
+  signInWithGoogle,
+} from "@/lib/firebase/social-auth";
 import { haptics } from "@/lib/haptics";
 import { markOnboardingComplete } from "@/lib/onboarding";
 import { loginSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -85,10 +89,14 @@ export default function LoginScreen() {
         await markOnboardingComplete();
         const profile = await getUserProfile(loggedInUser.uid);
         if (needsPhoneVerification(profile)) {
-          router.replace({
-            pathname: "/(auth)/verify-otp",
-            params: { phone: profile!.phone },
-          });
+          router.replace(
+            profile?.phone
+              ? {
+                  pathname: "/(auth)/verify-otp",
+                  params: { phone: profile.phone },
+                }
+              : "/(auth)/complete-phone",
+          );
         } else {
           router.replace("/(marketplace)/(tabs)/home");
         }
@@ -114,8 +122,20 @@ export default function LoginScreen() {
         }
       }, "Signing in...");
     } catch (error) {
+      if (isSocialRegistrationRequired(error)) {
+        toast.info("Choose a role to finish creating your account.");
+        router.replace({
+          pathname: "/(auth)/register",
+          params: { social: "google" },
+        });
+        return;
+      }
+      const diagnostic = authDiagnostic(error);
+      console.error("[Auth] social sign-in failed", diagnostic, error);
       toast.error(
-        friendlyError(error, "Google or Apple Sign-In could not be completed."),
+        __DEV__
+          ? `Google diagnostic: ${diagnostic}`
+          : friendlyError(error, "Google or Apple Sign-In could not be completed."),
       );
     }
   }

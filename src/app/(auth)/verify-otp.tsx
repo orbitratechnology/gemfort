@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Keyboard, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
@@ -16,6 +16,7 @@ import {
   sendPhoneVerificationCode,
   skipPhoneVerificationForDev,
 } from '@/lib/firebase/phone-auth';
+import { attemptPhoneNumberVerification } from '@/lib/firebase/phone-pnv';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
@@ -28,19 +29,56 @@ export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const phone = normalizePhoneNumber(phoneParam ?? '');
 
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pnvChecking, setPnvChecking] = useState(false);
+  const pnvAttemptedRef = useRef(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
     return () => clearTimeout(timer);
   }, [cooldown]);
+
+  // Android-first: try carrier-level Phone Number Verification on entry. Any
+  // failure (unsupported carrier, declined consent, mismatch) falls back to
+  // the SMS flow below.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (!isFirebaseConfigured) return;
+    if (pnvAttemptedRef.current) return;
+    pnvAttemptedRef.current = true;
+    let cancelled = false;
+
+    (async () => {
+      setPnvChecking(true);
+      try {
+        const attempt = await attemptPhoneNumberVerification(phone);
+        if (cancelled) return;
+        if (attempt.status === 'verified') {
+          await markOnboardingComplete();
+          await refreshProfile();
+          router.replace('/(marketplace)/(tabs)/home');
+        }
+      } catch (error) {
+        if (cancelled) return;
+        toast.error(
+          friendlyError(error, 'That mobile number is already linked to another GemFort account.'),
+        );
+      } finally {
+        if (!cancelled) setPnvChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phone, refreshProfile, toast]);
 
   const handleSendCode = useCallback(async () => {
     if (!phone) {
@@ -80,6 +118,7 @@ export default function VerifyOtpScreen() {
       await withLoading(async () => {
         await confirmPhoneVerificationCode(verificationId, result.data.code);
         await markOnboardingComplete();
+        await refreshProfile();
         router.replace('/(marketplace)/(tabs)/home');
       }, 'Verifying…');
     } catch (e) {
@@ -90,8 +129,9 @@ export default function VerifyOtpScreen() {
 
   async function handleSkipDev() {
     if (!user || !__DEV__) return;
-    await skipPhoneVerificationForDev(user.uid);
+    await skipPhoneVerificationForDev(user.uid, phone);
     await markOnboardingComplete();
+    await refreshProfile();
     router.replace('/(marketplace)/(tabs)/home');
   }
 
@@ -103,13 +143,23 @@ export default function VerifyOtpScreen() {
         <ScreenInset style={styles.lead}>
           <StoryChapter
             title="Verify your phone"
-            body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
+            body={
+              Platform.OS === 'android'
+                ? `We will verify ${phone || 'your number'} with your mobile carrier first. If that is not possible, we will send a one-time SMS code.`
+                : `We will send a one-time SMS code to ${phone || 'your number'}.`
+            }
           />
+
+          {pnvChecking ? (
+            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
+              Checking your carrier for instant verification…
+            </Text>
+          ) : null}
 
           <Button
             title={verificationId ? 'Resend code' : 'Send code'}
             icon="sms"
-            disabled={cooldown > 0}
+            disabled={cooldown > 0 || pnvChecking}
             onPress={handleSendCode}
           />
           {cooldown > 0 ? (

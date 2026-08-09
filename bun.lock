@@ -8,10 +8,11 @@
         "@expo-google-fonts/poppins": "^0.4.1",
         "@expo/ui": "~57.0.7",
         "@react-native-async-storage/async-storage": "2.2.0",
-        "@react-native-firebase/app": "^25.1.0",
-        "@react-native-firebase/auth": "^25.1.0",
-        "@react-native-firebase/firestore": "^25.1.0",
-        "@react-native-firebase/storage": "^25.1.0",
+        "@react-native-firebase/app": "26.0.0",
+        "@react-native-firebase/auth": "26.0.0",
+        "@react-native-firebase/firestore": "26.0.0",
+        "@react-native-firebase/phone-number-verification": "26.0.0",
+        "@react-native-firebase/storage": "26.0.0",
         "@react-native-segmented-control/segmented-control": "2.5.7",
         "@react-native-vector-icons/fontawesome6": "^13.1.2",
         "@react-native-vector-icons/material-icons": "^13.1.2",
@@ -724,13 +725,15 @@
 
     "@react-native-async-storage/async-storage": ["@react-native-async-storage/async-storage@2.2.0", "", { "dependencies": { "merge-options": "^3.0.4" }, "peerDependencies": { "react-native": "^0.0.0-0 || >=0.65 <1.0" } }, "sha512-gvRvjR5JAaUZF8tv2Kcq/Gbt3JHwbKFYfmb445rhOj6NUMx3qPLixmDx5pZAyb9at1bYvJ4/eTUipU5aki45xw=="],
 
-    "@react-native-firebase/app": ["@react-native-firebase/app@25.1.0", "", { "dependencies": { "firebase": "12.15.0" }, "peerDependencies": { "expo": ">=47.0.0", "react": "*", "react-native": "*" }, "optionalPeers": ["expo"] }, "sha512-IRBM0Uwrs1O+SkUF8D9g7FgC8WI5b/3xEbt3JzFTTsHWvQyXxvTflKd4rNFNegV+2mFrM53XC9cS1BNVjWSSSg=="],
+    "@react-native-firebase/app": ["@react-native-firebase/app@26.0.0", "", { "dependencies": { "firebase": "12.15.0" }, "peerDependencies": { "expo": ">=47.0.0", "react": "*", "react-native": "*" }, "optionalPeers": ["expo"] }, "sha512-TuLOl5RL/9hS3Y61XqnIQ9p/1nM/lYfS0eGeVgLsY5mSY7nLL+KCNPTDvD3o5n6bGqrr72Apr/d2nL2XqvT/Vg=="],
 
-    "@react-native-firebase/auth": ["@react-native-firebase/auth@25.1.0", "", { "dependencies": { "plist": "^3.1.1" }, "peerDependencies": { "@react-native-firebase/app": "25.1.0", "expo": ">=47.0.0" }, "optionalPeers": ["expo"] }, "sha512-z1qm+wwv7RexEY6K3RTBQKbWD7juVv8ocWQQCu0XIhhbhAt4R1a+yQvGosgmkN+1+qLK0nHQk7xnT+I5LTQvMA=="],
+    "@react-native-firebase/auth": ["@react-native-firebase/auth@26.0.0", "", { "dependencies": { "plist": "^3.1.1" }, "peerDependencies": { "@react-native-firebase/app": "26.0.0", "expo": ">=47.0.0" }, "optionalPeers": ["expo"] }, "sha512-H+0rYTaOp1SBxe2JTJkOwsuILEBC4dbHCeKzRuyqjm9WkEoRice6PFlp2DReUHqDTj/h1kAQ4PSfcOeLXv6C/A=="],
 
-    "@react-native-firebase/firestore": ["@react-native-firebase/firestore@25.1.0", "", { "dependencies": { "react-native-url-polyfill": "3.0.0" }, "peerDependencies": { "@react-native-firebase/app": "25.1.0" } }, "sha512-UshrTSJFwJ6ekQyazP2yfpSEoMIBddpvU0Zh04PeZovBcNe58FVR27mgaDO7d/ojVH/tExqm9mfIckY2eCAV9Q=="],
+    "@react-native-firebase/firestore": ["@react-native-firebase/firestore@26.0.0", "", { "dependencies": { "react-native-url-polyfill": "3.0.0" }, "peerDependencies": { "@react-native-firebase/app": "26.0.0" } }, "sha512-y0YyYBlX4P5KURFGiHTBH1gZRI1D1QChfM5Oac2MbwvyxHqPg2wJi9MViJyCc1coG1MFi7bjDAb3VtHdVBG2/g=="],
 
-    "@react-native-firebase/storage": ["@react-native-firebase/storage@25.1.0", "", { "peerDependencies": { "@react-native-firebase/app": "25.1.0" } }, "sha512-1UVfNeBzAdbSpC3QL3AEE7ZMMOC0R6nC00MYLWfL9fyS7lH/TAk+tqeFm2Lak8XIRoqrC41vBe/BRYZalyzSFg=="],
+    "@react-native-firebase/phone-number-verification": ["@react-native-firebase/phone-number-verification@26.0.0", "", { "peerDependencies": { "@react-native-firebase/app": "26.0.0" } }, "sha512-1MxOMsV5/3R9XeEdTOg0yqFLdGMgMJwGtMntjo9uxOooVm8gKl+QgKrr6ogGfXwrGpB4d69sklrhlI5xSZdX4Q=="],
+
+    "@react-native-firebase/storage": ["@react-native-firebase/storage@26.0.0", "", { "peerDependencies": { "@react-native-firebase/app": "26.0.0" } }, "sha512-vB8kXtvfwG3jiORUFeKiyOBCEKAh0YxeZZnnbqzYCV7O3/Wa5C0jYCXXwXb5M6149Kq3aUAfwsQSxuDKL5aoTQ=="],
 
     "@react-native-masked-view/masked-view": ["@react-native-masked-view/masked-view@0.3.2", "", { "peerDependencies": { "react": ">=16", "react-native": ">=0.57" } }, "sha512-XwuQoW7/GEgWRMovOQtX3A4PrXhyaZm0lVUiY8qJDvdngjLms9Cpdck6SmGAUNqQwcj2EadHC1HwL0bEyoa/SQ=="],
 
