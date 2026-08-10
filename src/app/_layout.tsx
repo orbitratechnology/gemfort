@@ -5,34 +5,39 @@ import { warmUpFirestore } from "@/lib/firebase/init";
 // Side-effect: register background notification task at module load.
 import "@/lib/notifications/rich-display";
 import {
-  formSheetFitContentOptions,
-  formSheetScreenOptions,
-  silkStackScreenOptions,
+    formSheetFitContentOptions,
+    silkStackScreenOptions
 } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
 import { BiometricLockProvider } from "@/providers/biometric-lock-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
 import { LoadingProvider } from "@/providers/loading-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
-import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { QueryProvider } from "@/providers/query-provider";
+import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ToastProvider } from "@/providers/toast-provider";
 import {
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-  useFonts,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    useFonts,
 } from "@expo-google-fonts/poppins";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
-  KeyboardProvider,
-  KeyboardToolbar,
+    KeyboardProvider,
+    KeyboardToolbar,
 } from "react-native-keyboard-controller";
 
 /** Matches expo-splash-screen plugin backgroundColor in app.config.ts */
@@ -59,7 +64,10 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
         accessibilityRole="button"
         accessibilityLabel="Try again"
         onPress={() => void retry()}
-        style={({ pressed }) => [styles.retryButton, { opacity: pressed ? 0.8 : 1 }]}
+        style={({ pressed }) => [
+          styles.retryButton,
+          { opacity: pressed ? 0.8 : 1 },
+        ]}
       >
         <Text style={styles.retryLabel}>Try again</Text>
       </Pressable>
@@ -120,7 +128,7 @@ function RootNavigator() {
       <Stack.Screen
         name="verify-certificate-portals"
         options={{
-          ...formSheetScreenOptions,
+          ...formSheetFitContentOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />

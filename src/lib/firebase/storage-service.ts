@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import { runExternalActivity } from '@/lib/app-lifecycle/external-activity';
 import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
 import { setLoadingMessage } from '@/providers/loading-provider';
 
@@ -88,20 +89,22 @@ async function assetToLocalMedia(
 }
 
 async function pickDocument(): Promise<LocalMedia | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    copyToCacheDirectory: true,
-    multiple: false,
-    type: '*/*',
+  return runExternalActivity(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: '*/*',
+    });
+    if (result.canceled || !result.assets?.[0]) return null;
+    const asset = result.assets[0];
+    return {
+      uri: asset.uri,
+      kind: 'file' as const,
+      mimeType: asset.mimeType ?? null,
+      fileName: asset.name ?? fileNameFromUri(asset.uri),
+      fileSize: asset.size ?? null,
+    };
   });
-  if (result.canceled || !result.assets?.[0]) return null;
-  const asset = result.assets[0];
-  return {
-    uri: asset.uri,
-    kind: 'file',
-    mimeType: asset.mimeType ?? null,
-    fileName: asset.name ?? fileNameFromUri(asset.uri),
-    fileSize: asset.size ?? null,
-  };
 }
 
 /** Pick media into local device storage only. Does not upload. */
@@ -111,44 +114,48 @@ export async function pickLocalMedia(options: PickMediaOptions = {}): Promise<Lo
   if (allows === 'documents') return pickDocument();
 
   if (allows === 'imagesOrDocuments') {
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: ['image/*', 'application/pdf'],
+    return runExternalActivity(async () => {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: ['image/*', 'application/pdf'],
+      });
+      if (result.canceled || !result.assets?.[0]) return null;
+      const asset = result.assets[0];
+      if (!asset.mimeType?.startsWith('image/')) {
+        return {
+          uri: asset.uri,
+          kind: 'file' as const,
+          mimeType: asset.mimeType ?? null,
+          fileName: asset.name ?? fileNameFromUri(asset.uri),
+          fileSize: asset.size ?? null,
+        };
+      }
+      return assetToLocalMedia(
+        {
+          uri: asset.uri,
+          mimeType: asset.mimeType,
+          fileName: asset.name,
+          fileSize: asset.size,
+          width: 0,
+          height: 0,
+        },
+        'images',
+      );
     });
-    if (result.canceled || !result.assets?.[0]) return null;
-    const asset = result.assets[0];
-    if (!asset.mimeType?.startsWith('image/')) {
-      return {
-        uri: asset.uri,
-        kind: 'file',
-        mimeType: asset.mimeType ?? null,
-        fileName: asset.name ?? fileNameFromUri(asset.uri),
-        fileSize: asset.size ?? null,
-      };
-    }
-    return assetToLocalMedia(
-      {
-        uri: asset.uri,
-        mimeType: asset.mimeType,
-        fileName: asset.name,
-        fileSize: asset.size,
-        width: 0,
-        height: 0,
-      },
-      'images',
-    );
   }
 
   const mediaTypes =
     allows === 'videos' ? (['videos'] as const) : allows === 'all' ? (['images', 'videos'] as const) : (['images'] as const);
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: [...mediaTypes],
-    quality: options.quality ?? 1,
-    allowsEditing: options.allowsEditing ?? allows === 'images',
-    aspect: options.aspect,
-  });
+  const result = await runExternalActivity(() =>
+    ImagePicker.launchImageLibraryAsync({
+      mediaTypes: [...mediaTypes],
+      quality: options.quality ?? 1,
+      allowsEditing: options.allowsEditing ?? allows === 'images',
+      aspect: options.aspect,
+    }),
+  );
 
   if (result.canceled || !result.assets[0]) return null;
   return assetToLocalMedia(result.assets[0], allows);
@@ -175,13 +182,15 @@ export async function pickLocalMediaMany(
         : (['images'] as const);
 
   const limit = Math.max(1, options.selectionLimit ?? 10);
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: [...mediaTypes],
-    quality: options.quality ?? 1,
-    allowsEditing: false,
-    allowsMultipleSelection: true,
-    selectionLimit: limit,
-  });
+  const result = await runExternalActivity(() =>
+    ImagePicker.launchImageLibraryAsync({
+      mediaTypes: [...mediaTypes],
+      quality: options.quality ?? 1,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: limit,
+    }),
+  );
 
   if (result.canceled || !result.assets?.length) return [];
   return Promise.all(result.assets.slice(0, limit).map((asset) => assetToLocalMedia(asset, allows)));

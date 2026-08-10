@@ -7,11 +7,17 @@ import { Image } from "expo-image";
 
 import { Button } from "@/components/ui/button";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { useAppTheme } from "@/hooks/use-app-theme";
+import {
+  isExternalActivityActive,
+  subscribeToExternalActivity,
+} from "@/lib/app-lifecycle/external-activity";
 import { haptics } from "@/lib/haptics";
+import { useAppTheme } from "@/hooks/use-app-theme";
 import { useAuth } from "@/providers/auth-provider";
 
 const KEY_PREFIX = "gemfort.biometric-lock.";
+const UNLOCKED_AT_PREFIX = "gemfort.biometric-unlocked-at.";
+export const BIOMETRIC_GRACE_PERIOD_MS = 60_000;
 
 type BiometricLockContextValue = {
   available: boolean;
@@ -29,16 +35,14 @@ function storageKey(uid: string) {
   return `${KEY_PREFIX}${uid}`;
 }
 
+function unlockedAtKey(uid: string) {
+  return `${UNLOCKED_AT_PREFIX}${uid}`;
+}
+
 function methodLabel(types: LocalAuthentication.AuthenticationType[]) {
-  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-    return "Face ID";
-  }
-  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-    return "Fingerprint";
-  }
-  if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
-    return "Iris scan";
-  }
+  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) return "Face ID";
+  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) return "Fingerprint";
+  if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) return "Iris scan";
   return "Biometrics";
 }
 
@@ -54,6 +58,10 @@ async function getAvailability() {
   };
 }
 
+function isWithinGracePeriod(unlockedAt: number | null) {
+  return unlockedAt != null && Date.now() - unlockedAt < BIOMETRIC_GRACE_PERIOD_MS;
+}
+
 export function BiometricLockProvider({ children }: { children: ReactNode }) {
   const { colors } = useAppTheme();
   const { user } = useAuth();
@@ -63,38 +71,73 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [locked, setLocked] = useState(false);
   const [method, setMethod] = useState("Biometrics");
+  const [externalActivityActive, setExternalActivityActive] = useState(
+    isExternalActivityActive(),
+  );
   const appStateRef = useRef(AppState.currentState);
-  const unlockedRef = useRef(false);
-  const promptedRef = useRef(false);
+  const unlockedAtRef = useRef<number | null>(null);
+  const authPromiseRef = useRef<Promise<boolean> | null>(null);
+  const mountedRef = useRef(true);
+
+  const persistUnlock = useCallback(async (uid: string) => {
+    const timestamp = Date.now();
+    unlockedAtRef.current = timestamp;
+    await SecureStore.setItemAsync(unlockedAtKey(uid), String(timestamp));
+  }, []);
 
   const authenticate = useCallback(async (canAuthenticate = available) => {
-    if (!canAuthenticate || !user || isAuthenticating) return false;
-    setLocked(true);
-    setIsAuthenticating(true);
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        biometricsSecurityLevel: "strong",
-        promptMessage: "Unlock GemFort",
-        promptDescription: "Verify your identity to continue.",
-        promptSubtitle: "Your account stays protected on this device.",
-        cancelLabel: "Cancel",
-        requireConfirmation: true,
-      });
-      if (!result.success) return false;
-      unlockedRef.current = true;
-      setLocked(false);
-      return true;
-    } catch {
+    if (
+      !canAuthenticate ||
+      !user ||
+      authPromiseRef.current ||
+      AppState.currentState !== "active" ||
+      isExternalActivityActive()
+    ) {
       return false;
-    } finally {
-      setIsAuthenticating(false);
     }
-  }, [available, isAuthenticating, user]);
+
+    const promise = (async () => {
+      if (mountedRef.current) {
+        setLocked(true);
+        setIsAuthenticating(true);
+      }
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          biometricsSecurityLevel: "strong",
+          promptMessage: "Unlock GemFort",
+          promptDescription: "Verify your identity to continue.",
+          promptSubtitle: "Your account stays protected on this device.",
+          cancelLabel: "Cancel",
+          requireConfirmation: true,
+        });
+        if (!result.success) return false;
+        await persistUnlock(user.uid);
+        if (mountedRef.current) setLocked(false);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        if (mountedRef.current) setIsAuthenticating(false);
+        authPromiseRef.current = null;
+      }
+    })();
+
+    authPromiseRef.current = promise;
+    return promise;
+  }, [available, persistUnlock, user]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => subscribeToExternalActivity(setExternalActivityActive), []);
 
   useEffect(() => {
     let cancelled = false;
-    promptedRef.current = false;
-    unlockedRef.current = false;
+    unlockedAtRef.current = null;
 
     async function loadPreference() {
       setIsLoading(true);
@@ -107,18 +150,24 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const [capability, stored] = await Promise.all([
+        const [capability, stored, storedUnlockedAt] = await Promise.all([
           getAvailability(),
           SecureStore.getItemAsync(storageKey(user.uid)),
+          SecureStore.getItemAsync(unlockedAtKey(user.uid)),
         ]);
         if (cancelled) return;
+        const parsed = storedUnlockedAt ? Number(storedUnlockedAt) : NaN;
+        const lastUnlockedAt = Number.isFinite(parsed) ? parsed : null;
+        unlockedAtRef.current = lastUnlockedAt;
         setAvailable(capability.available);
         setMethod(capability.label);
         setEnabledState(stored === "1");
+        setLocked(stored === "1" && capability.available && !isWithinGracePeriod(lastUnlockedAt));
       } catch {
         if (!cancelled) {
           setAvailable(false);
           setEnabledState(false);
+          setLocked(false);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -132,47 +181,55 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (isLoading || !enabled || !available || !user || promptedRef.current) {
+    if (
+      isLoading ||
+      !enabled ||
+      !available ||
+      !user ||
+      externalActivityActive ||
+      !locked
+    ) {
       return;
     }
-    promptedRef.current = true;
     void authenticate();
-  }, [authenticate, available, enabled, isLoading, user]);
+  }, [authenticate, available, enabled, externalActivityActive, isLoading, locked, user]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
-      const wasActive = appStateRef.current === "active";
+      const previousState = appStateRef.current;
       appStateRef.current = nextState;
-      if (!enabled || !user) return;
+      if (!enabled || !user || isExternalActivityActive()) return;
 
       if (nextState !== "active") {
-        unlockedRef.current = false;
-        setLocked(true);
-        promptedRef.current = false;
-      } else if (!wasActive && !isLoading) {
-        promptedRef.current = true;
-        void authenticate();
+        return;
       }
+
+      if (previousState === "active") return;
+      if (isWithinGracePeriod(unlockedAtRef.current)) {
+        setLocked(false);
+        return;
+      }
+      setLocked(true);
     });
     return () => subscription.remove();
-  }, [authenticate, enabled, isLoading, user]);
+  }, [enabled, externalActivityActive, user]);
 
   useEffect(() => {
     if (!locked) return;
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => true,
-    );
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => true);
     return () => subscription.remove();
   }, [locked]);
 
   async function setEnabled(next: boolean) {
     if (!user) return;
     if (!next) {
-      await SecureStore.deleteItemAsync(storageKey(user.uid));
+      await Promise.all([
+        SecureStore.deleteItemAsync(storageKey(user.uid)),
+        SecureStore.deleteItemAsync(unlockedAtKey(user.uid)),
+      ]);
+      unlockedAtRef.current = null;
       setEnabledState(false);
       setLocked(false);
-      unlockedRef.current = true;
       return;
     }
 
@@ -184,12 +241,10 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
     }
 
     const authenticated = await authenticate(capability.available);
-    if (!authenticated) {
-      throw new Error("Biometric unlock was cancelled.");
-    }
+    if (!authenticated) throw new Error("Biometric unlock was cancelled.");
     await SecureStore.setItemAsync(storageKey(user.uid), "1");
     setEnabledState(true);
-    promptedRef.current = true;
+    setLocked(false);
   }
 
   const value: BiometricLockContextValue = {
@@ -207,17 +262,10 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
         {children}
         {user && enabled && locked ? (
           <View style={[styles.lock, { backgroundColor: colors.background }]}>
-            <Image
-              source={require("@/assets/images/logo.png")}
-              style={styles.logo}
-              contentFit="contain"
-              accessibilityLabel="GemFort logo"
-            />
+            <Image source={require("@/assets/images/logo.png")} style={styles.logo} contentFit="contain" accessibilityLabel="GemFort logo" />
             <Text style={[styles.title, { color: colors.text }]}>GemFort is locked</Text>
-            <Text style={[styles.message, { color: colors.textSecondary }]}> 
-              {isAuthenticating
-                ? `Confirm with ${method} to continue.`
-                : "Use your device security to access your account."}
+            <Text style={[styles.message, { color: colors.textSecondary }]}>
+              {isAuthenticating ? `Confirm with ${method} to continue.` : "Use your device security to access your account."}
             </Text>
             <Button
               title={isAuthenticating ? "Waiting for verification" : "Unlock GemFort"}
@@ -238,32 +286,15 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
 
 export function useBiometricLock() {
   const context = React.useContext(BiometricLockContext);
-  if (!context) {
-    throw new Error("useBiometricLock must be used within BiometricLockProvider");
-  }
+  if (!context) throw new Error("useBiometricLock must be used within BiometricLockProvider");
   return context;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  lock: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing.xxxl,
-    zIndex: 10,
-  },
+  lock: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center", padding: Spacing.xxxl, zIndex: 10 },
   logo: { width: 96, height: 96, marginBottom: Spacing.xxl },
   title: { ...Typography.headlineMd, textAlign: "center" },
-  message: {
-    ...Typography.bodyLg,
-    textAlign: "center",
-    maxWidth: 300,
-    marginTop: Spacing.sm,
-  },
-  unlock: {
-    minWidth: 220,
-    marginTop: Spacing.xxl,
-    borderRadius: Radius.full,
-  },
+  message: { ...Typography.bodyLg, textAlign: "center", maxWidth: 300, marginTop: Spacing.sm },
+  unlock: { minWidth: 220, marginTop: Spacing.xxl, borderRadius: Radius.full },
 });
