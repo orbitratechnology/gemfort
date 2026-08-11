@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useIncomingShare } from 'expo-sharing';
-import { useMemo } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,7 +15,12 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import {
+  Radius,
+  Spacing,
+  Typography,
+  type ThemeColors,
+} from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
 import { friendlyError } from '@/lib/errors';
@@ -38,6 +42,68 @@ type Destination = {
   onPress: () => void;
 };
 
+function ShareDestinationList({
+  colors,
+  destinations,
+}: {
+  colors: ThemeColors;
+  destinations: Destination[];
+}) {
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.primary }]}>
+        What do you want to create?
+      </Text>
+      {destinations.map((dest) => (
+        <Pressable
+          key={dest.id}
+          disabled={!dest.enabled}
+          onPress={dest.onPress}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !dest.enabled }}
+          accessibilityLabel={dest.title}
+          style={({ pressed }) => [
+            styles.destRow,
+            {
+              backgroundColor: colors.surfaceContainerLow,
+              opacity: !dest.enabled ? 0.45 : pressed ? 0.9 : 1,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.destIcon,
+              { backgroundColor: colors.primaryContainer },
+            ]}
+          >
+            <Icon
+              name={dest.icon}
+              size={22}
+              color={colors.onPrimaryContainer}
+            />
+          </View>
+          <View style={styles.destBody}>
+            <Text style={[styles.destTitle, { color: colors.onSurface }]}>
+              {dest.title}
+            </Text>
+            <Text
+              style={[styles.destSub, { color: colors.textMuted }]}
+              numberOfLines={2}
+            >
+              {dest.subtitle}
+            </Text>
+          </View>
+          <Icon
+            name="chevron-right"
+            size={20}
+            color={colors.onSurfaceVariant}
+          />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 /**
  * Handles content shared *into* GemFort (Photos, Files, WhatsApp, etc.).
  * Requires a native rebuild after enabling the expo-sharing config plugin.
@@ -53,19 +119,10 @@ export default function HandleShareScreen() {
     clearSharedPayloads,
   } = useIncomingShare();
 
-  const imageUris = useMemo(
-    () => collectImageUris(resolvedSharedPayloads),
-    [resolvedSharedPayloads],
-  );
-  const files = useMemo(
-    () => collectFileUris(resolvedSharedPayloads),
-    [resolvedSharedPayloads],
-  );
-  const shareText = useMemo(
-    () => collectShareTexts(resolvedSharedPayloads, sharedPayloads),
-    [resolvedSharedPayloads, sharedPayloads],
-  );
-  const parsed = useMemo(() => parseSharedText(shareText), [shareText]);
+  const imageUris = collectImageUris(resolvedSharedPayloads);
+  const files = collectFileUris(resolvedSharedPayloads);
+  const shareText = collectShareTexts(resolvedSharedPayloads, sharedPayloads);
+  const parsed = parseSharedText(shareText);
 
   const hasImages = imageUris.length > 0;
   const hasFiles = files.length > 0;
@@ -321,54 +378,7 @@ export default function HandleShareScreen() {
             </View>
           ) : null}
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>
-              What do you want to create?
-            </Text>
-            {destinations.map((dest) => (
-              <Pressable
-                key={dest.id}
-                disabled={!dest.enabled}
-                onPress={dest.onPress}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !dest.enabled }}
-                accessibilityLabel={dest.title}
-                style={({ pressed }) => [
-                  styles.destRow,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    opacity: !dest.enabled ? 0.45 : pressed ? 0.9 : 1,
-                  },
-                ]}>
-                <View
-                  style={[
-                    styles.destIcon,
-                    { backgroundColor: colors.primaryContainer },
-                  ]}>
-                  <Icon
-                    name={dest.icon}
-                    size={22}
-                    color={colors.onPrimaryContainer}
-                  />
-                </View>
-                <View style={styles.destBody}>
-                  <Text style={[styles.destTitle, { color: colors.onSurface }]}>
-                    {dest.title}
-                  </Text>
-                  <Text
-                    style={[styles.destSub, { color: colors.textMuted }]}
-                    numberOfLines={2}>
-                    {dest.subtitle}
-                  </Text>
-                </View>
-                <Icon
-                  name="chevron-right"
-                  size={20}
-                  color={colors.onSurfaceVariant}
-                />
-              </Pressable>
-            ))}
-          </View>
+          <ShareDestinationList colors={colors} destinations={destinations} />
 
           <Button title="Dismiss" variant="ghost" onPress={dismiss} />
         </ScrollView>
