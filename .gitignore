@@ -58,4 +58,4 @@ GoogleService-Info.plist
 GoogleService-Info*.plist
 
 
-*.log
+.log
