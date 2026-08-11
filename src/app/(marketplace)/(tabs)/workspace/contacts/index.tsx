@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -22,7 +22,12 @@ import { ContactListRow } from "@/components/workspace/contact-list-row";
 import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
 import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-import-sheet";
 import { CONTACT_TYPES } from "@/constants/contact-types";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import {
+  Radius,
+  Spacing,
+  Typography,
+  type ThemeColors,
+} from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   subscribeContacts,
@@ -51,6 +56,102 @@ import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
+
+const CONTACT_FILTER_OPTIONS = ["__all__", ...CONTACT_TYPES] as const;
+
+type ContactsListHeaderProps = {
+  colors: ThemeColors;
+  query: string;
+  onQueryChange: (value: string) => void;
+  typeFilter: string | null;
+  onTypeFilterChange: (value: string | null) => void;
+};
+
+function ContactsListHeader({
+  colors,
+  query,
+  onQueryChange,
+  typeFilter,
+  onTypeFilterChange,
+}: ContactsListHeaderProps) {
+  return (
+    <View style={styles.listHeader}>
+      <ScreenInset>
+        <View
+          style={[
+            styles.searchBox,
+            { backgroundColor: colors.surfaceContainerHigh },
+          ]}
+        >
+          <Icon name="search" size={20} color={colors.outline} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.onSurface }]}
+            placeholder="Search"
+            placeholderTextColor={colors.textMuted}
+            value={query}
+            onChangeText={onQueryChange}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {query.length > 0 ? (
+            <Pressable
+              onPress={() => onQueryChange("")}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <Icon
+                name="cancel"
+                size={18}
+                color={colors.onSurfaceVariant}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+      </ScreenInset>
+
+      <FlatList
+        horizontal
+        data={CONTACT_FILTER_OPTIONS}
+        keyExtractor={(item) => item}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+        renderItem={({ item }) => {
+          const isAll = item === "__all__";
+          const active = isAll ? typeFilter === null : typeFilter === item;
+          return (
+            <Pressable
+              onPress={() =>
+                onTypeFilterChange(isAll || active ? null : item)
+              }
+              style={[
+                styles.chip,
+                active
+                  ? { backgroundColor: colors.primary }
+                  : { backgroundColor: colors.surfaceContainerHighest },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  {
+                    color: active
+                      ? colors.onPrimary
+                      : colors.onSurfaceVariant,
+                  },
+                ]}
+              >
+                {isAll ? "All" : item}
+              </Text>
+            </Pressable>
+          );
+        }}
+      />
+    </View>
+  );
+}
 
 export default function ContactsListScreen() {
   const { user } = useAuth();
@@ -95,83 +196,66 @@ export default function ContactsListScreen() {
     enabled: !!user,
   });
 
-  const contactPhotoMap = useMemo(
-    () => buildContactPhotoMap(contacts, businesses),
-    [contacts, businesses],
-  );
+  const contactPhotoMap = buildContactPhotoMap(contacts, businesses);
+  const filtered = filterContacts(contacts, debouncedQuery, typeFilter);
+  const sections = groupContactsByLetter(filtered);
 
-  const filtered = useMemo(
-    () => filterContacts(contacts, debouncedQuery, typeFilter),
-    [contacts, debouncedQuery, typeFilter],
-  );
+  function handleSwipeableOpen(id: string, methods: SwipeableMethods) {
+    const prev = openSwipeRef.current;
+    if (prev && prev.id !== id) {
+      prev.methods.close();
+    }
+    openSwipeRef.current = { id, methods };
+  }
 
-  const sections = useMemo(() => groupContactsByLetter(filtered), [filtered]);
-
-  const handleSwipeableOpen = useCallback(
-    (id: string, methods: SwipeableMethods) => {
-      const prev = openSwipeRef.current;
-      if (prev && prev.id !== id) {
-        prev.methods.close();
-      }
-      openSwipeRef.current = { id, methods };
-    },
-    [],
-  );
-
-  const handleSwipeableClose = useCallback((id: string) => {
+  function handleSwipeableClose(id: string) {
     if (openSwipeRef.current?.id === id) {
       openSwipeRef.current = null;
     }
-  }, []);
+  }
 
-  const invalidateContacts = useCallback(async () => {
+  async function invalidateContacts() {
     await queryClient.invalidateQueries({ queryKey: ["contacts"] });
-  }, [queryClient]);
+  }
 
-  const handleDelete = useCallback(
-    async (contact: Contact) => {
-      try {
-        await deleteContact(contact.id);
-        await invalidateContacts();
-        toast.success("Contact deleted");
-      } catch (e) {
-        toast.error(friendlyError(e, "Could not delete contact."));
-        throw e;
-      }
-    },
-    [invalidateContacts, toast],
-  );
+  async function handleDelete(contact: Contact) {
+    try {
+      await deleteContact(contact.id);
+      await invalidateContacts();
+      toast.success("Contact deleted");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not delete contact."));
+      throw e;
+    }
+  }
 
-  const handleToggleFavourite = useCallback(
-    async (contact: Contact) => {
-      try {
-        await updateContact(contact.id, {
-          isFavourite: !contact.isFavourite,
-        });
-        await invalidateContacts();
-        toast.success(
-          contact.isFavourite
-            ? "Removed from favourites"
-            : "Added to favourites",
-        );
-      } catch (e) {
-        toast.error(friendlyError(e, "Could not update contact."));
-        throw e;
-      }
-    },
-    [invalidateContacts, toast],
-  );
+  async function handleToggleFavourite(contact: Contact) {
+    try {
+      await updateContact(contact.id, {
+        isFavourite: !contact.isFavourite,
+      });
+      await invalidateContacts();
+      toast.success(
+        contact.isFavourite
+          ? "Removed from favourites"
+          : "Added to favourites",
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not update contact."));
+      throw e;
+    }
+  }
 
-  const renderItem = useCallback(
-    ({
-      item,
-      index,
-      section,
-    }: {
-      item: Contact;
-      index: number;
-      section: { data: Contact[] };
-    }) => (
+  function renderItem({
+    item,
+    index,
+    section,
+  }: {
+    item: Contact;
+    index: number;
+    section: { data: Contact[] };
+  }) {
+    return (
       <ContactListRow
         contact={item}
         photoUrl={contactPhotoMap.get(item.id)}
@@ -182,15 +266,8 @@ export default function ContactsListScreen() {
         onSwipeableOpen={handleSwipeableOpen}
         onSwipeableClose={handleSwipeableClose}
       />
-    ),
-    [
-      contactPhotoMap,
-      handleDelete,
-      handleSwipeableClose,
-      handleSwipeableOpen,
-      handleToggleFavourite,
-    ],
-  );
+    );
+  }
 
   return (
     <SafeAreaView
@@ -226,103 +303,13 @@ export default function ContactsListScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
         ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <ScreenInset>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ]}
-              >
-                <Icon name="search" size={20} color={colors.outline} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.onSurface }]}
-                  placeholder="Search"
-                  placeholderTextColor={colors.textMuted}
-                  value={query}
-                  onChangeText={setQuery}
-                  returnKeyType="search"
-                  clearButtonMode="while-editing"
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                />
-                {query.length > 0 ? (
-                  <Pressable
-                    onPress={() => setQuery("")}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Clear search"
-                  >
-                    <Icon
-                      name="cancel"
-                      size={18}
-                      color={colors.onSurfaceVariant}
-                    />
-                  </Pressable>
-                ) : null}
-              </View>
-            </ScreenInset>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterRow}
-            >
-              <Pressable
-                onPress={() => setTypeFilter(null)}
-                style={[
-                  styles.chip,
-                  typeFilter === null
-                    ? { backgroundColor: colors.primary }
-                    : { backgroundColor: colors.surfaceContainerHighest },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    {
-                      color:
-                        typeFilter === null
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  All
-                </Text>
-              </Pressable>
-              {CONTACT_TYPES.map((type) => {
-                const active = typeFilter === type;
-                return (
-                  <Pressable
-                    key={type}
-                    onPress={() => setTypeFilter(active ? null : type)}
-                    style={[
-                      styles.chip,
-                      active
-                        ? { backgroundColor: colors.primary }
-                        : {
-                            backgroundColor: colors.surfaceContainerHighest,
-                          },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        {
-                          color: active
-                            ? colors.onPrimary
-                            : colors.onSurfaceVariant,
-                        },
-                      ]}
-                    >
-                      {type}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
+          <ContactsListHeader
+            colors={colors}
+            query={query}
+            onQueryChange={setQuery}
+            typeFilter={typeFilter}
+            onTypeFilterChange={setTypeFilter}
+          />
         }
         ListEmptyComponent={
           <ScreenInset style={styles.empty}>

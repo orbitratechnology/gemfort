@@ -1,13 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type ComponentProps,
   type ReactNode,
 } from 'react';
 import {
-  Animated,
   Modal,
   Pressable,
   StyleSheet,
@@ -19,11 +19,18 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icon } from '@/components/ui/icon';
 import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { easeOut, useReduceMotion } from '@/hooks/use-reduce-motion';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { haptics } from '@/lib/haptics';
 
 /** GH ScrollView — supported by Keyboard Controller; types expect Reanimated's ScrollView. */
@@ -46,7 +53,7 @@ type BottomSheetProps = {
 };
 
 /**
- * Dependency-free themed bottom sheet built on RN Modal + Animated.
+ * Themed bottom sheet built on RN Modal + Reanimated.
  * Slides up from the bottom, dim backdrop tap-to-close, safe-area aware.
  */
 export function BottomSheet({
@@ -65,10 +72,17 @@ export function BottomSheet({
   const initialOffset = windowHeight;
   const sheetOffsetRef = useRef(initialOffset);
   const exitingRef = useRef(false);
+  const exitAfterRef = useRef<(() => void) | undefined>(undefined);
   const [presented, setPresented] = useState(visible);
   const [wasVisible, setWasVisible] = useState(visible);
-  const [translateY] = useState(() => new Animated.Value(initialOffset));
-  const [backdrop] = useState(() => new Animated.Value(0));
+  const translateY = useSharedValue(initialOffset);
+  const backdrop = useSharedValue(0);
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.get() }],
+  }));
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: backdrop.get(),
+  }));
 
   // Present Modal when `visible` rises; stay presented through exit animation.
   if (visible !== wasVisible) {
@@ -81,73 +95,77 @@ export function BottomSheet({
     if (h > 0) sheetOffsetRef.current = h;
   }, []);
 
-  const finishExit = useCallback((after?: () => void) => {
+  const finishExit = useCallback(() => {
+    const after = exitAfterRef.current;
+    exitAfterRef.current = undefined;
     exitingRef.current = false;
     // Parent `visible` must clear before `presented` so we don't re-present.
     after?.();
     setPresented(false);
   }, []);
 
-  const runEnter = useCallback(() => {
+  const runEnter = useEffectEvent(() => {
     exitingRef.current = false;
     if (reduceMotion) {
-      translateY.setValue(0);
-      Animated.timing(backdrop, {
-        toValue: 1,
-        duration: Motion.fast,
-        easing: easeOut,
-        useNativeDriver: true,
-      }).start();
+      translateY.set(0);
+      backdrop.set(
+        withTiming(1, {
+          duration: Motion.fast,
+          easing: Easing.bezier(0.23, 1, 0.32, 1),
+        }),
+      );
       return;
     }
-    translateY.setValue(sheetOffsetRef.current);
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
+    translateY.set(sheetOffsetRef.current);
+    translateY.set(
+      withTiming(0, {
         duration: Motion.normal,
-        easing: easeOut,
-        useNativeDriver: true,
+        easing: Easing.bezier(0.23, 1, 0.32, 1),
       }),
-      Animated.timing(backdrop, {
-        toValue: 1,
+    );
+    backdrop.set(
+      withTiming(1, {
         duration: Motion.normal,
-        easing: easeOut,
-        useNativeDriver: true,
+        easing: Easing.bezier(0.23, 1, 0.32, 1),
       }),
-    ]).start();
-  }, [reduceMotion, translateY, backdrop]);
+    );
+  });
 
   const runExit = useCallback(
     (after?: () => void) => {
       if (exitingRef.current) return;
       exitingRef.current = true;
+      exitAfterRef.current = after;
       const duration = reduceMotion ? Motion.fast : Motion.normal;
+      const easing = Easing.bezier(0.23, 1, 0.32, 1);
 
       if (reduceMotion) {
-        translateY.setValue(0);
-        Animated.timing(backdrop, {
-          toValue: 0,
-          duration,
-          easing: easeOut,
-          useNativeDriver: true,
-        }).start(() => finishExit(after));
+        translateY.set(0);
+        backdrop.set(
+          withTiming(0, {
+            duration,
+            easing,
+          }, (finished) => {
+            if (finished) scheduleOnRN(finishExit);
+          }),
+        );
         return;
       }
 
-      Animated.parallel([
-        Animated.timing(translateY, {
-          toValue: sheetOffsetRef.current,
+      translateY.set(
+        withTiming(sheetOffsetRef.current, {
           duration,
-          easing: easeOut,
-          useNativeDriver: true,
+          easing,
+        }, (finished) => {
+          if (finished) scheduleOnRN(finishExit);
         }),
-        Animated.timing(backdrop, {
-          toValue: 0,
+      );
+      backdrop.set(
+        withTiming(0, {
           duration,
-          easing: easeOut,
-          useNativeDriver: true,
+          easing,
         }),
-      ]).start(() => finishExit(after));
+      );
     },
     [reduceMotion, translateY, backdrop, finishExit],
   );
@@ -156,10 +174,10 @@ export function BottomSheet({
     if (visible) {
       exitingRef.current = false;
       haptics.sheetOpen();
-      const id = requestAnimationFrame(() => runEnter());
+      const id = requestAnimationFrame(runEnter);
       return () => cancelAnimationFrame(id);
     }
-  }, [visible, runEnter]);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible && presented && !exitingRef.current) {
@@ -181,7 +199,7 @@ export function BottomSheet({
       onRequestClose={handleClose}
       statusBarTranslucent>
       <View style={styles.root}>
-        <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
+        <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         </Animated.View>
         <Animated.View
@@ -192,8 +210,8 @@ export function BottomSheet({
             {
               backgroundColor: colors.surfaceContainerLowest,
               paddingBottom: insets.bottom + Spacing.gutterMd,
-              transform: [{ translateY }],
             },
+            sheetAnimatedStyle,
           ]}>
           <View style={[styles.grabber, { backgroundColor: colors.outlineVariant }]} />
           {title ? (

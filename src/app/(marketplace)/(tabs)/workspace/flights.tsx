@@ -16,13 +16,14 @@ import {
     View,
 } from "react-native";
 import Animated, {
-    FadeIn,
-    FadeInDown,
-    FadeInUp,
-    LinearTransition,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  LinearTransition,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -38,12 +39,14 @@ import {
     Radius,
     Spacing,
     Typography,
+    type ThemeColors,
 } from "@/constants/design-tokens";
 import {
     createFlightBookingLink,
     getFlightPriceCalendar,
     searchFlights,
     type FlightOffer,
+    type FlightCalendarResult,
     type FlightPlace,
     type FlightSearchCriteria,
 } from "@/features/flights/flights-service";
@@ -88,6 +91,506 @@ function formatFare(value: number, currency: string) {
     currency,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+type FlightSearchCardProps = {
+  colors: ThemeColors;
+  isDark: boolean;
+  reduceMotion: boolean;
+  origin: FlightPlace | null;
+  destination: FlightPlace | null;
+  departureAt: string;
+  returnAt: string;
+  oneWay: boolean;
+  direct: boolean;
+  errors: FormErrors;
+  swapRotation: SharedValue<number>;
+  onTripTypeChange: (oneWay: boolean) => void;
+  onOriginSelect: (place: FlightPlace | null) => void;
+  onDestinationSelect: (place: FlightPlace | null) => void;
+  onSwap: () => void;
+  onDeparturePress: () => void;
+  onReturnPress: () => void;
+  onDirectChange: (direct: boolean) => void;
+  onSubmit: () => void;
+};
+
+function FlightSearchCard({
+  colors,
+  isDark,
+  reduceMotion,
+  origin,
+  destination,
+  departureAt,
+  returnAt,
+  oneWay,
+  direct,
+  errors,
+  swapRotation,
+  onTripTypeChange,
+  onOriginSelect,
+  onDestinationSelect,
+  onSwap,
+  onDeparturePress,
+  onReturnPress,
+  onDirectChange,
+  onSubmit,
+}: FlightSearchCardProps) {
+  const swapStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${swapRotation.get()}deg` }],
+  }));
+
+  return (
+    <Animated.View
+      entering={reduceMotion ? undefined : FadeInUp.delay(110).duration(280)}
+      layout={reduceMotion ? undefined : LinearTransition.duration(180)}
+      style={[
+        styles.searchCard,
+        {
+          backgroundColor: colors.surfaceContainerLowest,
+          boxShadow: isDark
+            ? "0 18px 42px rgba(0,0,0,0.38)"
+            : "0 18px 42px rgba(0,0,0,0.14)",
+        },
+      ]}
+    >
+      <View style={styles.searchTopRow}>
+        <View
+          style={[
+            styles.tripSegment,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          {[
+            { label: "One-way", value: true },
+            { label: "Round trip", value: false },
+          ].map((option) => {
+            const active = oneWay === option.value;
+            return (
+              <Pressable
+                key={option.label}
+                onPress={haptics.wrap("selection", () =>
+                  onTripTypeChange(option.value),
+                )}
+                style={[
+                  styles.segmentButton,
+                  active && {
+                    backgroundColor: colors.surfaceContainerHighest,
+                  },
+                ]}
+              >
+                <Text
+                  selectable={false}
+                  style={[
+                    styles.segmentText,
+                    {
+                      color: active ? colors.onSurface : colors.textMuted,
+                    },
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.routeFields}>
+        <PlaceField
+          label="From"
+          value={origin}
+          error={!!errors.origin}
+          onSelect={onOriginSelect}
+        />
+        <PlaceField
+          label="To"
+          value={destination}
+          error={!!errors.destination}
+          onSelect={onDestinationSelect}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Swap origin and destination"
+          onPress={onSwap}
+          style={[styles.swapButton, { backgroundColor: colors.primary }]}
+        >
+          <Animated.View style={swapStyle}>
+            <Icon name="swap-horiz" size={17} color={colors.onPrimary} />
+          </Animated.View>
+        </Pressable>
+      </View>
+
+      <View style={styles.dateFields}>
+        <DateTile
+          label="Departure"
+          value={departureAt}
+          error={!!errors.departure}
+          onPress={onDeparturePress}
+        />
+        {!oneWay ? (
+          <DateTile
+            label="Return"
+            value={returnAt}
+            error={!!errors.return}
+            onPress={onReturnPress}
+          />
+        ) : (
+          <View
+            style={[
+              styles.oneWayTile,
+              { backgroundColor: colors.surfaceContainerLow },
+            ]}
+          >
+            <Icon name="arrow-forward" size={18} color={colors.primary} />
+            <Text
+              selectable={false}
+              style={[
+                styles.oneWayText,
+                { color: colors.onSurfaceVariant },
+              ]}
+            >
+              No return
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.directRow}>
+        <View style={styles.directCopy}>
+          <Icon name="flight" size={17} color={colors.primary} />
+          <Text
+            selectable={false}
+            style={[styles.directText, { color: colors.onSurfaceVariant }]}
+          >
+            Non-stop only
+          </Text>
+        </View>
+        <Switch value={direct} onValueChange={onDirectChange} />
+      </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Search flights"
+        onPress={onSubmit}
+        style={({ pressed }) => [
+          styles.searchButton,
+          { backgroundColor: colors.primary },
+          pressed && { transform: [{ scale: 0.985 }], opacity: 0.94 },
+        ]}
+      >
+        <Icon name="search" size={19} color={colors.onPrimary} />
+        <Text
+          selectable={false}
+          style={[styles.searchButtonText, { color: colors.onPrimary }]}
+        >
+          Search flights
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+type FlightResultsSurfaceProps = {
+  colors: ThemeColors;
+  reduceMotion: boolean;
+  resultsBackground: string;
+  bottomInset: number;
+  calendarData: FlightCalendarResult | undefined;
+  criteria: FlightSearchCriteria | null;
+  offers: FlightOffer[];
+  currency: string;
+  sort: SortMode;
+  searchLoading: boolean;
+  searchError: string | null;
+  onSortChange: (sort: SortMode) => void;
+  onRetry: () => void;
+  onOfferPress: (offer: FlightOffer) => void;
+};
+
+function FlightResultsSurface({
+  colors,
+  reduceMotion,
+  resultsBackground,
+  bottomInset,
+  calendarData,
+  criteria,
+  offers,
+  currency,
+  sort,
+  searchLoading,
+  searchError,
+  onSortChange,
+  onRetry,
+  onOfferPress,
+}: FlightResultsSurfaceProps) {
+  return (
+    <Animated.View
+      layout={reduceMotion ? undefined : LinearTransition.duration(220)}
+      style={[
+        styles.resultsSurface,
+        {
+          backgroundColor: resultsBackground,
+          paddingBottom: bottomInset + 96,
+        },
+      ]}
+    >
+      {calendarData?.days.length ? (
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeInUp.duration(220)}
+          style={styles.calendarSection}
+        >
+          <View style={styles.sectionHeader}>
+            <Text
+              selectable={false}
+              style={[styles.sectionTitle, { color: colors.onSurface }]}
+            >
+              Flexible dates
+            </Text>
+            <Text
+              selectable={false}
+              style={[styles.sectionHint, { color: colors.textMuted }]}
+            >
+              7-day view
+            </Text>
+          </View>
+          <Animated.FlatList
+            data={calendarData.days.slice(0, 7)}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.calendarRow}
+            keyExtractor={(day) => day.date}
+            renderItem={({ item: day }) => (
+              <View
+                style={[
+                  styles.dayCard,
+                  { backgroundColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <Text
+                  selectable={false}
+                  style={[styles.dayDate, { color: colors.textMuted }]}
+                >
+                  {format(fromIsoDate(day.date), "EEE, MMM d")}
+                </Text>
+                <Text
+                  selectable={false}
+                  style={[styles.dayPrice, { color: colors.onSurface }]}
+                >
+                  {formatFare(day.price, calendarData.currency)}
+                </Text>
+                <Text
+                  selectable={false}
+                  style={[
+                    styles.dayStops,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  {day.stops === 0
+                    ? "Non-stop"
+                    : `${day.stops} stop${day.stops > 1 ? "s" : ""}`}
+                </Text>
+              </View>
+            )}
+          />
+        </Animated.View>
+      ) : null}
+
+      <View style={styles.resultsHeader}>
+        <View>
+          <Text
+            selectable={false}
+            style={[styles.resultsTitle, { color: colors.onSurface }]}
+          >
+            {criteria ? "Result flights" : "Explore flights"}
+          </Text>
+          <Text
+            selectable={false}
+            style={[styles.resultsSubtitle, { color: colors.textMuted }]}
+          >
+            {criteria
+              ? `${offers.length} cached fare${offers.length === 1 ? "" : "s"}`
+              : "Search a route to reveal recent fare insights"}
+          </Text>
+        </View>
+        {offers.length > 1 ? (
+          <View style={styles.sortRow}>
+            {(["price", "duration", "stops"] as const).map((option) => (
+              <Pressable
+                key={option}
+                onPress={haptics.wrap("selection", () =>
+                  onSortChange(option),
+                )}
+                style={[
+                  styles.sortChip,
+                  {
+                    backgroundColor:
+                      sort === option
+                        ? colors.primary
+                        : colors.surfaceContainerLowest,
+                  },
+                ]}
+              >
+                <Text
+                  selectable={false}
+                  style={[
+                    styles.sortText,
+                    {
+                      color:
+                        sort === option
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
+                  {option === "price"
+                    ? "Price"
+                    : option === "duration"
+                      ? "Fast"
+                      : "Stops"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      {criteria ? (
+        <View
+          style={[
+            styles.disclaimer,
+            { backgroundColor: colors.surfaceContainerLow },
+          ]}
+        >
+          <Icon
+            name="info-outline"
+            size={17}
+            color={colors.onSurfaceVariant}
+          />
+          <Text
+            selectable={false}
+            style={[
+              styles.disclaimerText,
+              { color: colors.onSurfaceVariant },
+            ]}
+          >
+            Prices are cached insights, not live availability. Confirm the
+            final fare on Aviasales.
+          </Text>
+        </View>
+      ) : null}
+
+      {searchLoading ? <LoadingFlights /> : null}
+
+      {searchError ? (
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeInUp.duration(200)}
+          style={[styles.stateCard, { backgroundColor: colors.errorContainer }]}
+        >
+          <View style={styles.stateIcon}>
+            <Icon name="cloud-off" size={27} color={colors.error} />
+          </View>
+          <Text
+            selectable={false}
+            style={[styles.stateTitle, { color: colors.onErrorContainer }]}
+          >
+            Flight search unavailable
+          </Text>
+          <Text
+            selectable={false}
+            style={[styles.stateCopy, { color: colors.onErrorContainer }]}
+          >
+            {searchError}
+          </Text>
+          <Pressable
+            onPress={onRetry}
+            style={[styles.retryButton, { borderColor: colors.error }]}
+          >
+            <Text
+              selectable={false}
+              style={[styles.retryText, { color: colors.error }]}
+            >
+              Try again
+            </Text>
+          </Pressable>
+        </Animated.View>
+      ) : null}
+
+      {!criteria ? (
+        <Animated.View
+          entering={
+            reduceMotion ? undefined : FadeInUp.delay(170).duration(260)
+          }
+          style={styles.emptyState}
+        >
+          <View
+            style={[
+              styles.emptyIcon,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            <Icon name="travel-explore" size={32} color={colors.primary} />
+          </View>
+          <Text
+            selectable={false}
+            style={[styles.emptyTitle, { color: colors.onSurface }]}
+          >
+            Your next route starts here
+          </Text>
+          <Text
+            selectable={false}
+            style={[styles.emptyCopy, { color: colors.textMuted }]}
+          >
+            Choose two places and travel dates to explore the latest cached
+            flight prices.
+          </Text>
+        </Animated.View>
+      ) : null}
+
+      {criteria && !searchLoading && !searchError && offers.length === 0 ? (
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeInUp.duration(220)}
+          style={styles.emptyState}
+        >
+          <View
+            style={[
+              styles.emptyIcon,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
+            <Icon name="flight" size={30} color={colors.primary} />
+          </View>
+          <Text
+            selectable={false}
+            style={[styles.emptyTitle, { color: colors.onSurface }]}
+          >
+            No cached fares found
+          </Text>
+          <Text
+            selectable={false}
+            style={[styles.emptyCopy, { color: colors.textMuted }]}
+          >
+            Try nearby dates, another airport, or turn off the non-stop filter.
+          </Text>
+        </Animated.View>
+      ) : null}
+
+      {offers.length > 0 ? (
+        <View style={styles.offerList}>
+          {offers.map((offer, index) => (
+            <FlightOfferCard
+              key={flightOfferKey(offer)}
+              offer={offer}
+              currency={currency}
+              index={index}
+              reduceMotion={reduceMotion}
+              onPress={() => onOfferPress(offer)}
+            />
+          ))}
+        </View>
+      ) : null}
+    </Animated.View>
+  );
 }
 
 function DateTile({
@@ -167,7 +670,7 @@ export default function FlightsScreen() {
   const reduceMotion = useReduceMotion();
   const toast = useToast();
   const preferredCurrency = usePreferredCurrency();
-  const today = useMemo(() => new Date(), []);
+  const today = new Date();
 
   const [origin, setOrigin] = useState<FlightPlace | null>(null);
   const [destination, setDestination] = useState<FlightPlace | null>(null);
@@ -215,10 +718,6 @@ export default function FlightsScreen() {
     [search.data, sort],
   );
 
-  const swapStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${swapRotation.value}deg` }],
-  }));
-
   const resultsBackground = isDark ? "#111214" : "#F6F7FB";
   const searchError = search.error
     ? friendlyError(search.error, "Could not load flight fares.")
@@ -247,7 +746,7 @@ export default function FlightsScreen() {
       destination: undefined,
     }));
     if (!reduceMotion) {
-      swapRotation.value = withSpring(swapRotation.value + 180, Motion.spring);
+      swapRotation.set(withSpring(swapRotation.get() + 180, Motion.spring));
     }
   }
 
@@ -323,9 +822,8 @@ export default function FlightsScreen() {
       toast.error(
         friendlyError(error, "Could not create your affiliate booking link."),
       );
-    } finally {
-      setBooking(false);
     }
+    setBooking(false);
   }
 
   return (
@@ -577,14 +1075,14 @@ export default function FlightsScreen() {
                   7-day view
                 </Text>
               </View>
-              <Animated.ScrollView
+              <Animated.FlatList
+                data={calendar.data.days.slice(0, 7)}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.calendarRow}
-              >
-                {calendar.data.days.slice(0, 7).map((day) => (
+                keyExtractor={(day) => day.date}
+                renderItem={({ item: day }) => (
                   <View
-                    key={day.date}
                     style={[
                       styles.dayCard,
                       { backgroundColor: colors.surfaceContainerLowest },
@@ -614,8 +1112,8 @@ export default function FlightsScreen() {
                         : `${day.stops} stop${day.stops > 1 ? "s" : ""}`}
                     </Text>
                   </View>
-                ))}
-              </Animated.ScrollView>
+                )}
+              />
             </Animated.View>
           ) : null}
 

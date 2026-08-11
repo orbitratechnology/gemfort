@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -259,13 +259,14 @@ export default function HandleShareScreen() {
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
                 Photos ({imageUris.length})
               </Text>
-              <ScrollView
+              <FlatList
+                data={imageUris}
                 horizontal
+                keyExtractor={(uri) => uri}
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.thumbs}>
-                {imageUris.map((uri) => (
+                contentContainerStyle={styles.thumbs}
+                renderItem={({ item: uri }) => (
                   <Image
-                    key={uri}
                     source={{ uri }}
                     style={[
                       styles.thumb,
@@ -273,8 +274,8 @@ export default function HandleShareScreen() {
                     ]}
                     contentFit="cover"
                   />
-                ))}
-              </ScrollView>
+                )}
+              />
             </View>
           ) : null}
 
