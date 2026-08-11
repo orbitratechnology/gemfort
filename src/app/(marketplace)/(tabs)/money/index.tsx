@@ -434,8 +434,8 @@ export default function MoneyDashboard() {
         <FormSection title="Cash flow">
           {hasCashFlow ? (
             <View style={styles.chartArea}>
-              {buckets.map((b, i) => (
-                <View key={i} style={styles.barGroup}>
+              {buckets.map((b) => (
+                <View key={b.label} style={styles.barGroup}>
                   <View style={styles.barTrack}>
                     <View
                       style={[

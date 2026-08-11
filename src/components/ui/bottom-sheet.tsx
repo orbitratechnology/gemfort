@@ -8,12 +8,12 @@ import {
 } from 'react';
 import {
   Animated,
-  Dimensions,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -61,7 +61,8 @@ export function BottomSheet({
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
 
-  const initialOffset = Dimensions.get('window').height;
+  const { height: windowHeight } = useWindowDimensions();
+  const initialOffset = windowHeight;
   const sheetOffsetRef = useRef(initialOffset);
   const exitingRef = useRef(false);
   const [presented, setPresented] = useState(visible);

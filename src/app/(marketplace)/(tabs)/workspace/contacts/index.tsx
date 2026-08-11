@@ -78,8 +78,10 @@ export default function ContactsListScreen() {
   } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: async () => {
-      const list = await fetchContacts(user!.uid);
-      const businesses = await fetchBusinesses();
+      const [list, businesses] = await Promise.all([
+        fetchContacts(user!.uid),
+        fetchBusinesses(),
+      ]);
       return syncContactBusinessLinks(list, businesses);
     },
     subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),

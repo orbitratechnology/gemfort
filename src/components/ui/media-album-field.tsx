@@ -110,7 +110,7 @@ export function MediaAlbumField({
           {value.map((photo, index) => {
             const isPrimary = index === 0;
             return (
-              <View key={`${photo.uri}-${index}`} style={styles.tile}>
+              <View key={photo.uri} style={styles.tile}>
                 <Pressable
                   onPress={() => handleSetPrimary(index)}
                   accessibilityRole="button"

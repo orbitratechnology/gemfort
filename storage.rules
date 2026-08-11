@@ -39,12 +39,16 @@ service firebase.storage {
     }
 
     match /listings/{userId}/{allPaths=**} {
-      allow read: if true;
+      // Marketplace download URLs are already persisted with the public
+      // listing, but direct Storage API reads still require authentication.
+      allow read: if isSignedIn();
       allow write: if isOwner(userId);
     }
 
     match /businesses/{userId}/{allPaths=**} {
-      allow read: if true;
+      // Marketplace download URLs are already persisted with the public
+      // business profile, but direct Storage API reads still require auth.
+      allow read: if isSignedIn();
       allow write: if isOwner(userId);
     }
   }

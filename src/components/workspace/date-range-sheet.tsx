@@ -18,7 +18,15 @@ import {
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const WEEKDAYS = [
+  { id: 'sun', label: 'S' },
+  { id: 'mon', label: 'M' },
+  { id: 'tue', label: 'T' },
+  { id: 'wed', label: 'W' },
+  { id: 'thu', label: 'T' },
+  { id: 'fri', label: 'F' },
+  { id: 'sat', label: 'S' },
+] as const;
 
 type DateRangeSheetProps = {
   visible: boolean;
@@ -171,9 +179,9 @@ export function DateRangeSheet({
 
       <View style={styles.calendar}>
         <View style={styles.weekdayRow}>
-          {WEEKDAYS.map((d, i) => (
-            <Text key={`${d}-${i}`} style={[styles.weekday, { color: colors.textMuted }]}>
-              {d}
+          {WEEKDAYS.map((day) => (
+            <Text key={day.id} style={[styles.weekday, { color: colors.textMuted }]}>
+              {day.label}
             </Text>
           ))}
         </View>

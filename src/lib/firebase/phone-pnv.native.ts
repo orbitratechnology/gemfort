@@ -8,22 +8,23 @@ import { Platform } from 'react-native';
 import { callFunction } from '@/lib/firebase/call-function';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 
-const TEST_TOKEN = process.env.EXPO_PUBLIC_FIREBASE_PNV_TEST_TOKEN;
+const TEST_SESSION = process.env.EXPO_PUBLIC_PNV_TEST_SESSION;
 let testSessionEnabled = false;
 let testSessionAttempted = false;
 
 /**
  * Dev-only: activates the console's Phone Number Verification test session
  * (SIM-less, numbers are country code + all zeros). No-op outside __DEV__ or
- * when EXPO_PUBLIC_FIREBASE_PNV_TEST_TOKEN is unset.
+ * when EXPO_PUBLIC_PNV_TEST_SESSION is unset. This must only be supplied to
+ * non-public development builds; production builds omit test-session support.
  */
 async function enablePnvTestSessionIfConfigured(): Promise<{ enabled: boolean }> {
-  if (!__DEV__ || !TEST_TOKEN) return { enabled: false };
+  if (!__DEV__ || !TEST_SESSION) return { enabled: false };
   if (testSessionEnabled) return { enabled: true };
   if (testSessionAttempted) return { enabled: false };
   testSessionAttempted = true;
   try {
-    await enableTestSession(TEST_TOKEN);
+    await enableTestSession(TEST_SESSION);
     testSessionEnabled = true;
     return { enabled: true };
   } catch (error) {

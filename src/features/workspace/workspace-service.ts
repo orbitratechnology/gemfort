@@ -1647,7 +1647,7 @@ export async function recordBillPayment(
     date: now,
   });
 
-  const settlementBase = await convertToBase(paymentAmount, currency);
+  const settlementBase = principalBase;
   queueDocCreate("gemtrack_payments", {
       ownerUid,
       direction: isReceivable ? "in" : "out",

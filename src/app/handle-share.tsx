@@ -263,9 +263,9 @@ export default function HandleShareScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.thumbs}>
-                {imageUris.map((uri, index) => (
+                {imageUris.map((uri) => (
                   <Image
-                    key={`${uri}-${index}`}
+                    key={uri}
                     source={{ uri }}
                     style={[
                       styles.thumb,
@@ -283,9 +283,9 @@ export default function HandleShareScreen() {
               <Text style={[styles.sectionTitle, { color: colors.primary }]}>
                 Documents ({files.length})
               </Text>
-              {files.map((file, index) => (
+              {files.map((file) => (
                 <View
-                  key={`${file.uri}-${index}`}
+                  key={file.uri}
                   style={[
                     styles.fileRow,
                     { backgroundColor: colors.surfaceContainerLow },

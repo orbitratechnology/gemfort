@@ -69,6 +69,19 @@ function fromIsoDate(value: string) {
   return new Date(year, month - 1, day);
 }
 
+function flightOfferKey(offer: FlightOffer): string {
+  return [
+    offer.bookingUrl ?? "",
+    offer.airline ?? "",
+    offer.flightNumber ?? "",
+    offer.departureAt ?? "",
+    offer.returnAt ?? "",
+    offer.origin,
+    offer.destination,
+    offer.price,
+  ].join("|");
+}
+
 function formatFare(value: number, currency: string) {
   return new Intl.NumberFormat("en", {
     style: "currency",
@@ -794,7 +807,7 @@ export default function FlightsScreen() {
             <View style={styles.offerList}>
               {offers.map((offer, index) => (
                 <FlightOfferCard
-                  key={`${offer.airline}-${offer.flightNumber}-${offer.departureAt}-${index}`}
+                  key={flightOfferKey(offer)}
                   offer={offer}
                   currency={currency}
                   index={index}

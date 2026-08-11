@@ -419,9 +419,11 @@ export async function recordApGemSale(input: {
   }
 
   const saleCurrency = line.currency || "LKR";
-  const saleAmountBase = await convertToBase(soldPrice, saleCurrency);
-  const ownerReceivesBase = await convertToBase(ownerReceives, saleCurrency);
-  const commissionBase = await convertToBase(commission, saleCurrency);
+  const [saleAmountBase, ownerReceivesBase, commissionBase] = await Promise.all([
+    convertToBase(soldPrice, saleCurrency),
+    convertToBase(ownerReceives, saleCurrency),
+    convertToBase(commission, saleCurrency),
+  ]);
 
   items[idx] = {
     ...line,
