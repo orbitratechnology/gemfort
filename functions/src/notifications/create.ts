@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { db } from '../admin';
@@ -63,6 +65,66 @@ export async function createNotificationDoc(input: NotificationInput): Promise<s
   });
 
   return ref.id;
+}
+
+function deterministicNotificationId(input: NotificationInput): string {
+  const identity = [
+    input.recipientUid,
+    input.type,
+    input.referenceType ?? '',
+    input.referenceId ?? '',
+  ].join('\u001f');
+  return `api-${createHash('sha256').update(identity).digest('hex').slice(0, 48)}`;
+}
+
+/**
+ * Create an API notification with a stable document ID.
+ *
+ * The query preserves compatibility with notifications created by the legacy
+ * callable path. The deterministic create closes the race between concurrent
+ * API retries when no legacy notification exists yet.
+ */
+export async function ensureDeterministicNotificationDoc(
+  input: NotificationInput,
+): Promise<string | null> {
+  const referenceType = input.referenceType ?? null;
+  const referenceId = input.referenceId ?? null;
+  const exists = await notificationExists(
+    input.recipientUid,
+    input.type,
+    referenceType,
+    referenceId,
+  );
+  if (exists) return null;
+
+  const id = deterministicNotificationId(input);
+  try {
+    await db.collection('notifications').doc(id).create({
+      recipientUid: input.recipientUid,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      referenceType,
+      referenceId,
+      actorName: input.actorName ?? null,
+      actorPhotoUrl: input.actorPhotoUrl ?? null,
+      imageUrl: input.imageUrl ?? null,
+      priority: input.priority ?? priorityForType(input.type),
+      groupKey: notificationGroupKeyForType(input.type),
+      isRead: false,
+      isPushSent: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return id;
+  } catch (error) {
+    const code = String(
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: unknown }).code
+        : '',
+    ).toUpperCase();
+    if (code === '6' || code === 'ALREADY_EXISTS') return null;
+    throw error;
+  }
 }
 
 export async function createNotificationsBatch(inputs: NotificationInput[]): Promise<number> {

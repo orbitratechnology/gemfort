@@ -10,7 +10,7 @@ The app and EAS file variables are configured. Complete these account-owned step
 
 ## Apple Developer
 
-1. Enable **Sign in with Apple** for `app.gemfort.dev`, `app.gemfort.preview`, and `app.gemfort`.
+1. Enable **Sign in with Apple** for `app.gemfort`.
 2. Create a Sign in with Apple key and a Services ID for Firebase's Apple provider configuration.
 3. Regenerate the affected provisioning profiles in EAS before building iOS.
 
@@ -24,7 +24,7 @@ gcloud auth application-default login
 gcloud config set project gemfort
 ```
 
-Register the SHA-1 and SHA-256 fingerprints for each Android Firebase app (`app.gemfort.dev`, `app.gemfort.preview`, and `app.gemfort`):
+Register the SHA-1 and SHA-256 fingerprints for the Android Firebase app (`app.gemfort`):
 
 - local debug/build signing key;
 - EAS-managed signing key (`eas credentials -p android`);

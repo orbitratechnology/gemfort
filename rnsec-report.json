@@ -1,0 +1,952 @@
+{
+  "findings": [
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/flights.js",
+      "line": 56,
+      "snippet": "    const url = new URL(`https://api.travelpayouts.com${path}`);\n    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));\n    const response = await fetch(url, {\n        headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },\n    });",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/flights.js",
+      "line": 115,
+      "snippet": "        let response;\n        try {\n            response = await fetch('https://api.travelpayouts.com/links/v1/create', {\n                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },\n                body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/index.js",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/index.js",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/index.js",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/flights.ts",
+      "line": 59,
+      "snippet": "  const url = new URL(`https://api.travelpayouts.com${path}`);\r\n  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));\r\n  const response = await fetch(url, {\r\n    headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },\r\n  });\r",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/flights.ts",
+      "line": 121,
+      "snippet": "    let response: Response;\n    try {\n      response = await fetch('https://api.travelpayouts.com/links/v1/create', {\n        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },\n        body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/index.ts",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/index.ts",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/index.ts",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/verify-certificate.tsx",
+      "line": 98,
+      "snippet": "              title=\"Open file\"\n              variant=\"secondary\"\n              onPress={() => Linking.openURL(result.fileUrl)}\n            />\n          </View>",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "IMPROPER_BIOMETRIC_FALLBACK",
+      "description": "Biometric authentication without proper fallback mechanism",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/_layout.tsx",
+      "line": 1,
+      "suggestion": "Implement secure fallback when biometrics fail: device passcode, secure keychain, or re-authentication."
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/types/index.ts",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/types/index.ts",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/types/index.ts",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/auth/link-verified-phone.js",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "CUSTOM_CRYPTO_IMPLEMENTATION",
+      "description": "Custom cryptographic function \"hashPayload\" - likely insecure implementation",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/gemtrack/ap-financial-contract.js",
+      "line": 12,
+      "snippet": "exports.apPaymentReceivedFingerprint = apPaymentReceivedFingerprint;\nconst node_crypto_1 = require(\"node:crypto\");\nfunction hashPayload(payload) {\n    return (0, node_crypto_1.createHash)('sha256').update(JSON.stringify(payload)).digest('hex');\n}",
+      "suggestion": "Never implement custom cryptographic algorithms. Use established libraries like CryptoJS, expo-crypto, react-native-aes-gcm-crypto, or tweetnacl."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout - vulnerable to slowloris DoS",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/gemtrack/exchange-rates.js",
+      "line": 30,
+      "snippet": "/** Fetch foreign-per-LKR rates from open.er-api (shared by sync + AP lifecycle). */\nasync function fetchOpenErRates() {\n    const res = await fetch(OPEN_ER_API);\n    if (!res.ok)\n        throw new Error(`open.er-api HTTP ${res.status}`);",
+      "suggestion": "Add timeout to fetch using AbortSignal with setTimeout, or use a library like axios with timeout config."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/news/gemini.js",
+      "line": 16,
+      "snippet": "            .replace(/^```(?:json)?\\s*/i, '')\n            .replace(/\\s*```$/i, '');\n        return JSON.parse(withoutFence);\n    }\n    return JSON.parse(trimmed);",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/news/gemini.js",
+      "line": 18,
+      "snippet": "        return JSON.parse(withoutFence);\n    }\n    return JSON.parse(trimmed);\n}\nasync function extractArticlesFromMarkdown(apiKey, markdown, sourceLabel) {",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/flights.js",
+      "line": 53,
+      "snippet": "    const url = new URL(`https://api.travelpayouts.com${path}`);\n    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));\n    const response = await fetch(url, {\n        headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },\n    });",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/flights.js",
+      "line": 111,
+      "snippet": "        let response;\n        try {\n            response = await fetch('https://api.travelpayouts.com/links/v1/create', {\n                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },\n                body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/index.js",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/index.js",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/index.js",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/auth/link-verified-phone.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "CUSTOM_CRYPTO_IMPLEMENTATION",
+      "description": "Custom cryptographic function \"hashPayload\" - likely insecure implementation",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/gemtrack/ap-financial-contract.ts",
+      "line": 3,
+      "snippet": "import { createHash } from 'node:crypto';\n\nfunction hashPayload(payload: Record<string, unknown>): string {\n  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');\n}",
+      "suggestion": "Never implement custom cryptographic algorithms. Use established libraries like CryptoJS, expo-crypto, react-native-aes-gcm-crypto, or tweetnacl."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout - vulnerable to slowloris DoS",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/gemtrack/exchange-rates.ts",
+      "line": 33,
+      "snippet": "  updatedAtUnix: number;\r\n}> {\r\n  const res = await fetch(OPEN_ER_API);\r\n  if (!res.ok) throw new Error(`open.er-api HTTP ${res.status}`);\r\n\r",
+      "suggestion": "Add timeout to fetch using AbortSignal with setTimeout, or use a library like axios with timeout config."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/src/news/gemini.ts",
+      "line": 21,
+      "snippet": "    return JSON.parse(withoutFence);\r\n  }\r\n  return JSON.parse(trimmed);\r\n}\r\n\r",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(auth)/login.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(auth)/register.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(auth)/_layout.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: adjust - Mobile attribution - tracks user behavior",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/profile.tsx",
+      "line": 1,
+      "suggestion": "Review adjust usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: segment - Analytics aggregator - forwards data to multiple services",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/profile.tsx",
+      "line": 1,
+      "suggestion": "Review segment usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/business/[businessId].tsx",
+      "line": 368,
+      "snippet": "    if (hasWhatsApp && whatsappValue) {\n      void trackBusinessAnalytics(bizId, \"whatsappTapsTotal\");\n      Linking.openURL(openWhatsApp(whatsappValue));\n    }\n  }",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/business/[businessId].tsx",
+      "line": 532,
+      "snippet": "              ) {\n                void trackBusinessAnalytics(bizId, \"phoneTapsTotal\");\n                if (phoneValue) Linking.openURL(openPhone(phoneValue));\n                return;\n              }",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/business/[businessId].tsx",
+      "line": 588,
+      "snippet": "              onPress={() => {\n                void trackBusinessAnalytics(bizId, \"whatsappTapsTotal\");\n                if (whatsappValue) Linking.openURL(openWhatsApp(whatsappValue));\n              }}\n              style={({ pressed }) => [",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/business/[businessId].tsx",
+      "line": 850,
+      "snippet": "              ]}\n              onPress={() =>\n                emailValue ? Linking.openURL(`mailto:${emailValue}`) : undefined\n              }\n            >",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/listing/[slug].tsx",
+      "line": 357,
+      "snippet": "      ? `${prefix} ${listingTitle}`\n      : `Hi, interested in ${listingTitle}`;\n    void Linking.openURL(openWhatsApp(sellerWhatsapp, msg));\n  }\n",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/listing/[slug].tsx",
+      "line": 744,
+      "snippet": "            <Pressable\n              onPress={() =>\n                void Linking.openURL(activeListing.certificateUrl!)\n              }\n              accessibilityRole=\"link\"",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/listing/[slug].tsx",
+      "line": 947,
+      "snippet": "        {!isOwner && sellerPhone ? (\n          <Pressable\n            onPress={() => void Linking.openURL(openPhone(sellerPhone))}\n            accessibilityRole=\"button\"\n            accessibilityLabel=\"Call seller\"",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/listings/create.tsx",
+      "line": 320,
+      "snippet": "                    label: \"WhatsApp\",\r\n                    onPress: () =>\r\n                      void Linking.openURL(\r\n                        openWhatsApp(\r\n                          whatsapp,\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: adjust - Mobile attribution - tracks user behavior",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/profile/business.tsx",
+      "line": 1,
+      "suggestion": "Review adjust usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "IMPROPER_BIOMETRIC_FALLBACK",
+      "description": "Biometric authentication without proper fallback mechanism",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/profile/settings.tsx",
+      "line": 1,
+      "suggestion": "Implement secure fallback when biometrics fail: device passcode, secure keychain, or re-authentication."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/profile/settings.tsx",
+      "line": 236,
+      "snippet": "            icon=\"description\"\r\n            label=\"Terms & Conditions\"\r\n            onPress={() => void Linking.openURL(TERMS_URL)}\r\n          />\r\n          <Divider colors={colors} />\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/profile/settings.tsx",
+      "line": 243,
+      "snippet": "            icon=\"policy\"\r\n            label=\"Privacy Policy\"\r\n            onPress={() => void Linking.openURL(PRIVACY_URL)}\r\n          />\r\n          <Divider colors={colors} />\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/profile/settings.tsx",
+      "line": 251,
+      "snippet": "            label=\"Support\"\r\n            subtitle=\"orbitra.technology@gmail.com\"\r\n            onPress={() => void Linking.openURL(SUPPORT_EMAIL)}\r\n          />\r\n        </FormSection>\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/auth/auth-screen.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/auth/sign-in-prompt.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/auth/social-auth-buttons.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/marketplace/business-social-links.tsx",
+      "line": 119,
+      "snippet": "          accessibilityRole=\"link\"\n          accessibilityLabel={`Website ${host}`}\n          onPress={() => Linking.openURL(websiteUrl)}\n          style={({ pressed }) => [\n            styles.chip,",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/marketplace/business-social-links.tsx",
+      "line": 168,
+      "snippet": "            accessibilityRole=\"link\"\n            accessibilityLabel={`Open ${p.label}`}\n            onPress={() => Linking.openURL(href)}\n            style={({ pressed }) => [\n              styles.iconBtn,",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/marketplace/business-social-links.tsx",
+      "line": 270,
+      "snippet": "        accessibilityLabel={`Open ${label}`}\n        hitSlop={8}\n        onPress={() => Linking.openURL(openHref)}\n        style={({ pressed }) => [styles.fieldAction, pressed && { opacity: 0.7 }]}>\n        <Icon name=\"open-in-new\" size={20} color={colors.primary} />",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/verification/verification-portals-list.tsx",
+      "line": 63,
+      "snippet": "    await WebBrowser.openBrowserAsync(url);\n  } catch {\n    await Linking.openURL(url);\n  }\n}",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/workspace/contact-list-row.tsx",
+      "line": 64,
+      "snippet": "    close();\n    if (!contact.phone) return;\n    void Linking.openURL(openPhone(contact.phone));\n  }, [close, contact.phone]);\n",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/components/workspace/contact-list-row.tsx",
+      "line": 71,
+      "snippet": "    const number = contact.whatsapp || contact.phone;\n    if (!number) return;\n    void Linking.openURL(openWhatsApp(number));\n  }, [close, contact.phone, contact.whatsapp]);\n",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout - vulnerable to slowloris DoS",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/features/flights/flights-service.ts",
+      "line": 51,
+      "snippet": "  url.searchParams.append('types[]', 'city');\n  url.searchParams.append('types[]', 'airport');\n  const response = await fetch(url);\n  if (!response.ok) throw new Error('Could not load airports.');\n  const text = await response.text();",
+      "suggestion": "Add timeout to fetch using AbortSignal with setTimeout, or use a library like axios with timeout config."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/features/flights/flights-service.ts",
+      "line": 56,
+      "snippet": "  let data: AutocompleteResponse;\n  try {\n    data = JSON.parse(text) as AutocompleteResponse;\n  } catch {\n    throw new Error('Airport search returned an unexpected response. Please try again.');",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "INSECURE_RANDOM",
+      "description": "Math.random() used for security-sensitive random value generation",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/features/workspace/ap-api.ts",
+      "line": 35,
+      "snippet": "function idempotencyKey(operation: string, apId: string): string {\n  const safeApId = apId.replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 72);\n  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;\n  return `mobile-${operation}-${safeApId || 'ap'}-${nonce}`.slice(0, 128);\n}",
+      "suggestion": "Use expo-random or crypto.getRandomValues() for cryptographically secure random values. Math.random() is not cryptographically secure."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/api/api-client.ts",
+      "line": 78,
+      "snippet": "function parseResponse(text: string): ApiSuccess<unknown> | ApiFailure {\n  try {\n    return JSON.parse(text) as ApiSuccess<unknown> | ApiFailure;\n  } catch {\n    return {};",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/auth-service.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/auth.native.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/auth.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout configuration",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/call-function.ts",
+      "line": 71,
+      "snippet": "  const post = async (forceRefresh: boolean) => {\n    const idToken = await getIdToken(user, forceRefresh);\n    const response = await fetch(url, {\n      method: 'POST',\n      headers: {",
+      "suggestion": "Add timeout using AbortSignal: const controller = new AbortController(); setTimeout(() => controller.abort(), 30000);"
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/call-function.ts",
+      "line": 19,
+      "snippet": "  const text = await response.text();\n  try {\n    return JSON.parse(text) as CallableSuccess<T> | CallableFailure;\n  } catch {\n    // Cloud Functions returns an HTML document for an undeployed callable,",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/phone-auth.native.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "SENSITIVE_LOGGING",
+      "description": "console.warn() logging Session Data: [PNV] Test session enable failed; using real SIM c...",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/phone-pnv.native.ts",
+      "line": 37,
+      "snippet": "      return { enabled: true };\n    }\n    console.warn('[PNV] Test session enable failed; using real SIM check.', errorCode(error));\n    return { enabled: false };\n  }",
+      "suggestion": "Remove console logs with sensitive data or wrap in __DEV__ check. Use a logging library with data filtering for production."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/lib/firebase/social-auth.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/auth/link-verified-phone.js",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request."
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout - vulnerable to slowloris DoS",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/gemtrack/exchange-rates.js",
+      "line": 30,
+      "snippet": "/** Fetch foreign-per-LKR rates from open.er-api (shared by sync + AP lifecycle). */\nasync function fetchOpenErRates() {\n    const res = await fetch(OPEN_ER_API);\n    if (!res.ok)\n        throw new Error(`open.er-api HTTP ${res.status}`);",
+      "suggestion": "Add timeout to fetch using AbortSignal with setTimeout, or use a library like axios with timeout config."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/news/gemini.js",
+      "line": 16,
+      "snippet": "            .replace(/^```(?:json)?\\s*/i, '')\n            .replace(/\\s*```$/i, '');\n        return JSON.parse(withoutFence);\n    }\n    return JSON.parse(trimmed);",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "INSECURE_DESERIALIZATION",
+      "description": "JSON.parse() on potentially untrusted data without validation",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/functions/lib/src/news/gemini.js",
+      "line": 18,
+      "snippet": "        return JSON.parse(withoutFence);\n    }\n    return JSON.parse(trimmed);\n}\nasync function extractArticlesFromMarkdown(apiKey, markdown, sourceLabel) {",
+      "suggestion": "Validate JSON structure and data types before parsing untrusted input. Use schema validation libraries like Zod or Yup."
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/index.tsx",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/index.tsx",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: segment - Analytics aggregator - forwards data to multiple services",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/index.tsx",
+      "line": 1,
+      "suggestion": "Review segment usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/index.tsx",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/index.tsx",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/index.tsx",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/index.tsx",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/reports/index.tsx",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/reports/index.tsx",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: segment - Analytics aggregator - forwards data to multiple services",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/reports/index.tsx",
+      "line": 1,
+      "suggestion": "Review segment usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/money/reports/index.tsx",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "ROOT_JAILBREAK_DETECTION_ABSENT",
+      "description": "Sensitive app (banking/fintech/healthcare) without root/jailbreak detection",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/ap/index.tsx",
+      "line": 1,
+      "suggestion": "Implement root/jailbreak detection using jail-monkey or similar library. Warn users or restrict functionality on compromised devices."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/ap/index.tsx",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: adjust - Mobile attribution - tracks user behavior",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/ap/index.tsx",
+      "line": 1,
+      "suggestion": "Review adjust usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+      "description": "Sensitive app without app snapshot protection - iOS takes screenshots when backgrounding",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/ap/index.tsx",
+      "line": 1,
+      "suggestion": "Add a blur overlay or splash screen when app enters background state to prevent iOS from capturing sensitive screen content in the app switcher."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: adjust - Mobile attribution - tracks user behavior",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/ap/[apId].tsx",
+      "line": 1,
+      "suggestion": "Review adjust usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/bills/[billId].tsx",
+      "line": 473,
+      "snippet": "                {phone ? (\n                  <Pressable\n                    onPress={() => void Linking.openURL(openPhone(phone))}\n                    style={[\n                      styles.roundBtn,",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/bills/[billId].tsx",
+      "line": 487,
+      "snippet": "                  <Pressable\n                    onPress={() =>\n                      void Linking.openURL(openWhatsApp(whatsapp))\n                    }\n                    style={[styles.roundBtn, { backgroundColor: \"#25D366\" }]}",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/cheques/[chequeId].tsx",
+      "line": 443,
+      "snippet": "                {phone ? (\r\n                  <Pressable\r\n                    onPress={() => void Linking.openURL(openPhone(phone))}\r\n                    style={[\r\n                      styles.roundBtn,\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/cheques/[chequeId].tsx",
+      "line": 457,
+      "snippet": "                  <Pressable\r\n                    onPress={() =>\r\n                      void Linking.openURL(openWhatsApp(whatsapp))\r\n                    }\r\n                    style={[styles.roundBtn, { backgroundColor: \"#25D366\" }]}\r",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 405,
+      "snippet": "                  accessibilityLabel=\"Call\"\n                  onPress={() =>\n                    Linking.openURL(openPhone(contact.phone!))\n                  }\n                  style={({ pressed }) => [",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 428,
+      "snippet": "                  accessibilityLabel=\"WhatsApp\"\n                  onPress={() =>\n                    Linking.openURL(openWhatsApp(waNumber!))\n                  }\n                  style={({ pressed }) => [",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 458,
+      "snippet": "                  accessibilityLabel=\"Email\"\n                  onPress={() =>\n                    Linking.openURL(`mailto:${contact.email}`)\n                  }\n                  style={({ pressed }) => [",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 484,
+      "snippet": "            {contact.phone ? (\n              <Pressable\n                onPress={() => Linking.openURL(openPhone(contact.phone!))}\n                style={[\n                  styles.infoRow,",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 509,
+      "snippet": "              <Pressable\n                onPress={() =>\n                  Linking.openURL(openWhatsApp(contact.whatsapp!))\n                }\n                style={[",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 540,
+      "snippet": "            {contact.email ? (\n              <Pressable\n                onPress={() => Linking.openURL(`mailto:${contact.email}`)}\n                style={styles.infoRow}\n              >",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/contacts/[contactId].tsx",
+      "line": 588,
+      "snippet": "                  onPress={() => {\n                    if (contact.phone) {\n                      void Linking.openURL(openPhone(contact.phone));\n                    }\n                  }}",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: adjust - Mobile attribution - tracks user behavior",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/gems/[gemId].tsx",
+      "line": 1,
+      "suggestion": "Review adjust usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/gems/[gemId].tsx",
+      "line": 752,
+      "snippet": "          {gem.certificateUrl ? (\n            <Pressable\n              onPress={() => void Linking.openURL(gem.certificateUrl!)}\n              accessibilityRole=\"link\"\n              accessibilityLabel=\"Open certificate or report\"",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/services/[serviceId].tsx",
+      "line": 472,
+      "snippet": "                  <Pressable\n                    onPress={() =>\n                      void Linking.openURL(openPhone(providerPhone))\n                    }\n                    style={[",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/services/[serviceId].tsx",
+      "line": 487,
+      "snippet": "                  <Pressable\n                    onPress={() =>\n                      void Linking.openURL(openWhatsApp(providerWhatsApp))\n                    }\n                    style={[styles.roundBtn, { backgroundColor: \"#25D366\" }]}",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs."
+    },
+    {
+      "ruleId": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+      "description": "Sensitive app without runtime integrity or tamper detection",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/src/app/(marketplace)/(tabs)/workspace/trips/[tripId]/index.tsx",
+      "line": 1,
+      "suggestion": "Implement runtime integrity checks: Play Integrity API (Android), App Attest (iOS), or signature verification to detect tampering."
+    },
+    {
+      "ruleId": "THIRD_PARTY_SDK_RISK",
+      "description": "Risky SDK detected in sensitive app: segment - Analytics aggregator - forwards data to multiple services",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/package.json",
+      "line": 1,
+      "suggestion": "Review segment usage in sensitive app. Ensure it doesn't capture/transmit sensitive user data. Consider alternatives or strict configuration."
+    },
+    {
+      "ruleId": "ANDROID_BACKUP_ALLOWED",
+      "description": "Backup enabled for app with sensitive data - data can be extracted via ADB",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Set android:allowBackup=\"false\" or implement android:fullBackupContent rules to exclude sensitive data."
+    },
+    {
+      "ruleId": "ANDROID_EXPORTED_COMPONENT",
+      "description": "Exported activity without permission protection - accessible by any app",
+      "severity": "HIGH",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Add android:permission attribute to exported activity or set android:exported=\"false\" if external access is not needed."
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.VIEW: Can be invoked by any app",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required."
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.SEND: Can receive data from any app",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required."
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.SEND: Can receive data from any app",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required."
+    },
+    {
+      "ruleId": "EXCESSIVE_PERMISSIONS",
+      "description": "Potentially excessive permissions declared: android.permission.READ_CONTACTS, android.permission.READ_PHONE_STATE, android.permission.WRITE_CONTACTS",
+      "severity": "LOW",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Review declared permissions and remove those not actively used. Request permissions at runtime only when needed."
+    },
+    {
+      "ruleId": "ANDROID_MISSING_NETWORK_SECURITY_CONFIG",
+      "description": "Network-enabled app without network_security_config.xml - missing certificate pinning and cleartext traffic control",
+      "severity": "MEDIUM",
+      "filePath": "C:/Users/choco/Workspace/gemfort/android/app/src/main/AndroidManifest.xml",
+      "suggestion": "Add android:networkSecurityConfig=\"@xml/network_security_config\" to <application> tag. Configure certificate pinning and restrict cleartext traffic."
+    }
+  ],
+  "scannedFiles": 439,
+  "duration": 12048,
+  "timestamp": "2026-08-17T13:11:50.492Z",
+  "ignoredRules": []
+}

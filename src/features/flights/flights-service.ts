@@ -1,4 +1,5 @@
 import { callFunction } from '@/lib/firebase/call-function';
+import { callApi, isGemfortApiCanaryEnabled } from '@/lib/api/api-client';
 
 export type FlightPlace = {
   type: 'city' | 'airport' | 'country';
@@ -68,14 +69,35 @@ export async function autocompletePlaces(term: string): Promise<FlightPlace[]> {
 }
 
 export function searchFlights(criteria: FlightSearchCriteria) {
+  if (isGemfortApiCanaryEnabled()) {
+    return callApi<FlightSearchResult, FlightSearchCriteria>(
+      '/v1/flights/search',
+      criteria,
+      { retryAuthOn401: true },
+    );
+  }
   return callFunction<FlightSearchResult, FlightSearchCriteria>('searchFlights', criteria);
 }
 
 export function getFlightPriceCalendar(criteria: FlightSearchCriteria) {
+  if (isGemfortApiCanaryEnabled()) {
+    return callApi<FlightCalendarResult, FlightSearchCriteria>(
+      '/v1/flights/calendar',
+      criteria,
+      { retryAuthOn401: true },
+    );
+  }
   return callFunction<FlightCalendarResult, FlightSearchCriteria>('getFlightPriceCalendar', criteria);
 }
 
 export function createFlightBookingLink(url: string) {
+  if (isGemfortApiCanaryEnabled()) {
+    return callApi<{ bookingUrl: string }, { url: string }>(
+      '/v1/flights/booking-link',
+      { url },
+      { retryAuthOn401: true },
+    );
+  }
   return callFunction<{ bookingUrl: string }, { url: string }>('createFlightBookingLink', { url });
 }
 

@@ -16,6 +16,22 @@
         "simulator": true
       }
     },
+    "canary": {
+      "extends": "development",
+      "channel": "canary",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "EXPO_PUBLIC_GEMFORT_API_CANARY": "true",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi"
+      }
+    },
+    "ap-canary": {
+      "extends": "canary",
+      "channel": "ap-canary",
+      "env": {
+        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "true"
+      }
+    },
     "preview": {
       "environment": "preview",
       "distribution": "internal",

@@ -237,7 +237,7 @@ EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=478360291449
 EXPO_PUBLIC_FIREBASE_APP_ID=
 ```
 
-One Firebase project (`gemfort`) is used across development, preview, and production. Native config files differ by bundle ID under `google-services/`.
+One Firebase project (`gemfort`) and one native app ID (`app.gemfort`) are used across development, preview, and production. The shared native config files are supplied through EAS or kept locally as ignored files.
 
 ### 3. Native Google Services
 
@@ -245,9 +245,9 @@ Place the correct files for your environment (or set `GOOGLE_SERVICES_JSON` / `G
 
 | Env | Android package / iOS bundle | Typical files |
 |-----|------------------------------|---------------|
-| development | `app.gemfort.dev` | `google-services.json`, `GoogleService-Info.dev.plist` |
-| preview | `app.gemfort.preview` | `…preview…` |
-| production | `app.gemfort` | production Google Services |
+| development | `app.gemfort` | `google-services.json`, `GoogleService-Info.plist` |
+| preview | `app.gemfort` | `google-services.json`, `GoogleService-Info.plist` |
+| production | `app.gemfort` | `google-services.json`, `GoogleService-Info.plist` |
 
 ### 4. Run a development build
 
@@ -276,8 +276,8 @@ bun run build:dev:ios
 
 | Profile | `EXPO_PUBLIC_APP_ENV` | Bundle ID | EAS channel | Distribution |
 |---------|----------------------|-----------|-------------|--------------|
-| development | `development` | `app.gemfort.dev` | `development` | Dev client, internal |
-| preview | `preview` | `app.gemfort.preview` | `preview` | Internal |
+| development | `development` | `app.gemfort` | `development` | Dev client, internal |
+| preview | `preview` | `app.gemfort` | `preview` | Internal |
 | production | `production` | `app.gemfort` | `production` | Store |
 
 OTA updates:

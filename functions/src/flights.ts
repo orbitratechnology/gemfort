@@ -76,75 +76,102 @@ function cached<T>(key: string, request: () => Promise<T>): Promise<T> {
   });
 }
 
+export async function searchFlightsForApi(data: unknown) {
+  const criteria = parseCriteria(data);
+  const token = travelpayoutsApiToken.value();
+  usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
+  return cached(`flights:${JSON.stringify(criteria)}`, async () => {
+    const result = await api('/aviasales/v3/prices_for_dates', {
+      origin: criteria.origin, destination: criteria.destination, departure_at: criteria.departureAt,
+      ...(criteria.returnAt ? { return_at: criteria.returnAt } : {}), one_way: String(criteria.oneWay),
+      direct: String(criteria.direct), currency: criteria.currency, limit: String(criteria.limit), page: String(criteria.page), sorting: 'price',
+    }, token);
+    if (!result.success) throw new HttpsError('unavailable', result.error || 'No cached fares are available for this route.');
+    const resultData = Array.isArray(result.data) ? result.data : [];
+    return { currency: criteria.currency, offers: resultData.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object').map(normalizeFlightOffer) };
+  });
+}
+
 export const searchFlights = onCall(
   { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken] },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to search flights.');
-    const criteria = parseCriteria(request.data);
-    const token = travelpayoutsApiToken.value();
-    usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
-    return cached(`flights:${JSON.stringify(criteria)}`, async () => {
-      const result = await api('/aviasales/v3/prices_for_dates', {
-        origin: criteria.origin, destination: criteria.destination, departure_at: criteria.departureAt,
-        ...(criteria.returnAt ? { return_at: criteria.returnAt } : {}), one_way: String(criteria.oneWay),
-        direct: String(criteria.direct), currency: criteria.currency, limit: String(criteria.limit), page: String(criteria.page), sorting: 'price',
-      }, token);
-      if (!result.success) throw new HttpsError('unavailable', result.error || 'No cached fares are available for this route.');
-      const data = Array.isArray(result.data) ? result.data : [];
-      return { currency: criteria.currency, offers: data.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object').map(normalizeFlightOffer) };
-    });
+    return searchFlightsForApi(request.data);
   },
 );
 
 const bookingSchema = z.object({ url: z.string().url() });
 
+export async function createFlightBookingLinkForApi(data: unknown) {
+  const input = bookingSchema.safeParse(data);
+  if (!input.success) throw new HttpsError('invalid-argument', 'Invalid flight booking link.');
+  const parsedUrl = new URL(input.data.url);
+  if (parsedUrl.hostname !== 'www.aviasales.com' && parsedUrl.hostname !== 'aviasales.com') {
+    throw new HttpsError('invalid-argument', 'Unsupported booking link.');
+  }
+  const token = travelpayoutsApiToken.value();
+  const marker = travelpayoutsMarker.value();
+  const trs = travelpayoutsProjectId.value();
+  usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
+  usableSecret('TRAVELPAYOUTS_MARKER', marker);
+  usableSecret('TRAVELPAYOUTS_PROJECT_ID', trs);
+  return cached(`partner-link:${input.data.url}`, async () => {
+    let response: Response;
+    try {
+      response = await fetch('https://api.travelpayouts.com/links/v1/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },
+        body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),
+      });
+    } catch {
+      throw new HttpsError('unavailable', 'Could not create the booking link.');
+    }
+    const payload = await response.json() as { code?: string; error?: string; result?: { links?: Array<{ code?: string; message?: string; partner_url?: string }> } };
+    const link = payload.result?.links?.[0];
+    if (!response.ok || payload.code !== 'success' || link?.code !== 'success' || !link.partner_url) {
+      logger.warn('Travelpayouts partner link failed', { status: response.status, code: payload.code, detail: link?.message ?? payload.error });
+      throw new HttpsError('failed-precondition', 'Travelpayouts could not create an affiliate booking link. Confirm that this project is connected to Aviasales.');
+    }
+    return { bookingUrl: link.partner_url };
+  });
+}
+
 export const createFlightBookingLink = onCall(
   { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken, travelpayoutsMarker, travelpayoutsProjectId] },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to continue to booking.');
-    const input = bookingSchema.safeParse(request.data);
-    if (!input.success) throw new HttpsError('invalid-argument', 'Invalid flight booking link.');
-    const parsedUrl = new URL(input.data.url);
-    if (parsedUrl.hostname !== 'www.aviasales.com' && parsedUrl.hostname !== 'aviasales.com') {
-      throw new HttpsError('invalid-argument', 'Unsupported booking link.');
-    }
-    const token = travelpayoutsApiToken.value(); const marker = travelpayoutsMarker.value(); const trs = travelpayoutsProjectId.value();
-    usableSecret('TRAVELPAYOUTS_API_TOKEN', token); usableSecret('TRAVELPAYOUTS_MARKER', marker); usableSecret('TRAVELPAYOUTS_PROJECT_ID', trs);
-    return cached(`partner-link:${input.data.url}`, async () => {
-      let response: Response;
-      try {
-        response = await fetch('https://api.travelpayouts.com/links/v1/create', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },
-          body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),
-        });
-      } catch {
-        throw new HttpsError('unavailable', 'Could not create the booking link.');
-      }
-      const payload = await response.json() as { code?: string; error?: string; result?: { links?: Array<{ code?: string; message?: string; partner_url?: string }> } };
-      const link = payload.result?.links?.[0];
-      if (!response.ok || payload.code !== 'success' || link?.code !== 'success' || !link.partner_url) {
-        logger.warn('Travelpayouts partner link failed', { status: response.status, code: payload.code, detail: link?.message ?? payload.error });
-        throw new HttpsError('failed-precondition', 'Travelpayouts could not create an affiliate booking link. Confirm that this project is connected to Aviasales.');
-      }
-      return { bookingUrl: link.partner_url };
-    });
+    return createFlightBookingLinkForApi(request.data);
   },
 );
+
+export async function getFlightPriceCalendarForApi(data: unknown) {
+  const criteria = parseCriteria(data);
+  const token = travelpayoutsApiToken.value();
+  usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
+  return cached(`calendar:${JSON.stringify(criteria)}`, async () => {
+    const result = await api('/v2/prices/week-matrix', {
+      origin: criteria.origin, destination: criteria.destination, depart_date: criteria.departureAt,
+      ...(criteria.returnAt ? { return_date: criteria.returnAt } : {}), one_way: String(criteria.oneWay),
+      currency: criteria.currency, show_to_affiliates: 'true',
+    }, token);
+    const data = Array.isArray(result.data) ? result.data : [];
+    return {
+      currency: criteria.currency,
+      days: data
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+        .map((item) => ({
+          date: String(item.depart_date ?? ''),
+          price: Number(item.value ?? 0),
+          stops: Number(item.number_of_changes ?? 0),
+          actual: item.actual !== false,
+        })),
+    };
+  });
+}
 
 export const getFlightPriceCalendar = onCall(
   { region: REGION, timeoutSeconds: 30, secrets: [travelpayoutsApiToken] },
   async (request) => {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to view fare dates.');
-    const criteria = parseCriteria(request.data);
-    const token = travelpayoutsApiToken.value(); usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
-    return cached(`calendar:${JSON.stringify(criteria)}`, async () => {
-      const result = await api('/v2/prices/week-matrix', {
-        origin: criteria.origin, destination: criteria.destination, depart_date: criteria.departureAt,
-        ...(criteria.returnAt ? { return_date: criteria.returnAt } : {}), one_way: String(criteria.oneWay),
-        currency: criteria.currency, show_to_affiliates: 'true',
-      }, token);
-      const data = Array.isArray(result.data) ? result.data : [];
-      return { currency: criteria.currency, days: data.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object').map((item) => ({ date: String(item.depart_date ?? ''), price: Number(item.value ?? 0), stops: Number(item.number_of_changes ?? 0), actual: item.actual !== false })) };
-    });
+    return getFlightPriceCalendarForApi(request.data);
   },
 );

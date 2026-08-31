@@ -1,5 +1,6 @@
 import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { initializeFirebaseAppCheck } from "@/lib/firebase/app-check";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
 // Side-effect: register background notification task at module load.
@@ -151,7 +152,9 @@ export default function RootLayout() {
     if (!isFirebaseConfigured) return;
 
     let cancelled = false;
-    void warmUpFirestore()
+    void initializeFirebaseAppCheck()
+      .catch(() => undefined)
+      .then(() => warmUpFirestore())
       .catch(() => undefined)
       .finally(() => {
         if (!cancelled) setFirebaseReady(true);

@@ -4,6 +4,14 @@ import { fetchBusiness } from "@/features/marketplace/marketplace-service";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
 import {
+  apPaymentReceivedViaApi,
+  apPaymentSentViaApi,
+  isApMutationApiCanaryEnabled,
+  recordApGemSaleViaApi,
+  requestApCancellationViaApi,
+  respondApCancellationViaApi,
+} from "@/features/workspace/ap-api";
+import {
   collection,
   doc,
   getDoc,
@@ -381,6 +389,10 @@ export async function recordApGemSale(input: {
   paymentDueDateIso?: string | null;
   ownerReceives?: number | null;
 }) {
+  if (isApMutationApiCanaryEnabled()) {
+    return recordApGemSaleViaApi(input);
+  }
+
   const uid = requireUid();
   const ap = await loadAp(input.apId);
   if (ap.receiverUid !== uid) {
@@ -510,6 +522,10 @@ export async function apPaymentSent(input: {
   chequeId?: string | null;
   receiptUrl?: string | null;
 }) {
+  if (isApMutationApiCanaryEnabled()) {
+    return apPaymentSentViaApi(input);
+  }
+
   const uid = requireUid();
   if (!input.method || !["cash", "transfer", "cheque"].includes(input.method)) {
     throw new Error("Invalid payment method.");
@@ -572,6 +588,10 @@ export async function apPaymentReceived(
     receiptUrl?: string | null;
   },
 ) {
+  if (isApMutationApiCanaryEnabled()) {
+    return apPaymentReceivedViaApi({ apId, ...options });
+  }
+
   const uid = requireUid();
   const ap = await loadAp(apId);
   if (ap.senderUid !== uid && ap.ownerUid !== uid) {
@@ -697,6 +717,10 @@ export async function ensureApReceiverPayoutExpense(ap: ApRecord): Promise<void>
 }
 
 export async function requestApCancellation(apId: string) {
+  if (isApMutationApiCanaryEnabled()) {
+    return requestApCancellationViaApi(apId);
+  }
+
   const uid = requireUid();
   const ap = await loadAp(apId);
   if (ap.senderUid !== uid && ap.ownerUid !== uid) {
@@ -732,6 +756,10 @@ export async function respondApCancellation(
   apId: string,
   action: "accepted" | "rejected",
 ) {
+  if (isApMutationApiCanaryEnabled()) {
+    return respondApCancellationViaApi(apId, action);
+  }
+
   const uid = requireUid();
   const ap = await loadAp(apId);
   if (ap.receiverUid !== uid) {

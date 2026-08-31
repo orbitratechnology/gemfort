@@ -2,17 +2,8 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 
-const bundleIds: Record<string, string> = {
-  development: "app.gemfort.dev",
-  preview: "app.gemfort.preview",
-  production: "app.gemfort",
-};
-
-const bundleId = bundleIds[env] ?? bundleIds.development;
-
-/** Single Firebase project (gemfort); native config files differ per EAS bundle ID. */
-const googleServicesSuffix =
-  env === "production" ? "" : env === "preview" ? ".preview" : ".dev";
+// All EAS environments use the same native app and Firebase configuration.
+const bundleId = "app.gemfort";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -44,8 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     associatedDomains:
       env === "production" || env === "preview" ? ["applinks:gemfort.app"] : [],
     googleServicesFile:
-      process.env.GOOGLE_SERVICES_PLIST ??
-      `GoogleService-Info${googleServicesSuffix}.plist`,
+      process.env.GOOGLE_SERVICES_PLIST ?? "GoogleService-Info.plist",
   },
   android: {
     package: bundleId,
@@ -61,8 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Pre-adaptive / Play listing fallback
     icon: "./assets/images/icon.png",
     googleServicesFile:
-      process.env.GOOGLE_SERVICES_JSON ??
-      `google-services${googleServicesSuffix}.json`,
+      process.env.GOOGLE_SERVICES_JSON ?? "google-services.json",
     permissions: [
       "android.permission.READ_CALL_LOG",
       "android.permission.READ_PHONE_STATE",
@@ -89,6 +78,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
   },
   plugins: [
+    // "./plugins/with-adi-registration",
     "expo-router",
     [
       "expo-sharing",
@@ -131,6 +121,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "react-native-nitro-google-signin",
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
+    "@react-native-firebase/app-check",
     "@react-native-vector-icons/material-icons",
     "@react-native-vector-icons/fontawesome6",
     [
@@ -141,6 +132,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           forceStaticLinking: [
             "RNFBApp",
             "RNFBAuth",
+            "RNFBAppCheck",
             "RNFBFirestore",
             "RNFBStorage",
           ],

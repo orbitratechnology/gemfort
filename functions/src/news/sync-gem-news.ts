@@ -34,7 +34,16 @@ function assertUsableSecret(name: string, value: string) {
   }
 }
 
-async function syncNewsOnce(geminiKey: string, firecrawlKey: string) {
+export type NewsSyncSummary = {
+  written: number;
+  failedSources: number;
+  sources: number;
+};
+
+export async function syncNewsOnce(
+  geminiKey: string,
+  firecrawlKey: string,
+): Promise<NewsSyncSummary> {
   assertUsableSecret('GEMINI_API_KEY', geminiKey);
   assertUsableSecret('FIRECRAWL_API_KEY', firecrawlKey);
 
