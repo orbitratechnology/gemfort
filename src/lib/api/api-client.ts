@@ -1,7 +1,8 @@
 import { getIdToken } from '@/lib/firebase/auth';
 import type { AuthUser } from '@/lib/firebase/auth-types';
 import { getFirebaseAppCheckToken } from '@/lib/firebase/app-check';
-import { getFirebaseAuth } from '@/lib/firebase/config';
+import { firebaseConfig, getFirebaseAuth } from '@/lib/firebase/config';
+import { REGION } from '@/lib/firebase/functions-region';
 
 type ApiSuccess<T> = {
   data: T;
@@ -39,6 +40,7 @@ export type ApiRequestOptions = {
   forceRefreshToken?: boolean;
   retryAuthOn401?: boolean;
   idempotencyKey?: string;
+  method?: 'POST' | 'DELETE';
 };
 
 const defaultDependencies: ApiClientDependencies = {
@@ -48,29 +50,19 @@ const defaultDependencies: ApiClientDependencies = {
   request: fetch,
 };
 
-export function isGemfortApiCanaryEnabled(): boolean {
-  return process.env.EXPO_PUBLIC_GEMFORT_API_CANARY === 'true';
-}
-
-/**
- * AP mutations have a separate gate because they change financial and
- * ownership state. Flight/provider reads can be canaried without enabling
- * this mutation path.
- */
-export function isGemfortApApiCanaryEnabled(): boolean {
-  return process.env.EXPO_PUBLIC_GEMFORT_AP_API_CANARY === 'true';
-}
-
 function apiBaseUrl(): string {
   const value = process.env.EXPO_PUBLIC_GEMFORT_API_BASE_URL?.trim().replace(/\/+$/, '');
-  if (!value) {
+  if (value) return value;
+
+  const projectId = firebaseConfig.projectId.trim();
+  if (!projectId) {
     throw new ApiClientError(
-      'The GemFort API is not configured for this build.',
+      'Firebase is not configured for this build.',
       0,
       'api/configuration',
     );
   }
-  return value;
+  return `https://${REGION}-${projectId}.cloudfunctions.net/gemfortApi`;
 }
 
 function parseResponse(text: string): ApiSuccess<unknown> | ApiFailure {
@@ -124,7 +116,7 @@ async function requestOnce<TResult, TData>(
   let response: Response;
   try {
     response = await request(url, {
-      method: 'POST',
+      method: options.method ?? 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,

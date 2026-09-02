@@ -94,6 +94,34 @@ test('protected routes enforce App Check after Firebase Auth', async () => {
   assert.equal(body.error.code, 'unauthenticated');
 });
 
+test('all canonical migration routes are registered behind Firebase Auth', async () => {
+  const routes = [
+    ['POST', '/v1/ap/requests'],
+    ['POST', '/v1/ap/requests/ap-1/respond'],
+    ['POST', '/v1/ap/requests/ap-1/cancel'],
+    ['POST', '/v1/ap/records/ap-1/sale'],
+    ['POST', '/v1/ap/records/ap-1/return'],
+    ['POST', '/v1/ap/records/ap-1/payment-sent'],
+    ['POST', '/v1/ap/records/ap-1/payment-received'],
+    ['POST', '/v1/ap/records/ap-1/cancellation'],
+    ['POST', '/v1/ap/records/ap-1/cancellation/respond'],
+    ['DELETE', '/v1/ap/records/ap-1'],
+    ['POST', '/v1/services/service-1/cancellation'],
+    ['POST', '/v1/services/service-1/cancellation/respond'],
+    ['POST', '/v1/auth/phone/link'],
+    ['DELETE', '/v1/account'],
+    ['POST', '/v1/flights/search'],
+    ['POST', '/v1/flights/calendar'],
+    ['POST', '/v1/flights/booking-link'],
+    ['POST', '/v1/admin/news/sync'],
+  ] as const;
+
+  for (const [method, path] of routes) {
+    const response = await apiApp.request(path, { method });
+    assert.equal(response.status, 401, `${method} ${path} should be an authenticated route`);
+  }
+});
+
 test('the migrated flight route preserves validation errors without calling the provider', async () => {
   const response = await authenticatedApi.request('/v1/flights/search', {
     method: 'POST',
@@ -140,6 +168,7 @@ const adminApi = createApiApp({
 
 const serviceApi = createApiApp({
   appCheckMode: 'enforce',
+  executeMutation: async ({ execute }) => execute(),
   verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
   verifyAppCheck: async () => ({
     appId: 'app-1',
@@ -282,6 +311,7 @@ test('service mutation routes require a bounded idempotency key', async () => {
   let called = false;
   const guardedApi = createApiApp({
     appCheckMode: 'enforce',
+    executeMutation: async ({ execute }) => execute(),
     verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
     verifyAppCheck: async () => ({
       appId: 'app-1',
@@ -424,6 +454,7 @@ test('service cancellation response rejects invalid actions before the handler',
   let called = false;
   const invalidActionApi = createApiApp({
     appCheckMode: 'enforce',
+    executeMutation: async ({ execute }) => execute(),
     verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
     verifyAppCheck: async () => ({
       appId: 'app-1',

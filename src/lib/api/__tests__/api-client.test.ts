@@ -117,6 +117,22 @@ describe('callApi', () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it('supports the DELETE method used by account and AP removal routes', async () => {
+    const request = jest.fn<typeof fetch>().mockResolvedValue(
+      response({ data: { ok: true } }),
+    );
+    const deps = dependencies(request);
+
+    await expect(
+      callApi<{ ok: true }, undefined>('/v1/account', undefined, { method: 'DELETE' }, deps),
+    ).resolves.toEqual({ ok: true });
+
+    expect(request).toHaveBeenCalledWith(
+      'https://api.example.test/v1/account',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('maps canonical API errors without exposing response internals', async () => {
     const request = jest.fn<typeof fetch>().mockResolvedValue(
       response(

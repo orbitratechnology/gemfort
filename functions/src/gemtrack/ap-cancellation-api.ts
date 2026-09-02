@@ -170,10 +170,11 @@ export async function respondApCancellationForApi(
             throw new ApiError('failed-precondition', 'An AP gem could not be verified.');
           }
           transaction.update(gemRefs[i]!, {
-            status: 'ready_for_sale',
-            currentHolderContactId: null,
-            updatedAt: Timestamp.now(),
-          });
+          status: 'ready_for_sale',
+          currentHolderContactId: null,
+          currentApId: null,
+          updatedAt: Timestamp.now(),
+        });
         }
       }
       transaction.update(ref, { status: decision.status, updatedAt: Timestamp.now() });

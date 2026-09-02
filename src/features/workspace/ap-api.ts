@@ -1,4 +1,4 @@
-import { callApi, isGemfortApApiCanaryEnabled } from '@/lib/api/api-client';
+import { callApi } from '@/lib/api/api-client';
 import type { ApPaymentMethod } from '@/types';
 
 type ApMutationResult = {
@@ -30,21 +30,59 @@ type ApPaymentReceivedInput = {
   receiptUrl?: string | null;
 };
 
-function idempotencyKey(operation: string, apId: string): string {
-  const safeApId = apId.replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 72);
+function idempotencyKey(operation: string, scope = 'request'): string {
+  const safeScope = scope.replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 72);
   const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  return `mobile-${operation}-${safeApId || 'ap'}-${nonce}`.slice(0, 128);
+  return `mobile-${operation}-${safeScope || 'request'}-${nonce}`.slice(0, 128);
 }
 
-function mutationOptions(operation: string, apId: string) {
+function mutationOptions(operation: string, scope?: string) {
   return {
     retryAuthOn401: true,
-    idempotencyKey: idempotencyKey(operation, apId),
+    idempotencyKey: idempotencyKey(operation, scope),
   } as const;
 }
 
-export function isApMutationApiCanaryEnabled(): boolean {
-  return isGemfortApApiCanaryEnabled();
+export function createApRequestViaApi(input: {
+  receiverContactId: string;
+  receiverBusinessId?: string | null;
+  expectedDurationDays: number;
+  agreementNotes?: string | null;
+  items: { gemId: string; agreedPrice: number; currency?: string }[];
+}) {
+  return callApi<{ apId: string }, typeof input>(
+    '/v1/ap/requests',
+    input,
+    mutationOptions('ap-create'),
+  ).then(({ apId }) => apId);
+}
+
+export function respondApRequestViaApi(
+  apId: string,
+  action: 'accepted' | 'rejected',
+  rejectionReason?: string,
+) {
+  return callApi<ApMutationResult, { action: typeof action; rejectionReason?: string }>(
+    `/v1/ap/requests/${encodeURIComponent(apId)}/respond`,
+    rejectionReason ? { action, rejectionReason } : { action },
+    mutationOptions(`ap-respond-${action}`, apId),
+  );
+}
+
+export function cancelApRequestViaApi(apId: string) {
+  return callApi<ApMutationResult, Record<string, never>>(
+    `/v1/ap/requests/${encodeURIComponent(apId)}/cancel`,
+    {},
+    mutationOptions('ap-cancel-request', apId),
+  );
+}
+
+export function returnApGemViaApi(apId: string, gemId: string) {
+  return callApi<ApMutationResult, { gemId: string }>(
+    `/v1/ap/${encodeURIComponent(apId)}/return`,
+    { gemId },
+    mutationOptions('ap-return', apId),
+  );
 }
 
 export function requestApCancellationViaApi(apId: string) {
@@ -90,5 +128,13 @@ export function apPaymentReceivedViaApi(input: ApPaymentReceivedInput) {
     `/v1/ap/${encodeURIComponent(apId)}/payment-received`,
     body,
     mutationOptions('ap-payment-received', apId),
+  );
+}
+
+export function deleteApRecordViaApi(apId: string) {
+  return callApi<ApMutationResult, undefined>(
+    `/v1/ap/records/${encodeURIComponent(apId)}`,
+    undefined,
+    { ...mutationOptions('ap-delete', apId), method: 'DELETE' },
   );
 }

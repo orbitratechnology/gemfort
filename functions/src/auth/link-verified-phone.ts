@@ -4,6 +4,7 @@ import { logger } from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
+import { ApiError } from "../api/errors";
 import { db } from "../admin";
 import { HOT_CALLABLE } from "../config";
 
@@ -20,6 +21,14 @@ const PHONE_RE = /^\+\d{10,15}$/;
 
 const jwks = createRemoteJWKSet(new URL(JWKS_URI));
 
+type LinkPhoneErrorCode =
+  | "unauthenticated"
+  | "invalid-argument"
+  | "already-exists"
+  | "internal";
+
+type LinkPhoneFailure = (code: LinkPhoneErrorCode, message: string) => never;
+
 /**
  * Links the caller's Firebase Auth account to the phone number Google verified
  * on-device via Phone Number Verification (carrier-level, no SMS). The client
@@ -27,21 +36,15 @@ const jwks = createRemoteJWKSet(new URL(JWKS_URI));
  * against FPNV's JWKS, then update Auth + Firestore so the number is trusted
  * without an OTP.
  */
-export const linkVerifiedPhone = onCall(HOT_CALLABLE, async (request) => {
-  if (!request.auth?.uid) {
-    throw new HttpsError(
-      "unauthenticated",
-      "Sign in to verify your phone number.",
-    );
-  }
-  const uid = request.auth.uid;
+async function linkVerifiedPhoneCore(
+  uid: string | undefined,
+  token: unknown,
+  fail: LinkPhoneFailure,
+): Promise<{ phoneNumber: string }> {
+  if (!uid) fail("unauthenticated", "Sign in to verify your phone number.");
 
-  const token = request.data?.token;
   if (typeof token !== "string" || token.length === 0) {
-    throw new HttpsError(
-      "invalid-argument",
-      "A verification token is required.",
-    );
+    fail("invalid-argument", "A verification token is required.");
   }
 
   let phoneNumber: string;
@@ -56,17 +59,11 @@ export const linkVerifiedPhone = onCall(HOT_CALLABLE, async (request) => {
     }
     phoneNumber = typeof payload.sub === "string" ? payload.sub : "";
   } catch {
-    throw new HttpsError(
-      "unauthenticated",
-      "The verification token could not be validated.",
-    );
+    fail("unauthenticated", "The verification token could not be validated.");
   }
 
   if (!PHONE_RE.test(phoneNumber)) {
-    throw new HttpsError(
-      "invalid-argument",
-      "The verification did not return a valid phone number.",
-    );
+    fail("invalid-argument", "The verification did not return a valid phone number.");
   }
 
   try {
@@ -77,16 +74,10 @@ export const linkVerifiedPhone = onCall(HOT_CALLABLE, async (request) => {
       code.includes("phone-number-already-exists") ||
       code.includes("phone-number-in-use")
     ) {
-      throw new HttpsError(
-        "already-exists",
-        "This mobile number is already linked to another account.",
-      );
+      fail("already-exists", "This mobile number is already linked to another account.");
     }
     logger.error("linkVerifiedPhone updateUser failed", { uid, code });
-    throw new HttpsError(
-      "internal",
-      "Could not link your phone number. Please try again.",
-    );
+    fail("internal", "Could not link your phone number. Please try again.");
   }
 
   try {
@@ -100,15 +91,27 @@ export const linkVerifiedPhone = onCall(HOT_CALLABLE, async (request) => {
       uid,
       code: errorCode(error),
     });
-    throw new HttpsError(
-      "internal",
-      "Could not update your profile. Please try again.",
-    );
+    fail("internal", "Could not update your profile. Please try again.");
   }
 
   logger.info("linkVerifiedPhone succeeded", { uid });
   return { phoneNumber };
-});
+}
+
+export async function linkVerifiedPhoneForApi(
+  uid: string,
+  token: unknown,
+): Promise<{ phoneNumber: string }> {
+  return linkVerifiedPhoneCore(uid, token, (code, message): never => {
+    throw new ApiError(code, message);
+  });
+}
+
+export const linkVerifiedPhone = onCall(HOT_CALLABLE, async (request) =>
+  linkVerifiedPhoneCore(request.auth?.uid, request.data?.token, (code, message): never => {
+    throw new HttpsError(code, message);
+  }),
+);
 
 function errorCode(error: unknown): string {
   return typeof error === "object" && error !== null && "code" in error

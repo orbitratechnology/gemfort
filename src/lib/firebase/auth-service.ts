@@ -1,4 +1,5 @@
 import { isRegisterableRole } from "@/constants/roles";
+import { callApi } from "@/lib/api/api-client";
 import {
     createUserWithEmailAndPassword,
     deleteUser,
@@ -11,7 +12,6 @@ import {
     updatePassword,
     updateProfile,
 } from "@/lib/firebase/auth";
-import { callFunction } from "@/lib/firebase/call-function";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
 import {
     doc,
@@ -198,8 +198,10 @@ async function deleteAuthenticatedAccount() {
 
   // The function independently verifies a recent Firebase Auth event. Force a
   // new ID token after password/OAuth reauthentication so that proof reaches it.
-  await callFunction<{ ok: true }>("deleteMyAccount", undefined, {
+  await callApi<{ ok: true }, undefined>("/v1/account", undefined, {
     forceRefreshToken: true,
+    idempotencyKey: `mobile-account-delete-${user.uid}-${Date.now().toString(36)}`.slice(0, 128),
+    method: "DELETE",
   });
   // React Native Firebase requires a recent sign-in before deleteUser. The
   // caller has just completed password, Google, or Apple reauthentication.
