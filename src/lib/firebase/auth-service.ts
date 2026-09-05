@@ -34,7 +34,7 @@ export async function registerUser(input: {
   role: UserRole;
 }) {
   if (!isRegisterableRole(input.role)) {
-    throw new Error("Select Trader, Lapidary, or Gem Lab to continue.");
+    throw new Error("Select Trader or Lapidary to continue.");
   }
 
   const auth = getFirebaseAuth();

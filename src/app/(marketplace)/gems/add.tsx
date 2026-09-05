@@ -24,7 +24,6 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
-import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -136,7 +135,6 @@ export default function AddGemScreen() {
   const [status, setStatus] = useState<GemStatus | "">("");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
-  const [certificate, setCertificate] = useState<LocalMedia | null>(null);
   const [selectedTripId, setSelectedTripId] = useState(tripIdParam ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
@@ -320,7 +318,6 @@ export default function AddGemScreen() {
         let photoUrls: string[] = [];
         let photosDeferred = false;
         let uploadTask: Promise<string[]> | null = null;
-        let certificateUrl: string | null = null;
 
         if (photos.length > 0) {
           uploadTask = Promise.all(
@@ -348,12 +345,6 @@ export default function AddGemScreen() {
             photoUrls = [];
           }
         }
-        if (certificate) {
-          certificateUrl = await uploadLocalMedia(
-            certificate,
-            `gemtrack_gems/${user.uid}/${stamp}_certificate.${extensionForMedia(certificate)}`,
-          );
-        }
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
@@ -376,8 +367,6 @@ export default function AddGemScreen() {
           treatmentStatus: data.treatment ?? "natural",
           status: data.status,
           photoUrls,
-          certificateUrl,
-          certificateFileName: certificate?.fileName ?? null,
         };
 
         const gem = selectedTripId
@@ -756,15 +745,6 @@ export default function AddGemScreen() {
                 max={MAX_GEM_PHOTOS}
                 error={errors.photos}
                 emptyTitle="Add photos"
-                emptySubtitle="Optional — skip now and add later from Edit"
-              />
-            </FormSection>
-            <FormSection title="Certificate / Report">
-              <MediaField
-                value={certificate}
-                onChange={setCertificate}
-                allows="imagesOrDocuments"
-                emptyTitle="Add certificate or report"
                 emptySubtitle="Optional — skip now and add later from Edit"
               />
             </FormSection>

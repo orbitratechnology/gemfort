@@ -349,7 +349,7 @@ export type GemStatusGroup = {
 
 /**
  * Three independent axes — a gem can be Cut + On Trip + On Market at once.
- * `certified` / `ready_for_sale` remain legacy display values only.
+ * `ready_for_sale` remains a legacy display value only.
  */
 export const GEM_STATUS_GROUPS: readonly GemStatusGroup[] = [
   {
@@ -407,7 +407,6 @@ export const GEM_STATUS_LABELS: Record<GemStatus, string> = {
   listed: 'On Market',
   sold: 'Sold',
   returned: 'Returned',
-  certified: 'Certified',
   ready_for_sale: 'Ready for Sale',
 };
 
@@ -654,7 +653,6 @@ export const GEM_COST_TYPE_LABELS: Record<string, string> = {
   cutting: 'Cutting',
   heating: 'Heating',
   polishing: 'Polishing',
-  certification: 'Certification',
   transport: 'Transport',
   other: 'Other',
 };

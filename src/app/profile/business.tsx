@@ -21,7 +21,6 @@ import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { MaskedInput } from "@/components/ui/masked-input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -43,7 +42,6 @@ import {
     updateBusinessProfile,
 } from "@/features/marketplace/marketplace-service";
 import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
-import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Timestamp } from "@/lib/firebase/db";
@@ -61,19 +59,9 @@ import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
   Business,
-  LabCertificateOffering,
   LapidaryServiceOffering,
   UserProfile,
 } from "@/types";
-
-type CertDraft = {
-  id: string;
-  title: string;
-  description: string;
-  priceText: string;
-  currency: string;
-  isActive: boolean;
-};
 
 type LapidaryServiceDraft = {
   serviceId: string;
@@ -83,34 +71,6 @@ type LapidaryServiceDraft = {
   currency: string;
   isActive: boolean;
 };
-
-function draftsFromBusiness(business: Business | null | undefined): CertDraft[] {
-  return normalizeLabCertificateOfferings(
-    business?.labProfile?.certificateOfferings,
-    business?.labProfile?.reportTypes,
-  ).map((o) => ({
-    id: o.id,
-    title: o.title,
-    description: o.description,
-    priceText: o.price != null ? String(o.price) : "",
-    currency: o.currency || "LKR",
-    isActive: o.isActive,
-  }));
-}
-
-function offeringsFromDrafts(drafts: CertDraft[]): LabCertificateOffering[] {
-  return drafts.map((d) => {
-    const parsed = parseAmountInput(d.priceText);
-    return {
-      id: d.id,
-      title: d.title,
-      description: d.description,
-      price: Number.isFinite(parsed) && parsed >= 0 ? parsed : null,
-      currency: d.currency || "LKR",
-      isActive: d.isActive,
-    };
-  });
-}
 
 function lapidaryDraftsFromBusiness(
   business: Business | null | undefined,
@@ -214,9 +174,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   );
   const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
   const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
-  const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
-    draftsFromBusiness(business),
-  );
   const [lapidaryServiceDrafts, setLapidaryServiceDrafts] = useState<
     LapidaryServiceDraft[]
   >(() => lapidaryDraftsFromBusiness(business));
@@ -237,11 +194,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   const accountTypeLabel = accountTypeLabelFromRegistration(profile);
   const derivedBusinessType = businessTypeFromRegistration(profile);
-  const isLab =
-    derivedBusinessType === "gem_lab" ||
-    business?.businessType === "gem_lab" ||
-    business?.businessType === "lab" ||
-    !!business?.labProfile;
   const isLapidary =
     derivedBusinessType === "lapidary" ||
     business?.businessType === "lapidary" ||
@@ -250,11 +202,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
 
-  function updateCertDraft(id: string, patch: Partial<CertDraft>) {
-    setCertDrafts((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ...patch } : d)),
-    );
-  }
   function updateLapidaryServiceDraft(
     serviceId: string,
     patch: Partial<LapidaryServiceDraft>,
@@ -354,9 +301,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             logoUrl: nextLogo,
             coverPhotoUrl: nextCover,
             galleryPhotos: galleryEntries,
-            ...(isLab
-              ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
-              : {}),
             ...(isLapidary
               ? {
                   lapidaryServiceOfferings: lapidaryOfferingsFromDrafts(
@@ -368,7 +312,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         } else {
           if (!derivedBusinessType) {
             toast.error(
-              "Create a business profile after registering as Trader, Lapidary, or Gem Lab.",
+              "Create a business profile after registering as Trader or Lapidary.",
             );
             return;
           }
@@ -387,20 +331,17 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
               socialLinks,
             },
           );
-          const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
-          if (nextLogo) mediaAndCert.logoUrl = nextLogo;
-          if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
-          if (galleryEntries.length > 0) mediaAndCert.galleryPhotos = galleryEntries;
-          if (isLab) {
-            mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
-          }
+          const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
+          if (nextLogo) mediaUpdates.logoUrl = nextLogo;
+          if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
+          if (galleryEntries.length > 0) mediaUpdates.galleryPhotos = galleryEntries;
           if (isLapidary) {
-            mediaAndCert.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
+            mediaUpdates.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
               lapidaryServiceDrafts,
             );
           }
-          if (Object.keys(mediaAndCert).length > 0) {
-            await updateBusinessProfile(id, mediaAndCert);
+          if (Object.keys(mediaUpdates).length > 0) {
+            await updateBusinessProfile(id, mediaUpdates);
           }
         }
 
@@ -582,95 +523,11 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         />
       </FormSection>
 
-      {isLab ? (
-        <>
-          <FormSectionLabel title="CERTIFICATE TYPES" />
-          <FormSection>
-            <Text style={[styles.certHint, { color: colors.textMuted }]}>
-              Toggle tiers you offer and set a public price. Leave price blank to
-              show “Inquire”.
-            </Text>
-            {certDrafts.map((cert) => (
-              <View
-                key={cert.id}
-                style={[
-                  styles.certCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    opacity: cert.isActive ? 1 : 0.72,
-                  },
-                ]}
-              >
-                <Pressable
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: cert.isActive }}
-                  accessibilityLabel={`${cert.title}, ${cert.isActive ? "offered" : "not offered"}`}
-                  onPress={() =>
-                    updateCertDraft(cert.id, { isActive: !cert.isActive })
-                  }
-                  style={styles.certHeader}
-                >
-                  <View style={styles.certHeaderCopy}>
-                    <Text
-                      style={[styles.certTitle, { color: colors.onSurface }]}
-                      numberOfLines={2}
-                    >
-                      {cert.title}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.certDesc,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                      numberOfLines={3}
-                    >
-                      {cert.description}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.certToggle,
-                      {
-                        backgroundColor: cert.isActive
-                          ? colors.primary
-                          : colors.surfaceContainerHigh,
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={cert.isActive ? "check" : "close"}
-                      size={16}
-                      color={
-                        cert.isActive
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant
-                      }
-                    />
-                  </View>
-                </Pressable>
-                {cert.isActive ? (
-                  <MaskedInput
-                    label={`Price (${cert.currency})`}
-                    mode="currency"
-                    value={cert.priceText}
-                    onChangeText={(priceText) =>
-                      updateCertDraft(cert.id, { priceText })
-                    }
-                    placeholder="0"
-                    leftIcon="payments"
-                  />
-                ) : null}
-              </View>
-            ))}
-          </FormSection>
-        </>
-      ) : null}
-
       {isLapidary ? (
         <>
           <FormSectionLabel title="PUBLIC SERVICES" />
           <FormSection>
-            <Text style={[styles.certHint, { color: colors.textMuted }]}>
+            <Text style={[styles.serviceHint, { color: colors.textMuted }]}>
               Add the services you provide. Active services and their prices are
               shown on your public profile.
             </Text>
@@ -678,7 +535,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
               <View
                 key={service.serviceId}
                 style={[
-                  styles.certCard,
+                  styles.serviceCard,
                   {
                     backgroundColor: colors.surfaceContainerLow,
                     opacity: service.isActive ? 1 : 0.72,
@@ -695,12 +552,16 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
                         isActive: !service.isActive,
                       })
                     }
-                    style={styles.certHeaderCopy}
+                    style={styles.serviceCardCopy}
                   >
-                    <Text style={[styles.certTitle, { color: colors.onSurface }]}>
+                    <Text
+                      style={[styles.serviceTitle, { color: colors.onSurface }]}
+                    >
                       {service.name || "New service"}
                     </Text>
-                    <Text style={[styles.certDesc, { color: colors.onSurfaceVariant }]}>
+                    <Text
+                      style={[styles.serviceDesc, { color: colors.onSurfaceVariant }]}
+                    >
                       {service.isActive ? "Visible on your profile" : "Hidden from your profile"}
                     </Text>
                   </Pressable>
@@ -1067,37 +928,25 @@ const styles = StyleSheet.create({
   linkText: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
   linkSub: { ...Typography.bodySmall },
 
-  certHint: {
+  serviceHint: {
     ...Typography.caption,
     marginBottom: Spacing.sm,
     paddingHorizontal: 2,
   },
-  certCard: {
+  serviceCard: {
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     padding: Spacing.md,
     gap: Spacing.sm,
   },
-  certHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-  },
-  certHeaderCopy: { flex: 1, gap: 4, minWidth: 0 },
-  certTitle: { ...Typography.bodyLg, fontWeight: "700" },
-  certDesc: { ...Typography.caption, lineHeight: 16 },
-  certToggle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  serviceTitle: { ...Typography.bodyLg, fontWeight: "700" },
+  serviceDesc: { ...Typography.caption, lineHeight: 16 },
   serviceCardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: Spacing.sm,
   },
+  serviceCardCopy: { flex: 1, gap: 4, minWidth: 0 },
   removeServiceButton: {
     width: 36,
     height: 36,

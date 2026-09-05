@@ -17,15 +17,14 @@ export const onAnnouncementPublished = onDocumentCreated(
     const data = event.data?.data();
     if (!data?.isVisible) return;
 
-    const type =
-      data.type === 'industry_news' ? 'announcement_industry_news' : 'announcement_platform';
+    const type = 'announcement_platform' as const;
 
     const usersSnap = await db.collection('users').where('isActive', '==', true).get();
     const inputs = usersSnap.docs
       .filter((d) => d.data().isSuspended !== true)
       .map((d) => ({
         recipientUid: d.id,
-        type: type as 'announcement_platform' | 'announcement_industry_news',
+        type,
         title: data.title as string,
         message: (data.content as string)?.slice(0, 200) || 'New announcement from GemFort.',
         referenceType: 'announcement',

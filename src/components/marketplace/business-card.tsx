@@ -32,7 +32,7 @@ type BusinessCardProps = {
   href?: Href;
   onPress?: () => void;
   /** Visual cue for sellers vs providers in mixed contexts */
-  roleLabel?: "Trader" | "Lapidary" | "Gem Lab" | "Seller" | "Provider";
+  roleLabel?: "Trader" | "Lapidary" | "Seller" | "Provider";
   /** Layout extras (e.g. fixed width for horizontal rails). */
   style?: StyleProp<ViewStyle>;
 };
@@ -59,23 +59,12 @@ export function BusinessCard({
         .slice(0, 2)
         .map((s) => formatGemType(s));
     }
-    if (business.labProfile) {
-      const active = (business.labProfile.certificateOfferings ?? []).filter(
-        (o) => o.isActive,
-      );
-      if (active.length) return active.slice(0, 2).map((o) => o.title);
-      return (business.labProfile.reportTypes ?? [])
-        .slice(0, 2)
-        .map((s) => formatGemType(s));
-    }
     return [];
   })();
   const verified = business.badges.isVerified;
   const inferredRole =
     roleLabel ??
-    (business.businessType === "gem_lab" || business.labProfile
-      ? "Gem Lab"
-      : business.businessType === "lapidary" || business.providerProfile
+    (business.businessType === "lapidary" || business.providerProfile
         ? "Lapidary"
         : "Trader");
   const countryCode = resolveCountryCode(business.country);

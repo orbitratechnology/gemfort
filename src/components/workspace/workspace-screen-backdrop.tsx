@@ -13,7 +13,6 @@ export type WorkspaceBackdropKind =
   | "services"
   | "jobs"
   | "ap"
-  | "certificates"
   | "contacts"
   | "requests"
   | "money";
@@ -26,7 +25,6 @@ const KIND_IMAGE: Partial<Record<WorkspaceBackdropKind, ImageSource>> = {
   services: require("@/assets/images/lapidary-icon.png"),
   jobs: require("@/assets/images/lapidary-icon.png"),
   ap: require("@/assets/images/ap-icon.png"),
-  certificates: require("@/assets/images/certificate-icon.png"),
 };
 
 const KIND_FALLBACK: Record<
@@ -46,10 +44,6 @@ const KIND_FALLBACK: Record<
   services: { icon: "handyman", satellites: ["build", "schedule"] },
   jobs: { icon: "construction", satellites: ["build", "handyman"] },
   ap: { icon: "handshake", satellites: ["hourglass-empty", "handshake"] },
-  certificates: {
-    icon: "workspace-premium",
-    satellites: ["verified", "workspace-premium"],
-  },
   contacts: { icon: "contacts", satellites: ["group", "person"] },
   requests: { icon: "outgoing-mail", satellites: ["inbox", "send"] },
   money: {

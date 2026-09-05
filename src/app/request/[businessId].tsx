@@ -74,11 +74,9 @@ export default function RequestServiceScreen() {
   const {
     businessId,
     gemId: gemIdParam,
-    mode,
   } = useLocalSearchParams<{
     businessId: string;
     gemId?: string;
-    mode?: "service" | "cert";
   }>();
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -128,11 +126,6 @@ export default function RequestServiceScreen() {
   }, [business?.providerProfile?.servicesOffered]);
 
   if (!user) return <Redirect href="/(auth)/login" />;
-
-  // Certification is verified on GemFort against lab uploads — not requested from labs.
-  if (mode === "cert") {
-    return <Redirect href="/verify-certificate" />;
-  }
 
   if (!isVerifiedRole(profile, "trader")) {
     return (

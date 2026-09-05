@@ -2,7 +2,7 @@
 
 **Every stone has a story.**
 
-GemFort is the mobile platform for the gemstone trade—pairing a verified trust network with private business operations built for how dealers actually work: AP stones, post-dated cheques, sourcing trips, lab certificates, and WhatsApp-first deals.
+GemFort is the mobile platform for the gemstone trade—pairing a verified trust network with private business operations built for how dealers actually work: AP stones, post-dated cheques, sourcing trips, and WhatsApp-first deals.
 
 Trusted gems. Clear records. Real connections.
 
@@ -38,7 +38,7 @@ Gem businesses in Sri Lanka and trading hubs across Bangkok and China still run 
 - **Post-dated cheques** and maturity calendars
 - Rough-to-cut **weight loss** and processing costs
 - **Sourcing and selling trips** with shared overhead
-- Knowing who is a verified cutter or lab in Beruwala
+- Knowing who is a verified trader or lapidary in Beruwala
 
 At any moment, a dealer often cannot answer: which stones are with whom, which cheques mature when, whether a gem is profitable after costs, or who is trustworthy to deal with.
 
@@ -52,11 +52,11 @@ GemFort is one app with two pillars.
 
 Public discovery and reputation for the trade.
 
-- Browse verified **traders**, **lapidaries**, and **gem labs** without signing in
+- Browse verified **traders** and **lapidaries** without signing in
 - Business profiles with verification badges, NGJA signals, WhatsApp and call
 - Gem listings with shareable public links (`https://gemfort.app/l/...`)
-- Public **certificate verification** by report number
-- Service and certification requests between traders and providers
+- External certificate verification portal links
+- Service requests between traders and lapidaries
 - Manual identity verification (BR / NGJA documents; admin-approved)
 - Fraud reports and platform announcements
 
@@ -69,12 +69,11 @@ Operational clarity for each business—role-gated modules.
 | **Gems** | Private inventory lifecycle, costs, profit; publish to GemNet when ready |
 | **AP** | Stones on approval with holders, return dates, and overdue alerts |
 | **Services / Jobs** | Send stones to cutters; lapidaries track inbound jobs and weight loss |
-| **Certificates** | Labs issue and manage reports |
 | **Cheques** | Post-dated cheques, maturity calendar, bounce and replacement |
 | **Money** | Income/expense, receivables/payables, commissions, sales, reports |
 | **Trips** | Sourcing/selling trips with purchases, expenses, and linked gems |
 | **Contacts** | Brokers, buyers, partners; phone import; Android call-log matching |
-| **Requests** | Outgoing service and cert requests |
+| **Requests** | Outgoing service requests |
 
 ---
 
@@ -84,8 +83,7 @@ Operational clarity for each business—role-gated modules.
 |------|--------|
 | **Trader** | Buy and sell stones; inventory, AP, trips, cheques, money, requests |
 | **Lapidary** | Cutting, heating, polishing; jobs pipeline, services, money |
-| **Gem Lab** | Issue and verify certificates; money |
-| **Guest** | Directory, home, and certificate verify without an account |
+| **Guest** | Directory, home, and external certificate portals without an account |
 | **Admin** | Platform operations; full module access |
 
 ### Workspace modules by role
@@ -94,7 +92,6 @@ Operational clarity for each business—role-gated modules.
 |------|---------|
 | Trader | Gems, Trips, AP, Services, Money, Cheques, Requests |
 | Lapidary | Services, Jobs, Money |
-| Gem Lab | Certificates, Money |
 
 Registration assigns a role immediately (unverified). Directory listing and marketplace publishing require verified status.
 
@@ -106,7 +103,7 @@ GemFort is intentional about scope:
 
 - No payments between users
 - No physical shipping or logistics
-- No gem grading or certification by the platform itself
+- No gem grading by the platform itself
 - No public auction house
 - No star ratings or public review walls
 - No social network features
@@ -123,7 +120,7 @@ Deals close on WhatsApp, phone, and in person. GemFort tracks the work around th
 | Tab | Purpose |
 |-----|---------|
 | **Home** | Feed, announcements, featured listings, upcoming workspace deadlines |
-| **Directory** | Gems, traders, lapidaries, labs—search and filters |
+| **Directory** | Gems, traders, lapidaries—search and filters |
 | **Workspace** | GemTrack hub and modules (sign-in required) |
 | **Profile** | Account, business profile, verification, preferences |
 
@@ -135,7 +132,6 @@ Deals close on WhatsApp, phone, and in person. GemFort tracks the work around th
 | Business profile | `business/[businessId]` |
 | Public listing | `listing/[slug]` |
 | Create listing | `listings/create` |
-| Certificate verify | `verify-certificate` |
 | Notifications | `notifications` |
 
 ### Deep links
@@ -322,7 +318,7 @@ Cloud Functions live in `functions/` (region `asia-south1`).
 
 | Area | Responsibility |
 |------|----------------|
-| **GemNet** | Announcements, verification status, fraud reports, account actions, service/cert request lifecycle |
+| **GemNet** | Announcements, verification status, fraud reports, account actions, and service requests |
 | **GemTrack** | Daily workspace alerts, cheque bounced handling |
 | **Notifications** | Push delivery when notification documents are created |
 
@@ -369,8 +365,8 @@ gemfort/
 
 ## Auth model
 
-1. Guests can browse Home, Directory, and certificate verify.
-2. Register with email/password and role (`trader` | `lapidary` | `gem_lab`).
+1. Guests can browse Home, Directory, and external certificate portals.
+2. Register with email/password and role (`trader` | `lapidary`).
 3. Optional phone OTP links the credential and marks the phone verified.
 4. Suspended accounts are signed out on login.
 5. Workspace modules require a signed-in profile; orphan Auth users without a Firestore profile are signed out.

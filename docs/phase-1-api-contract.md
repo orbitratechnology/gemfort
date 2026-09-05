@@ -125,7 +125,6 @@ These are canonical route proposals mapped to the 18 current callable/API functi
 | `POST /v1/flights/search` | `searchFlights` | Authenticated; no Firestore ownership role | Request hash/cache; upstream rate limit and timeout |
 | `POST /v1/flights/calendar` | `getFlightPriceCalendar` | Authenticated; no Firestore ownership role | Request hash/cache; upstream rate limit and timeout |
 | `POST /v1/flights/booking-link` | `createFlightBookingLink` | Authenticated; URL host allowlist | Request hash/cache; never accept arbitrary redirect hosts |
-| `POST /v1/admin/news/sync` | `runNewsSyncNow` | Authenticated plus `users/{uid}.role == admin` | Admin-only; long-running provider call; keep scheduled `syncGemNews` separate |
 
 The route shape is intentionally explicit about resource IDs, but the first implementation must preserve the existing callable payloads through a documented adapter. Payload reshaping and resource naming changes are separate compatibility decisions, not incidental refactors.
 
@@ -152,7 +151,6 @@ The following current payload fields are confirmed from the source and become th
 | `searchFlights` | `origin`, `destination`, `departureAt`, optional `returnAt`, `oneWay`, `direct`, `currency`, optional bounded `limit` and `page` |
 | `getFlightPriceCalendar` | Same normalized flight criteria used by the calendar provider |
 | `createFlightBookingLink` | `url`; server allowlists `aviasales.com` hosts before calling Travelpayouts |
-| `runNewsSyncNow` | No business payload; server derives UID and checks admin role |
 
 ## Middleware and request lifecycle
 
@@ -187,7 +185,6 @@ Cloud Run user-authentication guidance also describes Firebase Auth ID tokens as
 ### Authorization
 
 - AP and service routes must re-run resource ownership/state checks inside the API process immediately before mutation.
-- Admin news sync must check the Firestore user role server-side.
 - Phone linking must bind the FPNV-verified phone to the Firebase Auth UID from the verified ID token.
 - Account deletion must wipe the same Firestore and Storage scope as the current function before the client deletes Auth.
 - A successful Auth check alone is never sufficient for a mutation involving another user’s resource.
@@ -225,7 +222,6 @@ Initial route classes for Phase 2 performance budgets:
 | Interactive read/provider | Flight search and calendar | P95 under 3 seconds excluding upstream outage; cache hit target under 300 ms |
 | Interactive mutation | AP/service/phone routes | P95 under 1.5 seconds in warm controlled tests; no duplicate side effects on retry |
 | Destructive | Account deletion | Correctness first; explicit 540-second upper bound retained until measured |
-| Administrative/provider | Manual news sync | Not part of interactive SLO; remain admin-only and separately observable |
 
 These are validation targets, not production promises. Phase 2 must compare controlled warm/cold measurements against the Phase 0 production baseline.
 

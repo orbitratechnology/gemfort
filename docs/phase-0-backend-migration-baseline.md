@@ -53,24 +53,22 @@ All were labelled as Firebase-managed Functions secrets. The consolidated API mu
 
 ## Deployed function inventory
 
-The live project contains 35 deployed functions in `asia-south1`:
+The live project contains 32 deployed functions in `asia-south1` after removing the retired content sync workloads:
 
 | Category | Count | Migration treatment |
 |---|---:|---|
-| Callable/API functions | 18 | Consolidate into the Hono API behind one HTTP entry point, with an explicit compatibility layer during cutover |
+| Callable/API functions | 17 | Consolidate into the Hono API behind one HTTP entry point, with an explicit compatibility layer during cutover |
 | Firestore/Eventarc triggers | 12 | Leave deployed and unchanged |
-| Scheduled functions | 4 | Leave deployed and unchanged |
+| Scheduled functions | 2 | Leave deployed and unchanged |
 | Authentication user-delete trigger | 1 | Leave as gen1 because Firebase currently does not provide an equivalent gen2 Auth user-delete event |
 
 ### Callable/API functions in scope for consolidation
 
-`apPaymentReceived`, `apPaymentSent`, `cancelApRequest`, `createApRequest`, `createFlightBookingLink`, `deleteApRecord`, `deleteMyAccount`, `getFlightPriceCalendar`, `linkVerifiedPhone`, `recordApGemSale`, `requestApCancellation`, `requestServiceCancellation`, `respondApCancellation`, `respondApRequest`, `respondServiceCancellation`, `returnApGem`, `runNewsSyncNow`, and `searchFlights`.
-
-`syncGemNews` is scheduled, not callable, and therefore remains outside the API consolidation boundary.
+`apPaymentReceived`, `apPaymentSent`, `cancelApRequest`, `createApRequest`, `createFlightBookingLink`, `deleteApRecord`, `deleteMyAccount`, `getFlightPriceCalendar`, `linkVerifiedPhone`, `recordApGemSale`, `requestApCancellation`, `requestServiceCancellation`, `respondApCancellation`, `respondApRequest`, `respondServiceCancellation`, `returnApGem`, and `searchFlights`.
 
 ### Firestore/Eventarc triggers to preserve
 
-`onAnnouncementPublished`, `onCertRequestCreated`, `onCertRequestUpdated`, `onChequeBounced`, `onLikeCreated`, `onListingOfferCreated`, `onNotificationCreated`, `onReportResolved`, `onServiceRequestCreated`, `onServiceRequestUpdated`, `onUserAccountAction`, and `onVerificationStatusChanged`.
+`onAnnouncementPublished`, `onChequeBounced`, `onLikeCreated`, `onListingOfferCreated`, `onNotificationCreated`, `onReportResolved`, `onServiceRequestCreated`, `onServiceRequestUpdated`, `onUserAccountAction`, and `onVerificationStatusChanged`.
 
 The observed Eventarc triggers are application-event/protobuf triggers targeting the existing gen2 functions and use the project Compute Engine default service account. No trigger was recreated or edited.
 
@@ -80,8 +78,6 @@ The observed Eventarc triggers are application-event/protobuf triggers targeting
 |---|---|---|---|---|
 | `syncExchangeRates` | `0 1 * * *` | `Asia/Colombo` | Enabled | Preserve |
 | `dailyGemTrackNotifications` | `0 8 * * *` | `Asia/Colombo` | Paused | Preserve; confirm whether paused is intentional before any future operational change |
-| `syncGemNews` | Every 6 hours | UTC | Enabled | Preserve |
-| `syncExhibitions` | Daily at 00:00 | `Asia/Colombo` | Enabled | Preserve |
 
 The paused notification schedule is an observed state, not a migration decision. Phase 0 does not resume it.
 
@@ -96,7 +92,7 @@ Observed gen2 defaults across the deployed function set:
 - Most functions use concurrency 1.
 - The following hot callables use concurrency 40: `apPaymentReceived`, `apPaymentSent`, `createApRequest`, `linkVerifiedPhone`, and `respondApRequest`.
 - Most callable functions use 256 MiB and a 60-second timeout; flight callables use 30 seconds.
-- `deleteMyAccount` and `runNewsSyncNow` use 1 GiB and a 540-second timeout.
+- `deleteMyAccount` uses 1 GiB and a 540-second timeout.
 
 These settings are baseline facts, not recommendations. The consolidated API must not inherit them blindly; Phase 1 will establish endpoint-specific timeout, concurrency, memory, min/max instance, and request-size policies.
 
@@ -112,19 +108,12 @@ Cloud Logging request records returned 1,837 request rows over the observed seve
 | `requestservicecancellation` | 13 | 2,236 ms | 4,696 ms | 4,696 ms |
 | `respondservicecancellation` | 14 | 476 ms | 6,944 ms | 6,944 ms |
 | `deletemyaccount` | 6 | 5 ms | 4,464 ms | 4,464 ms |
-| `runnewssyncnow` | 4 | 19 ms | 2,458 ms | 2,458 ms |
-| `syncgemnews` | 32 | 209,660 ms | 217,675 ms | 218,111 ms |
-| `syncexhibitions` | 11 | 212,048 ms | 245,955 ms | 245,955 ms |
 
 ### Error signals
 
 The seven-day Cloud Run revision query returned the following log-entry counts at severity `ERROR`. These are not deduplicated incidents or unique failed requests:
 
-- `syncgemnews`: 84
-- `syncexhibitions`: 21
-- Two entries each for multiple API functions, including `createaprequest`, `respondapcancellation`, `linkverifiedphone`, `deletemyaccount`, `deleteaprecord`, `requestapcancellation`, `returnapgem`, `searchflights`, `appaymentreceived`, `cancelaprequest`, `appaymentsent`, `respondaprequest`, `respondservicecancellation`, and `runnewssyncnow`.
-
-Representative repeated provider/application failures were `Gemini article extract failed` in `syncGemNews` and `Gemini exhibition extract failed` in `syncExhibitions`. Consolidating the HTTP API will not by itself solve provider failures in scheduled workloads.
+Two entries each were observed for multiple API functions, including `createaprequest`, `respondapcancellation`, `linkverifiedphone`, `deletemyaccount`, `deleteaprecord`, `requestapcancellation`, `returnapgem`, `searchflights`, `appaymentreceived`, `cancelaprequest`, `appaymentsent`, `respondaprequest`, and `respondservicecancellation`.
 
 The current transaction-abort query returned no matching `ABORTED`/transaction signals. This is evidence from the selected log query only, not proof that no transaction contention exists. No explicit cold-start classification was available in the request log fields; a controlled cold/warm probe is required in Phase 1.
 
@@ -137,7 +126,7 @@ The current transaction-abort query returned no matching `ABORTED`/transaction s
 - This is the captured Phase 0 production/repository baseline. The local repair now uses `firebase-admin` `^14.2.0` and `firebase-functions` `^7.3.2`; no live function has been redeployed as part of that dependency update.
 - The current Functions build is TypeScript compiled with `tsc`.
 - Current tests run through `tsx --test`.
-- The existing API logic is distributed across account, authentication, flights, GemTrack AP lifecycle, GemTrack service lifecycle, and news modules.
+- The existing API logic is distributed across account, authentication, flights, GemTrack AP lifecycle, and GemTrack service lifecycle modules.
 
 ### Mobile/web client boundary
 

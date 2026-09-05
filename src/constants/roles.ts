@@ -1,18 +1,16 @@
 import type { UserProfile, UserRole } from '@/types';
 
-export const REGISTERABLE_ROLES: UserRole[] = ['trader', 'lapidary', 'gem_lab'];
+export const REGISTERABLE_ROLES: UserRole[] = ['trader', 'lapidary'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   trader: 'Trader',
   lapidary: 'Lapidary',
-  gem_lab: 'Gem Lab',
   admin: 'Administrator',
 };
 
 export const ROLE_SUBTITLES: Record<Exclude<UserRole, 'admin'>, string> = {
   trader: 'Buy and sell gemstones',
   lapidary: 'Cutting, heating, polishing & more',
-  gem_lab: 'Issue and verify gem certificates',
 };
 
 export const LAPIDARY_SERVICE_OPTIONS = [
@@ -26,44 +24,12 @@ export const LAPIDARY_SERVICE_OPTIONS = [
 
 export type LapidaryServiceId = (typeof LAPIDARY_SERVICE_OPTIONS)[number]['id'];
 
-/** Standard certificate tiers Gem Labs can offer publicly with a price. */
-export const LAB_CERTIFICATE_TYPE_OPTIONS = [
-  {
-    id: 'gem_brief_memo',
-    title: 'Gem Brief / Memo',
-    description:
-      'Pocket-sized plastic card with standard ID data and a small stone photo. Perfect for quick, low-cost verification.',
-  },
-  {
-    id: 'standard_photo_certificate',
-    title: 'Standard Photo Certificate',
-    description:
-      'Full paper report detailing species, dimensions, and standard treatments (heated vs. unheated).',
-  },
-  {
-    id: 'advanced_origin_certificate',
-    title: 'Advanced / Origin Certificate',
-    description:
-      'In-depth chemical analysis using spectrometry to issue an opinion on geographic origin.',
-  },
-  {
-    id: 'diamond_grading_report',
-    title: 'Diamond Grading Report',
-    description:
-      'Dedicated assessment mapping the classic 4Cs (Color, Clarity, Cut, Carat Weight).',
-  },
-] as const;
-
-export type LabCertificateTypeId =
-  (typeof LAB_CERTIFICATE_TYPE_OPTIONS)[number]['id'];
-
 export type WorkspaceModule =
   | 'gems'
   | 'trips'
   | 'ap'
   | 'services'
   | 'jobs'
-  | 'certificates'
   | 'money'
   | 'cheques'
   | 'bills'
@@ -73,18 +39,16 @@ const MODULES_BY_ROLE: Record<Exclude<UserRole, 'admin'>, WorkspaceModule[]> = {
   trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'contacts'],
   // Lapidaries run jobs (the main workspace entry) and need contacts + bills — not AP or inventory trips.
   lapidary: ['jobs', 'money', 'bills', 'contacts'],
-  gem_lab: ['certificates', 'money'],
 };
 
 export function isRegisterableRole(role: string | null | undefined): role is UserRole {
-  return role === 'trader' || role === 'lapidary' || role === 'gem_lab';
+  return role === 'trader' || role === 'lapidary';
 }
 
 /** Normalize legacy Firestore roles to the new model. */
 export function normalizeUserRole(role: string | null | undefined): UserRole {
   if (role === 'verified_seller' || role === 'seller' || role === 'normal_user') return 'trader';
   if (role === 'verified_provider' || role === 'provider' || role === 'cutter') return 'lapidary';
-  if (role === 'lab' || role === 'gem_lab') return 'gem_lab';
   if (role === 'admin') return 'admin';
   if (role === 'trader' || role === 'lapidary') return role;
   return 'trader';
@@ -99,7 +63,7 @@ export function resolveProfileRole(profile: UserProfile | null): UserRole {
 export function isVerifiedRole(profile: UserProfile | null, role?: UserRole): boolean {
   if (!profile || profile.verificationStatus !== 'verified') return false;
   const effective = resolveProfileRole(profile);
-  if (!role) return effective === 'trader' || effective === 'lapidary' || effective === 'gem_lab';
+  if (!role) return effective === 'trader' || effective === 'lapidary';
   return effective === role;
 }
 
@@ -116,7 +80,6 @@ export function modulesForRole(role: UserRole): WorkspaceModule[] {
       'ap',
       'services',
       'jobs',
-      'certificates',
       'money',
       'cheques',
       'bills',
@@ -126,17 +89,15 @@ export function modulesForRole(role: UserRole): WorkspaceModule[] {
   return MODULES_BY_ROLE[role] ?? [];
 }
 
-export function businessTypeFromRole(role: UserRole): 'trader' | 'lapidary' | 'gem_lab' | null {
+export function businessTypeFromRole(role: UserRole): 'trader' | 'lapidary' | null {
   if (role === 'trader') return 'trader';
   if (role === 'lapidary') return 'lapidary';
-  if (role === 'gem_lab') return 'gem_lab';
   return null;
 }
 
 export function marketTabFromBusinessType(
   businessType: string | null | undefined,
-): 'traders' | 'lapidaries' | 'labs' {
-  if (businessType === 'gem_lab' || businessType === 'lab') return 'labs';
+): 'traders' | 'lapidaries' {
   if (
     businessType === 'lapidary' ||
     businessType === 'cutter' ||

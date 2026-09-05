@@ -27,7 +27,6 @@ const PARCEL_ELIGIBLE = new Set([
   'rough',
   'cut',
   'polished',
-  'certified',
   'ready_for_sale',
   'listed',
   'heated',

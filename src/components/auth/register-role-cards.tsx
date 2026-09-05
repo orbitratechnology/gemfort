@@ -29,12 +29,6 @@ const ROLE_CARDS: RoleCardDef[] = [
     subtitle: ROLE_SUBTITLES.lapidary,
     image: require("@/assets/images/lapidary.png"),
   },
-  {
-    value: "gem_lab",
-    label: ROLE_LABELS.gem_lab,
-    subtitle: ROLE_SUBTITLES.gem_lab,
-    image: require("@/assets/images/lab.png"),
-  },
 ];
 
 const STAGGER_MS = 45;

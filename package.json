@@ -108,7 +108,6 @@
     "seed": "npx tsx scripts/seed-marketplace.ts",
     "seed:admin": "node scripts/seed-admin.mjs",
     "seed:qa": "node scripts/seed-qa.mjs",
-    "seed:news": "node scripts/seed-gem-news.mjs",
     "update:dev": "eas update --channel development --environment development",
     "update:preview": "eas update --channel preview --environment preview",
     "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,functions",

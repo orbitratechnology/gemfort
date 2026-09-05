@@ -81,12 +81,10 @@ const SPEC_ICONS: Record<string, IconName> = {
   Shape: "category",
   Treatment: "science",
   Origin: "location-on",
-  Lab: "verified",
   Cut: "content-cut",
 };
 
 function businessRoleLabel(type: string | undefined): string {
-  if (type === "gem_lab" || type === "lab") return "Gem Lab";
   if (type === "lapidary") return "Lapidary";
   return "Trader";
 }
@@ -297,21 +295,9 @@ export default function PublicListingScreen() {
       value: treatmentLabel || "None",
     },
     { label: "Origin", value: activeListing.origin || "Unknown" },
-    ...(activeListing.isCertified && activeListing.certifyingLab
-      ? [{ label: "Lab", value: activeListing.certifyingLab }]
-      : []),
-    ...(activeListing.certificateUrl
-      ? [
-          {
-            label: "Certificate / Report",
-            value: activeListing.certificateFileName || "View attachment",
-          },
-        ]
-      : []),
   ];
 
   const tags: string[] = [];
-  if (activeListing.isCertified) tags.push("Certified");
   if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
   if (activeListing.clarity) tags.push(activeListing.clarity);
 
@@ -496,17 +482,7 @@ export default function PublicListingScreen() {
             wrapFirstPage={(node) => (
               <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
             )}
-            overlay={
-              activeListing.isCertified ? (
-                <View
-                  style={[styles.heroBadge, { top: insets.top + 56 }]}
-                  pointerEvents="none"
-                >
-                  <Icon name="verified" size={12} color="#FFFFFF" />
-                  <Text style={styles.heroBadgeText}>VERIFIED</Text>
-                </View>
-              ) : null
-            }
+            overlay={null}
           />
         </View>
 
@@ -737,22 +713,6 @@ export default function PublicListingScreen() {
               );
             })}
           </View>
-
-          {activeListing.certificateUrl ? (
-            <Pressable
-              onPress={() =>
-                void Linking.openURL(activeListing.certificateUrl!)
-              }
-              accessibilityRole="link"
-              accessibilityLabel="Open certificate or report"
-              style={[styles.readMore, { alignSelf: "flex-start" }]}
-            >
-              <Icon name="description" size={18} color={colors.primary} />
-              <Text style={[styles.readMoreText, { color: colors.primary }]}>
-                View Certificate / Report
-              </Text>
-            </Pressable>
-          ) : null}
 
           {activeListing.description ? (
             <View style={styles.descBlock}>
@@ -1219,26 +1179,6 @@ const styles = StyleSheet.create({
   heroBlock: {
     width: "100%",
   },
-  heroBadge: {
-    position: "absolute",
-    right: Spacing.containerMargin,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.55)",
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  heroBadgeText: {
-    ...Typography.caption,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
-
   sheet: {
     // Sit below the film strip — negative margin was clipping thumb bottoms
     // and exposing the old black heroBlock as a thick bar under the carousel.

@@ -42,7 +42,6 @@ const SERVICE_TYPES = [
   { id: "cutting", label: "Cutting" },
   { id: "heating", label: "Heating" },
   { id: "polishing", label: "Polishing" },
-  { id: "certification", label: "Certification" },
   { id: "recutting", label: "Recutting" },
   { id: "appraisal", label: "Appraisal" },
 ];

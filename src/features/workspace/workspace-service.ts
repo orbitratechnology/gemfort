@@ -102,7 +102,7 @@ export async function createGem(
     input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
   const stoneStage = isGemStoneStage(status)
     ? status
-    : status === "certified" || status === "ready_for_sale"
+    : status === "ready_for_sale"
       ? "polished"
       : "rough";
   const lifecycle = resolveGemLifecycle({
@@ -168,8 +168,6 @@ export async function createGem(
     soldPriceBase: null,
     soldDate: null,
     photoUrls: input.photoUrls ?? [],
-    certificateUrl: input.certificateUrl ?? null,
-    certificateFileName: input.certificateFileName ?? null,
     isListedOnMarketplace: false,
     marketplaceListingId: null,
     notes: input.notes ?? null,
@@ -223,8 +221,6 @@ export type UpdateGemDetailsInput = {
   isNatural: boolean;
   treatmentStatus: string;
   photoUrls: string[];
-  certificateUrl: string | null;
-  certificateFileName: string | null;
 };
 
 /** Persist photo URLs after a late/background upload finishes. */
@@ -277,8 +273,6 @@ export async function updateGemDetails(
     isNatural: input.isNatural,
     treatmentStatus: input.treatmentStatus,
     photoUrls: input.photoUrls,
-    certificateUrl: input.certificateUrl,
-    certificateFileName: input.certificateFileName,
     updatedAt: serverTimestamp(),
   });
 
@@ -288,9 +282,6 @@ export async function updateGemDetails(
   ) {
     queueDocUpdate("gems", gem.marketplaceListingId, {
       photoUrls: input.photoUrls,
-      certificateUrl: input.certificateUrl,
-      certificateFileName: input.certificateFileName,
-      isCertified: Boolean(input.certificateUrl),
       updatedAt: serverTimestamp(),
     });
   }

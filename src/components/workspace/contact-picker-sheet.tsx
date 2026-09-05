@@ -106,7 +106,6 @@ function businessMatches(b: Business, q: string) {
 
 function roleLabelForBusiness(b: Business): string {
   const kind = businessKindOf(b);
-  if (kind === 'labs') return ROLE_LABELS.gem_lab;
   if (kind === 'lapidaries') return ROLE_LABELS.lapidary;
   if (kind === 'traders') return ROLE_LABELS.trader;
   return b.businessType.replace(/_/g, ' ');
@@ -114,7 +113,6 @@ function roleLabelForBusiness(b: Business): string {
 
 function marketIcon(b: Business): IconName {
   const kind = businessKindOf(b);
-  if (kind === 'labs') return 'workspace-premium';
   if (kind === 'lapidaries') return 'handyman';
   return 'storefront';
 }
@@ -123,7 +121,6 @@ function marketTabLabel(kinds: BusinessKind[]): string {
   if (kinds.length === 1) {
     if (kinds[0] === 'traders') return 'Traders';
     if (kinds[0] === 'lapidaries') return 'Lapidaries';
-    if (kinds[0] === 'labs') return 'Labs';
   }
   return 'GemFort';
 }
@@ -131,8 +128,7 @@ function marketTabLabel(kinds: BusinessKind[]): string {
 function marketSearchPlaceholder(kinds: BusinessKind[]): string {
   if (kinds.length === 1 && kinds[0] === 'traders') return 'Search traders…';
   if (kinds.length === 1 && kinds[0] === 'lapidaries') return 'Search lapidaries…';
-  if (kinds.length === 1 && kinds[0] === 'labs') return 'Search labs…';
-  return 'Search traders, labs, lapidaries…';
+  return 'Search traders, lapidaries…';
 }
 
 function SearchBox({
@@ -427,7 +423,7 @@ export function ContactPickerSheet({
 }
 
 /**
- * Unified party picker: GemFort market (traders / labs / lapidaries)
+ * Unified party picker: GemFort market (traders / lapidaries)
  * + local Contacts. Market kinds are filtered per flow.
  */
 export function PartyPickerSheet({

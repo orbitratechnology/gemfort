@@ -5,7 +5,6 @@ export function fallbackIconForType(type: string): IconName {
   if (type.startsWith("bill_")) return "receipt-long";
   if (type.startsWith("ap_")) return "handshake";
   if (type.startsWith("service_")) return "handyman";
-  if (type.startsWith("cert_")) return "workspace-premium";
   if (type.startsWith("payment_")) return "payments";
   if (type.startsWith("verification_")) return "verified-user";
   if (type.startsWith("announcement_")) return "campaign";
@@ -213,23 +212,6 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "kept the job open",
     [OPEN],
   ),
-  cert_request_received: social("Certificate", "requested a certificate", [
-    OPEN,
-  ]),
-  cert_request_accepted: social(
-    "Certificate",
-    "accepted your cert request",
-    [OPEN],
-    "success",
-  ),
-  cert_request_rejected: social(
-    "Certificate",
-    "declined your cert request",
-    [OPEN],
-    "warning",
-  ),
-  cert_ready: social("Certificate", "certificate is ready", [OPEN], "success"),
-
   // GemNet
   listing_offer_received: social(
     "Offer",
@@ -238,8 +220,7 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "info",
     "listing_offer",
   ),
-  announcement_platform: media("News"),
-  announcement_industry_news: media("News"),
+  announcement_platform: media("Announcements"),
   verification_approved: system(
     "Verification",
     "success",
@@ -308,8 +289,7 @@ function typeLabelFallback(type: string): string {
   if (type.startsWith("service_")) return "Service";
   if (type.startsWith("payment_")) return "Payment";
   if (type.startsWith("verification_")) return "Verification";
-  if (type.startsWith("announcement_")) return "News";
-  if (type.startsWith("cert_")) return "Certificate";
+  if (type.startsWith("announcement_")) return "Announcements";
   if (type.startsWith("report_")) return "Report";
   if (type.startsWith("account_")) return "Account";
   if (type.startsWith("listing_offer")) return "Offer";

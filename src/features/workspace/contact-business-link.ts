@@ -2,7 +2,7 @@ import { marketTabFromBusinessType } from "@/constants/roles";
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
 import type { Business, Contact } from "@/types";
 
-export type BusinessKind = "traders" | "lapidaries" | "labs";
+export type BusinessKind = "traders" | "lapidaries";
 
 export function businessPhoneKeys(business: Business): string[] {
   const keys = new Set<string>();
@@ -32,10 +32,9 @@ function setFromPhones(...raws: (string | null | undefined)[]): Set<string> {
 
 export function businessKindOf(business: Business): BusinessKind | null {
   const tab = marketTabFromBusinessType(business.businessType);
-  if (tab === "traders" || tab === "lapidaries" || tab === "labs") return tab;
+  if (tab === "traders" || tab === "lapidaries") return tab;
   if (business.sellerProfile) return "traders";
   if (business.providerProfile) return "lapidaries";
-  if (business.labProfile) return "labs";
   return null;
 }
 

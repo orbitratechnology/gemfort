@@ -17,9 +17,7 @@ import {
   queueDocUpdate,
 } from '@/lib/firebase/local-write';
 import type {
-  CertificationRequest,
   LapidaryJob,
-  PublicCertificate,
   ServiceRequest,
 } from '@/types';
 
@@ -44,30 +42,6 @@ export async function createServiceRequest(input: {
     status: 'pending',
     jobId: null,
     serviceRecordId: null,
-    rejectReason: null,
-    createdAt: now,
-    updatedAt: now,
-    respondedAt: null,
-  });
-  return id;
-}
-
-export async function createCertificationRequest(input: {
-  traderUid: string;
-  traderBusinessId: string | null;
-  labUid: string;
-  labBusinessId: string;
-  gemId: string;
-  gemName: string;
-  reportType: string;
-  notes?: string;
-}): Promise<string> {
-  const now = nowTs();
-  const id = queueDocCreate('certification_requests', {
-    ...input,
-    notes: input.notes?.trim() || null,
-    status: 'pending',
-    certificateId: null,
     rejectReason: null,
     createdAt: now,
     updatedAt: now,
@@ -169,170 +143,6 @@ export async function updateLapidaryJobStatus(
       status,
       updatedAt: nowTs(),
     });
-}
-
-export async function fetchOutgoingCertRequests(traderUid: string): Promise<CertificationRequest[]> {
-  const q = query(
-    collection(getFirebaseDb(), 'certification_requests'),
-    where('traderUid', '==', traderUid),
-    orderBy('createdAt', 'desc'),
-    limit(50),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CertificationRequest);
-}
-
-export async function fetchIncomingCertRequests(labUid: string): Promise<CertificationRequest[]> {
-  const q = query(
-    collection(getFirebaseDb(), 'certification_requests'),
-    where('labUid', '==', labUid),
-    orderBy('createdAt', 'desc'),
-    limit(50),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CertificationRequest);
-}
-
-export async function respondCertificationRequest(
-  requestId: string,
-  decision: 'accepted' | 'rejected',
-  rejectReason?: string,
-): Promise<void> {
-  const ref = doc(getFirebaseDb(), 'certification_requests', requestId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Request not found');
-  const data = snap.data() as CertificationRequest;
-  if (data.status !== 'pending') throw new Error('Request already handled');
-  const now = nowTs();
-  forgetSync(
-    updateDoc(ref, {
-      status: decision,
-      rejectReason: decision === 'rejected' ? rejectReason?.trim() || 'Declined' : null,
-      respondedAt: now,
-      updatedAt: now,
-    }),
-  );
-}
-
-export async function publishCertificate(input: {
-  labUid: string;
-  labBusinessId: string;
-  labName: string;
-  certificateNumber: string;
-  verificationCode?: string;
-  reportType: string;
-  fileUrl: string;
-  fileType: string;
-  gemId?: string | null;
-  gemName?: string | null;
-  traderUid?: string | null;
-  certificationRequestId?: string | null;
-  resultsSummary?: PublicCertificate['resultsSummary'];
-}): Promise<string> {
-  const now = nowTs();
-  const certNumber = input.certificateNumber.trim();
-  const id = queueDocCreate('certificates', {
-    labUid: input.labUid,
-    labBusinessId: input.labBusinessId,
-    labName: input.labName,
-    certificateNumber: certNumber,
-    certificateNumberUpper: certNumber.toUpperCase(),
-    verificationCode: input.verificationCode?.trim() || null,
-    reportType: input.reportType,
-    certificateDate: now,
-    fileUrl: input.fileUrl,
-    fileType: input.fileType,
-    gemId: input.gemId ?? null,
-    gemName: input.gemName ?? null,
-    traderUid: input.traderUid ?? null,
-    certificationRequestId: input.certificationRequestId ?? null,
-    resultsSummary: input.resultsSummary ?? {
-      weight: null,
-      color: null,
-      origin: null,
-      treatment: null,
-      clarity: null,
-    },
-    visibility: 'public',
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  if (input.certificationRequestId) {
-    queueDocUpdate('certification_requests', input.certificationRequestId, {
-        status: 'completed',
-        certificateId: id,
-        updatedAt: now,
-      });
-  }
-
-  return id;
-}
-
-export async function fetchLabCertificates(labUid: string): Promise<PublicCertificate[]> {
-  const q = query(
-    collection(getFirebaseDb(), 'certificates'),
-    where('labUid', '==', labUid),
-    orderBy('createdAt', 'desc'),
-    limit(100),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PublicCertificate);
-}
-
-export async function verifyCertificateByNumber(
-  certificateNumber: string,
-): Promise<PublicCertificate | null> {
-  const raw = certificateNumber.trim();
-  if (!raw) return null;
-  const db = getFirebaseDb();
-
-  // 1. Try case-insensitive upper field search
-  try {
-    const qUpper = query(
-      collection(db, 'certificates'),
-      where('certificateNumberUpper', '==', raw.toUpperCase()),
-      where('visibility', '==', 'public'),
-      limit(1),
-    );
-    const snapUpper = await getDocs(qUpper);
-    if (!snapUpper.empty) {
-      const d = snapUpper.docs[0];
-      return { id: d.id, ...d.data() } as PublicCertificate;
-    }
-  } catch {
-    // If index or field is missing, fall through to legacy field search
-  }
-
-  // 2. Exact match on raw certificateNumber
-  const qExact = query(
-    collection(db, 'certificates'),
-    where('certificateNumber', '==', raw),
-    where('visibility', '==', 'public'),
-    limit(1),
-  );
-  const snapExact = await getDocs(qExact);
-  if (!snapExact.empty) {
-    const d = snapExact.docs[0];
-    return { id: d.id, ...d.data() } as PublicCertificate;
-  }
-
-  // 3. Fallback match on uppercase certificateNumber for legacy docs
-  if (raw !== raw.toUpperCase()) {
-    const qUpperFallback = query(
-      collection(db, 'certificates'),
-      where('certificateNumber', '==', raw.toUpperCase()),
-      where('visibility', '==', 'public'),
-      limit(1),
-    );
-    const snapUpperFallback = await getDocs(qUpperFallback);
-    if (!snapUpperFallback.empty) {
-      const d = snapUpperFallback.docs[0];
-      return { id: d.id, ...d.data() } as PublicCertificate;
-    }
-  }
-
-  return null;
 }
 
 export async function createClientNotification(input: {

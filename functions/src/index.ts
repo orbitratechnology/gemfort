@@ -27,8 +27,6 @@ export { onUserAccountAction } from './gemnet/account-action';
 export {
   onServiceRequestCreated,
   onServiceRequestUpdated,
-  onCertRequestCreated,
-  onCertRequestUpdated,
 } from './gemnet/requests';
 export { onListingOfferCreated } from './gemnet/listing-offers';
 export { onLikeCreated } from './gemnet/likes';
@@ -38,8 +36,6 @@ export { onNotificationCreated } from './notifications/on-created';
 export { deleteMyAccount, onAuthUserDeleted } from './account/delete-account';
 export { linkVerifiedPhone } from './auth/link-verified-phone';
 
-export { syncGemNews, runNewsSyncNow } from './news/sync-gem-news';
-export { syncExhibitions } from './news/sync-exhibitions';
 export { searchFlights, getFlightPriceCalendar, createFlightBookingLink } from './flights';
 
 // The consolidated API is deployed independently with --only functions:gemfortApi.

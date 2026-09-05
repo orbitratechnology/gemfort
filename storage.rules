@@ -22,10 +22,6 @@ service firebase.storage {
       allow read, write: if isOwner(userId);
     }
 
-    match /certificates/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
-    }
-
     match /cheques/{userId}/{allPaths=**} {
       allow read, write: if isOwner(userId);
     }

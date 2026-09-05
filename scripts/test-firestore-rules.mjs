@@ -90,21 +90,6 @@ const testCases = [
       },
     },
   },
-  {
-    expectation: 'ALLOW',
-    request: {
-      auth: null,
-      method: 'get',
-      path: '/databases/(default)/documents/certificates/qa-cert-GF-2026-0001',
-    },
-    resource: {
-      data: {
-        visibility: 'public',
-        certificateNumber: 'GF-2026-0001',
-        labUid: 'STnr3bKtrfel7MpKNB7qglAqClF3',
-      },
-    },
-  },
 ];
 
 const payload = {

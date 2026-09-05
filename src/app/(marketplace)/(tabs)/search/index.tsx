@@ -143,7 +143,7 @@ export default function SearchScreen() {
     <>
       <Stack.Screen options={{ title: "Search" }} />
       <Stack.SearchBar
-        placeholder="Search gems, traders, labs…"
+        placeholder="Search gems, traders, lapidaries…"
         placement="automatic"
         hideWhenScrolling={false}
         autoCapitalize="none"
@@ -234,7 +234,7 @@ export default function SearchScreen() {
               subtitle={
                 debounced.trim()
                   ? "Try another name, gem type, or city."
-                  : "Find gems, traders, lapidaries, and labs."
+                  : "Find gems, traders, and lapidaries."
               }
             />
           )

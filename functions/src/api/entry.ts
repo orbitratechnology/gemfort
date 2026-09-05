@@ -7,7 +7,6 @@ import {
   travelpayoutsMarker,
   travelpayoutsProjectId,
 } from '../flights';
-import { firecrawlApiKey, geminiApiKey } from '../news/sync-gem-news';
 import { apiApp } from './app';
 
 export const apiRequestListener = getRequestListener(apiApp.fetch, {
@@ -34,8 +33,6 @@ export const gemfortApi = onRequest(
       travelpayoutsApiToken,
       travelpayoutsMarker,
       travelpayoutsProjectId,
-      geminiApiKey,
-      firecrawlApiKey,
     ],
   },
   (request, response) => apiRequestListener(request, response),

@@ -82,7 +82,6 @@ const gemStatusEnum = z.enum([
   "heated",
   "with_polisher",
   "polished",
-  "certified",
   "ready_for_sale",
   "on_ap",
   "on_trip",
@@ -237,7 +236,6 @@ export const addServiceSchema = z.object({
     "cutting",
     "heating",
     "polishing",
-    "certification",
     "recutting",
     "appraisal",
   ]),
@@ -368,7 +366,7 @@ export const registerSchema = z.object({
     .max(60, "Name is too long"),
   email: z.string().trim().email("Enter a valid email address"),
   password: strongPassword,
-  role: z.enum(["trader", "lapidary", "gem_lab"]),
+  role: z.enum(["trader", "lapidary"]),
 });
 
 export type RegisterForm = z.infer<typeof registerSchema>;

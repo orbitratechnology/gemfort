@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type UserRole = "trader" | "lapidary" | "gem_lab" | "admin";
+export type UserRole = "trader" | "lapidary" | "admin";
 export type VerificationStatus =
   | "none"
   | "pending"
@@ -44,19 +44,7 @@ export type UserProfile = {
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
 };
-
-export type BusinessType = "trader" | "lapidary" | "gem_lab" | string;
-
-/** Priced certificate tier on a Gem Lab public profile. */
-export type LabCertificateOffering = {
-  id: string;
-  title: string;
-  description: string;
-  /** Flat fee; null means inquire / not set. */
-  price: number | null;
-  currency: string;
-  isActive: boolean;
-};
+export type BusinessType = "trader" | "lapidary" | string;
 
 /** A fixed-price service displayed by a lapidary on their public profile. */
 export type LapidaryServiceOffering = {
@@ -117,15 +105,6 @@ export type Business = {
     isAcceptingOrders: boolean;
     portfolioCount: number;
   } | null;
-  labProfile?: {
-    accreditations: string[];
-    /** @deprecated Prefer certificateOfferings; kept for market chips / legacy. */
-    reportTypes: string[];
-    /** Public certificate menu with prices — edited by the lab. */
-    certificateOfferings?: LabCertificateOffering[];
-    isAcceptingOrders: boolean;
-    certificatesIssued: number;
-  } | null;
   contacts: Record<string, { value: string; isVisible: boolean }>;
   /** Public social / web presence — empty string means not set. */
   socialLinks?: {
@@ -160,7 +139,7 @@ export type Business = {
 
 export type Announcement = {
   id: string;
-  type: "platform" | "industry_news" | "featured_spotlight" | "new_listing";
+  type: "platform" | "featured_spotlight" | "new_listing";
   title: string;
   content: string | null;
   externalUrl: string | null;
@@ -189,7 +168,6 @@ export type GemStatus =
   | GemStoneStage
   | GemCustody
   | GemOutcome
-  | "certified"
   | "ready_for_sale";
 
 export type WorkspaceGem = {
@@ -248,9 +226,6 @@ export type WorkspaceGem = {
   soldPriceBase?: number | null;
   soldDate: Timestamp | null;
   photoUrls: string[];
-  /** Optional owner-uploaded certificate or report (image, media, or document). */
-  certificateUrl?: string | null;
-  certificateFileName?: string | null;
   isListedOnMarketplace: boolean;
   marketplaceListingId: string | null;
   notes: string | null;
@@ -308,7 +283,7 @@ export type ServiceRecord = {
   serviceType: string;
   /** Local saved contact (Workspace → Contacts). Empty when provider is a GemFort business. */
   providerContactId: string;
-  /** Verified GemFort lapidary / gem lab business, when selected from Providers tab. */
+  /** Verified GemFort lapidary business, when selected from Providers tab. */
   providerBusinessId?: string | null;
   /** Firebase Auth uid of the GemFort provider (business owner), when linked. */
   providerUid?: string | null;
@@ -430,7 +405,7 @@ export type Contact = {
   photoUrl: string | null;
   /** Device address-book ID when imported from phone contacts */
   deviceContactId: string | null;
-  /** GemFort business profile matched 1:1 by phone (trader / lapidary / lab). */
+  /** GemFort business profile matched 1:1 by phone (trader / lapidary). */
   linkedBusinessId: string | null;
   linkedBusinessName: string | null;
   linkedBusinessType: string | null;
@@ -715,9 +690,6 @@ export type MarketplaceListing = {
   shape: string | null;
   origin: string;
   treatmentStatus: string;
-  isCertified: boolean;
-  certifyingLab: string | null;
-  certificateNumber: string | null;
   showPrice: boolean;
   /** Face asking price as entered by the seller. */
   priceMin: number | null;
@@ -728,9 +700,6 @@ export type MarketplaceListing = {
   /** LKR equivalent of priceMax. */
   priceMaxBase?: number | null;
   photoUrls: string[];
-  /** Snapshot of the workspace gem's optional certificate/report attachment. */
-  certificateUrl?: string | null;
-  certificateFileName?: string | null;
   status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;
   shareableUrl: string;
@@ -829,7 +798,7 @@ export type VerificationApplication = {
   id: string;
   applicantUid: string;
   businessId: string;
-  applicationType: "trader" | "lapidary" | "gem_lab" | string;
+  applicationType: "trader" | "lapidary" | string;
   status: string;
   /** ISO date `YYYY-MM-DD` — required for KYC. */
   dateOfBirth: string;
@@ -891,94 +860,4 @@ export type LapidaryJob = {
   notes: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-};
-
-export type CertificationRequest = {
-  id: string;
-  traderUid: string;
-  traderBusinessId: string | null;
-  labUid: string;
-  labBusinessId: string;
-  gemId: string;
-  gemName: string;
-  reportType: string;
-  notes: string | null;
-  status: RequestStatus;
-  certificateId: string | null;
-  rejectReason: string | null;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  respondedAt: Timestamp | null;
-};
-
-export type PublicCertificate = {
-  id: string;
-  labUid: string;
-  labBusinessId: string;
-  labName: string;
-  certificateNumber: string;
-  verificationCode: string | null;
-  reportType: string;
-  certificateDate: Timestamp | null;
-  fileUrl: string;
-  fileType: string;
-  gemId: string | null;
-  gemName: string | null;
-  traderUid: string | null;
-  certificationRequestId: string | null;
-  resultsSummary: {
-    weight: string | null;
-    color: string | null;
-    origin: string | null;
-    treatment: string | null;
-    clarity: string | null;
-  };
-  visibility: "public";
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-};
-
-// ─── Gem News & Exhibitions ───────────────────────
-
-export type NewsRegion = "local" | "global";
-
-export type NewsTopic =
-  | "market"
-  | "trade_policy"
-  | "regulation"
-  | "exhibitions"
-  | "industry"
-  | "sri_lanka";
-
-export type GemNewsArticle = {
-  id: string;
-  title: string;
-  summary: string;
-  url: string;
-  canonicalUrl: string;
-  source: string;
-  sourceId: string;
-  region: NewsRegion;
-  topics: NewsTopic[];
-  publishedAt: Timestamp;
-  scrapedAt: Timestamp;
-  updatedAt: Timestamp;
-  imageUrl: string | null;
-  language: string;
-  isVisible: boolean;
-};
-
-export type GemExhibition = {
-  id: string;
-  title: string;
-  venue: string;
-  city: string | null;
-  country: string | null;
-  startDate: Timestamp;
-  endDate: Timestamp;
-  updatedAt: Timestamp;
-  region: NewsRegion;
-  sourceUrl: string;
-  sourceId: string;
-  isVisible: boolean;
 };

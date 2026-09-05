@@ -29,11 +29,9 @@ KEYS = [
     "jobs",
     "contacts",
     "bill",
-    "certificates",
     "money",
     "market",
     "search",
-    "news",
 ]
 THEMES = ["light", "dark"]
 

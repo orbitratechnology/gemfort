@@ -24,7 +24,6 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
-import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -169,11 +168,6 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
   const [photos, setPhotos] = useState<LocalMedia[]>(() =>
     mediaFromPhotoUrls(gem.photoUrls ?? []),
   );
-  const [certificate, setCertificate] = useState<LocalMedia | null>(() =>
-    gem.certificateUrl
-      ? { uri: gem.certificateUrl, kind: "file", fileName: gem.certificateFileName ?? "Certificate / report" }
-      : null,
-  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [showOptional, setShowOptional] = useState(() =>
@@ -267,13 +261,6 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         const hasLocalPhotos = photos.some((p) => !isRemoteUri(p.uri));
         let photoUrls = remoteUrls;
         let photosDeferred = false;
-        let certificateUrl = certificate?.uri ?? null;
-        if (certificate && !isRemoteUri(certificate.uri)) {
-          certificateUrl = await uploadLocalMedia(
-            certificate,
-            `gemtrack_gems/${user.uid}/${stamp}_certificate.${extensionForMedia(certificate)}`,
-          );
-        }
 
         if (photos.length > 0 && hasLocalPhotos) {
           const uploadTask = Promise.all(
@@ -345,8 +332,6 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
           isNatural: !data.treatment || data.treatment === "natural",
           treatmentStatus: data.treatment ?? "natural",
           photoUrls,
-          certificateUrl,
-          certificateFileName: certificate?.fileName ?? null,
         });
 
         void queryClient.invalidateQueries({ queryKey: ["gems"] });
@@ -587,15 +572,6 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
             error={errors.photos}
             emptyTitle="Add photos"
             emptySubtitle="Optional — needs network to upload"
-          />
-        </FormSection>
-        <FormSection title="Certificate / Report">
-          <MediaField
-            value={certificate}
-            onChange={setCertificate}
-            allows="imagesOrDocuments"
-            emptyTitle="Add certificate or report"
-            emptySubtitle="Optional — a report makes this gem certified"
           />
         </FormSection>
       </ThemedScrollView>

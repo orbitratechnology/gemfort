@@ -4,11 +4,6 @@ import {
     normalizeUserRole,
     ROLE_LABELS,
 } from "@/constants/roles";
-import {
-    defaultLabCertificateOfferings,
-    reportTypesFromOfferings,
-    sanitizeLabCertificateOfferings,
-} from "@/features/marketplace/lab-certificate-offerings";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
@@ -36,8 +31,7 @@ import type {
     Business,
     BusinessType,
     FraudReportType,
-  LabCertificateOffering,
-  LapidaryServiceOffering,
+    LapidaryServiceOffering,
     ListingOffer,
     MarketplaceListing,
     UserRole,
@@ -46,7 +40,6 @@ import type {
 export type MarketBusinessFilter =
   | "trader"
   | "lapidary"
-  | "gem_lab"
   | "seller"
   | "provider";
 
@@ -104,13 +97,6 @@ export function filterBusinesses(
       (b) =>
         marketTabFromBusinessType(b.businessType) === "lapidaries" ||
         b.providerProfile != null,
-    );
-  }
-  if (filters?.businessType === "gem_lab") {
-    result = result.filter(
-      (b) =>
-        marketTabFromBusinessType(b.businessType) === "labs" ||
-        b.labProfile != null,
     );
   }
   if (filters?.city) {
@@ -268,7 +254,6 @@ export async function createBusinessProfile(
         : input.businessType;
   const isTrader = type === "trader";
   const isLapidary = type === "lapidary";
-  const isLab = type === "gem_lab";
   const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
   const ph = normalizePhoneForStorage(input.phone) ?? "";
   const id = queueDocCreate("businesses", {
@@ -318,18 +303,6 @@ export async function createBusinessProfile(
           isAcceptingOrders: true,
           portfolioCount: 0,
         }
-      : null,
-    labProfile: isLab
-      ? (() => {
-          const certificateOfferings = defaultLabCertificateOfferings();
-          return {
-            accreditations: [],
-            reportTypes: reportTypesFromOfferings(certificateOfferings),
-            certificateOfferings,
-            isAcceptingOrders: true,
-            certificatesIssued: 0,
-          };
-        })()
       : null,
     contacts: {
       whatsapp: { value: wa, isVisible: !!wa },
@@ -381,8 +354,6 @@ export async function updateBusinessProfile(
       facebook?: string;
       wechat?: string;
     };
-    /** Gem Lab certificate menu (prices + active tiers). */
-    certificateOfferings?: LabCertificateOffering[];
     /** Public fixed-price service menu for a lapidary. */
     lapidaryServiceOfferings?: LapidaryServiceOffering[];
     /** Business gallery photos (works, work samples, showroom, business photos). */
@@ -416,14 +387,6 @@ export async function updateBusinessProfile(
       facebook: data.socialLinks.facebook?.trim() ?? "",
       wechat: data.socialLinks.wechat?.trim() ?? "",
     };
-  }
-  if (data.certificateOfferings !== undefined) {
-    const certificateOfferings = sanitizeLabCertificateOfferings(
-      data.certificateOfferings,
-    );
-    updates["labProfile.certificateOfferings"] = certificateOfferings;
-    updates["labProfile.reportTypes"] =
-      reportTypesFromOfferings(certificateOfferings);
   }
   if (data.lapidaryServiceOfferings !== undefined) {
     const services = data.lapidaryServiceOfferings
@@ -551,7 +514,6 @@ export function demoBusinesses(filters?: {
         preferredCurrencies: ["LKR", "USD"],
       },
       providerProfile: null,
-      labProfile: null,
       analytics: {
         profileViewsTotal: 0,
         listingViewsTotal: 0,
@@ -574,43 +536,6 @@ export function demoBusinesses(filters?: {
         gemSpecializations: ["blue_sapphire"],
         isAcceptingOrders: true,
         portfolioCount: 12,
-      },
-      labProfile: null,
-      analytics: {
-        profileViewsTotal: 0,
-        listingViewsTotal: 0,
-        whatsappTapsTotal: 0,
-        phoneTapsTotal: 0,
-      },
-    },
-    {
-      ...base,
-      id: "demo-lab-1",
-      businessType: "gem_lab",
-      businessName: "Ceylon Gem Lab",
-      ownerName: "Demo Lab",
-      shortDescription: "Independent gem reports",
-      city: "Colombo",
-      sellerProfile: null,
-      providerProfile: null,
-      labProfile: {
-        accreditations: ["NGJA"],
-        reportTypes: ["standard_photo_certificate", "gem_brief_memo"],
-        certificateOfferings: defaultLabCertificateOfferings().map((o) => ({
-          ...o,
-          isActive:
-            o.id === "standard_photo_certificate" || o.id === "gem_brief_memo",
-          price:
-            o.id === "gem_brief_memo"
-              ? 3500
-              : o.id === "standard_photo_certificate"
-                ? 8500
-                : o.id === "advanced_origin_certificate"
-                  ? 18000
-                  : 22000,
-        })),
-        isAcceptingOrders: true,
-        certificatesIssued: 120,
       },
       analytics: {
         profileViewsTotal: 0,
@@ -692,9 +617,6 @@ export function demoListings(): MarketplaceListing[] {
     visibility: "public" as const,
     clarity: "VS",
     shape: "Oval",
-    isCertified: true,
-    certifyingLab: "GIA",
-    certificateNumber: null,
     showPrice: true,
     currency: "USD",
     status: "active" as const,

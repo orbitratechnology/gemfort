@@ -64,4 +64,4 @@ The isolated `gemfortApi` deployment is live at `https://asia-south1-gemfort.clo
 
 ## Next implementation slice
 
-The client transport and native App Check provider are documented in [Phase 3 client canary transport](./phase-3-client-canary.md) and [Phase 4 App Check readiness](./phase-4-app-check-canary.md). The Android flight canary is now proven, and the admin manual news route is documented in [Phase 5 admin news API](./phase-5-admin-news-api.md). AP mutations, phone linking, and account deletion remain later slices because they require stronger idempotency, ownership, recent-auth, and rollback verification.
+The client transport and native App Check provider are documented in [Phase 3 client canary transport](./phase-3-client-canary.md) and [Phase 4 App Check readiness](./phase-4-app-check-canary.md). The Android flight canary is now proven. AP mutations, phone linking, and account deletion remain later slices because they require stronger idempotency, ownership, recent-auth, and rollback verification.

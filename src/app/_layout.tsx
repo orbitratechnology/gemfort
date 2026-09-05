@@ -120,20 +120,12 @@ function RootNavigator() {
       />
       <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen
-        name="verify-certificate"
-        options={{
-          ...formSheetFitContentOptions,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      />
-      <Stack.Screen
         name="verify-certificate-portals"
         options={{
           ...formSheetFitContentOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />
-      <Stack.Screen name="news/index" options={{ headerShown: false }} />
     </Stack>
   );
 }

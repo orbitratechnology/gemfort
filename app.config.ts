@@ -182,10 +182,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // *_light = black glyph, *_dark = white glyph; JS picks via useColorScheme.
         // Regenerate: python scripts/generate-shortcut-icons.py
         androidIcons: {
-          shortcut_verify_light:
-            "./assets/images/shortcuts/shortcut_verify_light.png",
-          shortcut_verify_dark:
-            "./assets/images/shortcuts/shortcut_verify_dark.png",
           shortcut_gem_light:
             "./assets/images/shortcuts/shortcut_gem_light.png",
           shortcut_gem_dark: "./assets/images/shortcuts/shortcut_gem_dark.png",
@@ -214,10 +210,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "./assets/images/shortcuts/shortcut_bill_light.png",
           shortcut_bill_dark:
             "./assets/images/shortcuts/shortcut_bill_dark.png",
-          shortcut_certificates_light:
-            "./assets/images/shortcuts/shortcut_certificates_light.png",
-          shortcut_certificates_dark:
-            "./assets/images/shortcuts/shortcut_certificates_dark.png",
           shortcut_money_light:
             "./assets/images/shortcuts/shortcut_money_light.png",
           shortcut_money_dark:
@@ -230,33 +222,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "./assets/images/shortcuts/shortcut_search_light.png",
           shortcut_search_dark:
             "./assets/images/shortcuts/shortcut_search_dark.png",
-          shortcut_news_light:
-            "./assets/images/shortcuts/shortcut_news_light.png",
-          shortcut_news_dark:
-            "./assets/images/shortcuts/shortcut_news_dark.png",
         },
         // Static iOS actions available before JS loads; replaced dynamically by role.
         // Prefer outline SF Symbols / built-ins so they match system menu icons.
         iosActions: [
           {
-            id: "verify",
-            title: "Verify certificate",
-            subtitle: "Check a lab certificate",
-            icon: "symbol:checkmark.seal",
-            params: { href: "/verify-certificate" },
+            id: "certificate-portals",
+            title: "Certificate portals",
+            subtitle: "Open external verification pages",
+            icon: "symbol:link",
+            params: { href: "/verify-certificate-portals" },
           },
           {
             id: "market",
             title: "Market",
-            subtitle: "Find traders, lapidaries & labs",
+            subtitle: "Find traders and lapidaries",
             icon: "symbol:person.2",
             params: { href: "/(marketplace)/(tabs)/market" },
-          },
-          {
-            id: "news",
-            title: "Gem news",
-            icon: "symbol:newspaper",
-            params: { href: "/news" },
           },
           {
             id: "search",

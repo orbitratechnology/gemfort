@@ -19,7 +19,6 @@ import {
   type ApLifecycleResult,
   type CreateApRequestInput,
 } from './ap-request-api';
-import { db } from '../admin';
 import {
   requestApCancellationForApi,
   respondApCancellationForApi,
@@ -43,12 +42,6 @@ import {
   getFlightPriceCalendarForApi,
   searchFlightsForApi,
 } from '../flights';
-import {
-  firecrawlApiKey,
-  geminiApiKey,
-  syncNewsOnce,
-  type NewsSyncSummary,
-} from '../news/sync-gem-news';
 import {
   requestServiceCancellationForApi,
   respondServiceCancellationForApi,
@@ -89,7 +82,6 @@ const COMPAT_CALLABLES = new Set([
   'searchFlights',
   'getFlightPriceCalendar',
   'createFlightBookingLink',
-  'runNewsSyncNow',
 ]);
 
 const COMPAT_MUTATIONS = new Set([
@@ -116,8 +108,6 @@ export type ApiAppOptions = {
   verifyIdToken?: VerifyIdToken;
   verifyAppCheck?: VerifyAppCheckToken;
   appCheckMode?: AppCheckMode;
-  verifyAdmin?: (uid: string) => Promise<boolean>;
-  syncNews?: () => Promise<NewsSyncSummary>;
   createApRequest?: (
     uid: string,
     input: CreateApRequestInput,
@@ -167,15 +157,6 @@ export type ApiAppOptions = {
   executeMutation?: MutationExecutor;
 };
 
-async function defaultVerifyAdmin(uid: string): Promise<boolean> {
-  const snapshot = await db.collection('users').doc(uid).get();
-  return snapshot.data()?.role === 'admin';
-}
-
-function defaultSyncNews(): Promise<NewsSyncSummary> {
-  return syncNewsOnce(geminiApiKey.value(), firecrawlApiKey.value());
-}
-
 function requireUser(c: ApiContext): NonNullable<ApiEnv['Variables']['user']> {
   const user = c.get('user');
   if (!user) throw new ApiError('unauthenticated', 'Sign in to continue.');
@@ -196,6 +177,12 @@ async function readJson(c: ApiContext): Promise<unknown> {
 
 function routeOf(c: ApiContext): string {
   return c.req.routePath || c.req.path;
+}
+
+function requiredRouteParam(c: ApiContext, name: string): string {
+  const value = c.req.param(name);
+  if (!value) throw new ApiError('invalid-argument', `${name} is required.`);
+  return value;
 }
 
 function actionOf(value: unknown): 'accepted' | 'rejected' {
@@ -302,8 +289,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
     mode: options.appCheckMode ?? 'enforce',
     verifyToken: options.verifyAppCheck,
   });
-  const verifyAdmin = options.verifyAdmin ?? defaultVerifyAdmin;
-  const runNewsSync = options.syncNews ?? defaultSyncNews;
   const createApRequest = options.createApRequest ?? createApRequestForApi;
   const respondApRequest = options.respondApRequest ?? respondApRequestForApi;
   const cancelApRequest = options.cancelApRequest ?? cancelApRequestForApi;
@@ -346,7 +331,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
 
   app.post('/v1/ap/requests/:apId/respond', auth, appCheck, async (c) => {
     const input = parseRespondApRequestInput(await readJson(c));
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     const data = await mutation(c, { apId, ...input }, (uid) =>
       respondApRequest(apId, uid, input.action, input.rejectionReason),
     );
@@ -354,13 +339,13 @@ export function createApiApp(options: ApiAppOptions = {}) {
   });
 
   app.post('/v1/ap/requests/:apId/cancel', auth, appCheck, async (c) => {
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId }, (uid) => cancelApRequest(apId, uid)));
   });
 
   const saleHandler = async (c: ApiContext) => {
     const input = parseRecordApGemSaleInput(await readJson(c));
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId, input }, (uid) => recordApGemSale(apId, uid, input)));
   };
   app.post('/v1/ap/records/:apId/sale', auth, appCheck, saleHandler);
@@ -368,7 +353,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
 
   const returnHandler = async (c: ApiContext) => {
     const input = parseReturnApGemInput(await readJson(c));
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId, ...input }, (uid) => returnApGem(apId, uid, input.gemId)));
   };
   app.post('/v1/ap/records/:apId/return', auth, appCheck, returnHandler);
@@ -376,7 +361,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
 
   const paymentSentHandler = async (c: ApiContext) => {
     const input = parseApPaymentSentInput(await readJson(c));
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId, input }, (uid) => apPaymentSent(apId, uid, input)));
   };
   app.post('/v1/ap/records/:apId/payment-sent', auth, appCheck, paymentSentHandler);
@@ -384,14 +369,14 @@ export function createApiApp(options: ApiAppOptions = {}) {
 
   const paymentReceivedHandler = async (c: ApiContext) => {
     const input = parseApPaymentReceivedInput(await readJson(c));
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId, input }, (uid) => apPaymentReceived(apId, uid, input)));
   };
   app.post('/v1/ap/records/:apId/payment-received', auth, appCheck, paymentReceivedHandler);
   app.post('/v1/ap/:apId/payment-received', auth, appCheck, paymentReceivedHandler);
 
   const apCancellationHandler = async (c: ApiContext) => {
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId }, (uid) => requestApCancellation(apId, uid)));
   };
   app.post('/v1/ap/records/:apId/cancellation', auth, appCheck, apCancellationHandler);
@@ -403,7 +388,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
       throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
     }
     const action = actionOf((input as { action?: unknown }).action);
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId, action }, (uid) =>
       respondApCancellation(apId, uid, action),
     ));
@@ -412,13 +397,13 @@ export function createApiApp(options: ApiAppOptions = {}) {
   app.post('/v1/ap/:apId/cancellation/respond', auth, appCheck, apCancellationResponseHandler);
 
   const deleteApHandler = async (c: ApiContext) => {
-    const apId = c.req.param('apId');
+    const apId = requiredRouteParam(c, 'apId');
     return success(c, await mutation(c, { apId }, (uid) => deleteApRecord(apId, uid)));
   };
   app.delete('/v1/ap/records/:apId', auth, appCheck, deleteApHandler);
 
   app.post('/v1/services/:serviceId/cancellation', auth, appCheck, async (c) => {
-    const serviceId = c.req.param('serviceId');
+    const serviceId = requiredRouteParam(c, 'serviceId');
     return success(c, await mutation(c, { serviceId }, (uid) =>
       requestServiceCancellation(serviceId, uid),
     ));
@@ -430,7 +415,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
       throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
     }
     const action = actionOf((input as { action?: unknown }).action);
-    const serviceId = c.req.param('serviceId');
+    const serviceId = requiredRouteParam(c, 'serviceId');
     return success(c, await mutation(c, { serviceId, action }, (uid) =>
       respondServiceCancellation(serviceId, uid, action),
     ));
@@ -463,14 +448,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
   app.post('/v1/flights/booking-link', auth, appCheck, async (c) =>
     success(c, await createFlightBookingLinkForApi(await readJson(c))),
   );
-
-  app.post('/v1/admin/news/sync', auth, appCheck, async (c) => {
-    const user = requireUser(c);
-    if (!(await verifyAdmin(user.uid))) {
-      throw new ApiError('permission-denied', 'Admin only.');
-    }
-    return success(c, await runNewsSync());
-  });
 
   app.post('/v1/compat/callable/:functionName', auth, appCheck, async (c) => {
     try {
@@ -546,9 +523,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
               return getFlightPriceCalendarForApi(data);
             case 'createFlightBookingLink':
               return createFlightBookingLinkForApi(data);
-            case 'runNewsSyncNow':
-              if (!(await verifyAdmin(user.uid))) throw new ApiError('permission-denied', 'Admin only.');
-              return runNewsSync();
             default:
               throw new ApiError('not-found', 'Callable compatibility route not found.');
           }

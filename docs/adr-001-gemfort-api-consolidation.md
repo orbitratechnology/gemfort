@@ -78,9 +78,9 @@ Out of scope by explicit product direction. No implementation or migration work 
 
 1. Verify Firebase ID tokens server-side; never trust a client-supplied UID.
 2. Preserve App Check behavior and document whether the API rejects missing/invalid tokens or follows the existing callable posture.
-3. Use explicit route-level authorization and validation, especially for AP mutations, account deletion, phone linking, and administrative news sync.
+3. Use explicit route-level authorization and validation, especially for AP mutations, account deletion, and phone linking.
 4. Add idempotency protection to retried mutations and webhook-like provider interactions.
-5. Keep slow scheduled jobs out of interactive request latency budgets; do not move `syncGemNews`, `syncExhibitions`, or other schedules into the API without a separate approval.
+5. Keep slow scheduled jobs out of interactive request latency budgets; do not move scheduled jobs into the API without a separate approval.
 6. Provide a compatibility adapter so the mobile/web client can migrate through one shared transport module.
 7. Deploy with a reversible cutover: shadow or canary where practical, measurable parity checks, and the existing callable functions retained until rollback criteria expire.
 8. Add structured logs, metrics, traces/correlation IDs, alerting, and dashboards before production traffic is switched.

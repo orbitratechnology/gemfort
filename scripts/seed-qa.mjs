@@ -1,5 +1,5 @@
 /**
- * QA seed — Auth users + Firestore profiles/businesses/certs for personas.
+ * QA seed — Auth users + Firestore profiles/businesses for personas.
  * Prereq: `gcloud auth application-default login` (or GOOGLE_APPLICATION_CREDENTIALS).
  * Usage: node scripts/seed-qa.mjs
  *
@@ -7,7 +7,6 @@
  *   qa-trader@gemfort.test   — verified trader (sender)
  *   qa-trader-b@gemfort.test — verified trader (AP holder / accept-sell)
  *   qa-lapidary@gemfort.test — verified lapidary
- *   qa-lab@gemfort.test      — verified gem lab
  *   qa-suspended@gemfort.test — suspended lockout (AC-AUTH-003)
  */
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
@@ -51,15 +50,6 @@ const PERSONAS = [
     role: 'lapidary',
     businessId: 'qa-lapidary-biz',
     businessName: 'QA Kamal Gem Cutting',
-  },
-  {
-    key: 'gem_lab',
-    email: 'qa-lab@gemfort.test',
-    displayName: 'QA Lab Nisha',
-    phone: '+94770000003',
-    role: 'gem_lab',
-    businessId: 'qa-lab-biz',
-    businessName: 'QA Nisha Gem Lab',
   },
 ];
 
@@ -181,7 +171,6 @@ function businessForRole(uid, p) {
         preferredCurrencies: ['LKR', 'USD'],
       },
       providerProfile: null,
-      labProfile: null,
     };
   }
   if (p.role === 'lapidary') {
@@ -210,62 +199,8 @@ function businessForRole(uid, p) {
         isAcceptingOrders: true,
         portfolioCount: 12,
       },
-      labProfile: null,
     };
   }
-  return {
-    ...base,
-    businessType: 'gem_lab',
-    sellerProfile: null,
-    providerProfile: null,
-    labProfile: {
-      accreditations: ['GIA', 'Gübelin'],
-      reportTypes: [
-        'standard_photo_certificate',
-        'advanced_origin_certificate',
-      ],
-      certificateOfferings: [
-        {
-          id: 'gem_brief_memo',
-          title: 'Gem Brief / Memo',
-          description:
-            'Pocket-sized plastic card with standard ID data and a small stone photo. Perfect for quick, low-cost verification.',
-          price: 3500,
-          currency: 'LKR',
-          isActive: false,
-        },
-        {
-          id: 'standard_photo_certificate',
-          title: 'Standard Photo Certificate',
-          description:
-            'Full paper report detailing species, dimensions, and standard treatments (heated vs. unheated).',
-          price: 8500,
-          currency: 'LKR',
-          isActive: true,
-        },
-        {
-          id: 'advanced_origin_certificate',
-          title: 'Advanced / Origin Certificate',
-          description:
-            'In-depth chemical analysis using spectrometry to issue an opinion on geographic origin.',
-          price: 18000,
-          currency: 'LKR',
-          isActive: true,
-        },
-        {
-          id: 'diamond_grading_report',
-          title: 'Diamond Grading Report',
-          description:
-            'Dedicated assessment mapping the classic 4Cs (Color, Clarity, Cut, Carat Weight).',
-          price: 22000,
-          currency: 'LKR',
-          isActive: false,
-        },
-      ],
-      isAcceptingOrders: true,
-      certificatesIssued: 1,
-    },
-  };
 }
 
 async function main() {
@@ -293,35 +228,6 @@ async function main() {
       expiresAt: null,
       createdByAdminUid: 'seed-qa',
       createdAt: now,
-    },
-    { merge: true },
-  );
-
-  await db.collection('certificates').doc('qa-cert-GF-2026-0001').set(
-    {
-      labUid: uids.gem_lab,
-      labBusinessId: 'qa-lab-biz',
-      labName: 'QA Nisha Gem Lab',
-      certificateNumber: 'GF-2026-0001',
-      verificationCode: 'QAVERIFY01',
-      reportType: 'identification',
-      certificateDate: now,
-      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-      fileType: 'pdf',
-      gemId: null,
-      gemName: 'Blue Sapphire 2.14ct',
-      traderUid: uids.trader,
-      certificationRequestId: null,
-      resultsSummary: {
-        weight: '2.14 ct',
-        color: 'Blue',
-        origin: 'Sri Lanka',
-        treatment: 'None',
-        clarity: 'VS',
-      },
-      visibility: 'public',
-      createdAt: now,
-      updatedAt: now,
     },
     { merge: true },
   );

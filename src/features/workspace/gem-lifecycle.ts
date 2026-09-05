@@ -63,7 +63,7 @@ export function resolveGemLifecycle(
       ? gem.stoneStage
       : isGemStoneStage(legacy)
         ? legacy
-        : legacy === "certified" || legacy === "ready_for_sale"
+        : legacy === "ready_for_sale"
           ? "polished"
           : "rough";
 
@@ -151,7 +151,7 @@ export function patchFromFlatStatus(status: GemStatus): {
   if (isGemStoneStage(status)) return { stoneStage: status };
   if (isGemCustody(status)) return { custody: status };
   if (isGemOutcome(status)) return { outcome: status };
-  if (status === "certified" || status === "ready_for_sale") {
+  if (status === "ready_for_sale") {
     return { stoneStage: "polished" };
   }
   return {};

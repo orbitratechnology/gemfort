@@ -12,7 +12,7 @@ type HomeBusinessRailProps = {
   businesses: Business[];
   emptyLabel: string;
   onBrowse: () => void;
-  roleHint?: "Trader" | "Lapidary" | "Gem Lab";
+  roleHint?: "Trader" | "Lapidary";
 };
 
 /** Horizontal rail of the same BusinessCard used in market / search. */

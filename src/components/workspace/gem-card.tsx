@@ -73,7 +73,6 @@ export function GemCard({
   const statusLabel = formatLifecycleSummary(lifecycle);
   const hasOriginFlag = !!resolveCountryCode(gem.originCountry);
   const caratLabel = `${gem.currentWeight} ct`;
-  const isCertified = Boolean(gem.certificateUrl);
 
   const media = photo ? (
     <Image source={{ uri: photo }} style={styles.image} contentFit="cover" />
@@ -131,13 +130,6 @@ export function GemCard({
             {statusLabel}
           </Text>
         </View>
-
-        {isCertified ? (
-          <View style={[styles.certifiedPill, { backgroundColor: colors.successEmerald }]}>
-            <Icon name="verified" size={11} color="#FFFFFF" />
-            <Text style={styles.certifiedText}>CERTIFIED</Text>
-          </View>
-        ) : null}
 
         {offerBadge > 0 ? (
           <View
@@ -296,21 +288,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: "capitalize",
   },
-  certifiedPill: {
-    position: "absolute",
-    top: Spacing.sm,
-    left: Spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
   statusPillWithFlag: {
     bottom: 26,
   },
-  certifiedText: { color: "#FFFFFF", fontSize: 9, fontWeight: "800", letterSpacing: 0.35 },
   offerBadge: {
     position: "absolute",
     bottom: Spacing.sm,

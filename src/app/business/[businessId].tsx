@@ -35,7 +35,6 @@ import {
 } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
-import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import {
     demoBusinesses,
     demoListings,
@@ -76,7 +75,6 @@ function initials(name: string) {
 }
 
 function roleLabel(type: BusinessType, isProvider: boolean): string {
-  if (type === "gem_lab" || type === "lab") return "Gem Lab";
   if (type === "trader" || type === "seller") return "Trader";
   if (type === "lapidary" || isProvider) return "Lapidary";
   return isProvider ? "Lapidary" : "Trader";
@@ -206,13 +204,6 @@ export default function BusinessProfileScreen() {
   );
   const services =
     business?.providerProfile?.services?.filter((s) => s.isActive) ?? [];
-  const certificateOfferings = business?.labProfile
-    ? normalizeLabCertificateOfferings(
-        business.labProfile.certificateOfferings,
-        business.labProfile.reportTypes,
-      ).filter((o) => o.isActive)
-    : [];
-
   const galleryPhotos = useMemo(
     () =>
       (business?.galleryPhotos ?? []).filter((p) => p?.url?.trim().length > 0),
@@ -223,20 +214,15 @@ export default function BusinessProfileScreen() {
   const isVerifiedMember =
     profile?.verificationStatus === "verified" &&
     (profile?.role === "trader" ||
-      profile?.role === "lapidary" ||
-      profile?.role === "gem_lab");
+      profile?.role === "lapidary");
   const isVerifiedTrader =
     profile?.verificationStatus === "verified" && profile?.role === "trader";
   const canLike =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness && !liked;
   const showLikeAction =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
-  const isLab =
-    business?.businessType === "gem_lab" ||
-    business?.businessType === "lab" ||
-    !!business?.labProfile;
   const canRequestService =
-    isVerifiedTrader && isProvider && !isOwnBusiness && !isLab;
+    isVerifiedTrader && isProvider && !isOwnBusiness;
 
   const gems = useMemo(() => {
     if (!business) return [] as MarketplaceListing[];
@@ -772,59 +758,6 @@ export default function BusinessProfileScreen() {
                           {s.turnaroundDaysMin}-{s.turnaroundDaysMax} days
                         </Text>
                       ) : null}
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </FormSection>
-          </>
-        ) : null}
-
-        {/* Gem Lab certificates */}
-        {isLab && certificateOfferings.length > 0 ? (
-          <>
-            <FormSectionLabel title="CERTIFICATES" />
-            <FormSection>
-              {certificateOfferings.map((c) => (
-                <View key={c.id} style={styles.serviceRow}>
-                  <View
-                    style={[
-                      styles.serviceIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="workspace-premium"
-                      size={20}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                  <View style={styles.serviceBody}>
-                    <Text
-                      style={[styles.serviceName, { color: colors.onSurface }]}
-                      numberOfLines={2}
-                    >
-                      {c.title}
-                    </Text>
-                    {c.description ? (
-                      <Text
-                        style={[
-                          styles.serviceDesc,
-                          { color: colors.onSurfaceVariant },
-                        ]}
-                        numberOfLines={3}
-                      >
-                        {c.description}
-                      </Text>
-                    ) : null}
-                    <View style={styles.serviceMetaRow}>
-                      <Text
-                        style={[styles.serviceMeta, { color: colors.primary }]}
-                      >
-                        {c.price != null
-                          ? formatFace(c.price, c.currency)
-                          : "Inquire"}
-                      </Text>
                     </View>
                   </View>
                 </View>

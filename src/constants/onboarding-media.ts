@@ -8,7 +8,6 @@ import type { OnboardingChapterId } from "@/constants/brand-story";
 export const ONBOARDING_HERO_IMAGES: Record<OnboardingChapterId, number> = {
   welcome: require("@/assets/images/onboarding/gems.webp"),
   lapidaries: require("@/assets/images/onboarding/gem-cutting.webp"),
-  labs: require("@/assets/images/onboarding/gem-lab.jpg"),
   workspace: require("@/assets/images/onboarding/cheques-trips.webp"),
   roles: require("@/assets/images/onboarding/orbitratech.webp"),
 };

@@ -27,10 +27,6 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_request_accepted',
   'service_request_rejected',
   'service_job_updated',
-  'cert_request_received',
-  'cert_request_accepted',
-  'cert_request_rejected',
-  'cert_ready',
 ] as const;
 
 export const GEMNET_NOTIFICATION_TYPES = [
@@ -39,7 +35,6 @@ export const GEMNET_NOTIFICATION_TYPES = [
   'verification_info_requested',
   'verification_revoked',
   'announcement_platform',
-  'announcement_industry_news',
   'report_resolved',
   'report_dismissed',
   'account_warning',
@@ -62,9 +57,8 @@ export function notificationGroupKeyForType(type: string): string {
   }
   if (type.startsWith('ap_')) return 'ap';
   if (type.startsWith('service_')) return 'services';
-  if (type.startsWith('cert_')) return 'certificates';
   if (type.startsWith('listing_') || type.startsWith('like_')) return 'market';
-  if (type.startsWith('announcement_')) return 'news';
+  if (type.startsWith('announcement_')) return 'updates';
   if (type.startsWith('account_') || type.startsWith('verification_') || type.startsWith('report_')) {
     return 'account';
   }
@@ -110,7 +104,6 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   if (
     type === 'ap_request_received' ||
     type === 'service_request_received' ||
-    type === 'cert_request_received' ||
     type === 'ap_cancellation_requested' ||
     type === 'service_cancellation_requested' ||
     type === 'ap_overdue' ||

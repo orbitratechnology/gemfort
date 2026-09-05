@@ -40,7 +40,6 @@ FA_GLYPHS = (
 
 # shortcut key → (family, glyph name). family: "mi" | "fa"
 ICONS: dict[str, tuple[str, str]] = {
-    "shortcut_verify": ("mi", "verified"),
     "shortcut_gem": ("mi", "diamond"),
     "shortcut_add": ("mi", "diamond"),
     "shortcut_ap": ("mi", "handshake"),
@@ -49,11 +48,9 @@ ICONS: dict[str, tuple[str, str]] = {
     "shortcut_jobs": ("mi", "construction"),
     "shortcut_contacts": ("mi", "contacts"),
     "shortcut_bill": ("mi", "receipt-long"),
-    "shortcut_certificates": ("mi", "workspace-premium"),
     "shortcut_money": ("mi", "payments"),
     "shortcut_market": ("mi", "storefront"),
     "shortcut_search": ("mi", "search"),
-    "shortcut_news": ("mi", "newspaper"),
 }
 
 # light theme menu → black glyph; dark theme menu → white glyph

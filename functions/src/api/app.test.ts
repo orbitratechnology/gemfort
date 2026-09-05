@@ -113,7 +113,6 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['POST', '/v1/flights/search'],
     ['POST', '/v1/flights/calendar'],
     ['POST', '/v1/flights/booking-link'],
-    ['POST', '/v1/admin/news/sync'],
   ] as const;
 
   for (const [method, path] of routes) {
@@ -144,26 +143,6 @@ test('the migrated flight route preserves validation errors without calling the 
   assert.equal(response.status, 400);
   assert.equal(body.error.code, 'invalid-argument');
   assert.equal(body.error.message, 'Origin and destination must be different.');
-});
-
-const adminApi = createApiApp({
-  appCheckMode: 'enforce',
-  verifyIdToken: async (token) => {
-    assert.equal(token, 'id-token');
-    return { uid: 'admin-1' } as DecodedIdToken;
-  },
-  verifyAppCheck: async (token) => {
-    assert.equal(token, 'app-check-token');
-    return {
-      appId: 'app-1',
-      token: {} as VerifyAppCheckTokenResponse['token'],
-    };
-  },
-  verifyAdmin: async (uid) => {
-    assert.equal(uid, 'admin-1');
-    return true;
-  },
-  syncNews: async () => ({ written: 3, failedSources: 1, sources: 4 }),
 });
 
 const serviceApi = createApiApp({
@@ -256,55 +235,6 @@ test('the booking-link route rejects untrusted provider hosts before using secre
   assert.equal(response.status, 400);
   assert.equal(body.error.code, 'invalid-argument');
   assert.equal(body.error.message, 'Unsupported booking link.');
-});
-
-test('the admin news route verifies role before running the provider sync', async () => {
-  const response = await adminApi.request('/v1/admin/news/sync', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer id-token',
-      'X-Firebase-AppCheck': 'app-check-token',
-    },
-  });
-  const body = (await response.json()) as {
-    data: { written: number; failedSources: number; sources: number };
-    meta: { requestId: string };
-  };
-
-  assert.equal(response.status, 200);
-  assert.deepEqual(body.data, { written: 3, failedSources: 1, sources: 4 });
-  assert.ok(body.meta.requestId.length > 0);
-});
-
-test('the admin news route rejects a non-admin before running the provider sync', async () => {
-  let syncCalled = false;
-  const nonAdminApi = createApiApp({
-    appCheckMode: 'enforce',
-    verifyIdToken: async () => ({ uid: 'trader-1' }) as DecodedIdToken,
-    verifyAppCheck: async () => ({
-      appId: 'app-1',
-      token: {} as VerifyAppCheckTokenResponse['token'],
-    }),
-    verifyAdmin: async () => false,
-    syncNews: async () => {
-      syncCalled = true;
-      return { written: 0, failedSources: 0, sources: 0 };
-    },
-  });
-
-  const response = await nonAdminApi.request('/v1/admin/news/sync', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer id-token',
-      'X-Firebase-AppCheck': 'app-check-token',
-    },
-  });
-  const body = (await response.json()) as { error: { code: string; message: string } };
-
-  assert.equal(response.status, 403);
-  assert.equal(body.error.code, 'permission-denied');
-  assert.equal(body.error.message, 'Admin only.');
-  assert.equal(syncCalled, false);
 });
 
 test('service mutation routes require a bounded idempotency key', async () => {

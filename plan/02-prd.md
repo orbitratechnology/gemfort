@@ -74,7 +74,7 @@ Ahmed browses Traders / Lapidaries / Gem Labs and can verify a certificate witho
   GN-FR-011   Traders can request services / certification; targets accept or reject
   GN-FR-007   Gem listings have 3 visibility levels
   GN-FR-008   Listings generate a shareable public link
-  GN-FR-009   Announcements board shows 4 content types
+  GN-FR-009   Announcements board shows 3 content types
   GN-FR-010   Only admin can post to announcements board
   GN-FR-011   Businesses can be endorsed by verified members
   GN-FR-012   Endorsement count shown publicly, names never shown
