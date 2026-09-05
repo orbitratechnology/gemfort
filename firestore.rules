@@ -708,10 +708,5 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
-
-    // FireCMS Auth
-    match /{document=**} {
-      allow read, write: if request.auth.token.fireCMSUser;
-    }
   }
 }

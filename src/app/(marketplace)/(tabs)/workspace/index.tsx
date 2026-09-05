@@ -742,20 +742,6 @@ export default function WorkspaceHub() {
                 </Text>
               </View>
             ) : null}
-            {showCertsHero ? (
-              <View
-                style={[
-                  styles.heroPill,
-                  { backgroundColor: colors.onPrimary + "1A" },
-                ]}
-              >
-                <Text
-                  style={[styles.heroPillText, { color: colors.onPrimary }]}
-                >
-                  Public verification
-                </Text>
-              </View>
-            ) : null}
           </View>
 
           <View style={styles.heroFooter}>
