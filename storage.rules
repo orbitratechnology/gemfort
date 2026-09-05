@@ -10,6 +10,11 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     match /users/{userId}/{allPaths=**} {
       allow read, write: if isOwner(userId);
     }
@@ -46,6 +51,17 @@ service firebase.storage {
       // business profile, but direct Storage API reads still require auth.
       allow read: if isSignedIn();
       allow write: if isOwner(userId);
+    }
+
+    match /gem_shows/{showId}/{allPaths=**} {
+      // Visible show artwork can be rendered by the mobile app; hidden
+      // artwork remains available only to admins.
+      allow read: if isAdmin()
+        || firestore.get(/databases/(default)/documents/gem_shows/$(showId)).data.isVisible == true;
+      allow create, update: if isAdmin()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isAdmin();
     }
   }
 }

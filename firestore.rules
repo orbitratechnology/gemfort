@@ -264,6 +264,15 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════
+    // GEM SHOWS (admin-managed public stories)
+    // ═══════════════════════════════════════════════
+
+    match /gem_shows/{showId} {
+      allow read: if resource.data.isVisible == true || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
     // ═══════════════════════════════════════════════
     // LIKES
     // ═══════════════════════════════════════════════
