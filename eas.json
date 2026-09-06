@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "bun": "1.4.2",
       "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
@@ -17,6 +18,7 @@
       }
     },
     "canary": {
+      "bun": "1.4.2",
       "extends": "development",
       "channel": "canary",
       "env": {
@@ -25,6 +27,7 @@
       }
     },
     "ap-canary": {
+      "bun": "1.4.2",
       "extends": "canary",
       "channel": "ap-canary",
       "env": {
@@ -32,6 +35,7 @@
       }
     },
     "preview": {
+      "bun": "1.4.2",
       "environment": "preview",
       "distribution": "internal",
       "channel": "preview",
@@ -43,6 +47,7 @@
       }
     },
     "production": {
+      "bun": "1.4.2",
       "environment": "production",
       "autoIncrement": true,
       "channel": "production",
@@ -51,6 +56,7 @@
       }
     },
     "production-apk": {
+      "bun": "1.4.2",
       "environment": "production",
       "distribution": "internal",
       "channel": "production",
