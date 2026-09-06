@@ -229,8 +229,8 @@ function compatibilityError(c: ApiContext, error: unknown): Response {
 }
 
 /**
- * One Hono boundary for all callable/API workloads. Legacy exports remain in
- * index.ts for rollback, while migrated mutations use API-owned handlers.
+ * One Hono boundary for all client-facing API workloads. The compatibility
+ * route remains inside this function for controlled protocol migration.
  */
 export function createApiApp(options: ApiAppOptions = {}) {
   const app = new Hono<ApiEnv>();

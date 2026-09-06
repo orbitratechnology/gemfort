@@ -464,7 +464,13 @@ export async function returnApGemForApi(
     const items = [...(ap.items ?? [])];
     const index = items.findIndex((item) => item.gemId === gem);
     if (index < 0) throw new ApiError('not-found', 'Gem not on this AP.');
-    if (items[index]!.lineStatus === 'returned') return;
+    if (items[index]!.lineStatus === 'returned') {
+      const allReturned = items.every((item) => item.lineStatus === 'returned');
+      if (allReturned) {
+        transaction.update(ref, { status: 'done', updatedAt: Timestamp.now() });
+      }
+      return;
+    }
     if (items[index]!.lineStatus !== 'held') {
       throw new ApiError('failed-precondition', 'Only held gems can be returned.');
     }
@@ -475,7 +481,12 @@ export async function returnApGemForApi(
     }
     const now = Timestamp.now();
     items[index] = { ...items[index]!, lineStatus: 'returned' };
-    transaction.update(ref, { items, updatedAt: now });
+    const allReturned = items.every((item) => item.lineStatus === 'returned');
+    transaction.update(ref, {
+      items,
+      ...(allReturned ? { status: 'done' } : {}),
+      updatedAt: now,
+    });
     transaction.update(gemRef, {
       status: 'ready_for_sale',
       currentHolderContactId: null,

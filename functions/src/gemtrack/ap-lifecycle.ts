@@ -483,13 +483,25 @@ export const returnApGem = onCall(
     const items = [...(ap.items ?? [])];
     const idx = items.findIndex((i) => i.gemId === gemId);
     if (idx < 0) throw new HttpsError('not-found', 'Gem not on this AP.');
+    if (items[idx].lineStatus === 'returned') {
+      const allReturned = items.every((item) => item.lineStatus === 'returned');
+      if (allReturned) {
+        await ref.update({ status: 'done', updatedAt: Timestamp.now() });
+      }
+      return { ok: true as const };
+    }
     if (items[idx].lineStatus !== 'held') {
       throw new HttpsError('failed-precondition', 'Only held gems can be returned.');
     }
 
     const now = Timestamp.now();
     items[idx] = { ...items[idx], lineStatus: 'returned' };
-    await ref.update({ items, updatedAt: now });
+    const allReturned = items.every((item) => item.lineStatus === 'returned');
+    await ref.update({
+      items,
+      ...(allReturned ? { status: 'done' } : {}),
+      updatedAt: now,
+    });
     await unlockGem(gemId);
 
     return { ok: true as const };

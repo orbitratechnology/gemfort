@@ -17,8 +17,8 @@ export const apiRequestListener = getRequestListener(apiApp.fetch, {
 /**
  * Deployment adapter for the consolidated API.
  *
- * This export is deployed independently from the legacy callable and trigger
- * functions so the canary can be rolled back by changing the client profile.
+ * This export is the consolidated client-facing API; Firebase triggers remain
+ * independently deployed from the root function exports.
  */
 export const gemfortApi = onRequest(
   {

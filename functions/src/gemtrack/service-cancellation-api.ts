@@ -67,7 +67,7 @@ function assertServiceId(serviceId: string): string {
 
 /**
  * Transactional HTTP API implementation for owner cancellation requests.
- * The legacy callable intentionally remains on its original implementation.
+ * The Hono API owns the migrated service-cancellation implementation.
  */
 export async function requestServiceCancellationForApi(
   serviceId: string,

@@ -109,7 +109,14 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
 
   try {
     const response = await input.execute();
-    await ref.update({ status: 'succeeded', response, updatedAt: Timestamp.now() });
+    // Account deletion intentionally removes every user-owned idempotency
+    // record, including this one. Treat that terminal cleanup as success
+    // instead of attempting to update a document that no longer exists.
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) return;
+      transaction.update(ref, { status: 'succeeded', response, updatedAt: Timestamp.now() });
+    });
     return response;
   } catch (error) {
     await ref.delete().catch(() => undefined);

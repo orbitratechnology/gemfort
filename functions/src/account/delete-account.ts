@@ -8,7 +8,8 @@ import { wipeUserData } from './wipe-user-data';
 const RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60;
 
 /**
- * Primary path: authenticated callable.
+ * Legacy callable implementation retained in source for rollback reference.
+ * The primary path is now the authenticated Hono API.
  * 1) Client reauthenticates with password, Google, or Apple.
  * 2) Client invokes this function to remove its Firestore and Storage data.
  * 3) Client calls React Native Firebase's deleteUser on that freshly

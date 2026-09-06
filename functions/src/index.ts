@@ -3,22 +3,6 @@ import './config';
 export { dailyGemTrackNotifications } from './gemtrack/daily';
 export { syncExchangeRates } from './gemtrack/exchange-rates';
 export { onChequeBounced } from './gemtrack/cheque-bounced';
-export {
-  createApRequest,
-  respondApRequest,
-  cancelApRequest,
-  requestApCancellation,
-  respondApCancellation,
-  deleteApRecord,
-  recordApGemSale,
-  returnApGem,
-  apPaymentSent,
-  apPaymentReceived,
-} from './gemtrack/ap-lifecycle';
-export {
-  requestServiceCancellation,
-  respondServiceCancellation,
-} from './gemtrack/service-lifecycle';
 
 export { onAnnouncementPublished } from './gemnet/announcement';
 export { onVerificationStatusChanged } from './gemnet/verification';
@@ -33,10 +17,9 @@ export { onLikeCreated } from './gemnet/likes';
 
 export { onNotificationCreated } from './notifications/on-created';
 
-export { deleteMyAccount, onAuthUserDeleted } from './account/delete-account';
-export { linkVerifiedPhone } from './auth/link-verified-phone';
+// Auth account deletion and phone linking are handled through gemfortApi;
+// retain the Auth trigger as the server-side cleanup safety net.
+export { onAuthUserDeleted } from './account/delete-account';
 
-export { searchFlights, getFlightPriceCalendar, createFlightBookingLink } from './flights';
-
-// The consolidated API is deployed independently with --only functions:gemfortApi.
+// The consolidated API is the only client-facing callable/API boundary.
 export { gemfortApi } from './api/entry';
