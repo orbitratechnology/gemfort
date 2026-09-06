@@ -68,12 +68,14 @@ export async function createNotificationDoc(input: NotificationInput): Promise<s
 }
 
 function deterministicNotificationId(input: NotificationInput): string {
-  const identity = [
-    input.recipientUid,
-    input.type,
-    input.referenceType ?? '',
-    input.referenceId ?? '',
-  ].join('\u001f');
+  const identity = input.dedupeKey
+    ? [input.recipientUid, input.type, input.dedupeKey].join('\u001f')
+    : [
+        input.recipientUid,
+        input.type,
+        input.referenceType ?? '',
+        input.referenceId ?? '',
+      ].join('\u001f');
   return `api-${createHash('sha256').update(identity).digest('hex').slice(0, 48)}`;
 }
 
@@ -89,13 +91,15 @@ export async function ensureDeterministicNotificationDoc(
 ): Promise<string | null> {
   const referenceType = input.referenceType ?? null;
   const referenceId = input.referenceId ?? null;
-  const exists = await notificationExists(
-    input.recipientUid,
-    input.type,
-    referenceType,
-    referenceId,
-  );
-  if (exists) return null;
+  if (!input.dedupeKey) {
+    const exists = await notificationExists(
+      input.recipientUid,
+      input.type,
+      referenceType,
+      referenceId,
+    );
+    if (exists) return null;
+  }
 
   const id = deterministicNotificationId(input);
   try {

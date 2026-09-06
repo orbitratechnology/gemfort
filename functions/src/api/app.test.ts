@@ -113,6 +113,7 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['POST', '/v1/flights/search'],
     ['POST', '/v1/flights/calendar'],
     ['POST', '/v1/flights/booking-link'],
+    ['POST', '/v1/listings/listing-1/offers'],
   ] as const;
 
   for (const [method, path] of routes) {

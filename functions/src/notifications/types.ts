@@ -83,6 +83,8 @@ export type NotificationInput = {
   actorPhotoUrl?: string | null;
   /** Secondary rich media (gem, listing, announcement art). */
   imageUrl?: string | null;
+  /** Optional stable identity for events that share the same navigation reference. */
+  dedupeKey?: string | null;
 };
 
 export type StoredNotification = NotificationInput & {

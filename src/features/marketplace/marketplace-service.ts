@@ -4,7 +4,7 @@ import {
     normalizeUserRole,
     ROLE_LABELS,
 } from "@/constants/roles";
-import { convertToBase } from "@/lib/exchange-rates";
+import { callApi } from "@/lib/api/api-client";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
     collection,
@@ -758,16 +758,6 @@ export const LISTING_OFFER_LIMITS = {
   submitDebounceMs: 1500,
 } as const;
 
-function offerCreatedAtMs(offer: ListingOffer): number {
-  const raw = offer.createdAt as
-    | { toMillis?: () => number; seconds?: number }
-    | null
-    | undefined;
-  if (raw && typeof raw.toMillis === "function") return raw.toMillis();
-  if (raw && typeof raw.seconds === "number") return raw.seconds * 1000;
-  return 0;
-}
-
 export function isListingOfferUnread(offer: ListingOffer): boolean {
   return (
     offer.status === "pending" &&
@@ -839,73 +829,48 @@ export async function submitListingOffer(input: {
     throw new Error("You cannot offer on your own listing.");
   }
 
-  const existing = await fetchBuyerOffersForListing(
-    input.buyerUid,
-    input.listing.id,
-  );
-  const pending = existing.find((o) => o.status === "pending");
-  if (pending) {
-    throw new Error(
-      "You already have a pending offer on this gem. Withdraw it first to send a new one.",
-    );
-  }
-
-  const cooldownMs =
-    LISTING_OFFER_LIMITS.cooldownHoursPerListing * 60 * 60 * 1000;
-  const recentSame = existing.find((o) => {
-    if (o.status !== "withdrawn" && o.status !== "declined") return false;
-    return Date.now() - offerCreatedAtMs(o) < cooldownMs;
-  });
-  if (recentSame) {
-    throw new Error(
-      `Wait ${LISTING_OFFER_LIMITS.cooldownHoursPerListing} hours after withdrawing before offering on this gem again.`,
-    );
-  }
-
-  const dayAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
-  const dayQ = query(
-    collection(getFirebaseDb(), "listing_offers"),
-    where("buyerUid", "==", input.buyerUid),
-    where("createdAt", ">=", dayAgo),
-    orderBy("createdAt", "desc"),
-    limit(LISTING_OFFER_LIMITS.maxOffersPerDay + 1),
-  );
-  const daySnap = await getDocs(dayQ);
-  if (daySnap.size >= LISTING_OFFER_LIMITS.maxOffersPerDay) {
-    throw new Error(
-      `Offer limit reached (${LISTING_OFFER_LIMITS.maxOffersPerDay} per day). Try again tomorrow.`,
-    );
-  }
-
-  const amountBase = await convertToBase(amount, input.currency);
   const message = input.message?.trim() || null;
-  const now = serverTimestamp();
   const biz = input.buyerBusiness;
+  const result = await callApi<
+    { offerId: string },
+    {
+      amount: number;
+      currency: string;
+      buyerName: string;
+      buyerBusiness: {
+        id: string;
+        businessName: string;
+        logoUrl: string | null;
+        country: string;
+      } | null;
+      message: string | null;
+    }
+  >(
+    `/v1/listings/${encodeURIComponent(input.listing.id)}/offers`,
+    {
+      amount,
+      currency: input.currency,
+      buyerName: input.buyerName.trim() || "Buyer",
+      buyerBusiness: biz
+        ? {
+            id: biz.id,
+            businessName: biz.businessName?.trim() || "",
+            logoUrl: biz.logoUrl ?? null,
+            country: biz.country?.trim() || "",
+          }
+        : null,
+      message,
+    },
+    {
+      retryAuthOn401: true,
+      idempotencyKey: `mobile-listing-offer-${encodeURIComponent(input.listing.id)}-${Date.now().toString(36)}`.slice(
+        0,
+        128,
+      ),
+    },
+  );
 
-  const id = queueDocCreate("listing_offers", {
-    listingId: input.listing.id,
-    listingSlug: input.listing.shareableSlug,
-    listingTitle: input.listing.title,
-    sellerUid: input.listing.sellerUid,
-    businessId: input.listing.businessId,
-    buyerUid: input.buyerUid,
-    buyerName: input.buyerName.trim() || "Buyer",
-    buyerBusinessId: biz?.id ?? null,
-    buyerBusinessName: biz?.businessName?.trim() || null,
-    buyerLogoUrl: biz?.logoUrl ?? null,
-    buyerCountry: biz?.country?.trim() || null,
-    amount,
-    currency: input.currency,
-    amountBase,
-    message,
-    status: "pending" satisfies ListingOffer["status"],
-    sellerCleared: false,
-    sellerReadAt: null,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return id;
+  return result.offerId;
 }
 
 export async function withdrawListingOffer(offerId: string): Promise<void> {

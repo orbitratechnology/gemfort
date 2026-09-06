@@ -47,6 +47,11 @@ import {
   respondServiceCancellationForApi,
   type ServiceCancellationResult,
 } from '../gemtrack/service-cancellation-api';
+import {
+  parseSubmitListingOfferInput,
+  submitListingOfferForApi,
+  type SubmitListingOfferInput,
+} from './listing-offer-api';
 import { executeIdempotent, type MutationExecutor } from './idempotency';
 import { apiErrorResponse, ApiError, toApiError } from './errors';
 import {
@@ -154,6 +159,11 @@ export type ApiAppOptions = {
     uid: string,
     input: ReturnType<typeof parseApPaymentReceivedInput>,
   ) => Promise<ApPaymentResult>;
+  submitListingOffer?: (
+    listingId: string,
+    uid: string,
+    input: SubmitListingOfferInput,
+  ) => Promise<{ offerId: string }>;
   executeMutation?: MutationExecutor;
 };
 
@@ -305,6 +315,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const recordApGemSale = options.recordApGemSale ?? recordApGemSaleForApi;
   const apPaymentSent = options.apPaymentSent ?? apPaymentSentForApi;
   const apPaymentReceived = options.apPaymentReceived ?? apPaymentReceivedForApi;
+  const submitListingOffer = options.submitListingOffer ?? submitListingOfferForApi;
   const runMutation = options.executeMutation ?? executeIdempotent;
 
   const mutation = <T>(
@@ -448,6 +459,14 @@ export function createApiApp(options: ApiAppOptions = {}) {
   app.post('/v1/flights/booking-link', auth, appCheck, async (c) =>
     success(c, await createFlightBookingLinkForApi(await readJson(c))),
   );
+
+  app.post('/v1/listings/:listingId/offers', auth, appCheck, async (c) => {
+    const listingId = requiredRouteParam(c, 'listingId');
+    const input = parseSubmitListingOfferInput(await readJson(c));
+    return success(c, await mutation(c, { listingId, input }, (uid) =>
+      submitListingOffer(listingId, uid, input),
+    ));
+  });
 
   app.post('/v1/compat/callable/:functionName', auth, appCheck, async (c) => {
     try {

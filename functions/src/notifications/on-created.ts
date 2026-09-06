@@ -19,6 +19,7 @@ export const onNotificationCreated = onDocumentCreated(
     if (data.isPushSent) return;
 
     const { sent, media } = await sendPushForNotification(data.recipientUid, {
+      notificationId: event.params.notifId,
       type: data.type as NotificationType,
       title: data.title,
       message: data.message,

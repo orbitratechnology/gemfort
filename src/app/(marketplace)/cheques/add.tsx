@@ -221,6 +221,8 @@ export default function AddChequeScreen() {
       return;
     }
 
+    let billPaymentRecorded = !paramBillId;
+
     try {
       await withLoading(async () => {
         const data = result.data;
@@ -285,17 +287,30 @@ export default function AddChequeScreen() {
         if (paramBillId) {
           const settle = parseFloat(settleAmount || String(data.amount));
           if (settle > 0) {
-            void recordBillPayment(user.uid, paramBillId, settle, {
-              paymentMethod: "cheque",
-              notes: `Cheque ${data.chequeNumber}`,
-              receiptUrl,
-            });
+            try {
+              await recordBillPayment(user.uid, paramBillId, settle, {
+                paymentMethod: "cheque",
+                notes: `Cheque ${data.chequeNumber}`,
+                receiptUrl,
+              });
+              billPaymentRecorded = true;
+            } catch (error) {
+              billPaymentRecorded = false;
+              toast.error(
+                `Cheque saved, but bill payment failed: ${friendlyError(
+                  error,
+                  "Please retry it from the bill.",
+                )}`,
+              );
+            }
             void queryClient.invalidateQueries({ queryKey: ["bills"] });
             void queryClient.invalidateQueries({
               queryKey: ["bill", paramBillId],
             });
             void queryClient.invalidateQueries({ queryKey: ["payments"] });
             void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+          } else {
+            billPaymentRecorded = false;
           }
         }
 
@@ -323,17 +338,21 @@ export default function AddChequeScreen() {
         }
 
         await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-        toast.success(
-          markSold
-            ? "Cheque saved · gem marked sold"
-            : paramBillId
-              ? "Cheque saved and bill payment recorded."
-              : confirmApReceived
-                ? "Cheque saved and AP payment confirmed."
-                : confirmApSent
-                  ? "Cheque saved and payment marked sent."
-                  : "Cheque added to your tracker.",
-        );
+        if (paramBillId && !billPaymentRecorded) {
+          toast.info("Cheque saved; bill payment still needs to be recorded.");
+        } else {
+          toast.success(
+            markSold
+              ? "Cheque saved · gem marked sold"
+              : paramBillId
+                ? "Cheque saved and bill payment recorded."
+                : confirmApReceived
+                  ? "Cheque saved and AP payment confirmed."
+                  : confirmApSent
+                    ? "Cheque saved and payment marked sent."
+                    : "Cheque added to your tracker.",
+          );
+        }
 
         if (paramBillId) {
           replaceWithAnchor(

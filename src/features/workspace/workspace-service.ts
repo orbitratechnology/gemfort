@@ -1533,10 +1533,10 @@ export async function updateBill(
 }
 
 export async function updateBillStatus(billId: string, status: BillStatus) {
-  queueDocUpdate("gemtrack_bills", billId, {
-      status,
-      updatedAt: serverTimestamp(),
-    });
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function deleteBill(billId: string, ownerUid: string) {
@@ -1550,8 +1550,10 @@ export async function deleteBill(billId: string, ownerUid: string) {
       where("billId", "==", billId),
     ),
   );
-  for (const d of paymentsSnap.docs) forgetSync(deleteDoc(d.ref));
-  queueDocDelete("gemtrack_bills", billId);
+  const batch = db.batch();
+  for (const d of paymentsSnap.docs) batch.delete(d.ref);
+  batch.delete(doc(db, "gemtrack_bills", billId));
+  await batch.commit();
 }
 
 export async function recordBillPayment(
@@ -1566,85 +1568,95 @@ export async function recordBillPayment(
   },
 ) {
   if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
-  const ref = doc(getFirebaseDb(), "gemtrack_bills", billId);
+  const db = getFirebaseDb();
+  const ref = doc(db, "gemtrack_bills", billId);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Bill not found");
-  const data = snap.data() as Bill;
-  if (data.ownerUid !== ownerUid) throw new Error("Bill not found");
-  if (data.status === "cancelled" || data.status === "paid") {
+  const initialData = snap.data() as Bill;
+  if (initialData.ownerUid !== ownerUid) throw new Error("Bill not found");
+  if (initialData.status === "cancelled" || initialData.status === "paid") {
     throw new Error("Bill cannot accept payment");
   }
 
-  const remaining = Math.round((data.amount - data.amountSettled) * 100) / 100;
-  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
-    throw new Error(
-      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
-    );
-  }
-
-  const newSettled = Math.min(
-    data.amount,
-    data.amountSettled + paymentAmount,
-  );
-  const status: BillStatus =
-    newSettled >= data.amount
-      ? "paid"
-      : newSettled > 0
-        ? "partial"
-        : data.jobId
-          ? "ongoing"
-          : "open";
   const now = Timestamp.now();
-  const currency = options?.currency ?? data.currency ?? "LKR";
+  const currency = options?.currency ?? initialData.currency ?? "LKR";
   const commission =
-    data.commissionPercent != null && data.commissionPercent > 0
-      ? Math.round(paymentAmount * (data.commissionPercent / 100) * 100) / 100
+    initialData.commissionPercent != null && initialData.commissionPercent > 0
+      ? Math.round(paymentAmount * (initialData.commissionPercent / 100) * 100) /
+        100
       : 0;
-  const primaryGemId =
-    data.gemId ??
-    (Array.isArray(data.gemIds) && data.gemIds.length > 0
-      ? data.gemIds[0]
-      : null);
-  const noteLabel = data.notes?.trim() || "Bill";
-
-  forgetSync(
-    updateDoc(ref, {
-      amountSettled: newSettled,
-      status,
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  const isReceivable = data.direction === "receivable";
   // The commission is a bill/payment metadata concept (your withheld cut or the
   // counterparty's), not a separate cash flow — matching the AP model where the
   // full sale is booked and the commission is tracked on the record only. Booking
   // the gross here keeps the ledger reconciled with the recorded payment amount.
   const principalBase = await convertToBase(paymentAmount, currency);
-  const txnId = await createTransaction(ownerUid, {
-    type: isReceivable ? "income" : "expense",
-    amount: paymentAmount,
-    currency,
-    amountBase: principalBase,
-    category: isReceivable ? "other_income" : "other_expense",
-    description: isReceivable
-      ? `Bill received: ${noteLabel}`
-      : `Bill paid: ${noteLabel}`,
-    gemId: primaryGemId,
-    contactId: data.counterpartyContactId,
-    sourceType: "bill",
-    sourceId: billId,
-    receiptUrl: options?.receiptUrl ?? null,
-    date: now,
-  });
+  const txnRef = doc(collection(db, "gemtrack_transactions"));
+  const paymentRef = doc(collection(db, "gemtrack_payments"));
 
-  const settlementBase = principalBase;
-  queueDocCreate("gemtrack_payments", {
+  await db.runTransaction(async (transaction) => {
+    const currentSnap = await transaction.get(ref);
+    if (!currentSnap.exists()) throw new Error("Bill not found");
+    const data = currentSnap.data() as Bill;
+    if (data.ownerUid !== ownerUid) throw new Error("Bill not found");
+    if (data.status === "cancelled" || data.status === "paid") {
+      throw new Error("Bill cannot accept payment");
+    }
+
+    const amountSettled = Number(data.amountSettled ?? 0);
+    const remaining = Math.round((data.amount - amountSettled) * 100) / 100;
+    if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
+      throw new Error(
+        `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+      );
+    }
+
+    const newSettled = Math.min(data.amount, amountSettled + paymentAmount);
+    const status: BillStatus =
+      newSettled >= data.amount
+        ? "paid"
+        : newSettled > 0
+          ? "partial"
+          : data.jobId
+            ? "ongoing"
+            : "open";
+    const isReceivable = data.direction === "receivable";
+    const primaryGemId =
+      data.gemId ??
+      (Array.isArray(data.gemIds) && data.gemIds.length > 0
+        ? data.gemIds[0]
+        : null);
+    const noteLabel = data.notes?.trim() || "Bill";
+    const txnId = txnRef.id;
+
+    transaction.update(ref, {
+      amountSettled: newSettled,
+      status,
+      updatedAt: now,
+    });
+    transaction.set(txnRef, {
+      ownerUid,
+      type: isReceivable ? "income" : "expense",
+      amount: paymentAmount,
+      currency,
+      amountBase: principalBase,
+      category: isReceivable ? "other_income" : "other_expense",
+      description: isReceivable
+        ? `Bill received: ${noteLabel}`
+        : `Bill paid: ${noteLabel}`,
+      gemId: primaryGemId,
+      contactId: data.counterpartyContactId,
+      sourceType: "bill",
+      sourceId: billId,
+      receiptUrl: options?.receiptUrl ?? null,
+      date: now,
+      createdAt: now,
+    });
+    transaction.set(paymentRef, {
       ownerUid,
       direction: isReceivable ? "in" : "out",
       amount: paymentAmount,
       currency,
-      amountBase: settlementBase,
+      amountBase: principalBase,
       paymentMethod: options?.paymentMethod ?? null,
       commission: commission > 0 ? commission : null,
       receivableId: null,
@@ -1660,6 +1672,7 @@ export async function recordBillPayment(
       paymentDate: now,
       createdAt: now,
     });
+  });
 }
 
 // ─── Cheques ──────────────────────────────────────
@@ -1806,7 +1819,7 @@ export async function updateChequeStatus(
   if (status === "replaced" && extra?.replacementChequeId) {
     updates.replacementChequeId = extra.replacementChequeId;
   }
-  queueDocUpdate("gemtrack_cheques", chequeId, updates);
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId), updates);
 }
 
 export async function deleteCheque(chequeId: string, ownerUid: string) {

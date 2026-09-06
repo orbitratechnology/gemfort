@@ -35,6 +35,44 @@ service cloud.firestore {
       return resource.data.get('isSuspended', false) != true;
     }
 
+    function validCheque(data) {
+      return data.amount is number
+        && data.amount > 0
+        && data.direction in ['received', 'given']
+        && data.status in ['holding', 'deposited', 'cleared', 'bounced', 'replaced', 'cancelled'];
+    }
+
+    function validChequeStatusTransition(before, after) {
+      return before == after
+        || (before == 'holding'
+            && after in ['deposited', 'cleared', 'bounced', 'replaced', 'cancelled'])
+        || (before == 'deposited'
+            && after in ['cleared', 'bounced', 'replaced', 'cancelled'])
+        || (before == 'bounced' && after == 'replaced');
+    }
+
+    function validBill(data) {
+      return data.amount is number
+        && data.amount > 0
+        && data.amountSettled is number
+        && data.amountSettled >= 0
+        && data.amountSettled <= data.amount
+        && data.direction in ['payable', 'receivable']
+        && data.status in ['open', 'ongoing', 'partial', 'paid', 'cancelled', 'overdue']
+        && (data.status != 'paid' || data.amountSettled == data.amount)
+        && (data.status != 'partial'
+            || (data.amountSettled > 0 && data.amountSettled < data.amount))
+        && ((data.status != 'open' && data.status != 'ongoing')
+            || data.amountSettled == 0);
+    }
+
+    function validBillStatusTransition(before, after) {
+      return before == after
+        || (before in ['open', 'ongoing', 'overdue']
+            && after in ['open', 'ongoing', 'partial', 'paid', 'cancelled', 'overdue'])
+        || (before == 'partial' && after in ['partial', 'paid', 'cancelled', 'overdue']);
+    }
+
     function isAdmin() {
       return isSignedIn() && getUserRole() == 'admin';
     }
@@ -385,7 +423,7 @@ service cloud.firestore {
             && request.resource.data.recipientUid != uid()
             && request.resource.data.type in [
               'service_request_received', 'service_request_accepted', 'service_request_rejected',
-              'service_job_updated', 'listing_offer_received',
+              'service_job_updated',
               'ap_request_received', 'ap_request_accepted', 'ap_request_rejected',
               'ap_request_cancelled', 'ap_gem_sold', 'ap_payment_sent', 'ap_payment_received',
               'ap_cancellation_requested', 'ap_cancellation_rejected', 'ap_cancellation_accepted'
@@ -405,16 +443,9 @@ service cloud.firestore {
             || resource.data.sellerUid == uid()
             || isAdmin());
 
-      allow create: if isAnySignedIn()
-        && isNotSuspended()
-        && request.resource.data.buyerUid == uid()
-        && request.resource.data.sellerUid is string
-        && request.resource.data.sellerUid != uid()
-        && request.resource.data.listingId is string
-        && request.resource.data.amount is number
-        && request.resource.data.amount > 0
-        && request.resource.data.status == 'pending'
-        && request.resource.data.sellerCleared == false;
+      // Offer creation is server-owned so per-listing cooldown and daily
+      // limits cannot be bypassed with a direct client write.
+      allow create: if isAdmin();
 
       // Buyer: withdraw. Seller: mark read / clear. Admin: any.
       allow update: if isSignedIn()
@@ -603,20 +634,37 @@ service cloud.firestore {
     }
 
     match /gemtrack_cheques/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
-      allow read, write: if isAdmin();
+        && isOwner(request.resource.data.ownerUid)
+        && validCheque(request.resource.data);
+      allow read: if isAdmin()
+        || (isOwner(resource.data.ownerUid) && isNotSuspended());
+      allow update: if isAdmin()
+        || (isOwner(resource.data.ownerUid)
+            && isNotSuspended()
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && validCheque(request.resource.data)
+            && validChequeStatusTransition(resource.data.status, request.resource.data.status));
+      allow delete: if isAdmin()
+        || (isOwner(resource.data.ownerUid) && isNotSuspended());
     }
 
     match /gemtrack_bills/{docId} {
       // Owner-only personal tracking — never shared with contacts/counterparties.
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
-      allow read, write: if isAdmin();
+        && isOwner(request.resource.data.ownerUid)
+        && validBill(request.resource.data);
+      allow read: if isAdmin()
+        || (isOwner(resource.data.ownerUid) && isNotSuspended());
+      allow update: if isAdmin()
+        || (isOwner(resource.data.ownerUid)
+            && isNotSuspended()
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && request.resource.data.amountSettled >= resource.data.amountSettled
+            && validBill(request.resource.data)
+            && validBillStatusTransition(resource.data.status, request.resource.data.status));
+      allow delete: if isAdmin()
+        || (isOwner(resource.data.ownerUid) && isNotSuspended());
     }
 
     match /gemtrack_payments/{docId} {
