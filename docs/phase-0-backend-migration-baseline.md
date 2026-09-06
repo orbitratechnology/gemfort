@@ -34,7 +34,7 @@ The target chosen for the next phases is one Cloud Run-backed 2nd-generation HTT
 | Firestore delete protection | Disabled in the observed database metadata; unchanged |
 | Firestore PITR | Not shown in the observed database metadata; not independently confirmed and unchanged |
 | Storage | Five existing buckets, all observed in `ASIA-SOUTH1`; no bucket changes made |
-| Secrets | Five Secret Manager entries observed; values were not read |
+| Secrets | Three Secret Manager entries observed; values were not read |
 | Monitoring | No Cloud Monitoring alert policies returned by the read-only inventory query |
 | App Check | The API is enabled, but enforcement/registration was not independently readable under the current principal; repository inspection found no App Check initialization or enforcement change |
 | Authentication | Provider configuration was not independently readable under the current principal; no Auth data was exported or changed |
@@ -43,8 +43,6 @@ The target chosen for the next phases is one Cloud Run-backed 2nd-generation HTT
 
 Only names and metadata were inspected:
 
-- `FIRECRAWL_API_KEY`
-- `GEMINI_API_KEY`
 - `TRAVELPAYOUTS_API_TOKEN`
 - `TRAVELPAYOUTS_MARKER`
 - `TRAVELPAYOUTS_PROJECT_ID`

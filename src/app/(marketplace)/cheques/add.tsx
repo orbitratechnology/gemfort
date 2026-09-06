@@ -304,6 +304,7 @@ export default function AddChequeScreen() {
             apId: paramApRecordId,
             method: "cheque",
             amount: data.amount,
+            currency: money.currency,
             chequeId: id,
             receiptUrl,
           });

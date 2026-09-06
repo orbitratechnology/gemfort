@@ -184,7 +184,7 @@ export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase, formatStored } = usePreferredMoney();
+  const { formatBase, formatStored, preferred } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -927,6 +927,7 @@ export default function ApDetailScreen() {
                       apId: ap.id,
                       method: payMethod,
                       amount,
+                      currency: preferred,
                       receiptUrl: await uploadReceipt(user!.uid, sentReceipt),
                     }),
                   "Payment marked sent",

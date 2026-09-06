@@ -139,6 +139,7 @@ export function apPaymentSent(input: {
   apId: string;
   method: ApPaymentMethod;
   amount?: number;
+  currency?: string | null;
   chequeId?: string | null;
   receiptUrl?: string | null;
 }) {
@@ -162,7 +163,7 @@ export async function ensureApReceiverPayoutExpense(ap: ApRecord): Promise<void>
   if (ap.receiverUid !== uid || ap.status !== "done") return;
   const amount = ap.paymentAmount ?? 0;
   if (amount <= 0) return;
-  const currency = ap.items?.[0]?.currency || "LKR";
+  const currency = ap.paymentCurrency || ap.items?.[0]?.currency || "LKR";
   const snap = await getDocs(
     query(
       collection(getFirebaseDb(), "gemtrack_transactions"),

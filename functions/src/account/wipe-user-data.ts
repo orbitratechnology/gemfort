@@ -50,6 +50,7 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'gemtrack_trip_expenses', field: 'ownerUid' },
   { collection: 'gemtrack_trip_gems', field: 'ownerUid' },
   { collection: 'gemtrack_contacts', field: 'ownerUid' },
+  { collection: 'gemfort_api_idempotency', field: 'uid' },
   { collection: 'company_members', field: 'userUid' },
   { collection: 'company_approvals', field: 'requestedByUid' },
   { collection: 'company_approvals', field: 'approverUid' },

@@ -55,13 +55,17 @@ function assertApId(apId: string): string {
   return value;
 }
 
-function normalizeString(value: string | null | undefined): string | null {
-  const normalized = value?.trim() ?? '';
+function normalizeString(value: unknown, name: string, maxLength: number): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string' || value.trim().length > maxLength) {
+    throw new ApiError('invalid-argument', `${name} is invalid.`);
+  }
+  const normalized = value.trim();
   return normalized || null;
 }
 
-function parsePaymentDueDate(value: string | null | undefined): Timestamp | null {
-  const normalized = normalizeString(value);
+function parsePaymentDueDate(value: unknown): Timestamp | null {
+  const normalized = normalizeString(value, 'paymentDueDateIso', 80);
   if (!normalized) return null;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
@@ -95,10 +99,11 @@ async function ensureSaleNotification(input: {
 export async function recordApGemSaleForApi(
   apId: string,
   uid: string,
-  input: RecordApGemSaleInput,
+  rawInput: RecordApGemSaleInput,
 ): Promise<RecordApGemSaleResult> {
+  const input = parseRecordApGemSaleInput(rawInput);
   const id = assertApId(apId);
-  const gemId = input?.gemId?.trim() ?? '';
+  const gemId = input.gemId;
   if (!gemId) throw new ApiError('invalid-argument', 'gemId is required.');
 
   const soldPrice = Number(input.soldPrice);
@@ -144,6 +149,9 @@ export async function recordApGemSaleForApi(
       input.ownerReceives != null && Number.isFinite(Number(input.ownerReceives))
         ? Number(input.ownerReceives)
         : line.agreedPrice;
+    if (ownerReceives < 0) {
+      throw new ApiError('invalid-argument', 'ownerReceives cannot be negative.');
+    }
     const commission = soldPrice - ownerReceives;
     if (commission < 0) {
       throw new ApiError('invalid-argument', 'ownerReceives cannot exceed soldPrice.');
@@ -206,7 +214,7 @@ export async function recordApGemSaleForApi(
       lineStatus: 'sold',
       soldPrice,
       soldPriceBase: saleAmountBase,
-      soldToName: normalizeString(input.soldToName),
+      soldToName: normalizeString(input.soldToName, 'soldToName', 200),
       soldDate: now,
       ownerReceives,
       ownerReceivesBase,
@@ -265,5 +273,27 @@ export function parseRecordApGemSaleInput(input: unknown): RecordApGemSaleInput 
   if (!isObject(input)) {
     throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
   }
-  return input as unknown as RecordApGemSaleInput;
+
+  const gemId = normalizeString(input.gemId, 'gemId', 200);
+  if (!gemId || gemId.includes('/')) {
+    throw new ApiError('invalid-argument', 'A valid gemId is required.');
+  }
+
+  const soldPrice = Number(input.soldPrice);
+  if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
+    throw new ApiError('invalid-argument', 'soldPrice must be positive.');
+  }
+
+  const ownerReceives = input.ownerReceives == null ? null : Number(input.ownerReceives);
+  if (ownerReceives != null && (!Number.isFinite(ownerReceives) || ownerReceives < 0)) {
+    throw new ApiError('invalid-argument', 'ownerReceives must be zero or positive.');
+  }
+
+  return {
+    gemId,
+    soldPrice,
+    soldToName: normalizeString(input.soldToName, 'soldToName', 200),
+    paymentDueDateIso: normalizeString(input.paymentDueDateIso, 'paymentDueDateIso', 80),
+    ownerReceives,
+  };
 }

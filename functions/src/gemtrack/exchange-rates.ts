@@ -7,6 +7,7 @@ import { REGION } from '../config';
 
 const BASE_CURRENCY = 'LKR';
 const OPEN_ER_API = `https://open.er-api.com/v6/latest/${BASE_CURRENCY}`;
+const FETCH_TIMEOUT_MS = 8_000;
 
 /** App quote codes → open.er-api ISO keys when they differ. */
 const QUOTE_CODES: { code: string; api: string }[] = [
@@ -30,7 +31,19 @@ export async function fetchOpenErRates(): Promise<{
   rates: ServerRates;
   updatedAtUnix: number;
 }> {
-  const res = await fetch(OPEN_ER_API);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(OPEN_ER_API, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('open.er-api request timed out');
+    }
+    throw new Error('open.er-api request failed');
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`open.er-api HTTP ${res.status}`);
 
   const data = (await res.json()) as {

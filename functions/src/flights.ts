@@ -11,7 +11,10 @@ export const travelpayoutsMarker = defineSecret('TRAVELPAYOUTS_MARKER');
 export const travelpayoutsProjectId = defineSecret('TRAVELPAYOUTS_PROJECT_ID');
 
 const IATA = z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/);
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}, 'Invalid travel date.');
 const criteriaSchema = z.object({
   origin: IATA,
   destination: IATA,
@@ -27,7 +30,10 @@ const criteriaSchema = z.object({
 type Criteria = z.infer<typeof criteriaSchema>;
 type CacheEntry = { expiresAt: number; value: unknown };
 const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<unknown>>();
 const CACHE_MS = 60_000;
+const MAX_CACHE_ENTRIES = 100;
+const UPSTREAM_TIMEOUT_MS = 8_000;
 
 function usableSecret(name: string, value: string) {
   if (!value.trim() || value.startsWith('YOUR_') || value === 'placeholder-set-me') {
@@ -47,33 +53,73 @@ function parseCriteria(data: unknown): Criteria {
   if (!criteria.oneWay && !criteria.returnAt) {
     throw new HttpsError('invalid-argument', 'Choose a return date for a round trip.');
   }
-  if (criteria.returnAt && criteria.returnAt < criteria.departureAt) {
+  if (criteria.returnAt && criteria.returnAt <= criteria.departureAt) {
     throw new HttpsError('invalid-argument', 'Return date must be after departure.');
   }
   return criteria;
 }
 
+async function fetchWithTimeout(
+  input: string | URL,
+  init: RequestInit,
+  timeoutMessage: string,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new HttpsError('deadline-exceeded', timeoutMessage);
+    }
+    throw new HttpsError('unavailable', timeoutMessage);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function api(path: string, params: Record<string, string>, token: string) {
   const url = new URL(`https://api.travelpayouts.com${path}`);
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },
-  });
+  }, 'Flight data is temporarily unavailable.');
   if (response.status === 429) throw new HttpsError('resource-exhausted', 'Flight data is busy. Please try again shortly.');
   if (!response.ok) {
     logger.warn('Travelpayouts request failed', { status: response.status, path });
     throw new HttpsError('unavailable', 'Flight data is temporarily unavailable.');
   }
-  return response.json() as Promise<{ success?: boolean; data?: unknown; error?: string }>;
+  try {
+    return await response.json() as { success?: boolean; data?: unknown; error?: string };
+  } catch {
+    throw new HttpsError('unavailable', 'Flight data is temporarily unavailable.');
+  }
 }
 
 function cached<T>(key: string, request: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  for (const [cachedKey, entry] of cache) {
+    if (entry.expiresAt <= now) cache.delete(cachedKey);
+  }
   const current = cache.get(key);
-  if (current && current.expiresAt > Date.now()) return Promise.resolve(current.value as T);
-  return request().then((value) => {
-    cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
-    return value;
-  });
+  if (current) return Promise.resolve(current.value as T);
+  const pending = inFlight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const requestPromise = Promise.resolve()
+    .then(request)
+    .then((value) => {
+      cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
+      while (cache.size > MAX_CACHE_ENTRIES) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey === undefined) break;
+        cache.delete(oldestKey);
+      }
+      return value;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, requestPromise);
+  return requestPromise;
 }
 
 export async function searchFlightsForApi(data: unknown) {
@@ -115,17 +161,26 @@ export async function createFlightBookingLinkForApi(data: unknown) {
   usableSecret('TRAVELPAYOUTS_API_TOKEN', token);
   usableSecret('TRAVELPAYOUTS_MARKER', marker);
   usableSecret('TRAVELPAYOUTS_PROJECT_ID', trs);
+  if (!Number.isFinite(Number(marker)) || !Number.isFinite(Number(trs))) {
+    throw new HttpsError('failed-precondition', 'Travelpayouts affiliate configuration is invalid.');
+  }
   return cached(`partner-link:${input.data.url}`, async () => {
     let response: Response;
     try {
-      response = await fetch('https://api.travelpayouts.com/links/v1/create', {
+      response = await fetchWithTimeout('https://api.travelpayouts.com/links/v1/create', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Token': token },
         body: JSON.stringify({ trs: Number(trs), marker: Number(marker), shorten: false, links: [{ url: input.data.url, sub_id: 'gemfort_flights' }] }),
-      });
+      }, 'Could not create the booking link.');
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError('unavailable', 'Could not create the booking link.');
+    }
+    let payload: { code?: string; error?: string; result?: { links?: Array<{ code?: string; message?: string; partner_url?: string }> } };
+    try {
+      payload = await response.json() as typeof payload;
     } catch {
       throw new HttpsError('unavailable', 'Could not create the booking link.');
     }
-    const payload = await response.json() as { code?: string; error?: string; result?: { links?: Array<{ code?: string; message?: string; partner_url?: string }> } };
     const link = payload.result?.links?.[0];
     if (!response.ok || payload.code !== 'success' || link?.code !== 'success' || !link.partner_url) {
       logger.warn('Travelpayouts partner link failed', { status: response.status, code: payload.code, detail: link?.message ?? payload.error });

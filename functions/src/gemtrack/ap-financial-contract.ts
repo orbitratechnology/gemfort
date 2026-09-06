@@ -67,6 +67,7 @@ export function apSaleFingerprint(input: {
 export function apPaymentSentFingerprint(input: {
   method: 'cash' | 'transfer' | 'cheque';
   amount: number;
+  currency?: string | null;
   chequeId?: string | null;
   receiptUrl?: string | null;
 }): string {
@@ -74,6 +75,7 @@ export function apPaymentSentFingerprint(input: {
     kind: 'ap-payment-sent',
     method: input.method,
     amount: input.amount,
+    ...(input.currency ? { currency: input.currency.trim().toUpperCase() } : {}),
     chequeId: normalizeString(input.chequeId),
     receiptUrl: normalizeString(input.receiptUrl),
   });

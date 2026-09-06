@@ -74,6 +74,22 @@ function normalizeOptionalString(value: unknown, name: string, maxLength: number
   return value.trim() || null;
 }
 
+const SUPPORTED_CURRENCIES = new Set([
+  'LKR', 'RMB', 'USD', 'EUR', 'GBP', 'THB', 'AED', 'AUD', 'SGD', 'TZS', 'MGA', 'IDR',
+]);
+
+function normalizeCurrency(value: unknown): string | undefined {
+  const normalized = normalizeOptionalString(value, 'currency', 6);
+  if (!normalized) return undefined;
+  const code = normalized.toUpperCase() === 'CNY' || normalized.toUpperCase() === 'CNH'
+    ? 'RMB'
+    : normalized.toUpperCase();
+  if (!SUPPORTED_CURRENCIES.has(code)) {
+    throw new ApiError('invalid-argument', `Unsupported currency: ${normalized}.`);
+  }
+  return code;
+}
+
 function gemLabelFromDoc(data: Record<string, unknown>, gemId: string): string {
   const sku = typeof data.sku === 'string' ? data.sku.trim() : '';
   const type = typeof data.gemType === 'string' ? data.gemType.replace(/_/g, ' ') : '';
@@ -103,7 +119,7 @@ export function parseCreateApRequestInput(value: unknown): CreateApRequestInput 
     if (!Number.isFinite(agreedPrice) || agreedPrice < 0) {
       throw new ApiError('invalid-argument', 'Each gem needs a valid AP price.');
     }
-    const currency = item.currency == null ? undefined : normalizeOptionalString(item.currency, 'currency', 6);
+    const currency = normalizeCurrency(item.currency);
     return { gemId, agreedPrice, ...(currency ? { currency } : {}) };
   });
 
@@ -214,7 +230,7 @@ export async function createApRequestForApi(
       if (['on_ap', 'sold'].includes(gem.status as string)) {
         throw new ApiError('failed-precondition', `${gemLabelFromDoc(gem, item.gemId)} is not available.`);
       }
-      const currency = item.currency?.trim() || 'LKR';
+      const currency = normalizeCurrency(item.currency) || 'LKR';
       lines.push({
         gemId: item.gemId,
         gemLabel: gemLabelFromDoc(gem, item.gemId),

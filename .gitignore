@@ -35,6 +35,10 @@ yarn-error.*
 .env
 .env*.local
 
+# workspace-scoped CLI configuration
+.firebase-config/
+.gcloud/
+
 # typescript
 *.tsbuildinfo
 

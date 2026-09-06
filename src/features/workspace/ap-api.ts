@@ -19,6 +19,7 @@ type ApPaymentSentInput = {
   apId: string;
   method: ApPaymentMethod;
   amount?: number;
+  currency?: string | null;
   chequeId?: string | null;
   receiptUrl?: string | null;
 };

@@ -370,6 +370,7 @@ export type ApRecord = {
   dateGiven: Timestamp | null;
   agreementNotes: string | null;
   paymentMethod: ApPaymentMethod | null;
+  paymentCurrency?: string | null;
   paymentAmount: number | null;
   paymentSentAt: Timestamp | null;
   paymentReceivedAt: Timestamp | null;

@@ -11,7 +11,7 @@ import {
   apPaymentReceivedFingerprint,
   apPaymentSentFingerprint,
 } from './ap-financial-contract';
-import { convertToBaseServer, loadServerRates } from './exchange-rates';
+import { convertToBaseServer, loadServerRates, type ServerRates } from './exchange-rates';
 
 type ApPaymentMethod = 'cash' | 'transfer' | 'cheque';
 
@@ -20,6 +20,7 @@ type ApLine = {
   lineStatus: 'held' | 'sold' | 'returned';
   soldPrice?: number | null;
   ownerReceives?: number | null;
+  ownerReceivesBase?: number | null;
   agreedPrice: number;
   currency?: string | null;
 };
@@ -34,6 +35,7 @@ type ApDoc = {
   items?: ApLine[];
   status: string;
   paymentMethod?: ApPaymentMethod | null;
+  paymentCurrency?: string | null;
   paymentAmount?: number | null;
   paymentSentAt?: Timestamp | null;
   paymentReceivedAt?: Timestamp | null;
@@ -44,6 +46,7 @@ type ApDoc = {
 export type ApPaymentSentInput = {
   method: ApPaymentMethod;
   amount?: number | null;
+  currency?: string | null;
   chequeId?: string | null;
   receiptUrl?: string | null;
 };
@@ -71,9 +74,22 @@ function isPaymentMethod(value: unknown): value is ApPaymentMethod {
   return value === 'cash' || value === 'transfer' || value === 'cheque';
 }
 
-function normalizeString(value: string | null | undefined): string | null {
-  const normalized = value?.trim() ?? '';
+function normalizeString(value: unknown, name: string, maxLength: number): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string' || value.trim().length > maxLength) {
+    throw new ApiError('invalid-argument', `${name} is invalid.`);
+  }
+  const normalized = value.trim();
   return normalized || null;
+}
+
+function normalizeOptionalString(
+  value: unknown,
+  name: string,
+  maxLength: number,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  return normalizeString(value, name, maxLength);
 }
 
 function assertObject(value: unknown): Record<string, unknown> {
@@ -92,14 +108,52 @@ function apFixture(ap: ApDoc) {
   };
 }
 
-function soldAmount(ap: ApDoc): number {
-  return (ap.items ?? [])
-    .filter((item) => item.lineStatus === 'sold')
-    .reduce((sum, item) => sum + (item.ownerReceives ?? item.agreedPrice), 0);
+const SUPPORTED_CURRENCIES = new Set([
+  'LKR', 'RMB', 'USD', 'EUR', 'GBP', 'THB', 'AED', 'AUD', 'SGD', 'TZS', 'MGA', 'IDR',
+]);
+
+function normalizeCurrency(value: unknown): string {
+  const normalized = typeof value === 'string' ? value.trim().toUpperCase() : 'LKR';
+  const code = normalized === 'CNY' || normalized === 'CNH' ? 'RMB' : normalized || 'LKR';
+  if (!SUPPORTED_CURRENCIES.has(code)) {
+    throw new ApiError('failed-precondition', `Exchange rate for ${normalized || 'the AP currency'} is unavailable.`);
+  }
+  return code || 'LKR';
+}
+
+function normalizeOptionalCurrency(value: unknown): string | null | undefined {
+  const normalized = normalizeOptionalString(value, 'currency', 6);
+  return normalized == null ? normalized : normalizeCurrency(normalized);
 }
 
 function paymentCurrency(ap: ApDoc): string {
-  return ap.items?.[0]?.currency?.trim() || 'LKR';
+  return normalizeCurrency(
+    ap.paymentCurrency ?? ap.items?.find((item) => item.lineStatus === 'sold')?.currency ?? ap.items?.[0]?.currency,
+  );
+}
+
+function soldAmount(ap: ApDoc, rates: ServerRates, targetCurrency = paymentCurrency(ap)): number {
+  const baseAmount = (ap.items ?? [])
+    .filter((item) => item.lineStatus === 'sold')
+    .reduce((sum, item) => {
+      const amount = Number(item.ownerReceives ?? item.agreedPrice);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new ApiError('failed-precondition', 'The AP contains an invalid sold amount.');
+      }
+      const currency = normalizeCurrency(item.currency);
+      const amountBase =
+        item.ownerReceivesBase != null && Number.isFinite(item.ownerReceivesBase)
+          ? item.ownerReceivesBase
+          : convertToBaseServer(amount, currency, rates);
+      return sum + amountBase;
+    }, 0);
+
+  if (targetCurrency === 'LKR') return Number(baseAmount.toFixed(2));
+  const foreignPerBase = rates[targetCurrency];
+  if (!foreignPerBase || foreignPerBase <= 0) {
+    throw new ApiError('failed-precondition', `Exchange rate for ${targetCurrency} is unavailable.`);
+  }
+  return Number((baseAmount * foreignPerBase).toFixed(2));
 }
 
 async function ensurePaymentNotification(input: {
@@ -122,12 +176,11 @@ async function ensurePaymentNotification(input: {
 export async function apPaymentSentForApi(
   apId: string,
   uid: string,
-  input: ApPaymentSentInput,
+  rawInput: ApPaymentSentInput,
 ): Promise<ApPaymentResult> {
+  const input = parseApPaymentSentInput(rawInput);
   const id = assertApId(apId);
-  if (!isPaymentMethod(input.method)) {
-    throw new ApiError('invalid-argument', 'Invalid payment method.');
-  }
+  const rates = await loadServerRates();
 
   const apRef = db.collection('gemtrack_ap_records').doc(id);
   const paymentRef = db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'sent'));
@@ -140,17 +193,22 @@ export async function apPaymentSentForApi(
       throw new ApiError('permission-denied', 'Only the AP holder can mark payment sent.');
     }
 
-    const owed = soldAmount(ap);
+    const currency = input.currency ? normalizeCurrency(input.currency) : paymentCurrency(ap);
+    const owed = soldAmount(ap, rates, currency);
     const amount =
       input.amount != null && Number.isFinite(Number(input.amount))
         ? Number(input.amount)
         : owed;
-    if (amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       throw new ApiError('invalid-argument', 'Payment amount must be positive.');
+    }
+    if (amount > owed) {
+      throw new ApiError('invalid-argument', 'Payment amount cannot exceed the amount owed.');
     }
     const fingerprint = apPaymentSentFingerprint({
       method: input.method,
       amount,
+      currency: input.currency,
       chequeId: input.chequeId,
       receiptUrl: input.receiptUrl,
     });
@@ -159,7 +217,7 @@ export async function apPaymentSentForApi(
       recipientUid: ap.senderUid,
       type: 'ap_payment_sent' as const,
       title: 'AP payment sent',
-      message: `${ap.receiverName || 'Trader'} sent ${formatCurrency(amount)} via ${input.method}. Confirm when received.`,
+      message: `${ap.receiverName || 'Trader'} sent ${formatCurrency(amount, currency)} via ${input.method}. Confirm when received.`,
     };
 
     if (ap.status === 'payment_sent') {
@@ -189,6 +247,7 @@ export async function apPaymentSentForApi(
     transaction.update(apRef, {
       status: 'payment_sent',
       paymentMethod: input.method,
+      paymentCurrency: currency,
       paymentAmount: amount,
       paymentSentAt: now,
       paymentChequeId: input.chequeId ?? null,
@@ -220,12 +279,10 @@ export async function apPaymentSentForApi(
 export async function apPaymentReceivedForApi(
   apId: string,
   uid: string,
-  input: ApPaymentReceivedInput = {},
+  rawInput: ApPaymentReceivedInput = {},
 ): Promise<ApPaymentResult> {
+  const input = parseApPaymentReceivedInput(rawInput);
   const id = assertApId(apId);
-  if (input.method != null && !isPaymentMethod(input.method)) {
-    throw new ApiError('invalid-argument', 'Invalid payment method.');
-  }
 
   const rates = await loadServerRates();
   const apRef = db.collection('gemtrack_ap_records').doc(id);
@@ -242,14 +299,16 @@ export async function apPaymentReceivedForApi(
     }
 
     const amount = ap.paymentAmount ?? 0;
-    if (amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       throw new ApiError('failed-precondition', 'Cannot confirm an empty payment.');
     }
     const currency = paymentCurrency(ap);
     const method = input.method ?? ap.paymentMethod ?? null;
-    const chequeId = input.chequeId !== undefined ? normalizeString(input.chequeId) : ap.paymentChequeId ?? null;
+    const chequeId = input.chequeId !== undefined
+      ? normalizeString(input.chequeId, 'chequeId', 128)
+      : ap.paymentChequeId ?? null;
     const receiptUrl = input.receiptUrl !== undefined
-      ? normalizeString(input.receiptUrl)
+      ? normalizeString(input.receiptUrl, 'receiptUrl', 2048)
       : ap.paymentReceiptUrl ?? null;
     const fingerprint = apPaymentReceivedFingerprint({
       method,
@@ -265,7 +324,7 @@ export async function apPaymentReceivedForApi(
       recipientUid: ap.receiverUid,
       type: 'ap_payment_received' as const,
       title: 'AP payment confirmed',
-      message: `${ap.senderName || 'Trader'} confirmed receipt of ${formatCurrency(amount, currency)}. AP complete (sold ${formatCurrency(soldAmount(ap), currency)}).`,
+      message: `${ap.senderName || 'Trader'} confirmed receipt of ${formatCurrency(amount, currency)}. AP complete (sold ${formatCurrency(soldAmount(ap, rates, currency), currency)}).`,
     };
 
     if (ap.status === 'done') {
@@ -359,9 +418,38 @@ export async function apPaymentReceivedForApi(
 }
 
 export function parseApPaymentSentInput(input: unknown): ApPaymentSentInput {
-  return assertObject(input) as unknown as ApPaymentSentInput;
+  const value = assertObject(input);
+  if (!isPaymentMethod(value.method)) {
+    throw new ApiError('invalid-argument', 'Invalid payment method.');
+  }
+  let amount: number | null | undefined;
+  if (value.amount === undefined) {
+    amount = undefined;
+  } else if (value.amount === null) {
+    amount = null;
+  } else {
+    amount = Number(value.amount);
+  }
+  if (amount != null && (!Number.isFinite(amount) || amount <= 0)) {
+    throw new ApiError('invalid-argument', 'Payment amount must be positive.');
+  }
+  return {
+    method: value.method,
+    ...(value.amount !== undefined ? { amount } : {}),
+    currency: normalizeOptionalCurrency(value.currency),
+    chequeId: normalizeOptionalString(value.chequeId, 'chequeId', 128),
+    receiptUrl: normalizeOptionalString(value.receiptUrl, 'receiptUrl', 2048),
+  };
 }
 
 export function parseApPaymentReceivedInput(input: unknown): ApPaymentReceivedInput {
-  return assertObject(input) as unknown as ApPaymentReceivedInput;
+  const value = assertObject(input);
+  if (value.method != null && !isPaymentMethod(value.method)) {
+    throw new ApiError('invalid-argument', 'Invalid payment method.');
+  }
+  return {
+    method: value.method as ApPaymentMethod | null | undefined,
+    chequeId: normalizeOptionalString(value.chequeId, 'chequeId', 128),
+    receiptUrl: normalizeOptionalString(value.receiptUrl, 'receiptUrl', 2048),
+  };
 }
