@@ -173,6 +173,13 @@ function actionsForCategory(categoryId?: string): AndroidAction[] {
       action('view', 'Details'),
     ];
   }
+  if (categoryId === 'gem_transfer') {
+    return [
+      action('accept_gem_transfer', 'Accept'),
+      action('decline_gem_transfer', 'Decline'),
+      action('view', 'Details'),
+    ];
+  }
   if (categoryId === 'listing_offer') return [action('view', 'View listing')];
   return [action('view', 'View')];
 }

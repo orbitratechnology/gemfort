@@ -36,6 +36,8 @@ export type InboxActionId =
   | "decline_ap"
   | "accept_ap_cancel"
   | "decline_ap_cancel"
+  | "accept_gem_transfer"
+  | "decline_gem_transfer"
   | "view_listing"
   | "view_verify"
   | "view_account";
@@ -172,6 +174,21 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
   ap_return_due_soon: alert("AP", "warning"),
   ap_payment_overdue: alert("AP", "critical"),
 
+  gem_transfer_requested: social(
+    "Gem sale",
+    "sent you a gem transfer request",
+    [
+      { id: "accept_gem_transfer", label: "Accept", variant: "primary" },
+      { id: "decline_gem_transfer", label: "Decline", variant: "destructive" },
+      { id: "open", label: "Details", variant: "ghost" },
+    ],
+    "info",
+    "gem_transfer",
+  ),
+  gem_transfer_accepted: social("Gem sale", "accepted the gem transfer", [OPEN], "success"),
+  gem_transfer_rejected: social("Gem sale", "declined the gem transfer", [OPEN], "warning"),
+  gem_transfer_cancelled: social("Gem sale", "marked the gem unsold", [OPEN], "warning"),
+
   // Cheques / bills / payments
   cheque_maturing_tomorrow: alert("Cheque", "warning"),
   cheque_bounced: alert("Cheque", "critical"),
@@ -293,6 +310,7 @@ function typeLabelFallback(type: string): string {
   if (type.startsWith("report_")) return "Report";
   if (type.startsWith("account_")) return "Account";
   if (type.startsWith("listing_offer")) return "Offer";
+  if (type.startsWith("gem_transfer_")) return "Gem sale";
   return "Alert";
 }
 

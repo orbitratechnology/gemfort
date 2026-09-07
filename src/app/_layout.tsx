@@ -1,4 +1,5 @@
 import { FontFamily } from "@/constants/design-tokens";
+import { NetworkStatusIndicator } from "@/components/ui/network-status-indicator";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { initializeFirebaseAppCheck } from "@/lib/firebase/app-check";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
@@ -116,7 +117,11 @@ function RootNavigator() {
       <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
       <Stack.Screen
         name="request/[businessId]"
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          contentStyle: { backgroundColor: "transparent" },
+        }}
       />
       <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen
@@ -180,6 +185,7 @@ export default function RootLayout() {
                       <PushNotificationRegistrar />
                       <QuickActionsRegistrar />
                       <RootNavigator />
+                      <NetworkStatusIndicator />
                       <KeyboardToolbar />
                     </BiometricLockProvider>
                   </AuthProvider>

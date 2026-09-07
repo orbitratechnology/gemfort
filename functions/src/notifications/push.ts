@@ -1,4 +1,4 @@
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 
 import { db, messaging } from '../admin';
 import { resolvePushMedia } from './resolve-media';

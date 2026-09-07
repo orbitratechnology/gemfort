@@ -1,8 +1,10 @@
 import {
     canListGem,
+    gemActionAvailability,
     gemMatchesStatusFilter,
     isTerminalOutcome,
     resolveGemLifecycle,
+    resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import type { GemStatus, WorkspaceGem } from "@/types";
 
@@ -33,13 +35,15 @@ export function filterGems(
   }
 
   if (filters.archiveOnly) {
-    result = result.filter((g) =>
-      isTerminalOutcome(resolveGemLifecycle(g).outcome),
-    );
+    result = result.filter((g) => {
+      const life = resolveGemLifecycle(g);
+      return resolveGemSaleStatus(g) === "sold" || life.outcome === "returned";
+    });
   } else {
-    result = result.filter(
-      (g) => !isTerminalOutcome(resolveGemLifecycle(g).outcome),
-    );
+    result = result.filter((g) => {
+      const life = resolveGemLifecycle(g);
+      return resolveGemSaleStatus(g) !== "sold" && life.outcome !== "returned";
+    });
   }
 
   if (filters.status && filters.status !== "all") {
@@ -63,13 +67,28 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
   const base = "/(marketplace)/(tabs)/workspace";
   const actions: GemQuickAction[] = [];
   const life = resolveGemLifecycle(gem);
+  const available = gemActionAvailability(gem);
+  const isMarketListed =
+    life.outcome === "listed" || gem.isListedOnMarketplace === true;
 
-  if (life.stoneStage === "rough") {
+  if (available.send_for_cutting) {
     actions.push({
-      title: "Record Cutting",
+      title: "Send for cutting",
       href: `/(marketplace)/services/add?gemId=${gem.id}`,
     });
-  } else if (!life.custody) {
+  } else if (available.send_for_heating) {
+    actions.push({
+      title: "Send for Heating",
+      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating`,
+    });
+  } else if (available.send_for_polishing) {
+    actions.push({
+      title: "Send for polishing",
+      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=polishing`,
+    });
+  }
+
+  if (available.give_on_ap) {
     actions.push({
       title: "Give on AP",
       href: `/(marketplace)/ap/add?gemId=${gem.id}`,
@@ -84,7 +103,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     });
   }
 
-  if (canListGem(gem)) {
+  if (available.list_on_market && canListGem(gem)) {
     actions.push({
       title: "Sell on Market",
       href: `/listings/create?workspaceGemId=${gem.id}`,
@@ -109,7 +128,7 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     });
   }
 
-  if (!life.custody) {
+  if (!life.custody && !isMarketListed) {
     actions.push({
       title: "Record Service",
       href: `/(marketplace)/services/add?gemId=${gem.id}`,

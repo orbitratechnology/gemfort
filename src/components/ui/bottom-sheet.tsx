@@ -17,7 +17,10 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import {
+  KeyboardAwareScrollView,
+  KeyboardAvoidingView,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -202,46 +205,51 @@ export function BottomSheet({
         <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         </Animated.View>
-        <Animated.View
-          onLayout={onSheetLayout}
-          style={[
-            styles.sheet,
-            !scrollable && styles.sheetFlex,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              paddingBottom: insets.bottom + Spacing.gutterMd,
-            },
-            sheetAnimatedStyle,
-          ]}>
-          <View style={[styles.grabber, { backgroundColor: colors.outlineVariant }]} />
-          {title ? (
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
-              <Pressable
-                onPress={handleClose}
-                style={styles.closeBtn}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Close">
-                <Icon name="close" size={22} color={colors.onSurfaceVariant} />
-              </Pressable>
-            </View>
-          ) : null}
-          {scrollable ? (
-            <KeyboardAwareScrollView
-              ScrollViewComponent={GestureScrollView}
-              style={styles.body}
-              contentContainerStyle={styles.bodyContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              bottomOffset={62}>
-              {children}
-            </KeyboardAwareScrollView>
-          ) : (
-            <View style={styles.bodyFlex}>{children}</View>
-          )}
-          {footer ? <View style={styles.footer}>{footer}</View> : null}
-        </Animated.View>
+        <KeyboardAvoidingView
+          behavior="padding"
+          automaticOffset
+          style={styles.keyboardAvoiding}>
+          <Animated.View
+            onLayout={onSheetLayout}
+            style={[
+              styles.sheet,
+              !scrollable && styles.sheetFlex,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                paddingBottom: insets.bottom + Spacing.gutterMd,
+              },
+              sheetAnimatedStyle,
+            ]}>
+            <View style={[styles.grabber, { backgroundColor: colors.outlineVariant }]} />
+            {title ? (
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
+                <Pressable
+                  onPress={handleClose}
+                  style={styles.closeBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close">
+                  <Icon name="close" size={22} color={colors.onSurfaceVariant} />
+                </Pressable>
+              </View>
+            ) : null}
+            {scrollable ? (
+              <KeyboardAwareScrollView
+                ScrollViewComponent={GestureScrollView}
+                style={styles.body}
+                contentContainerStyle={styles.bodyContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bottomOffset={62}>
+                {children}
+              </KeyboardAwareScrollView>
+            ) : (
+              <View style={styles.bodyFlex}>{children}</View>
+            )}
+            {footer ? <View style={styles.footer}>{footer}</View> : null}
+          </Animated.View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -295,6 +303,7 @@ export function FilterChipGroup<T extends string>({
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
+  keyboardAvoiding: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,

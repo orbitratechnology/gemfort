@@ -23,6 +23,7 @@ import {
   respondApCancellation,
   respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
+import { respondGemTransferRequest } from "@/features/workspace/gem-transfer-api";
 import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
   fetchNotifications,
@@ -241,6 +242,25 @@ export default function NotificationsScreen() {
               : "Cancellation declined",
           );
           await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          return;
+        }
+
+        if (
+          (actionId === "accept_gem_transfer" || actionId === "decline_gem_transfer") &&
+          n.referenceId
+        ) {
+          await respondGemTransferRequest(
+            n.referenceId,
+            actionId === "accept_gem_transfer" ? "accepted" : "rejected",
+          );
+          await markRead(n);
+          toast.success(
+            actionId === "accept_gem_transfer"
+              ? "Gem added to your inventory"
+              : "Gem transfer declined",
+          );
+          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          await queryClient.invalidateQueries({ queryKey: ["gems"] });
           return;
         }
 

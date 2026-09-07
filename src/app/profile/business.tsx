@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -19,9 +19,10 @@ import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { cityBelongsToCountry } from "@/constants/cities";
@@ -32,6 +33,11 @@ import {
     Typography,
     type ThemeColors,
 } from "@/constants/design-tokens";
+import {
+  LAPIDARY_SERVICE_OPTIONS,
+  normalizeLapidaryServiceId,
+  type LapidaryServiceId,
+} from "@/constants/roles";
 import {
     accountTypeLabelFromRegistration,
     businessTypeFromRegistration,
@@ -46,6 +52,10 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Timestamp } from "@/lib/firebase/db";
 import { friendlyError } from "@/lib/errors";
+import {
+  detectProfileLocation,
+  profileLocationLabel,
+} from "@/lib/location/profile-location";
 import type { AuthUser } from "@/lib/firebase/auth-types";
 import { parseAmountInput } from "@/lib/money/mask";
 import {
@@ -60,63 +70,89 @@ import { useToast } from "@/providers/toast-provider";
 import type {
   Business,
   LapidaryServiceOffering,
+  ProfileLocation,
   UserProfile,
 } from "@/types";
 
 type LapidaryServiceDraft = {
-  serviceId: string;
-  name: string;
-  description: string;
+  serviceId: LapidaryServiceId;
   priceText: string;
   currency: string;
-  isActive: boolean;
 };
+
+const LAPIDARY_SERVICE_ICONS: Record<LapidaryServiceId, IconName> = {
+  cutting: "content-cut",
+  heating: "local-fire-department",
+  polishing: "auto-awesome",
+};
+
+const LAPIDARY_SERVICE_HINTS: Record<LapidaryServiceId, string> = {
+  cutting: "Facet, shape, or re-cut gemstones",
+  heating: "Controlled heat treatment",
+  polishing: "Bring out the final luster",
+};
+
+function serviceOption(serviceId: LapidaryServiceId) {
+  return LAPIDARY_SERVICE_OPTIONS.find((service) => service.id === serviceId)!;
+}
 
 function lapidaryDraftsFromBusiness(
   business: Business | null | undefined,
 ): LapidaryServiceDraft[] {
-  return (business?.providerProfile?.services ?? []).map((service) => ({
-    serviceId: service.serviceId,
-    name: service.name,
-    description: service.description,
-    priceText: String(service.priceMin),
-    currency: service.currency || "LKR",
-    isActive: service.isActive,
-  }));
+  const offerings = business?.providerProfile?.services ?? [];
+  const legacyTypes = business?.providerProfile?.servicesOffered ?? [];
+  const drafts: LapidaryServiceDraft[] = [];
+  const seen = new Set<LapidaryServiceId>();
+
+  for (const service of offerings) {
+    const serviceId =
+      normalizeLapidaryServiceId(service.serviceId) ??
+      normalizeLapidaryServiceId(service.name);
+    if (!serviceId || seen.has(serviceId)) continue;
+    seen.add(serviceId);
+    drafts.push({
+      serviceId,
+      priceText:
+        service.pricingType === "optional" || service.priceMin == null
+          ? ""
+          : String(service.priceMin),
+      currency: service.currency || "LKR",
+    });
+  }
+
+  for (const value of legacyTypes) {
+    const serviceId = normalizeLapidaryServiceId(value);
+    if (!serviceId || seen.has(serviceId)) continue;
+    seen.add(serviceId);
+    drafts.push({ serviceId, priceText: "", currency: "LKR" });
+  }
+
+  return drafts;
 }
 
 function lapidaryOfferingsFromDrafts(
   drafts: LapidaryServiceDraft[],
 ): LapidaryServiceOffering[] {
   return drafts.flatMap((draft) => {
-    const price = parseAmountInput(draft.priceText);
-    const name = draft.name.trim();
-    if (!name || !Number.isFinite(price) || price < 0) return [];
+    const priceText = draft.priceText.trim();
+    const price = priceText ? parseAmountInput(priceText) : null;
+    if (priceText && (price == null || !Number.isFinite(price) || price < 0)) return [];
+    const name = serviceOption(draft.serviceId).label;
     return [{
       serviceId: draft.serviceId,
       name,
-      description: draft.description.trim(),
-      pricingType: "fixed" as const,
+      description: "",
+      pricingType: price == null ? ("optional" as const) : ("fixed" as const),
       priceMin: price,
       priceMax: price,
-      currency: draft.currency || "LKR",
+      currency: price == null ? null : draft.currency || "LKR",
       turnaroundDaysMin: 0,
       turnaroundDaysMax: 0,
-      isActive: draft.isActive,
+      isActive: true,
     }];
   });
 }
 
-function newLapidaryServiceDraft(): LapidaryServiceDraft {
-  return {
-    serviceId: `service_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: "",
-    description: "",
-    priceText: "",
-    currency: "LKR",
-    isActive: true,
-  };
-}
 const BANNER_H = COVER_BANNER_HEIGHT;
 const AVATAR = 96;
 const AVATAR_OVERLAP = 48;
@@ -153,6 +189,11 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [city, setCity] = useState(business?.city ?? "Beruwala");
   const [country, setCountry] = useState(business?.country ?? "Sri Lanka");
   const [address, setAddress] = useState(business?.address ?? "");
+  const [location, setLocation] = useState<ProfileLocation | null>(
+    business?.location ?? null,
+  );
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [locationDetecting, setLocationDetecting] = useState(false);
   const [whatsapp, setWhatsapp] = useState(
     business?.contacts?.whatsapp?.value ?? "",
   );
@@ -202,6 +243,27 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
 
+  useEffect(() => {
+    if (business?.location) return;
+    let active = true;
+    setLocationDetecting(true);
+    void detectProfileLocation()
+      .then((detected) => {
+        if (!active || !detected) return;
+        setLocation(detected);
+        if (detected.city) setCity(detected.city);
+        if (detected.country) setCountry(detected.country);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLocationDetecting(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [business?.id, business?.location]);
+
   function updateLapidaryServiceDraft(
     serviceId: string,
     patch: Partial<LapidaryServiceDraft>,
@@ -244,6 +306,18 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     if (!canSave) {
       toast.error("Business name and city are required.");
       return;
+    }
+    if (isLapidary) {
+      const hasInvalidPrice = lapidaryServiceDrafts.some((service) => {
+        const value = service.priceText.trim();
+        if (!value) return false;
+        const price = parseAmountInput(value);
+        return !Number.isFinite(price) || price < 0;
+      });
+      if (hasInvalidPrice) {
+        toast.error("Enter a valid price or leave pricing blank.");
+        return;
+      }
     }
     try {
       await withLoading(async () => {
@@ -295,6 +369,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             city,
             country,
             address,
+            location,
             whatsapp,
             phone,
             socialLinks,
@@ -325,6 +400,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
               city,
               country,
               address,
+              location,
               shortDescription: shortDescription || "Gem business in Beruwala.",
               whatsapp: whatsapp || profile?.phone || undefined,
               phone: phone || profile?.phone || undefined,
@@ -514,6 +590,50 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           onChange={setCity}
           placeholder="Select city"
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Choose profile location on map"
+          onPress={() => setLocationPickerOpen(true)}
+          style={({ pressed }) => [
+            styles.locationField,
+            {
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+              opacity: pressed ? 0.82 : 1,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.locationIcon,
+              { backgroundColor: colors.primaryContainer },
+            ]}
+          >
+            {locationDetecting ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon
+                name="location-on"
+                size={20}
+                color={colors.onPrimaryContainer}
+              />
+            )}
+          </View>
+          <View style={styles.locationCopy}>
+            <Text style={[styles.locationTitle, { color: colors.onSurface }]}>Map pin</Text>
+            <Text
+              style={[styles.locationValue, { color: colors.textMuted }]}
+              numberOfLines={2}
+            >
+              {locationDetecting
+                ? "Detecting your current location…"
+                : location
+                  ? profileLocationLabel(location)
+                  : "Choose the exact public location"}
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
+        </Pressable>
         <Input
           label="Address"
           value={address}
@@ -528,115 +648,138 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           <FormSectionLabel title="PUBLIC SERVICES" />
           <FormSection>
             <Text style={[styles.serviceHint, { color: colors.textMuted }]}>
-              Add the services you provide. Active services and their prices are
-              shown on your public profile.
+              Select every service your workshop provides. Pricing is optional and
+              can be added per service.
             </Text>
-            {lapidaryServiceDrafts.map((service) => (
-              <View
-                key={service.serviceId}
-                style={[
-                  styles.serviceCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    opacity: service.isActive ? 1 : 0.72,
-                  },
-                ]}
-              >
-                <View style={styles.serviceCardHeader}>
+            <View style={styles.serviceOptions}>
+              {LAPIDARY_SERVICE_OPTIONS.map((option) => {
+                const selected = lapidaryServiceDrafts.some(
+                  (service) => service.serviceId === option.id,
+                );
+                return (
                   <Pressable
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: service.isActive }}
-                    accessibilityLabel={`${service.name || "New service"}, ${service.isActive ? "shown publicly" : "hidden"}`}
-                    onPress={() =>
-                      updateLapidaryServiceDraft(service.serviceId, {
-                        isActive: !service.isActive,
-                      })
-                    }
-                    style={styles.serviceCardCopy}
-                  >
-                    <Text
-                      style={[styles.serviceTitle, { color: colors.onSurface }]}
-                    >
-                      {service.name || "New service"}
-                    </Text>
-                    <Text
-                      style={[styles.serviceDesc, { color: colors.onSurfaceVariant }]}
-                    >
-                      {service.isActive ? "Visible on your profile" : "Hidden from your profile"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${service.name || "service"}`}
-                    onPress={() =>
+                    key={option.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={`${option.label} service`}
+                    onPress={() => {
                       setLapidaryServiceDrafts((prev) =>
-                        prev.filter((item) => item.serviceId !== service.serviceId),
-                      )
-                    }
-                    hitSlop={8}
-                    style={styles.removeServiceButton}
+                        selected
+                          ? prev.filter((service) => service.serviceId !== option.id)
+                          : [
+                              ...prev,
+                              {
+                                serviceId: option.id,
+                                priceText: "",
+                                currency: "LKR",
+                              },
+                            ],
+                      );
+                    }}
+                    style={({ pressed }) => [
+                      styles.serviceOption,
+                      {
+                        backgroundColor: selected
+                          ? colors.primaryContainer
+                          : colors.surfaceContainerLowest,
+                        borderColor: selected
+                          ? colors.primary
+                          : colors.outlineVariant,
+                        opacity: pressed ? 0.82 : 1,
+                      },
+                    ]}
                   >
-                    <Icon name="delete-outline" size={20} color={colors.error} />
+                    <View
+                      style={[
+                        styles.serviceOptionIcon,
+                        {
+                          backgroundColor: selected
+                            ? colors.primary
+                            : colors.surfaceContainerHigh,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={LAPIDARY_SERVICE_ICONS[option.id]}
+                        size={20}
+                        color={selected ? colors.onPrimary : colors.onSurfaceVariant}
+                      />
+                    </View>
+                    <View style={styles.serviceOptionCopy}>
+                      <Text
+                        style={[styles.serviceTitle, { color: colors.onSurface }]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={[styles.serviceDesc, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {LAPIDARY_SERVICE_HINTS[option.id]}
+                      </Text>
+                    </View>
+                    <Icon
+                      name={selected ? "check-circle" : "radio-button-unchecked"}
+                      size={22}
+                      color={selected ? colors.primary : colors.outline}
+                    />
                   </Pressable>
-                </View>
-                <Input
-                  label="Service name"
-                  value={service.name}
-                  onChangeText={(name) =>
-                    updateLapidaryServiceDraft(service.serviceId, { name })
-                  }
-                  placeholder="e.g. Precision recutting"
-                  leftIcon="handyman"
-                />
-                <Input
-                  label="Description"
-                  value={service.description}
-                  onChangeText={(description) =>
-                    updateLapidaryServiceDraft(service.serviceId, { description })
-                  }
-                  placeholder="What is included?"
-                  multiline
-                  style={styles.serviceDescription}
-                />
-                <CurrencyAmountField
-                  label="Price"
-                  value={{
-                    amount: service.priceText,
-                    currency: service.currency as CurrencyCode,
-                  }}
-                  onChange={({ amount, currency }) =>
-                    updateLapidaryServiceDraft(service.serviceId, {
-                      priceText: amount,
-                      currency,
-                    })
-                  }
-                  placeholder="0"
-                />
+                );
+              })}
+            </View>
+
+            {lapidaryServiceDrafts.length > 0 ? (
+              <View style={styles.pricingList}>
+                <Text style={[styles.pricingTitle, { color: colors.onSurface }]}>
+                  Pricing (optional)
+                </Text>
+                <Text style={[styles.pricingHint, { color: colors.textMuted }]}>
+                  Leave a price blank to invite a quote.
+                </Text>
+                {lapidaryServiceDrafts.map((service) => {
+                  const option = serviceOption(service.serviceId);
+                  return (
+                    <View
+                      key={service.serviceId}
+                      style={[
+                        styles.pricingCard,
+                        {
+                          backgroundColor: colors.surfaceContainerLow,
+                          borderColor: colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <View style={styles.pricingCardHeader}>
+                        <Icon
+                          name={LAPIDARY_SERVICE_ICONS[service.serviceId]}
+                          size={18}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[styles.pricingLabel, { color: colors.onSurface }]}
+                        >
+                          {option.label}
+                        </Text>
+                      </View>
+                      <CurrencyAmountField
+                        label="Starting price (optional)"
+                        value={{
+                          amount: service.priceText,
+                          currency: service.currency as CurrencyCode,
+                        }}
+                        onChange={({ amount, currency }) =>
+                          updateLapidaryServiceDraft(service.serviceId, {
+                            priceText: amount,
+                            currency,
+                          })
+                        }
+                        placeholder="Quote on request"
+                      />
+                    </View>
+                  );
+                })}
               </View>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add service"
-              onPress={() =>
-                setLapidaryServiceDrafts((prev) => [
-                  ...prev,
-                  newLapidaryServiceDraft(),
-                ])
-              }
-              style={({ pressed }) => [
-                styles.addServiceButton,
-                {
-                  borderColor: colors.outlineVariant,
-                  backgroundColor: colors.surfaceContainerLow,
-                  opacity: pressed ? 0.72 : 1,
-                },
-              ]}
-            >
-              <Icon name="add" size={20} color={colors.primary} />
-              <Text style={[styles.addServiceText, { color: colors.primary }]}>
-                Add service
-              </Text>
-            </Pressable>
+            ) : null}
           </FormSection>
         </>
       ) : null}
@@ -740,6 +883,17 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           </Pressable>
         ) : null}
       </View>
+      <ProfileLocationPicker
+        visible={locationPickerOpen}
+        value={location}
+        onClose={() => setLocationPickerOpen(false)}
+        onSave={(next) => {
+          setLocation(next);
+          if (next.city) setCity(next.city);
+          if (next.country) setCountry(next.country);
+          setLocationPickerOpen(false);
+        }}
+      />
     </>
   );
 }
@@ -912,6 +1066,27 @@ const styles = StyleSheet.create({
 
   textArea: { minHeight: 96, textAlignVertical: "top", paddingTop: 12 },
 
+  locationField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 64,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderCurve: "continuous",
+  },
+  locationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationCopy: { flex: 1, gap: 2, minWidth: 0 },
+  locationTitle: { ...Typography.labelMd, fontWeight: "600" },
+  locationValue: { ...Typography.caption, lineHeight: 17 },
+
   actions: {
     gap: Spacing.md,
     marginTop: Spacing.sm,
@@ -933,41 +1108,59 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     paddingHorizontal: 2,
   },
-  serviceCard: {
+  serviceOptions: {
+    gap: Spacing.sm,
+  },
+  serviceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 72,
+    padding: Spacing.md,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    borderWidth: 1,
+  },
+  serviceOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceOptionCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
   },
   serviceTitle: { ...Typography.bodyLg, fontWeight: "700" },
   serviceDesc: { ...Typography.caption, lineHeight: 16 },
-  serviceCardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  pricingList: {
     gap: Spacing.sm,
+    marginTop: Spacing.md,
   },
-  serviceCardCopy: { flex: 1, gap: 4, minWidth: 0 },
-  removeServiceButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+  pricingTitle: {
+    ...Typography.labelMd,
+    fontWeight: "700",
   },
-  serviceDescription: {
-    minHeight: 76,
-    textAlignVertical: "top",
-    paddingTop: 12,
+  pricingHint: {
+    ...Typography.caption,
+    marginTop: -4,
   },
-  addServiceButton: {
-    minHeight: 48,
+  pricingCard: {
     borderRadius: Radius.lg,
+    borderCurve: "continuous",
     borderWidth: 1,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
+    padding: Spacing.md,
     gap: Spacing.sm,
   },
-  addServiceText: { ...Typography.labelMd, fontWeight: "700" },
+  pricingCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  pricingLabel: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+  },
 });

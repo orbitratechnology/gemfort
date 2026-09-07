@@ -280,6 +280,8 @@ export async function createApRequestForApi(
     for (const line of lines) {
       transaction.update(db.collection('gemtrack_gems').doc(line.gemId), {
         status: 'on_ap',
+        custody: 'on_ap',
+        currentLocation: 'AP',
         currentHolderContactId: input.receiverContactId,
         currentApId: apRef.id,
         updatedAt: now,
@@ -354,6 +356,8 @@ export async function respondApRequestForApi(
       }
       transaction.update(gemRefs[index]!, {
         status: 'ready_for_sale',
+        custody: null,
+        currentLocation: null,
         currentHolderContactId: null,
         currentApId: null,
         updatedAt: now,
@@ -416,6 +420,8 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
       if (gemSnap.exists && gemSnap.data()?.ownerUid === ap.ownerUid) {
         transaction.update(gemRefs[index]!, {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
           currentApId: null,
           updatedAt: now,
@@ -489,6 +495,8 @@ export async function returnApGemForApi(
     });
     transaction.update(gemRef, {
       status: 'ready_for_sale',
+      custody: null,
+      currentLocation: null,
       currentHolderContactId: null,
       currentApId: null,
       updatedAt: now,

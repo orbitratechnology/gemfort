@@ -44,17 +44,28 @@ export type UserProfile = {
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
 };
+
+/** A saved, user-selected profile location. Coordinates are kept for map links. */
+export type ProfileLocation = {
+  latitude: number;
+  longitude: number;
+  label: string;
+  city?: string | null;
+  district?: string | null;
+  country?: string | null;
+};
+
 export type BusinessType = "trader" | "lapidary" | string;
 
-/** A fixed-price service displayed by a lapidary on their public profile. */
+/** A service type displayed by a lapidary on their public profile. */
 export type LapidaryServiceOffering = {
   serviceId: string;
   name: string;
   description: string;
-  pricingType: "fixed";
-  priceMin: number;
-  priceMax: number;
-  currency: string;
+  pricingType: "fixed" | "optional";
+  priceMin: number | null;
+  priceMax: number | null;
+  currency: string | null;
   turnaroundDaysMin: number;
   turnaroundDaysMax: number;
   isActive: boolean;
@@ -77,6 +88,7 @@ export type Business = {
   district: string;
   province: string;
   country: string;
+  location?: ProfileLocation | null;
   verificationStatus: VerificationStatus;
   verificationTier: "none" | "basic" | "full";
   badges: {
@@ -163,6 +175,16 @@ export type GemCustody =
 
 export type GemOutcome = "listed" | "sold" | "returned";
 
+/** Sale state is separate from the legacy outcome field. */
+export type GemSaleStatus = "unsold" | "pending" | "sold";
+
+export type GemPaymentMethod =
+  | "cash"
+  | "bank_transfer"
+  | "cheque"
+  | "bill"
+  | "other";
+
 /** Legacy flat status union — prefer stoneStage / custody / outcome. */
 export type GemStatus =
   | GemStoneStage
@@ -225,6 +247,22 @@ export type WorkspaceGem = {
   /** LKR equivalent of soldPrice at write time. */
   soldPriceBase?: number | null;
   soldDate: Timestamp | null;
+  /** Pending ownership transfer request created by the seller. */
+  saleTransferRequestId?: string | null;
+  saleStatus?: GemSaleStatus | null;
+  soldToUid?: string | null;
+  soldToBusinessId?: string | null;
+  soldToContactId?: string | null;
+  soldToName?: string | null;
+  salePaymentMethod?: GemPaymentMethod | null;
+  /** Historical sale metadata retained after the gem moves to its buyer. */
+  acquiredFromUid?: string | null;
+  acquiredFromName?: string | null;
+  acquiredAt?: Timestamp | null;
+  lastSaleRequestId?: string | null;
+  lastSoldPrice?: number | null;
+  lastSoldPriceCurrency?: string | null;
+  lastSalePaymentMethod?: GemPaymentMethod | null;
   photoUrls: string[];
   isListedOnMarketplace: boolean;
   marketplaceListingId: string | null;
@@ -837,6 +875,8 @@ export type ServiceRequest = {
   lapidaryBusinessId: string;
   gemId: string;
   gemName: string;
+  /** Primary gem photo captured when the service request is sent. */
+  gemPhotoUrl?: string | null;
   serviceTypes: string[];
   notes: string | null;
   status: RequestStatus;
@@ -856,6 +896,8 @@ export type LapidaryJob = {
   traderUid: string;
   gemId: string;
   gemName: string;
+  /** Primary gem photo carried forward from the service request. */
+  gemPhotoUrl?: string | null;
   serviceTypes: string[];
   status: "queued" | "in_progress" | "ready" | "returned" | "cancelled";
   notes: string | null;

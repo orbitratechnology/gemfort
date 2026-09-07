@@ -4,6 +4,7 @@ import {
   respondApCancellation,
   respondApRequest,
 } from '@/features/workspace/ap-lifecycle-service';
+import { respondGemTransferRequest } from '@/features/workspace/gem-transfer-api';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
 
 export async function handleNotificationAction(
@@ -13,6 +14,19 @@ export async function handleNotificationAction(
   notificationId?: string,
 ) {
   try {
+    if (
+      (actionId === 'accept_gem_transfer' || actionId === 'decline_gem_transfer') &&
+      referenceType === 'gem_transfer' &&
+      referenceId
+    ) {
+      await respondGemTransferRequest(
+        referenceId,
+        actionId === 'accept_gem_transfer' ? 'accepted' : 'rejected',
+      );
+      if (notificationId) await notifee.cancelNotification(notificationId);
+      navigateFromNotificationRef(referenceType, referenceId);
+      return;
+    }
     if (actionId === 'accept' && referenceType === 'ap' && referenceId) {
       await respondApRequest(referenceId, 'accepted');
       if (notificationId) await notifee.cancelNotification(notificationId);

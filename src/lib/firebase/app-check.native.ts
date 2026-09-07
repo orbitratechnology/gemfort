@@ -13,6 +13,15 @@ function isProductionBuild(): boolean {
   return process.env.EXPO_PUBLIC_APP_ENV === 'production';
 }
 
+function getDevelopmentDebugToken(name: 'ANDROID' | 'IOS'): string | undefined {
+  if (isProductionBuild()) return undefined;
+  const token =
+    name === 'ANDROID'
+      ? process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID
+      : process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS;
+  return token || undefined;
+}
+
 function getConfiguredAppCheck(): AppCheck {
   if (appCheckInstance) return appCheckInstance;
 
@@ -20,11 +29,13 @@ function getConfiguredAppCheck(): AppCheck {
   provider.configure({
     android: {
       provider: isProductionBuild() ? 'playIntegrity' : 'debug',
+      debugToken: getDevelopmentDebugToken('ANDROID'),
     },
     apple: {
       provider: isProductionBuild()
         ? 'appAttestWithDeviceCheckFallback'
         : 'debug',
+      debugToken: getDevelopmentDebugToken('IOS'),
     },
   });
 

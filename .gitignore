@@ -68,7 +68,11 @@ google-services*.json
 GoogleService-Info.plist
 GoogleService-Info*.plist
 
-
+# Logs
 *.log
 
+# Artifacts
 *.apk
+
+# Temporary agent media
+.tmp-*

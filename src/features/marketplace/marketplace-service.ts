@@ -1,6 +1,8 @@
 import {
     businessTypeFromRole,
+    LAPIDARY_SERVICE_OPTIONS,
     marketTabFromBusinessType,
+    normalizeLapidaryServiceId,
     normalizeUserRole,
     ROLE_LABELS,
 } from "@/constants/roles";
@@ -32,9 +34,10 @@ import type {
     BusinessType,
     FraudReportType,
     LapidaryServiceOffering,
-    ListingOffer,
-    MarketplaceListing,
-    UserRole,
+  ListingOffer,
+  MarketplaceListing,
+  ProfileLocation,
+  UserRole,
 } from "@/types";
 
 export type MarketBusinessFilter =
@@ -219,6 +222,7 @@ export async function createBusinessProfile(
     whatsapp?: string;
     phone?: string;
     address?: string;
+    location?: ProfileLocation | null;
     socialLinks?: {
       website?: string;
       instagram?: string;
@@ -238,6 +242,7 @@ export async function createBusinessProfile(
       city: input.city,
       country: input.country,
       address: input.address,
+      location: input.location,
       whatsapp: input.whatsapp,
       phone: input.phone,
       socialLinks: input.socialLinks,
@@ -272,6 +277,7 @@ export async function createBusinessProfile(
     district: "Kalutara",
     province: "Western",
     country: input.country?.trim() || "Sri Lanka",
+    location: input.location ?? null,
     verificationStatus: "none",
     verificationTier: "none",
     badges: {
@@ -343,6 +349,7 @@ export async function updateBusinessProfile(
     city?: string;
     country?: string;
     address?: string;
+    location?: ProfileLocation | null;
     whatsapp?: string;
     phone?: string;
     logoUrl?: string | null;
@@ -354,7 +361,7 @@ export async function updateBusinessProfile(
       facebook?: string;
       wechat?: string;
     };
-    /** Public fixed-price service menu for a lapidary. */
+    /** Public service types for a lapidary; pricing is optional per type. */
     lapidaryServiceOfferings?: LapidaryServiceOffering[];
     /** Business gallery photos (works, work samples, showroom, business photos). */
     galleryPhotos?: Business["galleryPhotos"];
@@ -368,6 +375,7 @@ export async function updateBusinessProfile(
   if (data.city !== undefined) updates.city = data.city.trim();
   if (data.country !== undefined) updates.country = data.country.trim();
   if (data.address !== undefined) updates.address = data.address.trim();
+  if (data.location !== undefined) updates.location = data.location;
   if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
   if (data.coverPhotoUrl !== undefined)
     updates.coverPhotoUrl = data.coverPhotoUrl;
@@ -389,25 +397,47 @@ export async function updateBusinessProfile(
     };
   }
   if (data.lapidaryServiceOfferings !== undefined) {
+    const seenServiceIds = new Set<string>();
     const services = data.lapidaryServiceOfferings
       .slice(0, 20)
-      .map((service) => ({
-        serviceId: service.serviceId.trim(),
-        name: service.name.trim().slice(0, 80),
-        description: service.description.trim().slice(0, 500),
-        pricingType: "fixed" as const,
-        priceMin: Math.max(0, Number(service.priceMin) || 0),
-        priceMax: Math.max(0, Number(service.priceMax) || 0),
-        currency: service.currency.trim().toUpperCase().slice(0, 8) || "LKR",
-        turnaroundDaysMin: Math.max(0, Number(service.turnaroundDaysMin) || 0),
-        turnaroundDaysMax: Math.max(0, Number(service.turnaroundDaysMax) || 0),
-        isActive: service.isActive !== false,
-      }))
-      .filter((service) => service.serviceId && service.name);
+      .flatMap((service) => {
+        const serviceId =
+          normalizeLapidaryServiceId(service.serviceId) ??
+          normalizeLapidaryServiceId(service.name);
+        if (!serviceId || seenServiceIds.has(serviceId)) return [];
+        seenServiceIds.add(serviceId);
+        const option = LAPIDARY_SERVICE_OPTIONS.find((item) => item.id === serviceId)!;
+        const priceMin =
+          service.priceMin == null
+            ? null
+            : Math.max(0, Number(service.priceMin));
+        const priceMax =
+          service.priceMax == null
+            ? priceMin
+            : Math.max(0, Number(service.priceMax));
+        const hasPrice =
+          priceMin != null && Number.isFinite(priceMin) &&
+          priceMax != null && Number.isFinite(priceMax);
+
+        return [{
+          serviceId,
+          name: option.label,
+          description: "",
+          pricingType: hasPrice ? ("fixed" as const) : ("optional" as const),
+          priceMin: hasPrice ? priceMin : null,
+          priceMax: hasPrice ? priceMax : null,
+          currency: hasPrice
+            ? service.currency?.trim().toUpperCase().slice(0, 8) || "LKR"
+            : null,
+          turnaroundDaysMin: Math.max(0, Number(service.turnaroundDaysMin) || 0),
+          turnaroundDaysMax: Math.max(0, Number(service.turnaroundDaysMax) || 0),
+          isActive: service.isActive !== false,
+        }];
+      });
     updates["providerProfile.services"] = services;
     updates["providerProfile.servicesOffered"] = services
       .filter((service) => service.isActive)
-      .map((service) => service.name);
+      .map((service) => service.serviceId);
   }
   if (data.galleryPhotos !== undefined) {
     updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);

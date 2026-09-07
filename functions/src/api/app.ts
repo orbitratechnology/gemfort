@@ -52,6 +52,13 @@ import {
   submitListingOfferForApi,
   type SubmitListingOfferInput,
 } from './listing-offer-api';
+import {
+  cancelGemTransferForApi,
+  createGemTransferForApi,
+  parseCreateGemTransferInput,
+  respondGemTransferForApi,
+  type CreateGemTransferInput,
+} from './gem-transfer-api';
 import { executeIdempotent, type MutationExecutor } from './idempotency';
 import { apiErrorResponse, ApiError, toApiError } from './errors';
 import {
@@ -164,6 +171,20 @@ export type ApiAppOptions = {
     uid: string,
     input: SubmitListingOfferInput,
   ) => Promise<{ offerId: string }>;
+  createGemTransfer?: (
+    gemId: string,
+    uid: string,
+    input: CreateGemTransferInput,
+  ) => Promise<{ requestId: string; status: 'pending' }>;
+  respondGemTransfer?: (
+    requestId: string,
+    uid: string,
+    action: 'accepted' | 'rejected',
+  ) => Promise<{ ok: true; status: 'accepted' | 'rejected'; gemId: string }>;
+  cancelGemTransfer?: (
+    requestId: string,
+    uid: string,
+  ) => Promise<{ ok: true; status: 'cancelled'; gemId: string }>;
   executeMutation?: MutationExecutor;
 };
 
@@ -316,6 +337,9 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const apPaymentSent = options.apPaymentSent ?? apPaymentSentForApi;
   const apPaymentReceived = options.apPaymentReceived ?? apPaymentReceivedForApi;
   const submitListingOffer = options.submitListingOffer ?? submitListingOfferForApi;
+  const createGemTransfer = options.createGemTransfer ?? createGemTransferForApi;
+  const respondGemTransfer = options.respondGemTransfer ?? respondGemTransferForApi;
+  const cancelGemTransfer = options.cancelGemTransfer ?? cancelGemTransferForApi;
   const runMutation = options.executeMutation ?? executeIdempotent;
 
   const mutation = <T>(
@@ -465,6 +489,33 @@ export function createApiApp(options: ApiAppOptions = {}) {
     const input = parseSubmitListingOfferInput(await readJson(c));
     return success(c, await mutation(c, { listingId, input }, (uid) =>
       submitListingOffer(listingId, uid, input),
+    ));
+  });
+
+  app.post('/v1/gems/:gemId/transfer-requests', auth, appCheck, async (c) => {
+    const gemId = requiredRouteParam(c, 'gemId');
+    const input = parseCreateGemTransferInput(await readJson(c));
+    return success(c, await mutation(c, { gemId, input }, (uid) =>
+      createGemTransfer(gemId, uid, input),
+    ));
+  });
+
+  app.post('/v1/gem-transfer-requests/:requestId/respond', auth, appCheck, async (c) => {
+    const requestId = requiredRouteParam(c, 'requestId');
+    const input = await readJson(c);
+    if (!input || typeof input !== 'object') {
+      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
+    }
+    const action = actionOf((input as { action?: unknown }).action);
+    return success(c, await mutation(c, { requestId, action }, (uid) =>
+      respondGemTransfer(requestId, uid, action),
+    ));
+  });
+
+  app.post('/v1/gem-transfer-requests/:requestId/cancel', auth, appCheck, async (c) => {
+    const requestId = requiredRouteParam(c, 'requestId');
+    return success(c, await mutation(c, { requestId }, (uid) =>
+      cancelGemTransfer(requestId, uid),
     ));
   });
 

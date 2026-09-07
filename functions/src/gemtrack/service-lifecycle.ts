@@ -29,6 +29,8 @@ async function unlockGemFromService(gemId: string, ownerUid: string) {
   if (status === 'with_cutter' || status === 'with_heater' || status === 'with_polisher') {
     await gemRef.update({
       status: 'ready_for_sale',
+      custody: null,
+      currentLocation: null,
       currentHolderContactId: null,
       updatedAt: FieldValue.serverTimestamp(),
     });

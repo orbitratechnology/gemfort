@@ -171,6 +171,8 @@ export async function respondApCancellationForApi(
           }
           transaction.update(gemRefs[i]!, {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
           currentApId: null,
           updatedAt: Timestamp.now(),

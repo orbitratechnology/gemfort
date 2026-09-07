@@ -90,6 +90,14 @@ const gemStatusEnum = z.enum([
   "returned",
 ]);
 
+const gemStoneStageEnum = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.enum(["rough", "cut", "heated", "polished"], {
+    required_error: "Choose a gem state",
+    invalid_type_error: "Choose a gem state",
+  }),
+);
+
 /** Empty string → undefined so optional picker fields stay optional. */
 const optionalTrimmed = z
   .string()
@@ -103,6 +111,7 @@ export const addGemSchema = z.object({
     .min(1, "Enter a title")
     .max(80, "Title must be 80 characters or less"),
   gemType: z.string().min(1, "Choose a gem type"),
+  stoneStage: gemStoneStageEnum,
   roughWeight: positiveNumber("Weight", 10_000),
   acquisitionCost: positiveNumber("Purchase price"),
   originCountry: optionalTrimmed,
@@ -115,6 +124,7 @@ export const addGemSchema = z.object({
     .pipe(gemTreatmentEnum.optional()),
   status: z
     .string()
+    .optional()
     .transform((v) => (v === "" ? undefined : v))
     .pipe(gemStatusEnum.optional()),
 });

@@ -1,4 +1,4 @@
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 
 import { wipeUserData } from './wipe-user-data';
 import { ApiError } from '../api/errors';

@@ -14,6 +14,7 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { CallLogRow } from "@/components/workspace/call-log-row";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     WorkspaceModules,
     type WorkspaceModuleItem,
@@ -42,8 +43,8 @@ import {
 } from "@/features/marketplace/request-service";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
 import {
-  isTerminalOutcome,
   resolveGemLifecycle,
+  resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import {
     detectBillsDueToday,
@@ -337,7 +338,7 @@ export default function WorkspaceHub() {
   const monthNet = monthIncome - monthExpense;
   // Active inventory (excludes sold / archived terminal outcomes) — matches My Gems list.
   const activeGems = gems.filter(
-    (g) => !isTerminalOutcome(resolveGemLifecycle(g).outcome),
+    (g) => resolveGemSaleStatus(g) !== "sold" && resolveGemLifecycle(g).outcome !== "returned",
   );
   const totalInventoryValue = activeGems.reduce(
     (sum, g) => sum + (g.acquisitionCostBase || g.acquisitionCost || 0),
@@ -950,9 +951,12 @@ export default function WorkspaceHub() {
                       },
                     ]}
                   >
-                    <View style={[styles.alertIcon, { backgroundColor: tone.bg }]}>
-                      <Icon name={tone.icon} size={18} color={tone.fg} />
-                    </View>
+                    <GemThumb
+                      uri={j.gemPhotoUrl}
+                      label={j.gemName || "Gem"}
+                      size={40}
+                      radius={12}
+                    />
                     <View style={styles.alertText}>
                       <Text
                         style={[

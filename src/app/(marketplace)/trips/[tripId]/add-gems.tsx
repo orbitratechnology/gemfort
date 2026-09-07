@@ -12,6 +12,7 @@ import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { formatGemType } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { gemActionAvailability } from '@/features/workspace/gem-lifecycle';
 import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
 import { subscribeGems, subscribeTripGems } from '@/features/workspace/firestore-subscriptions';
 import { addGemsToSellingTrip, fetchGems, fetchTripGems } from '@/features/workspace/workspace-service';
@@ -22,15 +23,6 @@ import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
-
-const PARCEL_ELIGIBLE = new Set([
-  'rough',
-  'cut',
-  'polished',
-  'ready_for_sale',
-  'listed',
-  'heated',
-]);
 
 export default function AddGemsToTripScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -62,10 +54,7 @@ export default function AddGemsToTripScreen() {
       gems.filter(
         (g) =>
           !onTripIds.has(g.id) &&
-          g.status !== 'sold' &&
-          g.status !== 'on_trip' &&
-          g.status !== 'on_ap' &&
-          (PARCEL_ELIGIBLE.has(g.status) || g.status === 'with_cutter' || g.status === 'with_polisher'),
+          gemActionAvailability(g).add_to_trip,
       ),
     [gems, onTripIds],
   );

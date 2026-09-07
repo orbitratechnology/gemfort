@@ -27,6 +27,10 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_request_accepted',
   'service_request_rejected',
   'service_job_updated',
+  'gem_transfer_requested',
+  'gem_transfer_accepted',
+  'gem_transfer_rejected',
+  'gem_transfer_cancelled',
 ] as const;
 
 export const GEMNET_NOTIFICATION_TYPES = [
@@ -56,6 +60,7 @@ export function notificationGroupKeyForType(type: string): string {
     return 'finance';
   }
   if (type.startsWith('ap_')) return 'ap';
+  if (type.startsWith('gem_transfer_')) return 'gems';
   if (type.startsWith('service_')) return 'services';
   if (type.startsWith('listing_') || type.startsWith('like_')) return 'market';
   if (type.startsWith('announcement_')) return 'updates';
@@ -105,6 +110,7 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   }
   if (
     type === 'ap_request_received' ||
+    type === 'gem_transfer_requested' ||
     type === 'service_request_received' ||
     type === 'ap_cancellation_requested' ||
     type === 'service_cancellation_requested' ||
@@ -138,6 +144,7 @@ export const PUSH_MANDATORY_TYPES = new Set<NotificationType>([
 export function pushCategoryForType(type: NotificationType): string {
   if (type === 'ap_request_received') return 'ap_request';
   if (type === 'ap_cancellation_requested') return 'ap_cancel';
+  if (type === 'gem_transfer_requested') return 'gem_transfer';
   if (type === 'listing_offer_received') return 'listing_offer';
   return 'open_ref';
 }

@@ -1,4 +1,4 @@
-import { setGlobalOptions } from 'firebase-functions/v2';
+import { setGlobalOptions } from 'firebase-functions/v2/options';
 
 /** Match Firestore region (asia-south1). */
 export const REGION = 'asia-south1';

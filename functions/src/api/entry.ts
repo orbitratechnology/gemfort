@@ -1,5 +1,5 @@
-import { getRequestListener } from '@hono/node-server';
 import { onRequest } from 'firebase-functions/v2/https';
+import type { getRequestListener } from '@hono/node-server';
 
 import { REGION } from '../config';
 import {
@@ -7,12 +7,37 @@ import {
   travelpayoutsMarker,
   travelpayoutsProjectId,
 } from '../flights';
-import { apiApp } from './app';
 
-export const apiRequestListener = getRequestListener(apiApp.fetch, {
-  // Firebase's request/response objects already provide the Node primitives.
-  overrideGlobalObjects: false,
-});
+// Keep the full API route graph out of Firebase's deployment-time discovery.
+type ApiRequestListener = ReturnType<typeof getRequestListener>;
+
+let apiRequestListenerPromise: Promise<ApiRequestListener> | undefined;
+
+function loadApiRequestListener(): Promise<ApiRequestListener> {
+  if (!apiRequestListenerPromise) {
+    apiRequestListenerPromise = Promise.all([
+      import('@hono/node-server'),
+      import('./app'),
+    ]).then(([{ getRequestListener }, { apiApp }]) =>
+      getRequestListener(apiApp.fetch, {
+        // Firebase's request/response objects already provide the Node primitives.
+        overrideGlobalObjects: false,
+      }),
+    );
+  }
+  return apiRequestListenerPromise;
+}
+
+export const apiRequestListener: ApiRequestListener = (request, response) => {
+  return loadApiRequestListener().then(
+    (listener) => listener(request, response),
+    (error: unknown) => {
+      console.error('gemfort-api-initialization-failed', error);
+      response.statusCode = 500;
+      response.end('The API could not be initialized.');
+    },
+  );
+};
 
 /**
  * Deployment adapter for the consolidated API.

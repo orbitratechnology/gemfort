@@ -1,6 +1,6 @@
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
-import { logger } from "firebase-functions";
+import { logger } from "firebase-functions/logger";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 

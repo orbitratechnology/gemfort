@@ -8,6 +8,7 @@ const GROUPS: Record<string, NotificationGroup> = {
   ap: { key: "ap", label: "Memorandums" },
   services: { key: "services", label: "Lapidary services" },
   market: { key: "market", label: "Marketplace" },
+  gems: { key: "gems", label: "Gem transfers" },
   account: { key: "account", label: "Account & verification" },
   updates: { key: "updates", label: "Updates" },
 };
@@ -22,6 +23,7 @@ export function notificationGroupForType(type: string): NotificationGroup {
     return GROUPS.finance;
   }
   if (type.startsWith("ap_")) return GROUPS.ap;
+  if (type.startsWith("gem_transfer_")) return GROUPS.gems;
   if (type.startsWith("service_")) return GROUPS.services;
   if (type.startsWith("listing_") || type.startsWith("like_")) {
     return GROUPS.market;

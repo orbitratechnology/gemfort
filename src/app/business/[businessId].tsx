@@ -19,11 +19,10 @@ import { BusinessGalleryCarousel } from "@/components/marketplace/business-galle
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { Button } from "@/components/ui/button";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
-import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
+import { FormSectionLabel } from "@/components/ui/form-section";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -34,6 +33,13 @@ import {
     Typography,
 } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import {
+  LAPIDARY_SERVICE_OPTIONS,
+  isVerifiedRole,
+  marketTabFromBusinessType,
+  normalizeLapidaryServiceId,
+  type LapidaryServiceId,
+} from "@/constants/roles";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
 import {
     demoBusinesses,
@@ -58,11 +64,16 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
+import {
+  openProfileLocation,
+  profileLocationLabel,
+} from "@/lib/location/profile-location";
 import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Business, BusinessType, MarketplaceListing } from "@/types";
+import type { LapidaryServiceOffering } from "@/types";
 
 function initials(name: string) {
   return name
@@ -88,8 +99,72 @@ function labelize(value: string): string {
   }
 }
 
+const LAPIDARY_SERVICE_ICONS: Record<LapidaryServiceId, IconName> = {
+  cutting: "content-cut",
+  heating: "local-fire-department",
+  polishing: "auto-awesome",
+};
+
+const LAPIDARY_SERVICE_HINTS: Record<LapidaryServiceId, string> = {
+  cutting: "Facet, shape, or re-cut gemstones",
+  heating: "Controlled heat treatment",
+  polishing: "Bring out the final luster",
+};
+
+function publicLapidaryServices(
+  business: Business | null | undefined,
+): LapidaryServiceOffering[] {
+  if (!business?.providerProfile) return [];
+  const byType = new Map<LapidaryServiceId, LapidaryServiceOffering>();
+
+  for (const service of business.providerProfile.services ?? []) {
+    const serviceId =
+      normalizeLapidaryServiceId(service.serviceId) ??
+      normalizeLapidaryServiceId(service.name);
+    if (!serviceId || byType.has(serviceId) || service.isActive === false) continue;
+    const option = LAPIDARY_SERVICE_OPTIONS.find((item) => item.id === serviceId)!;
+    byType.set(serviceId, {
+      ...service,
+      serviceId,
+      name: option.label,
+    });
+  }
+
+  if (byType.size === 0) {
+    for (const value of business.providerProfile.servicesOffered ?? []) {
+      const serviceId = normalizeLapidaryServiceId(value);
+      if (!serviceId || byType.has(serviceId)) continue;
+      const option = LAPIDARY_SERVICE_OPTIONS.find((item) => item.id === serviceId)!;
+      byType.set(serviceId, {
+        serviceId,
+        name: option.label,
+        description: "",
+        pricingType: "optional",
+        priceMin: null,
+        priceMax: null,
+        currency: null,
+        turnaroundDaysMin: 0,
+        turnaroundDaysMax: 0,
+        isActive: true,
+      });
+    }
+  }
+
+  return LAPIDARY_SERVICE_OPTIONS.flatMap((option) => {
+    const service = byType.get(option.id);
+    return service ? [service] : [];
+  });
+}
+
 const SUGGEST_LIMIT = 8;
 const AVATAR_SIZE = 86;
+
+function isLapidaryBusiness(business: Business | null | undefined): boolean {
+  return (
+    !!business?.providerProfile ||
+    marketTabFromBusinessType(business?.businessType) === "lapidaries"
+  );
+}
 
 export default function BusinessProfileScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
@@ -102,7 +177,6 @@ export default function BusinessProfileScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const [reportOpen, setReportOpen] = useState(false);
   const [liking, setLiking] = useState(false);
-  const [showSuggested, setShowSuggested] = useState(true);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   const { data: business, isLoading } = useFirestoreLiveQuery({
@@ -168,6 +242,7 @@ export default function BusinessProfileScreen() {
       }
       return subscribePublicListings(onData, onError);
     },
+    enabled: !!business && !isLapidaryBusiness(business),
   });
 
   const { data: allBusinesses = [] } = useFirestoreLiveQuery({
@@ -194,7 +269,7 @@ export default function BusinessProfileScreen() {
       void trackBusinessAnalytics(business.id, "profileViewsTotal");
   }, [business?.id]);
 
-  const isProvider = !!business?.providerProfile;
+  const isProvider = isLapidaryBusiness(business);
   const specs = useMemo(
     () =>
       business?.sellerProfile?.gemSpecializations ??
@@ -202,8 +277,7 @@ export default function BusinessProfileScreen() {
       [],
     [business],
   );
-  const services =
-    business?.providerProfile?.services?.filter((s) => s.isActive) ?? [];
+  const services = useMemo(() => publicLapidaryServices(business), [business]);
   const galleryPhotos = useMemo(
     () =>
       (business?.galleryPhotos ?? []).filter((p) => p?.url?.trim().length > 0),
@@ -211,25 +285,22 @@ export default function BusinessProfileScreen() {
   );
 
   const isOwnBusiness = !!user && user.uid === business?.ownerUid;
-  const isVerifiedMember =
-    profile?.verificationStatus === "verified" &&
-    (profile?.role === "trader" ||
-      profile?.role === "lapidary");
-  const isVerifiedTrader =
-    profile?.verificationStatus === "verified" && profile?.role === "trader";
+  const isVerifiedMember = isVerifiedRole(profile);
+  const isVerifiedTrader = isVerifiedRole(profile, "trader");
   const canLike =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness && !liked;
   const showLikeAction =
     !!user && isVerifiedMember && !!myBusiness && !isOwnBusiness;
   const canRequestService =
     isVerifiedTrader && isProvider && !isOwnBusiness;
+  const showLikeSecondary = canRequestService && showLikeAction;
 
   const gems = useMemo(() => {
-    if (!business) return [] as MarketplaceListing[];
+    if (!business || isProvider) return [] as MarketplaceListing[];
     return allListings.filter(
       (l) => l.businessId === business.id && l.status === "active",
     );
-  }, [allListings, business]);
+  }, [allListings, business, isProvider]);
 
   const suggested = useMemo(() => {
     if (!business) return [] as Business[];
@@ -324,6 +395,14 @@ export default function BusinessProfileScreen() {
     business.district ||
     business.country
   );
+  const profileLocation = business.location;
+  const hasMapLocation =
+    typeof profileLocation?.latitude === "number" &&
+    typeof profileLocation?.longitude === "number";
+  const locationLabel = profileLocationLabel(profileLocation, [
+    business.city,
+    business.district,
+  ]);
   const profileUrl = businessShareUrl(business.id);
   const businessName = business.businessName;
   const bizId = business.id;
@@ -340,9 +419,21 @@ export default function BusinessProfileScreen() {
     });
   }
 
+  function handleRequestService() {
+    if (!business?.id) return;
+    router.push({
+      pathname: "/request/[businessId]",
+      params: { businessId: business.id },
+    });
+  }
+
   function handlePrimaryAction() {
     if (isOwnBusiness) {
       router.push("/profile/business" as Href);
+      return;
+    }
+    if (canRequestService) {
+      handleRequestService();
       return;
     }
     if (showLikeAction) {
@@ -357,20 +448,30 @@ export default function BusinessProfileScreen() {
 
   const primaryLabel = isOwnBusiness
     ? "Edit profile"
-    : showLikeAction
+    : canRequestService
+      ? "Request service"
+      : showLikeAction
       ? liking
         ? "Liking…"
         : liked
           ? "Liked"
           : "Like"
       : hasWhatsApp
-        ? "Message"
+        ? isProvider
+          ? "Share"
+          : "Message"
         : hasPhone
-          ? "Call"
-          : "Share";
+        ? "Call"
+        : "Share";
 
-  const primaryDisabled = showLikeAction && (liking || liked);
-  const likeIsPrimary = showLikeAction && !isOwnBusiness;
+  const primaryDisabled = showLikeAction && !canRequestService && (liking || liked);
+  const primaryKind = isOwnBusiness
+    ? "edit"
+    : canRequestService
+      ? "request"
+      : showLikeAction
+        ? "like"
+        : "fallback";
 
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -432,12 +533,21 @@ export default function BusinessProfileScreen() {
           </View>
 
           <View style={styles.statsRow}>
-            <StatCell
-              value={String(gems.length)}
-              label="Gems"
-              color={colors.onSurface}
-              muted={colors.textMuted}
-            />
+            {isProvider ? (
+              <StatCell
+                value={String(services.length)}
+                label="Services"
+                color={colors.onSurface}
+                muted={colors.textMuted}
+              />
+            ) : (
+              <StatCell
+                value={String(gems.length)}
+                label="Gems"
+                color={colors.onSurface}
+                muted={colors.textMuted}
+              />
+            )}
             <StatCell
               value={yearsValue}
               label="Years"
@@ -477,13 +587,36 @@ export default function BusinessProfileScreen() {
             </Text>
           ) : null}
           {hasLocation ? (
-            <PlaceLabel
-              parts={[business.city, business.district]}
-              country={business.country}
-              size="xs"
-              style={styles.locRow}
-              textStyle={[styles.locText, { color: colors.textMuted }]}
-            />
+            hasMapLocation && profileLocation ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${locationLabel} in Maps`}
+                onPress={() =>
+                  void openProfileLocation(profileLocation, locationLabel)
+                }
+                style={({ pressed }) => [
+                  styles.locRow,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Icon name="location-on" size={16} color={colors.primary} />
+                <Text
+                  style={[styles.locText, { color: colors.textMuted }]}
+                  numberOfLines={2}
+                >
+                  {locationLabel}
+                </Text>
+                <Icon name="chevron-right" size={16} color={colors.textMuted} />
+              </Pressable>
+            ) : (
+              <PlaceLabel
+                parts={[business.city, business.district]}
+                country={business.country}
+                size="xs"
+                style={styles.locRow}
+                textStyle={[styles.locText, { color: colors.textMuted }]}
+              />
+            )
           ) : null}
           {specs.length > 0 ? (
             <Text
@@ -508,6 +641,10 @@ export default function BusinessProfileScreen() {
             accessibilityLabel={primaryLabel}
             disabled={primaryDisabled}
             onPress={() => {
+              if (canRequestService) {
+                handleRequestService();
+                return;
+              }
               if (
                 !isOwnBusiness &&
                 !showLikeAction &&
@@ -531,33 +668,47 @@ export default function BusinessProfileScreen() {
             }}
             style={({ pressed }) => [
               styles.primaryBtn,
-              likeIsPrimary ? styles.likeBtn : null,
+              primaryKind === "like" || primaryKind === "request"
+                ? styles.likeBtn
+                : null,
               {
-                backgroundColor: likeIsPrimary
-                  ? liked
-                    ? colors.primaryContainer
-                    : colors.primary
-                  : colors.surfaceContainerHigh,
+                backgroundColor:
+                  primaryKind === "like" || primaryKind === "request"
+                    ? primaryKind === "like" && liked
+                      ? colors.primaryContainer
+                      : colors.primary
+                    : colors.surfaceContainerHigh,
                 opacity: pressed || primaryDisabled ? 0.78 : 1,
               },
             ]}
           >
-            {likeIsPrimary ? (
+            {primaryKind === "like" || primaryKind === "request" ? (
               <Icon
-                name={liked ? "favorite" : "favorite-border"}
+                name={
+                  primaryKind === "request"
+                    ? "handyman"
+                    : liked
+                      ? "favorite"
+                      : "favorite-border"
+                }
                 size={20}
-                color={liked ? colors.primary : colors.onPrimary}
+                color={
+                  primaryKind === "like" && liked
+                    ? colors.primary
+                    : colors.onPrimary
+                }
               />
             ) : null}
             <Text
               style={[
                 styles.primaryBtnText,
                 {
-                  color: likeIsPrimary
-                    ? liked
-                      ? colors.primary
-                      : colors.onPrimary
-                    : colors.onSurface,
+                  color:
+                    primaryKind === "like" || primaryKind === "request"
+                      ? primaryKind === "like" && liked
+                        ? colors.primary
+                        : colors.onPrimary
+                      : colors.onSurface,
                 },
               ]}
             >
@@ -565,7 +716,34 @@ export default function BusinessProfileScreen() {
             </Text>
           </Pressable>
 
-          {!isOwnBusiness && hasWhatsApp && (showLikeAction || hasPhone) ? (
+          {showLikeSecondary ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={liking ? "Liking…" : liked ? "Liked" : "Like"}
+              accessibilityState={{ disabled: liking || liked, selected: liked }}
+              disabled={liking || liked}
+              onPress={() => {
+                if (canLike) void handleLike();
+              }}
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                {
+                  backgroundColor: liked
+                    ? colors.primaryContainer
+                    : colors.surfaceContainerHigh,
+                  opacity: pressed || liking ? 0.75 : 1,
+                },
+              ]}
+            >
+              <Icon
+                name={liked ? "favorite" : "favorite-border"}
+                size={20}
+                color={liked ? colors.primary : colors.onSurface}
+              />
+            </Pressable>
+          ) : null}
+
+          {!isOwnBusiness && hasWhatsApp ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="WhatsApp"
@@ -590,24 +768,6 @@ export default function BusinessProfileScreen() {
             </Pressable>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              showSuggested
-                ? "Hide suggested profiles"
-                : "Show suggested profiles"
-            }
-            onPress={() => setShowSuggested((v) => !v)}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              {
-                backgroundColor: colors.surfaceContainerHigh,
-                opacity: pressed ? 0.75 : 1,
-              },
-            ]}
-          >
-            <Icon name="person-add" size={20} color={colors.onSurface} />
-          </Pressable>
         </View>
 
         {/* Business gallery — work samples & business photos (auto-scroll) */}
@@ -618,23 +778,159 @@ export default function BusinessProfileScreen() {
           </View>
         ) : null}
 
-        {canRequestService ? (
-          <View style={styles.requestWrap}>
-            <Button
-              title="Request service"
-              icon="handyman"
+        {/* Email-only contact fallback */}
+        {hasEmail && !isOwnBusiness && !hasWhatsApp && !hasPhone ? (
+          <View style={styles.emailWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Email"
+              style={({ pressed }) => [
+                styles.emailBtn,
+                {
+                  backgroundColor: colors.surfaceContainerHigh,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
               onPress={() =>
-                router.push({
-                  pathname: "/request/[businessId]",
-                  params: { businessId: business.id, mode: "service" },
-                })
+                emailValue ? Linking.openURL(`mailto:${emailValue}`) : undefined
               }
-            />
+            >
+              <Icon name="mail-outline" size={18} color={colors.primary} />
+              <Text style={[styles.emailBtnText, { color: colors.primary }]}>
+                Email
+              </Text>
+            </Pressable>
           </View>
         ) : null}
 
-        {/* Discover people */}
-        {showSuggested && suggested.length > 0 ? (
+        {/* Lapidary services — kept before discovery and shown without a Gems tab. */}
+        {isProvider && services.length > 0 ? (
+          <View style={styles.servicesSection}>
+            <View style={styles.servicesHeader}>
+              <View style={styles.servicesHeaderCopy}>
+                <Text style={[styles.servicesKicker, { color: colors.primary }]}>
+                  SERVICES
+                </Text>
+                <Text style={[styles.servicesTitle, { color: colors.onSurface }]}>
+                  Workshop services
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.serviceCount,
+                  { backgroundColor: colors.primaryContainer },
+                ]}
+              >
+                <Text style={[styles.serviceCountText, { color: colors.onPrimaryContainer }]}>
+                  {services.length}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.servicesSubtitle, { color: colors.textMuted }]}>
+              Select a service when sending a request to this workshop.
+            </Text>
+            <View style={styles.serviceList}>
+              {services.map((service) => {
+                const serviceId = normalizeLapidaryServiceId(service.serviceId)!;
+                const hasPrice =
+                  service.pricingType !== "optional" && service.priceMin != null;
+                const priceLabel = hasPrice
+                  ? `${formatFace(service.priceMin!, service.currency ?? "LKR")}${
+                      service.priceMax != null && service.priceMax > service.priceMin!
+                        ? ` - ${formatFace(service.priceMax, service.currency ?? "LKR")}`
+                        : ""
+                    }`
+                  : "Price on request";
+                return (
+                  <View
+                    key={serviceId}
+                    style={[
+                      styles.serviceCard,
+                      {
+                        backgroundColor: colors.surfaceContainerLowest,
+                        borderColor: colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.serviceIcon,
+                        { backgroundColor: colors.primaryContainer },
+                      ]}
+                    >
+                      <Icon
+                        name={LAPIDARY_SERVICE_ICONS[serviceId]}
+                        size={20}
+                        color={colors.onPrimaryContainer}
+                      />
+                    </View>
+                    <View style={styles.serviceBody}>
+                      <Text
+                        style={[styles.serviceName, { color: colors.onSurface }]}
+                        numberOfLines={1}
+                      >
+                        {LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === serviceId)!.label}
+                      </Text>
+                      <Text
+                        style={[styles.serviceDesc, { color: colors.textMuted }]}
+                        numberOfLines={2}
+                      >
+                        {LAPIDARY_SERVICE_HINTS[serviceId]}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.servicePricePill,
+                        { backgroundColor: colors.surfaceContainerHigh },
+                      ]}
+                    >
+                      <Text style={[styles.servicePrice, { color: colors.primary }]}>
+                        {priceLabel}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Trader profiles retain their public Gems grid. Lapidaries do not have Gems. */}
+        {!isProvider ? (
+          <>
+            <View
+              style={[styles.tabBar, { borderBottomColor: colors.outlineVariant }]}
+            >
+              <View
+                style={[styles.tabActive, { borderBottomColor: colors.onSurface }]}
+              >
+                <Icon name="grid-view" size={22} color={colors.onSurface} />
+              </View>
+            </View>
+
+            {gems.length > 0 ? (
+              <ProductGrid style={styles.gemsGrid}>
+                {gems.map((listing) => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    href={`/listing/${listing.shareableSlug}`}
+                  />
+                ))}
+              </ProductGrid>
+            ) : (
+              <View style={styles.emptyGems}>
+                <Icon name="diamond" size={36} color={colors.outlineVariant} />
+                <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
+                  No public gems yet
+                </Text>
+              </View>
+            )}
+          </>
+        ) : null}
+
+        {/* Suggested profiles is intentionally the final profile section. */}
+        {suggested.length > 0 ? (
           <View style={styles.discoverSection}>
             <View style={styles.discoverHeader}>
               <Text style={[styles.discoverTitle, { color: colors.onSurface }]}>
@@ -669,125 +965,6 @@ export default function BusinessProfileScreen() {
                 />
               ))}
             </ScrollView>
-          </View>
-        ) : null}
-
-        {/* Gems tab + 2-col grid */}
-        <View
-          style={[styles.tabBar, { borderBottomColor: colors.outlineVariant }]}
-        >
-          <View
-            style={[styles.tabActive, { borderBottomColor: colors.onSurface }]}
-          >
-            <Icon name="grid-view" size={22} color={colors.onSurface} />
-          </View>
-        </View>
-
-        {gems.length > 0 ? (
-          <ProductGrid style={styles.gemsGrid}>
-            {gems.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                href={`/listing/${listing.shareableSlug}`}
-              />
-            ))}
-          </ProductGrid>
-        ) : (
-          <View style={styles.emptyGems}>
-            <Icon name="diamond" size={36} color={colors.outlineVariant} />
-            <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
-              No public gems yet
-            </Text>
-          </View>
-        )}
-
-        {/* Lapidary services */}
-        {isProvider && services.length > 0 ? (
-          <>
-            <FormSectionLabel title="SERVICES" />
-            <FormSection>
-              {services.map((s) => (
-                <View key={s.serviceId} style={styles.serviceRow}>
-                  <View
-                    style={[
-                      styles.serviceIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
-                  >
-                    <Icon
-                      name="handyman"
-                      size={20}
-                      color={colors.onPrimaryContainer}
-                    />
-                  </View>
-                  <View style={styles.serviceBody}>
-                    <Text
-                      style={[styles.serviceName, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {s.name}
-                    </Text>
-                    {s.description ? (
-                      <Text
-                        style={[
-                          styles.serviceDesc,
-                          { color: colors.onSurfaceVariant },
-                        ]}
-                        numberOfLines={2}
-                      >
-                        {s.description}
-                      </Text>
-                    ) : null}
-                    <View style={styles.serviceMetaRow}>
-                      <Text
-                        style={[styles.serviceMeta, { color: colors.primary }]}
-                      >
-                        {formatFace(s.priceMin, s.currency)}
-                        {s.priceMax > s.priceMin
-                          ? ` - ${formatFace(s.priceMax, s.currency)}`
-                          : ""}
-                      </Text>
-                      {s.turnaroundDaysMin > 0 || s.turnaroundDaysMax > 0 ? (
-                        <Text
-                          style={[
-                            styles.serviceMetaMuted,
-                            { color: colors.textMuted },
-                          ]}
-                        >
-                          {s.turnaroundDaysMin}-{s.turnaroundDaysMax} days
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </FormSection>
-          </>
-        ) : null}
-
-        {/* Email-only contact fallback */}
-        {hasEmail && !isOwnBusiness && !hasWhatsApp && !hasPhone ? (
-          <View style={styles.emailWrap}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Email"
-              style={({ pressed }) => [
-                styles.emailBtn,
-                {
-                  backgroundColor: colors.surfaceContainerHigh,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-              onPress={() =>
-                emailValue ? Linking.openURL(`mailto:${emailValue}`) : undefined
-              }
-            >
-              <Icon name="mail-outline" size={18} color={colors.primary} />
-              <Text style={[styles.emailBtnText, { color: colors.primary }]}>
-                Email
-              </Text>
-            </Pressable>
           </View>
         ) : null}
       </ThemedScrollView>
@@ -1125,14 +1302,70 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  requestWrap: {
-    paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.stackMd,
-  },
-
   gallerySection: {
     paddingTop: Spacing.gutterMd,
     gap: Spacing.stackSm,
+  },
+
+  servicesSection: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.gutterMd,
+    gap: Spacing.stackSm,
+  },
+  servicesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.md,
+  },
+  servicesHeaderCopy: { flex: 1, gap: 2 },
+  servicesKicker: {
+    ...Typography.caption,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  servicesTitle: {
+    ...Typography.headlineSm,
+    fontWeight: "700",
+  },
+  serviceCount: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceCountText: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  servicesSubtitle: {
+    ...Typography.caption,
+    lineHeight: 17,
+  },
+  serviceList: { gap: Spacing.sm },
+  serviceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 72,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
+  },
+  servicePricePill: {
+    maxWidth: 180,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+  },
+  servicePrice: {
+    ...Typography.caption,
+    fontWeight: "700",
+    textAlign: "right",
   },
 
   discoverSection: {
@@ -1238,11 +1471,6 @@ const styles = StyleSheet.create({
   },
   emptyGemsText: { ...Typography.bodyMd },
 
-  serviceRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-  },
   serviceIcon: {
     width: 40,
     height: 40,
@@ -1253,15 +1481,6 @@ const styles = StyleSheet.create({
   serviceBody: { flex: 1, minWidth: 0, gap: 2 },
   serviceName: { ...Typography.bodyLg, fontWeight: "600" },
   serviceDesc: { ...Typography.bodyMd },
-  serviceMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
-    gap: 8,
-  },
-  serviceMeta: { ...Typography.labelMd, fontWeight: "700", flexShrink: 1 },
-  serviceMetaMuted: { ...Typography.caption },
 
   emailWrap: {
     paddingHorizontal: Spacing.containerMargin,

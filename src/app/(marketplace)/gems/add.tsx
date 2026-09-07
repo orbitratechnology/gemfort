@@ -33,7 +33,6 @@ import {
     ColorSwatch,
     GemTypePickerSheet,
     ShapePickerSheet,
-    StatusPickerSheet,
     TreatmentPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import {
@@ -52,7 +51,6 @@ import {
     GEM_SHAPES,
     GEM_TREATMENTS,
     GEM_TYPES,
-    MANUAL_STATUS_OPTIONS,
     type GemTreatmentValue,
 } from "@/constants/gem-options";
 import {
@@ -81,7 +79,7 @@ import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { GemStatus, Trip } from "@/types";
+import type { GemStoneStage, Trip } from "@/types";
 
 const STEPS = ["Details", "Photos", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
@@ -92,7 +90,6 @@ type SheetKey =
   | "clarity"
   | "shape"
   | "treatment"
-  | "status"
   | "trip"
   | null;
 
@@ -132,7 +129,7 @@ export default function AddGemScreen() {
     currency: preferred,
   });
   const [treatment, setTreatment] = useState<GemTreatmentValue | "">("");
-  const [status, setStatus] = useState<GemStatus | "">("");
+  const [stoneStage, setStoneStage] = useState<GemStoneStage>("rough");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
   const [selectedTripId, setSelectedTripId] = useState(tripIdParam ?? "");
@@ -234,7 +231,6 @@ export default function AddGemScreen() {
     if (treatment) n += 1;
     if (colorShade) n += 1;
     if (selectedTripId) n += 1;
-    if (!selectedTripId && status) n += 1;
     return n;
   }, [
     shape,
@@ -243,7 +239,6 @@ export default function AddGemScreen() {
     treatment,
     colorShade,
     selectedTripId,
-    status,
   ]);
 
   function clearField(key: string) {
@@ -266,7 +261,8 @@ export default function AddGemScreen() {
       colorPrimary: colorShade,
       clarity,
       shape,
-      status: selectedTripId ? "on_trip" : status,
+      stoneStage,
+      status: selectedTripId ? "on_trip" : undefined,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -365,7 +361,8 @@ export default function AddGemScreen() {
             : null,
           isNatural: !data.treatment || data.treatment === "natural",
           treatmentStatus: data.treatment ?? "natural",
-          status: data.status,
+          stoneStage: data.stoneStage,
+          status: selectedTripId ? "on_trip" : data.stoneStage,
           photoUrls,
         };
 
@@ -704,35 +701,45 @@ export default function AddGemScreen() {
                   }
                 />
 
-                {selectedTripId ? null : (
-                  <AttributePickerField
-                    label="Status"
-                    valueLabel={formatGemStatusLabel(status)}
-                    placeholder="Optional"
-                    onPress={() => setSheet("status")}
-                    error={errors.status}
-                    leading={
-                      <View
-                        style={[
-                          styles.placeholderIcon,
-                          { backgroundColor: colors.primaryContainer },
-                        ]}
-                      >
-                        <Icon
-                          name={
-                            MANUAL_STATUS_OPTIONS.find(
-                              (s) => s.value === status,
-                            )?.icon ?? "flag"
-                          }
-                          size={18}
-                          color={colors.onPrimaryContainer}
-                        />
-                      </View>
-                    }
-                  />
-                )}
               </Animated.View>
             ) : null}
+
+            <View style={styles.stageField}>
+              <Text style={[styles.stageLabel, { color: colors.onSurface }]}>Gem state *</Text>
+              <Text style={[styles.stageHint, { color: colors.textMuted }]}>Required physical state at purchase.</Text>
+              <View style={styles.stageOptions}>
+                {([
+                  ["rough", "Rough", "spa"],
+                  ["cut", "Cut", "content-cut"],
+                  ["heated", "Heat-treated", "local-fire-department"],
+                  ["polished", "Polished", "auto-awesome"],
+                ] as const).map(([value, label, icon]) => {
+                  const active = stoneStage === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => {
+                        setStoneStage(value);
+                        clearField("stoneStage");
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      style={[
+                        styles.stageOption,
+                        {
+                          backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
+                          borderColor: active ? colors.primary : colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <Icon name={icon} size={18} color={active ? colors.primary : colors.onSurfaceVariant} />
+                      <Text style={[styles.stageOptionText, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {errors.stoneStage ? <Text style={[styles.stageError, { color: colors.error }]}>{errors.stoneStage}</Text> : null}
+            </View>
           </FormSection>
         ) : null}
 
@@ -795,12 +802,12 @@ export default function AddGemScreen() {
                 value={selectedTrip?.tripName ?? "None"}
               />
               <ReviewRow
-                label="Status"
-                value={
-                  selectedTripId
-                    ? "Trip"
-                    : formatGemStatusLabel(status) || "Rough (default)"
-                }
+                label="State"
+                value={formatGemStatusLabel(stoneStage || "rough")}
+              />
+              <ReviewRow
+                label="Location"
+                value={selectedTripId ? "Trip" : "With me"}
               />
               <ReviewRow
                 label="Photos"
@@ -872,15 +879,6 @@ export default function AddGemScreen() {
         onSelect={(v) => {
           setTreatment(v as GemTreatmentValue);
           clearField("treatment");
-        }}
-      />
-      <StatusPickerSheet
-        visible={sheet === "status"}
-        onClose={() => setSheet(null)}
-        value={status}
-        onSelect={(v) => {
-          setStatus(v as GemStatus);
-          clearField("status");
         }}
       />
       <TripPickerSheet
@@ -978,6 +976,21 @@ const styles = StyleSheet.create({
   moreTitle: { ...Typography.bodyLg, fontWeight: "600" },
   moreHint: { ...Typography.caption },
   optionalBlock: { gap: Spacing.md },
+  stageField: { gap: 6 },
+  stageLabel: { ...Typography.bodyLg, fontWeight: "600" },
+  stageHint: { ...Typography.caption },
+  stageOptions: { gap: 8 },
+  stageOption: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  stageOptionText: { ...Typography.bodyMd, fontWeight: "600" },
+  stageError: { ...Typography.caption },
   reviewList: { gap: 0 },
   reviewRow: {
     flexDirection: "row",

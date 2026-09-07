@@ -107,6 +107,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-dev-client",
     "expo-font",
     "expo-image",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "GemFort uses your location to place your business on its public profile.",
+      },
+    ],
     "expo-secure-store",
     "expo-status-bar",
     "expo-web-browser",

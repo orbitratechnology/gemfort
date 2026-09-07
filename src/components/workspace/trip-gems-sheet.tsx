@@ -1,13 +1,12 @@
 import { Image } from "expo-image";
-import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { MaskedInput } from "@/components/ui/masked-input";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { resolveGemSaleStatus } from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { toTripDate } from "@/features/workspace/trip-utils";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -22,7 +21,7 @@ type TripGemsSheetProps = {
   gemMap: Map<string, WorkspaceGem>;
   canRecordSales?: boolean;
   onOpenGem: (gemId: string) => void;
-  onConfirmSale?: (tripGem: TripGem, price: number) => Promise<void>;
+  onRequestSale?: (tripGem: TripGem) => void;
   onAddGem?: () => void;
   onAddGems?: () => void;
   showAddGem?: boolean;
@@ -72,7 +71,7 @@ function GemThumb({
   );
 }
 
-/** Trip gems list sheet — Record Sale available on every eligible parcel. */
+/** Trip gems list sheet — sale requests start from the gem lifecycle flow. */
 export function TripGemsSheet({
   visible,
   onClose,
@@ -80,7 +79,7 @@ export function TripGemsSheet({
   gemMap,
   canRecordSales,
   onOpenGem,
-  onConfirmSale,
+  onRequestSale,
   onAddGem,
   onAddGems,
   showAddGem,
@@ -88,28 +87,9 @@ export function TripGemsSheet({
 }: TripGemsSheetProps) {
   const { colors } = useAppTheme();
   const { formatBase } = usePreferredMoney();
-  const [saleGemId, setSaleGemId] = useState<string | null>(null);
-  const [salePrice, setSalePrice] = useState("");
-  const [savingSale, setSavingSale] = useState(false);
 
   function handleClose() {
-    setSaleGemId(null);
-    setSalePrice("");
     onClose();
-  }
-
-  async function confirmSale(tg: TripGem) {
-    if (!onConfirmSale) return;
-    const price = parseFloat(salePrice);
-    if (!price || price <= 0) return;
-    setSavingSale(true);
-    try {
-      await onConfirmSale(tg, price);
-      setSaleGemId(null);
-      setSalePrice("");
-    } finally {
-      setSavingSale(false);
-    }
   }
 
   const footerActions =
@@ -164,10 +144,11 @@ export function TripGemsSheet({
             const gem = gemMap.get(tg.gemId);
             const canSell =
               !!canRecordSales &&
-              !!onConfirmSale &&
+              !!onRequestSale &&
+              !!gem &&
+              resolveGemSaleStatus(gem) === "unsold" &&
               tg.role === "parcel" &&
               tg.status === "on_trip";
-            const selling = saleGemId === tg.id;
 
             return (
               <View key={tg.id} style={styles.gemWrap}>
@@ -221,73 +202,33 @@ export function TripGemsSheet({
                 </Pressable>
 
                 {canSell ? (
-                  selling ? (
-                    <View
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Sell gem"
+                    onPress={() => {
+                      handleClose();
+                      onRequestSale?.(tg);
+                    }}
+                    style={({ pressed }) => [
+                      styles.saleBtn,
+                      { backgroundColor: colors.primaryContainer },
+                      pressed && { opacity: 0.85 },
+                    ]}
+                  >
+                    <Icon
+                      name="sell"
+                      size={16}
+                      color={colors.onPrimaryContainer}
+                    />
+                    <Text
                       style={[
-                        styles.salePanel,
-                        {
-                          backgroundColor: colors.primaryContainer,
-                          borderColor: colors.primary,
-                        },
+                        styles.saleBtnText,
+                        { color: colors.onPrimaryContainer },
                       ]}
                     >
-                      <MaskedInput
-                        label="Sale price (LKR)"
-                        mode="currency"
-                        value={salePrice}
-                        onChangeText={setSalePrice}
-                        placeholder="0"
-                        leftIcon="payments"
-                      />
-                      <View style={styles.saleActions}>
-                        <Button
-                          title="Cancel"
-                          variant="secondary"
-                          onPress={() => {
-                            setSaleGemId(null);
-                            setSalePrice("");
-                          }}
-                          style={styles.footerHalf}
-                          disabled={savingSale}
-                        />
-                        <Button
-                          title="Confirm"
-                          icon="check-circle"
-                          loading={savingSale}
-                          onPress={() => confirmSale(tg)}
-                          style={styles.footerHalf}
-                        />
-                      </View>
-                    </View>
-                  ) : (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Record sale"
-                      onPress={() => {
-                        setSaleGemId(tg.id);
-                        setSalePrice("");
-                      }}
-                      style={({ pressed }) => [
-                        styles.saleBtn,
-                        { backgroundColor: colors.primaryContainer },
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <Icon
-                        name="sell"
-                        size={16}
-                        color={colors.onPrimaryContainer}
-                      />
-                      <Text
-                        style={[
-                          styles.saleBtnText,
-                          { color: colors.onPrimaryContainer },
-                        ]}
-                      >
-                        Record sale
-                      </Text>
-                    </Pressable>
-                  )
+                      Sell gem
+                    </Text>
+                  </Pressable>
                 ) : null}
               </View>
             );
@@ -493,14 +434,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   saleBtnText: { ...Typography.labelMd, fontWeight: "600" },
-  salePanel: {
-    gap: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  saleActions: { flexDirection: "row", gap: Spacing.sm },
   footerRow: { flexDirection: "row", gap: Spacing.sm },
   footerHalf: { flex: 1 },
 

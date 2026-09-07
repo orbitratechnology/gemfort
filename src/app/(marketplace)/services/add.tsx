@@ -19,6 +19,7 @@ import {
 } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusiness } from "@/features/marketplace/marketplace-service";
+import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import {
     subscribeContacts,
     subscribeGems,
@@ -50,13 +51,18 @@ export default function AddServiceScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
-  const { gemId: preselectedGemId } = useLocalSearchParams<{
+  const { gemId: preselectedGemId, serviceType: serviceTypeParam } = useLocalSearchParams<{
     gemId?: string;
+    serviceType?: string;
   }>();
 
   const [gemId, setGemId] = useState(preselectedGemId ?? "");
   const [provider, setProvider] = useState<ProviderSelection | null>(null);
-  const [serviceType, setServiceType] = useState("cutting");
+  const [serviceType, setServiceType] = useState(
+    serviceTypeParam === "heating" || serviceTypeParam === "polishing" || serviceTypeParam === "cutting"
+      ? serviceTypeParam
+      : "cutting",
+  );
   const [weightBefore, setWeightBefore] = useState("");
   const [daysUntilReturn, setDaysUntilReturn] = useState("14");
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
@@ -81,6 +87,21 @@ export default function AddServiceScreen() {
   const selectedGem = useMemo(
     () => gems.find((g) => g.id === gemId) ?? null,
     [gems, gemId],
+  );
+
+  const eligibleGems = useMemo(
+    () => gems.filter((gem) => {
+      const available = gemActionAvailability(gem);
+      if (serviceType === "cutting" || serviceType === "recutting") {
+        return serviceType === "cutting"
+          ? available.send_for_cutting
+          : available.give_on_ap;
+      }
+      if (serviceType === "heating") return available.send_for_heating;
+      if (serviceType === "polishing") return available.send_for_polishing;
+      return available.give_on_ap;
+    }),
+    [gems, serviceType],
   );
 
   const weightBeforeValue =
@@ -263,7 +284,7 @@ export default function AddServiceScreen() {
       <GemPickerSheet
         visible={gemSheetOpen}
         onClose={() => setGemSheetOpen(false)}
-        gems={gems}
+        gems={eligibleGems}
         value={gemId}
         onSelect={(gem) => {
           setGemId(gem.id);

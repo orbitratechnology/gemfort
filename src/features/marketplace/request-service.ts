@@ -32,12 +32,14 @@ export async function createServiceRequest(input: {
   lapidaryBusinessId: string;
   gemId: string;
   gemName: string;
+  gemPhotoUrl?: string | null;
   serviceTypes: string[];
   notes?: string;
 }): Promise<string> {
   const now = nowTs();
   const id = queueDocCreate('service_requests', {
     ...input,
+    gemPhotoUrl: input.gemPhotoUrl?.trim() || null,
     notes: input.notes?.trim() || null,
     status: 'pending',
     jobId: null,
@@ -94,6 +96,7 @@ export async function respondServiceRequest(
       traderUid: data.traderUid,
       gemId: data.gemId,
       gemName: data.gemName,
+      gemPhotoUrl: data.gemPhotoUrl ?? null,
       serviceTypes: data.serviceTypes,
       status: 'queued',
       notes: data.notes,

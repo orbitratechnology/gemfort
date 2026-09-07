@@ -543,14 +543,12 @@ export default function BillDetailScreen() {
 
             {bill.jobId ? (
               <View style={styles.linkBlock}>
-                <View
-                  style={[
-                    styles.jobThumb,
-                    { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <Icon name="handyman" size={28} color={colors.primary} />
-                </View>
+                <GemThumb
+                  uri={linkedJob?.gemPhotoUrl}
+                  label={linkedJob?.gemName ?? "Gem"}
+                  size={56}
+                  radius={14}
+                />
                 <Text
                   style={[styles.linkTitle, { color: colors.onSurface }]}
                   numberOfLines={1}

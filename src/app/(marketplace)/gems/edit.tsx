@@ -51,6 +51,7 @@ import {
   type GemTreatmentValue,
 } from "@/constants/gem-options";
 import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
+import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
 import {
   fetchGem,
   queueGemPhotoUrls,
@@ -240,6 +241,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
       colorPrimary: colorShade,
       clarity,
       shape,
+      stoneStage: resolveGemLifecycle(gem).stoneStage,
       status: "",
     });
     if (!result.success) {

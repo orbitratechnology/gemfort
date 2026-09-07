@@ -7,7 +7,9 @@ import {
 import { isApOngoing } from "@/features/workspace/ap-normalize";
 import {
   applyLifecyclePatch,
+  canListGem,
   derivePrimaryStatus,
+  gemActionAvailability,
   isGemStoneStage,
   isTerminalOutcome,
   patchFromFlatStatus,
@@ -68,6 +70,15 @@ import type {
 } from "@/types";
 
 // ─── Gems ───────────────────────────────────────────
+
+function locationForCustody(custody: GemLifecycle["custody"]): string | null {
+  if (custody === "on_ap") return "AP";
+  if (custody === "on_trip") return "Trip";
+  if (custody === "with_cutter" || custody === "with_heater" || custody === "with_polisher") {
+    return "Lapidary";
+  }
+  return null;
+}
 
 export async function fetchGems(ownerUid: string): Promise<WorkspaceGem[]> {
   const q = query(
@@ -153,7 +164,7 @@ export async function createGem(
     stoneStage: lifecycle.stoneStage,
     custody: lifecycle.custody,
     outcome: lifecycle.outcome,
-    currentLocation: null,
+    currentLocation: locationForCustody(lifecycle.custody),
     currentHolderContactId: null,
     totalCost: acquisitionCostBase,
     totalCostCurrency: "LKR",
@@ -167,6 +178,20 @@ export async function createGem(
     soldPriceCurrency: null,
     soldPriceBase: null,
     soldDate: null,
+    saleTransferRequestId: null,
+    saleStatus: "unsold",
+    soldToUid: null,
+    soldToBusinessId: null,
+    soldToContactId: null,
+    soldToName: null,
+    salePaymentMethod: null,
+    acquiredFromUid: null,
+    acquiredFromName: null,
+    acquiredAt: null,
+    lastSaleRequestId: null,
+    lastSoldPrice: null,
+    lastSoldPriceCurrency: null,
+    lastSalePaymentMethod: null,
     photoUrls: input.photoUrls ?? [],
     isListedOnMarketplace: false,
     marketplaceListingId: null,
@@ -350,6 +375,9 @@ export async function updateGemLifecycle(
     status: primary,
     updatedAt: now,
   };
+  if (patch.custody !== undefined) {
+    updates.currentLocation = locationForCustody(next.custody);
+  }
 
   if (next.outcome === "listed") {
     updates.isListedOnMarketplace = true;
@@ -528,6 +556,23 @@ export async function createService(
     | "resultNotes"
   >,
 ) {
+  const gem = await fetchGem(input.gemId);
+  if (!gem || gem.ownerUid !== ownerUid) {
+    throw new Error("Gem not found in your inventory.");
+  }
+  const available = gemActionAvailability(gem);
+  const canStart =
+    input.serviceType === "cutting"
+      ? available.send_for_cutting
+      : input.serviceType === "heating" || input.serviceType === "heat_treatment"
+        ? available.send_for_heating
+        : input.serviceType === "polishing"
+          ? available.send_for_polishing
+          : available.give_on_ap;
+  if (!canStart) {
+    throw new Error("This gem is not available for that service right now.");
+  }
+
   const now = Timestamp.now();
   const id = queueDocCreate("gemtrack_services", {
     ...input,
@@ -546,10 +591,16 @@ export async function createService(
     createdAt: now,
     updatedAt: now,
   });
+  const serviceCustody: GemStatus =
+    input.serviceType === "heating" || input.serviceType === "heat_treatment"
+      ? "with_heater"
+      : input.serviceType === "polishing"
+        ? "with_polisher"
+        : "with_cutter";
   void updateGemStatus(
     input.gemId,
     ownerUid,
-    "with_cutter",
+    serviceCustody,
     `Sent for ${input.serviceType}`,
   );
   return id;
@@ -612,6 +663,9 @@ export async function completeService(
       currentWeight: input.weightAfter,
       totalCost: newTotal,
       status: newStatus,
+      stoneStage: newStatus,
+      custody: null,
+      currentLocation: null,
       updatedAt: now,
     });
     queueDocCreate("gemtrack_gem_costs", {
@@ -2083,6 +2137,7 @@ export async function createGemOnSourcingTrip(
   const gem = await createGem(ownerUid, {
     ...input,
     status: "on_trip",
+    custody: "on_trip",
     notes: input.notes ?? "Purchased on trip",
   });
 
@@ -2109,6 +2164,28 @@ export async function addGemsToSellingTrip(
   tripId: string,
   gemIds: string[],
 ): Promise<void> {
+  const existingTripGems = await fetchTripGems(tripId, ownerUid);
+  const existingIds = new Set(existingTripGems.map((tripGem) => tripGem.gemId));
+  const requestedIds = new Set<string>();
+  const gems = await Promise.all(gemIds.map((gemId) => fetchGem(gemId)));
+  for (let index = 0; index < gemIds.length; index += 1) {
+    const gem = gems[index];
+    const gemId = gemIds[index]!;
+    if (!gem || gem.ownerUid !== ownerUid) {
+      throw new Error("One or more selected gems are not in your inventory.");
+    }
+    if (existingIds.has(gemId)) {
+      throw new Error("One or more selected gems are already on this trip.");
+    }
+    if (requestedIds.has(gemId)) {
+      throw new Error("A gem cannot be added to the same trip twice.");
+    }
+    requestedIds.add(gemId);
+    if (!gemActionAvailability(gem).add_to_trip) {
+      throw new Error("Only available gems can be added to a selling trip.");
+    }
+  }
+
   const now = Timestamp.now();
   for (const gemId of gemIds) {
     queueDocCreate("gemtrack_trip_gems", {
@@ -2130,41 +2207,6 @@ export async function addGemsToSellingTrip(
       "Added to selling trip parcel",
     );
   }
-  void refreshTripSummary(tripId, ownerUid);
-}
-
-export async function recordTripGemSale(
-  ownerUid: string,
-  tripId: string,
-  tripGemId: string,
-  gemId: string,
-  salePrice: number,
-): Promise<void> {
-  const now = Timestamp.now();
-  queueDocUpdate("gemtrack_trip_gems", tripGemId, {
-      salePrice,
-      saleDate: now,
-      status: "sold",
-      updatedAt: serverTimestamp(),
-    });
-  void updateGemStatus(
-    gemId,
-    ownerUid,
-    "sold",
-    `Sold on trip for ${salePrice}`,
-  );
-  void createTransaction(ownerUid, {
-    type: "income",
-    amount: salePrice,
-    currency: "LKR",
-    category: "gem_sale",
-    description: "Sale during selling trip",
-    gemId,
-    contactId: null,
-    sourceType: "trip",
-    sourceId: tripId,
-    date: now,
-  });
   void refreshTripSummary(tripId, ownerUid);
 }
 
@@ -2296,6 +2338,13 @@ export async function createListing(
         ...gemSnap.data(),
       } as import("@/types").WorkspaceGem;
       const life = resolveGemLifecycle(gemData);
+      if (!canListGem(gemData)) {
+        throw new Error(
+          life.custody
+            ? "This gem is currently away from your account. Complete or return its active placement first."
+            : "This gem is already on Market or is not available for listing.",
+        );
+      }
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"
@@ -2393,6 +2442,17 @@ export async function createListing(
         outcome: gem.outcome ?? null,
         isListedOnMarketplace: Boolean(gem.isListedOnMarketplace),
       });
+      const gemForListing = {
+        id: workspaceGemId,
+        ...gem,
+      } as import("@/types").WorkspaceGem;
+      if (!canListGem(gemForListing)) {
+        throw new Error(
+          life.custody
+            ? "This gem is currently away from your account. Complete or return its active placement first."
+            : "This gem is already on Market or is not available for listing.",
+        );
+      }
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"

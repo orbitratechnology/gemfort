@@ -14,15 +14,24 @@ export const ROLE_SUBTITLES: Record<Exclude<UserRole, 'admin'>, string> = {
 };
 
 export const LAPIDARY_SERVICE_OPTIONS = [
-  { id: 'cutting', label: 'Cutting' },
-  { id: 'polishing', label: 'Polishing' },
-  { id: 'shaping', label: 'Shaping' },
-  { id: 'heating', label: 'Heat treatment' },
-  { id: 'chemical_treatment', label: 'Chemical treatment' },
-  { id: 'other', label: 'Other' },
+  { id: 'cutting', label: 'Cut' },
+  { id: 'heating', label: 'Heat' },
+  { id: 'polishing', label: 'Polish' },
 ] as const;
 
 export type LapidaryServiceId = (typeof LAPIDARY_SERVICE_OPTIONS)[number]['id'];
+
+/** Normalize older service labels/ids to the three supported lapidary services. */
+export function normalizeLapidaryServiceId(
+  value: string | null | undefined,
+): LapidaryServiceId | null {
+  const normalized = value?.trim().toLowerCase().replace(/[_\s-]+/g, '');
+  if (!normalized) return null;
+  if (normalized.includes('cut')) return 'cutting';
+  if (normalized.includes('heat')) return 'heating';
+  if (normalized.includes('polish')) return 'polishing';
+  return null;
+}
 
 export type WorkspaceModule =
   | 'gems'

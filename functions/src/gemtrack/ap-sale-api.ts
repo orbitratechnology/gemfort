@@ -226,6 +226,8 @@ export async function recordApGemSaleForApi(
     transaction.update(apRef, { items, updatedAt: now });
     transaction.update(gemRef, {
       status: 'sold',
+      custody: 'on_ap',
+      currentLocation: 'AP',
       soldPrice: ownerReceives,
       soldPriceCurrency: saleCurrency,
       soldPriceBase: ownerReceivesBase,

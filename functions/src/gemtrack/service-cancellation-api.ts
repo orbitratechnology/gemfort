@@ -134,6 +134,8 @@ export async function requestServiceCancellationForApi(
       if (gemSnap.exists && gem?.ownerUid === service.ownerUid && isGemLockedByService(gem.status)) {
         transaction.update(gemRef, {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
           updatedAt: now,
         });
@@ -216,6 +218,8 @@ export async function respondServiceCancellationForApi(
       if (gemSnap.exists && gem?.ownerUid === service.ownerUid && isGemLockedByService(gem.status)) {
         transaction.update(gemRef, {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
           updatedAt: now,
         });

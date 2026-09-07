@@ -519,8 +519,56 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════
 
     match /gemtrack_gems/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
+      allow read: if isOwner(resource.data.ownerUid)
+                  && isNotSuspended();
+      // Ordinary owner edits remain supported, but ownership and sale state
+      // are server-owned so a client cannot bypass the recipient acceptance
+      // flow by writing sold/owner fields directly.
+      allow update: if isOwner(resource.data.ownerUid)
+        && isNotSuspended()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'ownerUid',
+          'saleTransferRequestId', 'saleStatus',
+          'soldPrice', 'soldPriceCurrency', 'soldPriceBase', 'soldDate',
+          'soldToUid', 'soldToBusinessId', 'soldToContactId', 'soldToName',
+          'salePaymentMethod',
+          'acquiredFromUid', 'acquiredAt',
+          'lastSaleRequestId', 'lastSoldPrice', 'lastSoldPriceCurrency',
+          'lastSalePaymentMethod',
+          'outcome'
+        ]);
+      // Market listing is an owner action, but it cannot be used to alter a
+      // transfer, move a gem into custody, or manufacture a sold state.
+      allow update: if isOwner(resource.data.ownerUid)
+        && isNotSuspended()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && resource.data.get('custody', null) == null
+        && resource.data.get('currentApId', null) == null
+        && resource.data.get('currentHolderContactId', null) == null
+        && request.resource.data.get('custody', null) == resource.data.get('custody', null)
+        && request.resource.data.get('currentApId', null) == resource.data.get('currentApId', null)
+        && request.resource.data.get('currentHolderContactId', null) == resource.data.get('currentHolderContactId', null)
+        && request.resource.data.get('saleTransferRequestId', null) == null
+        && request.resource.data.get('saleStatus', 'unsold') == 'unsold'
+        && (request.resource.data.get('outcome', null) == null
+            || request.resource.data.get('outcome', null) == 'listed')
+        && request.resource.data.get('status', '') != 'sold'
+        && request.resource.data.get('status', '') in [
+             'rough', 'cut', 'heated', 'polished', 'ready_for_sale', 'listed'
+           ]
+        && request.resource.data.get('isListedOnMarketplace', false)
+             == (request.resource.data.get('outcome', null) == 'listed')
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly([
+               'status', 'stoneStage', 'custody', 'currentLocation',
+               'outcome', 'isListedOnMarketplace', 'marketplaceListingId',
+               'updatedAt'
+             ]);
+      allow delete: if isOwner(resource.data.ownerUid)
+                    && isNotSuspended()
+                    && resource.data.get('saleTransferRequestId', null) == null
+                    && resource.data.get('saleStatus', 'unsold') != 'pending';
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.ownerUid);
       // An AP holder must be able to read a gem while it is locked on their AP
@@ -546,9 +594,20 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly([
                'status', 'currentHolderContactId', 'currentApId', 'updatedAt',
+               'currentLocation',
                'soldPrice', 'soldPriceCurrency', 'soldPriceBase', 'soldDate',
                'stoneStage', 'custody', 'outcome', 'isListedOnMarketplace'
              ]);
+      allow read, write: if isAdmin();
+    }
+
+    // Ownership transfer requests are created and resolved only by gemfortApi.
+    // Both parties can read the request so the inbox/detail UI can reconcile it.
+    match /gem_transfer_requests/{requestId} {
+      allow read: if isSignedIn() && isNotSuspended()
+        && (resource.data.sellerUid == uid()
+            || resource.data.recipientUid == uid());
+      allow write: if false;
       allow read, write: if isAdmin();
     }
 
