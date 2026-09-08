@@ -204,7 +204,11 @@ export default function AddApScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Give on AP" closeIcon />
+      <StackHeader
+        title="Give on AP"
+        closeIcon
+        image={require("@/assets/images/ap-icon.png")}
+      />
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Gems">
           {lines.map((line) => {

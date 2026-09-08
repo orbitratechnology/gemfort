@@ -4,8 +4,9 @@ import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { needsPhoneVerification } from "@/lib/firebase/auth-service";
 import {
-  formSheetFitContentOptions,
-  silkStackScreenOptions,
+    formSheetFitContentOptions,
+    formSheetScreenOptions,
+    silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -93,6 +94,20 @@ export default function MarketplaceLayout() {
         name="bills/add"
         options={{
           ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="money/payables/add"
+        options={{
+          ...formSheetScreenOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="money/receivables/add"
+        options={{
+          ...formSheetScreenOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />

@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { OTPInput, REGEXP_ONLY_DIGITS } from 'input-otp-native';
+import { OtpInput } from 'react-native-otp-entry';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
@@ -108,49 +108,32 @@ export default function VerifyOtpScreen() {
 
         <FormSection style={styles.otpSection}>
           <View style={styles.otpField}>
-            <OTPInput
-              maxLength={6}
-              pattern={REGEXP_ONLY_DIGITS}
+            <OtpInput
+              numberOfDigits={6}
               autoFocus
-              accessibilityLabel="6-digit verification code"
-              onChange={() => {
+              type="numeric"
+              focusColor={colors.primary}
+              onTextChange={() => {
                 setErrors((current) => (current.code ? {} : current));
               }}
-              onComplete={handleConfirm}
-              render={({ slots }) => (
-                <View style={styles.otpRow}>
-                  {slots.map((slot, index) => (
-                    <Pressable
-                      key={index}
-                      accessibilityLabel={`Verification digit ${index + 1}`}
-                      accessibilityRole="button"
-                      onPress={slot.focus}
-                      style={({ pressed }) => [
-                        styles.otpPressable,
-                        pressed && styles.pressed,
-                      ]}>
-                      <View
-                        style={[
-                          styles.otpSlot,
-                          {
-                            backgroundColor: colors.surfaceMuted,
-                            borderColor: slot.isActive ? colors.primary : colors.border,
-                          },
-                        ]}>
-                        {slot.char !== null ? (
-                          <Text style={[styles.otpChar, { color: colors.text }]}>
-                            {slot.char}
-                          </Text>
-                        ) : slot.hasFakeCaret ? (
-                          <View
-                            style={[styles.fakeCaret, { backgroundColor: colors.primary }]}
-                          />
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+              onFilled={handleConfirm}
+              textInputProps={{ accessibilityLabel: '6-digit verification code' }}
+              theme={{
+                containerStyle: styles.otpRow,
+                pinCodeContainerStyle: {
+                  ...styles.otpSlot,
+                  backgroundColor: colors.surfaceMuted,
+                  borderColor: colors.border,
+                },
+                pinCodeTextStyle: {
+                  ...styles.otpChar,
+                  color: colors.text,
+                },
+                focusStickStyle: {
+                  ...styles.fakeCaret,
+                  backgroundColor: colors.primary,
+                },
+              }}
             />
             {errors.code ? (
               <Text
@@ -197,16 +180,13 @@ const styles = StyleSheet.create({
   },
   otpRow: {
     width: '100%',
+    maxWidth: 304,
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  otpPressable: {
-    flex: 1,
-    maxWidth: 44,
+    justifyContent: 'space-between',
+    alignSelf: 'center',
   },
   otpSlot: {
-    width: '100%',
+    width: 44,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
@@ -221,6 +201,5 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 1,
   },
-  pressed: { opacity: 0.7 },
   error: { ...Typography.bodySmall, textAlign: 'center' },
 });

@@ -358,7 +358,11 @@ export default function AddChequeScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={step === 0 ? "Direction" : "Add cheque"} closeIcon />
+      <StackHeader
+        title={step === 0 ? "Direction" : "Add cheque"}
+        closeIcon
+        image={require("@/assets/images/cheque-icon.png")}
+      />
 
       {step === 0 ? (
         <View

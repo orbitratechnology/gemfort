@@ -1,5 +1,5 @@
-import { FontFamily } from "@/constants/design-tokens";
 import { NetworkStatusIndicator } from "@/components/ui/network-status-indicator";
+import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { initializeFirebaseAppCheck } from "@/lib/firebase/app-check";
 import { isFirebaseConfigured } from "@/lib/firebase/config";

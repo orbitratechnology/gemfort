@@ -5,28 +5,25 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Timestamp } from '@/lib/firebase/db';
 
 import { Button } from '@/components/ui/button';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
-import { ContactPicker } from '@/components/workspace/contact-picker';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   effectiveReceivableStatus,
   getReceivableSummary,
 } from '@/features/workspace/payment-utils';
-import { subscribeContacts, subscribeReceivables } from '@/features/workspace/firestore-subscriptions';
+import { subscribeReceivables } from '@/features/workspace/firestore-subscriptions';
 import {
-  createReceivable,
-  fetchContacts,
   fetchReceivables,
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
@@ -36,11 +33,7 @@ import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
-import {
-  addReceivableSchema,
-  parseForm,
-  recordPaymentSchema,
-} from '@/lib/validation/form-schemas';
+import { parseForm, recordPaymentSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -56,13 +49,6 @@ export default function ReceivablesScreen() {
   const { formatBase, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [contactId, setContactId] = useState('');
-  const [money, setMoney] = useState<CurrencyAmountValue>({
-    amount: '',
-    currency: preferred,
-  });
-  const [title, setTitle] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentMoney, setPaymentMoney] = useState<CurrencyAmountValue>({
     amount: '',
@@ -74,7 +60,6 @@ export default function ReceivablesScreen() {
     amount: '',
     currency: preferred,
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const { data: receivables = [], refetch, isRefetching } = useFirestoreLiveQuery({
@@ -84,53 +69,11 @@ export default function ReceivablesScreen() {
     enabled: !!user,
   });
 
-  const { data: contacts = [] } = useFirestoreLiveQuery({
-    queryKey: ['contacts', user?.uid],
-    queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
-    enabled: !!user,
-  });
-
   const summary = useMemo(() => getReceivableSummary(receivables), [receivables]);
   const overdueItems = useMemo(
     () => receivables.filter((r) => effectiveReceivableStatus(r) === 'overdue'),
     [receivables],
   );
-
-  async function handleAdd() {
-    if (!user) return;
-    const result = parseForm(addReceivableSchema, {
-      contactId,
-      amount: money.amount,
-      title: title || undefined,
-    });
-    if (!result.success) {
-      setErrors(result.errors);
-      toast.error(Object.values(result.errors)[0]!);
-      return;
-    }
-    setErrors({});
-    try {
-      await withLoading(async () => {
-        const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
-        await createReceivable(user.uid, {
-          contactId: result.data.contactId ?? null,
-          amount: result.data.amount,
-          currency: money.currency,
-          title: result.data.title,
-          dueDate: due,
-        });
-        await queryClient.invalidateQueries({ queryKey: ['receivables'] });
-        toast.success('Receivable added');
-        setMoney({ amount: '', currency: preferred });
-        setTitle('');
-        setContactId('');
-        setShowForm(false);
-      }, 'Adding…');
-    } catch (e) {
-      toast.error(friendlyError(e, 'Could not save receivable.'));
-    }
-  }
 
   async function handleRecordPayment(item: Receivable) {
     if (!user) return;
@@ -296,8 +239,13 @@ export default function ReceivablesScreen() {
       <StackHeader
         title="Receivables"
         right={
-          <Pressable onPress={() => router.push('/(marketplace)/(tabs)/money/payments' as never)} hitSlop={8}>
-            <Text style={[styles.historyLink, { color: colors.primary }]}>History</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Payment history"
+            onPress={() => router.push('/(marketplace)/(tabs)/money/payments' as never)}
+            hitSlop={8}
+          >
+            <Icon name="history" size={24} color={colors.primary} />
           </Pressable>
         }
       />
@@ -329,73 +277,32 @@ export default function ReceivablesScreen() {
               </View>
             ) : null}
 
-            {showForm ? (
-              <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest }]}>
-                <ContactPicker
-                  label="From contact (optional)"
-                  contacts={contacts}
-                  value={contactId}
-                  allowClear
-                  onChange={(id) => {
-                    setContactId(id);
-                    setErrors((e) => {
-                      if (!e.contactId) return e;
-                      const next = { ...e };
-                      delete next.contactId;
-                      return next;
-                    });
-                  }}
-                />
-                <CurrencyAmountField
-                  label="Amount"
-                  value={money}
-                  onChange={(next) => {
-                    setMoney(next);
-                    setErrors((e) => {
-                      if (!e.amount) return e;
-                      const nextErr = { ...e };
-                      delete nextErr.amount;
-                      return nextErr;
-                    });
-                  }}
-                  error={errors.amount}
-                />
-                <Input
-                  label="Title / Reason (required)"
-                  value={title}
-                  onChangeText={(t) => {
-                    setTitle(t);
-                    setErrors((e) => {
-                      if (!e.title) return e;
-                      const next = { ...e };
-                      delete next.title;
-                      return next;
-                    });
-                  }}
-                  placeholder="e.g. Sale on credit"
-                  leftIcon="notes"
-                  error={errors.title}
-                />
-                <Button title="Add Receivable" icon="add" onPress={handleAdd} />
-                <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
-              </View>
-            ) : (
-              <Button title="+ New Receivable" icon="add" onPress={() => setShowForm(true)} />
-            )}
           </View>
         }
         ListEmptyComponent={<EmptyState icon="account-balance-wallet" title="No receivables" subtitle="Track money owed to you here." />}
         renderItem={renderRow}
       />
       </KeyboardAvoidingView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add receivable"
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push('/(marketplace)/money/receivables/add' as never)}
+      >
+        <Icon name="add" size={28} color={colors.onPrimary} />
+      </Pressable>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  historyLink: { ...Typography.labelMd, fontWeight: '600' },
-  list: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: Spacing.section },
+  list: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: Spacing.section + 72 },
   listHeader: { gap: Spacing.md, marginBottom: Spacing.sm },
   summary: { borderRadius: Radius.lg, padding: Spacing.xl },
   summaryLabel: { ...Typography.labelMd, letterSpacing: 1 },
@@ -403,11 +310,6 @@ const styles = StyleSheet.create({
   overdueHint: { ...Typography.bodySmall, marginTop: 4 },
   overdueBanner: { padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1 },
   overdueTitle: { ...Typography.labelMd, fontWeight: '700' },
-  form: {
-    borderRadius: Radius.lg,
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
   row: { borderRadius: Radius.lg, padding: Spacing.gutterMd, gap: 6 },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   amount: { ...Typography.headlineSm },
@@ -418,4 +320,16 @@ const styles = StyleSheet.create({
   payForm: { gap: Spacing.sm, marginTop: Spacing.sm },
   payActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, alignItems: 'center' },
   flex1: { flex: 1 },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.28)',
+  },
 });

@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -19,6 +20,7 @@ import {
     CurrencyAmountField,
     type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
+import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -31,6 +33,7 @@ import {
     FontFamily,
     Radius,
     Spacing,
+    type ThemeColors,
     Typography,
 } from "@/constants/design-tokens";
 import {
@@ -80,7 +83,9 @@ import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { GemPaymentMethod, GemStatus } from "@/types";
+import type { GemEvent, GemPaymentMethod, GemStatus } from "@/types";
+
+const INITIAL_HISTORY_COUNT = 4;
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
@@ -131,6 +136,96 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function GemHistoryRow({
+  event,
+  index,
+  isLast,
+  colors,
+}: {
+  event: GemEvent;
+  index: number;
+  isLast: boolean;
+  colors: ThemeColors;
+}) {
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineRail}>
+        <View
+          style={[
+            styles.timelineIconWrap,
+            {
+              backgroundColor:
+                index === 0
+                  ? colors.primaryContainer
+                  : colors.surfaceContainerHigh,
+            },
+          ]}
+        >
+          <Icon
+            name={eventIcon(event.eventType || event.description)}
+            size={14}
+            color={
+              index === 0
+                ? colors.onPrimaryContainer
+                : colors.onSurfaceVariant
+            }
+          />
+        </View>
+        {!isLast ? (
+          <View
+            style={[
+              styles.timelineLine,
+              { backgroundColor: colors.outlineVariant },
+            ]}
+          />
+        ) : null}
+      </View>
+      <View style={styles.timelineBody}>
+        <Text style={[styles.timelineDate, { color: colors.textMuted }]}>
+          {formatRelativeTime(event.createdAt)}
+        </Text>
+        <Text style={[styles.timelineTitle, { color: colors.onSurface }]}>
+          {event.description}
+        </Text>
+        {event.weightAtEvent != null ? (
+          <View style={styles.timelineMetaRow}>
+            <Icon
+              name="scale"
+              size={12}
+              color={colors.onSurfaceVariant}
+            />
+            <Text style={[styles.timelineMeta, { color: colors.onSurfaceVariant }]}>
+              {event.weightAtEvent} ct
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function GemHistoryTimeline({
+  events,
+  colors,
+}: {
+  events: GemEvent[];
+  colors: ThemeColors;
+}) {
+  return (
+    <View style={styles.timeline}>
+      {events.map((event, index) => (
+        <GemHistoryRow
+          key={event.id}
+          event={event}
+          index={index}
+          isLast={index === events.length - 1}
+          colors={colors}
+        />
+      ))}
+    </View>
+  );
+}
+
 export default function GemDetailScreen() {
   const { gemId, sell, tripId, tripGemId } = useLocalSearchParams<{
     gemId: string;
@@ -147,6 +242,7 @@ export default function GemDetailScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [partyPickerOpen, setPartyPickerOpen] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
@@ -351,6 +447,7 @@ export default function GemDetailScreen() {
   const gemSummary = `${gemTitle} · ${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
   const gemIdForShare = gem.id;
   const historyEvents = [...events].reverse();
+  const visibleHistoryEvents = historyEvents.slice(0, INITIAL_HISTORY_COUNT);
   const costLines = [...costs].sort((a, b) => {
     const aMs = toJsDate(a.date ?? a.createdAt)?.getTime() ?? 0;
     const bMs = toJsDate(b.date ?? b.createdAt)?.getTime() ?? 0;
@@ -397,14 +494,14 @@ export default function GemDetailScreen() {
   const isListed =
     isOwnGem && (gem.isListedOnMarketplace || lifecycle.outcome === "listed");
   const actionButtons = [
-    ...(canMarkSold ? [{ title: "Sold", icon: "sell" as IconName, onPress: openSoldChooser, primary: true }] : []),
+    ...(canMarkSold ? [{ title: "Sold", icon: "price-check" as IconName, onPress: openSoldChooser, primary: true }] : []),
     ...(actionAvailability.mark_unsold ? [{ title: "Mark unsold", icon: "undo" as IconName, onPress: () => void handleMarkUnsold(), primary: true }] : []),
     ...(actionAvailability.send_for_cutting ? [{ title: "Send for Cutting", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=cutting` }] : []),
-    ...(actionAvailability.send_for_heating ? [{ title: "Send for Heating", icon: "local-fire-department" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating` }] : []),
+    ...(actionAvailability.send_for_heating ? [{ title: "Service", icon: "build" as IconName, image: require("@/assets/images/lapidary-icon.png"), href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating` }] : []),
     ...(actionAvailability.send_for_polishing ? [{ title: "Send for Polishing", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=polishing` }] : []),
-    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "handshake" as IconName, href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
+    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "handshake" as IconName, image: require("@/assets/images/ap-icon.png"), href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
     ...(actionAvailability.list_on_market ? [{ title: "Sell on Market", icon: "storefront" as IconName, href: `/listings/create?workspaceGemId=${gem.id}` }] : []),
-    ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "storefront" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
+    ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "remove-shopping-cart" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
   ];
   const hasBottomActions = isOwnGem && actionButtons.length > 0;
 
@@ -588,222 +685,169 @@ export default function GemDetailScreen() {
             </View>
           </View>
 
-          <View style={styles.lifecycleGrid} accessible accessibilityLabel={`Gem state ${stoneLabel}, location ${locationLabel}, market ${isListed ? "On market" : "Not on market"}, sale ${saleLabel}`}>
-            {[
-              ["State", stoneLabel, STATUS_ICONS[lifecycle.stoneStage] ?? "spa"],
-              ["Location", locationLabel, lifecycle.custody ? (STATUS_ICONS[lifecycle.custody] ?? "place") : "person"],
-              ["Market", isListed ? "On market" : "Not on market", "storefront"],
-              ["Sale", saleLabel, saleStatus === "pending" ? "schedule" : saleStatus === "sold" ? "check-circle" : "sell"],
-            ].map(([label, value, icon]) => (
-              <View key={label} style={[styles.lifecycleCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-                <Icon name={icon as IconName} size={17} color={colors.primary} />
-                <Text style={[styles.lifecycleLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
-                <Text style={[styles.lifecycleValue, { color: colors.onSurface }]} numberOfLines={2}>{value}</Text>
-              </View>
-            ))}
-          </View>
-
-          {saleStatus !== "unsold" ? (
-            <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-              <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>
-                {saleStatus === "pending" ? "Sale awaiting acceptance" : "Sale details"}
-              </Text>
-              <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
-              {gem.soldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.soldPrice, currency: gem.soldPriceCurrency || askCurrency, amountBase: gem.soldPriceBase })}</Text> : null}
-              {gem.salePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.salePaymentMethod.replace("_", " ")}</Text> : null}
-            </View>
-          ) : gem.acquiredFromUid ? (
-            <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-              <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>Acquisition details</Text>
-              <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>From: {gem.acquiredFromName || "Previous owner"}</Text>
-              {gem.lastSoldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.lastSoldPrice, currency: gem.lastSoldPriceCurrency || askCurrency })}</Text> : null}
-              {gem.lastSalePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.lastSalePaymentMethod.replace("_", " ")}</Text> : null}
-            </View>
-          ) : null}
-
-          {tags.length ? (
-            <View style={styles.tags}>
-              {tags.slice(0, 4).map((tag, tagIndex) => (
-                <View
-                  key={`${tag}-${tagIndex}`}
-                  style={[
-                    styles.tag,
-                    {
-                      backgroundColor: colors.surfaceContainerHigh,
-                      borderColor: colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tagText, { color: colors.onSurface }]}>
-                    {tag}
-                  </Text>
+          <View style={styles.section}>
+            <Text
+              style={[styles.sectionLabel, { color: colors.textMuted }]}
+              accessibilityRole="header"
+            >
+              OVERVIEW
+            </Text>
+            <View style={styles.lifecycleGrid} accessible accessibilityLabel={`Gem state ${stoneLabel}, location ${locationLabel}, market ${isListed ? "On market" : "Not on market"}, sale ${saleLabel}`}>
+              {[
+                ["State", stoneLabel, STATUS_ICONS[lifecycle.stoneStage] ?? "spa"],
+                ["Location", locationLabel, lifecycle.custody ? (STATUS_ICONS[lifecycle.custody] ?? "place") : "person"],
+                ["Market", isListed ? "On market" : "Not on market", "storefront"],
+                ["Sale", saleLabel, saleStatus === "pending" ? "schedule" : saleStatus === "sold" ? "check-circle" : "sell"],
+              ].map(([label, value, icon]) => (
+                <View key={label} style={[styles.lifecycleCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
+                  <View style={[styles.lifecycleIconWrap, { backgroundColor: colors.primaryContainer }]}>
+                    <Icon name={icon as IconName} size={18} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.lifecycleLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
+                  <Text style={[styles.lifecycleValue, { color: colors.onSurface }]} numberOfLines={2}>{value}</Text>
                 </View>
               ))}
             </View>
-          ) : null}
 
-          <View style={styles.specGrid}>
-            {specs.map((spec) => {
-              const iconName = SPEC_ICONS[spec.label] ?? "info";
-              return (
-                <View key={spec.label} style={styles.specCell}>
-                  <View style={styles.specHeader}>
-                    <Icon
-                      name={iconName}
-                      size={14}
-                      color={colors.onSurfaceVariant}
-                    />
-                    <Text
-                      style={[
-                        styles.specLabel,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {spec.label}
-                    </Text>
-                  </View>
-                  {spec.label === "Origin" ? (
-                    <CountryLabel
-                      country={spec.value}
-                      size="sm"
-                      textStyle={[
-                        styles.specValue,
-                        { color: colors.onSurface },
-                      ]}
-                      numberOfLines={2}
-                    />
-                  ) : (
-                    <Text
-                      style={[styles.specValue, { color: colors.onSurface }]}
-                      numberOfLines={2}
-                      selectable={false}
-                    >
-                      {spec.value}
-                    </Text>
-                  )}
-                </View>
-              );
-            })}
+            {saleStatus !== "unsold" ? (
+              <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+                <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>
+                  {saleStatus === "pending" ? "Sale awaiting acceptance" : "Sale details"}
+                </Text>
+                <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
+                {gem.soldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.soldPrice, currency: gem.soldPriceCurrency || askCurrency, amountBase: gem.soldPriceBase })}</Text> : null}
+                {gem.salePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.salePaymentMethod.replace("_", " ")}</Text> : null}
+              </View>
+            ) : gem.acquiredFromUid ? (
+              <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+                <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>Acquisition details</Text>
+                <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>From: {gem.acquiredFromName || "Previous owner"}</Text>
+                {gem.lastSoldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.lastSoldPrice, currency: gem.lastSoldPriceCurrency || askCurrency })}</Text> : null}
+                {gem.lastSalePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.lastSalePaymentMethod.replace("_", " ")}</Text> : null}
+              </View>
+            ) : null}
           </View>
-
-          {gem.notes ? (
-            <View style={styles.descBlock}>
-              <Text
-                style={[styles.notes, { color: colors.onSurfaceVariant }]}
-                numberOfLines={notesExpanded ? undefined : 3}
-                selectable={false}
-              >
-                {gem.notes}
-              </Text>
-              {gem.notes.length > 120 ? (
-                <Pressable
-                  onPress={() => setNotesExpanded((v) => !v)}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={notesExpanded ? "Show less" : "Read more"}
-                  style={styles.readMore}
-                >
-                  <Text
-                    style={[styles.readMoreText, { color: colors.primary }]}
-                  >
-                    {notesExpanded ? "Show less" : "Read more"}
-                  </Text>
-                  <Icon
-                    name={notesExpanded ? "expand-less" : "expand-more"}
-                    size={18}
-                    color={colors.primary}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
 
           <View style={styles.section}>
             <Text
               style={[styles.sectionLabel, { color: colors.textMuted }]}
               accessibilityRole="header"
             >
-              HISTORY
+              DETAILS
             </Text>
-            {historyEvents.length ? (
-              <View style={styles.timeline}>
-                {historyEvents.map((e, i) => (
-                  <View key={e.id} style={styles.timelineRow}>
-                    <View style={styles.timelineRail}>
-                      <View
-                        style={[
-                          styles.timelineIconWrap,
-                          {
-                            backgroundColor:
-                              i === 0
-                                ? colors.primaryContainer
-                                : colors.surfaceContainerHigh,
-                          },
-                        ]}
-                      >
+            <View style={[styles.detailsCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
+              {tags.length ? (
+                <View style={styles.tags}>
+                  {tags.slice(0, 4).map((tag, tagIndex) => (
+                    <View
+                      key={`${tag}-${tagIndex}`}
+                      style={[
+                        styles.tag,
+                        {
+                          backgroundColor: colors.surfaceContainerHigh,
+                          borderColor: colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.tagText, { color: colors.onSurface }]}>
+                        {tag}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.specGrid}>
+                {specs.map((spec) => {
+                  const iconName = SPEC_ICONS[spec.label] ?? "info";
+                  return (
+                    <View key={spec.label} style={styles.specCell}>
+                      <View style={styles.specHeader}>
                         <Icon
-                          name={eventIcon(e.eventType || e.description)}
-                          size={14}
-                          color={
-                            i === 0
-                              ? colors.onPrimaryContainer
-                              : colors.onSurfaceVariant
-                          }
+                          name={iconName}
+                          size={15}
+                          color={colors.onSurfaceVariant}
                         />
-                      </View>
-                      {i < historyEvents.length - 1 ? (
-                        <View
+                        <Text
                           style={[
-                            styles.timelineLine,
-                            { backgroundColor: colors.outlineVariant },
+                            styles.specLabel,
+                            { color: colors.onSurfaceVariant },
                           ]}
+                        >
+                          {spec.label}
+                        </Text>
+                      </View>
+                      {spec.label === "Origin" ? (
+                        <CountryLabel
+                          country={spec.value}
+                          size="sm"
+                          textStyle={[
+                            styles.specValue,
+                            { color: colors.onSurface },
+                          ]}
+                          numberOfLines={2}
                         />
-                      ) : null}
+                      ) : (
+                        <Text
+                          style={[styles.specValue, { color: colors.onSurface }]}
+                          numberOfLines={2}
+                          selectable={false}
+                        >
+                          {spec.value}
+                        </Text>
+                      )}
                     </View>
-                    <View style={styles.timelineBody}>
-                      <Text
-                        style={[
-                          styles.timelineDate,
-                          { color: colors.textMuted },
-                        ]}
-                      >
-                        {formatRelativeTime(e.createdAt)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.timelineTitle,
-                          { color: colors.onSurface },
-                        ]}
-                      >
-                        {e.description}
-                      </Text>
-                      {e.weightAtEvent != null ? (
-                        <View style={styles.timelineMetaRow}>
-                          <Icon
-                            name="scale"
-                            size={12}
-                            color={colors.onSurfaceVariant}
-                          />
-                          <Text
-                            style={[
-                              styles.timelineMeta,
-                              { color: colors.onSurfaceVariant },
-                            ]}
-                          >
-                            {e.weightAtEvent} ct
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
-            ) : (
-              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                No events yet
-              </Text>
-            )}
+            </View>
           </View>
+
+          {gem.notes ? (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.textMuted }]}
+                accessibilityRole="header"
+              >
+                NOTES
+              </Text>
+              <View style={[styles.notesCard, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+                <View style={styles.notesHeader}>
+                  <Icon name="notes" size={18} color={colors.primary} />
+                  <Text style={[styles.notesLabel, { color: colors.onSurface }]}>Private note</Text>
+                </View>
+                <View style={styles.descBlock}>
+                  <Text
+                    style={[styles.notes, { color: colors.onSurfaceVariant }]}
+                    numberOfLines={notesExpanded ? undefined : 3}
+                    selectable={false}
+                  >
+                    {gem.notes}
+                  </Text>
+                  {gem.notes.length > 120 ? (
+                    <Pressable
+                      onPress={() => setNotesExpanded((v) => !v)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={notesExpanded ? "Show less" : "Read more"}
+                      style={styles.readMore}
+                    >
+                      <Text
+                        style={[styles.readMoreText, { color: colors.primary }]}
+                      >
+                        {notesExpanded ? "Show less" : "Read more"}
+                      </Text>
+                      <Icon
+                        name={notesExpanded ? "expand-less" : "expand-more"}
+                        size={18}
+                        color={colors.primary}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text
@@ -934,6 +978,62 @@ export default function GemDetailScreen() {
               ) : null}
             </View>
           </View>
+
+          <View style={styles.section}>
+            <Text
+              style={[styles.sectionLabel, { color: colors.textMuted }]}
+              accessibilityRole="header"
+            >
+              HISTORY
+            </Text>
+            {historyEvents.length ? (
+              <View
+                style={[
+                  styles.timelineCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <GemHistoryTimeline
+                  events={visibleHistoryEvents}
+                  colors={colors}
+                />
+                {historyEvents.length > INITIAL_HISTORY_COUNT ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show all ${historyEvents.length} history events`}
+                    accessibilityHint="Opens the complete history in a scrollable sheet"
+                    onPress={() => setHistoryOpen(true)}
+                    style={[
+                      styles.showMore,
+                      { borderTopColor: colors.outlineVariant },
+                    ]}
+                  >
+                    <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                      Show more
+                    </Text>
+                    <Icon name="chevron-right" size={20} color={colors.primary} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.timelineCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  No events yet
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </ThemedScrollView>
 
@@ -961,37 +1061,83 @@ export default function GemDetailScreen() {
       {hasBottomActions ? (
         <View
           style={[
-            styles.actionBar,
-            {
-              paddingBottom: bottomBarPad,
-              backgroundColor: colors.background,
-              borderTopColor: colors.outlineVariant,
-            },
+            styles.actionBar
           ]}
         >
-          {actionButtons.map((action) => (
-            <Pressable
-              key={action.title}
-              onPress={() => action.onPress ? void action.onPress() : router.push(action.href as never)}
-              accessibilityRole="button"
-              accessibilityLabel={action.title}
-              style={({ pressed }) => [
-                action.primary ? styles.primaryBtn : styles.secondaryBtn,
-                {
-                  backgroundColor: action.primary ? colors.primary : colors.surfaceContainerLowest,
-                  borderColor: action.primary ? colors.primary : colors.outlineVariant,
-                  opacity: pressed || transferSaving ? 0.82 : 1,
-                },
-              ]}
-            >
-              <Icon name={action.icon} size={18} color={action.primary ? colors.onPrimary : colors.onSurface} />
-              <Text style={[action.primary ? styles.primaryBtnText : styles.secondaryBtnText, { color: action.primary ? colors.onPrimary : colors.onSurface }]} numberOfLines={1}>
-                {action.title}
-              </Text>
-            </Pressable>
-          ))}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.actionScrollContent}
+          >
+            {actionButtons.map((action) => (
+              <Pressable
+                key={action.title}
+                onPress={() => action.onPress ? void action.onPress() : router.push(action.href as never)}
+                accessibilityRole="button"
+                accessibilityLabel={action.title}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  !action.primary && styles.secondaryBtn,
+                  {
+                    backgroundColor: action.primary ? colors.primary : colors.surfaceContainerLowest,
+                    borderColor: action.primary ? colors.primary : colors.outlineVariant,
+                    opacity: pressed || transferSaving ? 0.82 : 1,
+                  },
+                ]}
+              >
+                {action.image ? (
+                  <Image
+                    source={action.image}
+                    style={styles.actionImage}
+                    contentFit="contain"
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <Icon name={action.icon} size={22} color={action.primary ? colors.onPrimary : colors.onSurface} />
+                )}
+                <Text
+                  style={[
+                    styles.actionBtnText,
+                    { color: action.primary ? colors.onPrimary : colors.onSurface },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {action.title}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       ) : null}
+
+      <BottomSheet
+        visible={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title={`History · ${historyEvents.length}`}
+        scrollable={false}
+      >
+        <FlashList
+          data={historyEvents}
+          keyExtractor={(event) => event.id}
+          style={styles.historyList}
+          contentContainerStyle={styles.historyListContent}
+          showsVerticalScrollIndicator={false}
+          estimatedItemSize={72}
+          renderItem={({ item, index }) => (
+            <GemHistoryRow
+              event={item}
+              index={index}
+              isLast={index === historyEvents.length - 1}
+              colors={colors}
+            />
+          )}
+          ListEmptyComponent={
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+              No events yet
+            </Text>
+          }
+        />
+      </BottomSheet>
 
       <BottomSheet
         visible={transferOpen}
@@ -1108,12 +1254,12 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.lg,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.xxl,
   },
 
-  titleBlock: { gap: 4 },
+  titleBlock: { gap: 6 },
   gemName: {
     ...Typography.headlineMdMobile,
     fontFamily: FontFamily.bold,
@@ -1125,7 +1271,7 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     flexWrap: "wrap",
     gap: Spacing.sm,
-    marginTop: -Spacing.xs,
+    marginTop: 2,
   },
   priceHero: {
     ...Typography.headlineSm,
@@ -1195,20 +1341,27 @@ const styles = StyleSheet.create({
   lifecycleGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    gap: 10,
   },
   lifecycleCard: {
     width: "48%",
-    minHeight: 84,
-    padding: Spacing.sm,
+    minHeight: 96,
+    padding: Spacing.md,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    gap: 4,
+    gap: 6,
+  },
+  lifecycleIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   lifecycleLabel: { ...Typography.caption, textTransform: "uppercase", letterSpacing: 0.4 },
   lifecycleValue: { ...Typography.bodyMd, fontWeight: "700" },
-  saleInfo: { padding: Spacing.md, borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, gap: 4 },
+  saleInfo: { padding: Spacing.gutterMd, borderRadius: Radius.lg, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, gap: 6 },
   saleInfoTitle: { ...Typography.bodyLg, fontWeight: "700" },
   saleInfoText: { ...Typography.bodyMd },
   statusChip: {
@@ -1238,6 +1391,13 @@ const styles = StyleSheet.create({
   },
   statusChipValue: { ...Typography.bodyMd, fontWeight: "700" },
 
+  detailsCard: {
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.gutterMd,
+    gap: Spacing.lg,
+  },
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
     paddingHorizontal: 12,
@@ -1251,16 +1411,17 @@ const styles = StyleSheet.create({
   specGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   specCell: {
     width: "47%",
     flexGrow: 1,
     minWidth: "42%",
     maxWidth: "48%",
+    minHeight: 52,
     gap: 6,
   },
-  specHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  specHeader: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 18 },
   specLabel: { ...Typography.caption, flexShrink: 1 },
   specValue: {
     ...Typography.bodyMd,
@@ -1268,7 +1429,16 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
   },
 
-  descBlock: { gap: 6 },
+  notesCard: {
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.gutterMd,
+    gap: Spacing.md,
+  },
+  notesHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  notesLabel: { ...Typography.labelMd, fontWeight: "700" },
+  descBlock: { gap: 8 },
   notes: { ...Typography.bodyMd, lineHeight: 22 },
   readMore: {
     flexDirection: "row",
@@ -1278,15 +1448,31 @@ const styles = StyleSheet.create({
   },
   readMoreText: { ...Typography.labelMd, fontWeight: "600" },
 
-  section: { gap: Spacing.stackMd },
+  section: { gap: Spacing.md },
   sectionLabel: {
     ...Typography.labelMd,
     letterSpacing: 1.1,
     fontWeight: "600",
   },
 
+  timelineCard: {
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.gutterMd,
+  },
+  showMore: {
+    minHeight: 48,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  showMoreText: { ...Typography.button, fontFamily: FontFamily.semibold },
   timeline: { gap: 0 },
-  timelineRow: { flexDirection: "row", gap: 12, minHeight: 56 },
+  timelineRow: { flexDirection: "row", gap: 12, minHeight: 60 },
   timelineRail: { width: 28, alignItems: "center" },
   timelineIconWrap: {
     width: 28,
@@ -1296,7 +1482,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timelineLine: { width: 2, flex: 1, marginTop: 4, marginBottom: 0 },
-  timelineBody: { flex: 1, paddingBottom: Spacing.md, gap: 2, paddingTop: 4 },
+  timelineBody: { flex: 1, paddingBottom: Spacing.gutterMd, gap: 3, paddingTop: 4 },
   timelineDate: { ...Typography.caption },
   timelineTitle: { ...Typography.bodyMd, fontWeight: "600" },
   timelineMetaRow: {
@@ -1311,8 +1497,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
-    gap: Spacing.stackMd,
+    padding: Spacing.gutterMd,
+    gap: Spacing.md,
   },
   financeItem: { gap: 2 },
   financeRow: {
@@ -1347,6 +1533,9 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
 
+  historyList: { flex: 1, minHeight: 0 },
+  historyListContent: { paddingBottom: Spacing.md },
+
   emptyHint: { ...Typography.bodyMd },
 
   actionBar: {
@@ -1354,42 +1543,29 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
+    paddingVertical: Spacing.xs,
+  },
+  actionScrollContent: {
     gap: 10,
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 10,
   },
-  primaryBtn: {
-    flex: 1.2,
-    minHeight: 48,
+  actionBtn: {
+    minWidth: 96,
+    height: 56,
+    paddingHorizontal: 14,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 12,
+    gap: 6,
+    boxShadow: "0 5px 10px rgba(0, 0, 0, 0.18)",
   },
-  primaryBtnText: {
-    ...Typography.button,
-    fontFamily: FontFamily.semibold,
-  },
+  actionImage: { width: 28, height: 28 },
+  actionBtnText: { ...Typography.labelMd, fontWeight: "700", flexShrink: 0 },
   secondaryBtn: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
     borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-  },
-  secondaryBtnText: {
-    ...Typography.button,
-    fontFamily: FontFamily.semibold,
   },
 
   statusSheetHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },

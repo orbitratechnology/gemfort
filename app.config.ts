@@ -267,7 +267,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-contacts",
       {
         contactsPermission:
-          "GemFort needs contacts access to import brokers, buyers, and partners from your phone.",
+          "GemFort needs contacts access to import contacts from your phone.",
       },
     ],
   ],

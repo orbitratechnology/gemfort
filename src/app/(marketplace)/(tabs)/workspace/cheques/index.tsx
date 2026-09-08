@@ -1,5 +1,6 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
+import { Image } from "expo-image";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -489,10 +490,5 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
 });

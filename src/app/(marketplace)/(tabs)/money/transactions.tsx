@@ -286,8 +286,12 @@ export default function TransactionsScreen() {
 
         {/* Floating Action Button */}
         {!showForm && (
-          <Pressable 
-            style={[styles.fab, { backgroundColor: colors.primary }]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              { backgroundColor: colors.primary },
+              pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+            ]}
             onPress={() => setShowForm(true)}
           >
             <Icon name="add" size={28} color={colors.onPrimary} />
@@ -360,11 +364,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 5,
     zIndex: 100,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
   },
 });

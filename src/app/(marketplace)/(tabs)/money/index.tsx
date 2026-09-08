@@ -23,14 +23,12 @@ import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
 import {
-    getPaymentSourceMeta,
-    paymentSourceHref,
-    sourceOfTransaction,
-} from "@/features/workspace/payment-source";
+    subscribeCheques,
+    subscribePayables,
+    subscribeReceivables,
+    subscribeTransactions,
+} from "@/features/workspace/firestore-subscriptions";
 import {
-    MONEY_PERIODS,
-    type DateRange,
-    type MoneyPeriod,
     getCashFlowBuckets,
     getCashFlowBucketsForRange,
     getCategoryBreakdown,
@@ -39,13 +37,15 @@ import {
     getOutstanding,
     getPeriodRange,
     getRangeTotals,
+    MONEY_PERIODS,
+    type DateRange,
+    type MoneyPeriod,
 } from "@/features/workspace/money-utils";
 import {
-  subscribeCheques,
-  subscribePayables,
-  subscribeReceivables,
-  subscribeTransactions,
-} from "@/features/workspace/firestore-subscriptions";
+    getPaymentSourceMeta,
+    paymentSourceHref,
+    sourceOfTransaction,
+} from "@/features/workspace/payment-source";
 import {
     fetchCheques,
     fetchPayables,
@@ -168,9 +168,8 @@ export default function MoneyDashboard() {
       <StackHeader
         title="Money"
         showBack={false}
-        right={
-          <View style={styles.headerActions}>
-            <Pressable
+        left={
+          <Pressable
               accessibilityRole="button"
               accessibilityLabel="Filter by date range"
               hitSlop={8}
@@ -183,6 +182,8 @@ export default function MoneyDashboard() {
                 color={customRange ? colors.primary : colors.onSurface}
               />
             </Pressable>
+        }
+        right={
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="PDF Reports"
@@ -192,7 +193,6 @@ export default function MoneyDashboard() {
             >
               <Icon name="picture-as-pdf" size={24} color={colors.onSurface} />
             </Pressable>
-          </View>
         }
       />
 
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
     gap: Spacing.gutterMd,
   },
   inset: { gap: Spacing.gutterMd },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center" },
   headerBtn: {
     width: 40,
     height: 40,
@@ -738,8 +738,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
     zIndex: 100,
+    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
   },
 
   segment: {

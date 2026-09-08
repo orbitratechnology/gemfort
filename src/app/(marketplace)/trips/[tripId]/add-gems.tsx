@@ -92,7 +92,11 @@ export default function AddGemsToTripScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Gems to Parcel" closeIcon />
+      <StackHeader
+        title="Add Gems to Parcel"
+        closeIcon
+        image={require("@/assets/images/mygems-icon.png")}
+      />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         {available.length === 0 ? (

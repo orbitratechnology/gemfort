@@ -6,12 +6,10 @@
 import {
   Contact,
   ContactField,
-  ContactsSortOrder,
   getPermissionsAsync,
   requestPermissionsAsync,
   type ContactsPermissionResponse,
 } from 'expo-contacts';
-import { Linking } from 'react-native';
 
 const DEVICE_CONTACT_FIELDS = [
   ContactField.FULL_NAME,
@@ -83,15 +81,6 @@ function displayNameFromDetail(detail: {
   return detail.company?.trim() || 'Unnamed contact';
 }
 
-export async function getContactsAccessState(): Promise<ContactsAccessState> {
-  const current = await getPermissionsAsync();
-  return {
-    granted: current.granted,
-    canAskAgain: current.canAskAgain,
-    accessPrivileges: current.accessPrivileges,
-  };
-}
-
 export async function ensureContactsPermission(): Promise<ContactsAccessState> {
   let status = await getPermissionsAsync();
   if (!status.granted) {
@@ -102,10 +91,6 @@ export async function ensureContactsPermission(): Promise<ContactsAccessState> {
     canAskAgain: status.canAskAgain,
     accessPrivileges: status.accessPrivileges,
   };
-}
-
-export async function openContactsSettings(): Promise<void> {
-  await Linking.openSettings();
 }
 
 /** Present the native system contact picker (Expo recommended for single select). */
@@ -120,33 +105,6 @@ export async function presentDeviceContactPicker(): Promise<DeviceContact | null
 
   const details = await selected.getDetails([...DEVICE_CONTACT_FIELDS]);
   return mapDetailsToDeviceContact(selected.id, details);
-}
-
-/**
- * Load device contacts for browsing / multi-import.
- * Uses `Contact.getAllDetails` (bulk, field-limited) per Expo docs.
- */
-export async function fetchDeviceContacts(options?: {
-  query?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<DeviceContact[]> {
-  const access = await ensureContactsPermission();
-  if (!access.granted) {
-    throw new Error('Contacts permission is required to sync phone contacts.');
-  }
-
-  const details = await Contact.getAllDetails([...DEVICE_CONTACT_FIELDS], {
-    name: options?.query?.trim() || undefined,
-    limit: options?.limit,
-    offset: options?.offset,
-    sortOrder: ContactsSortOrder.GivenName,
-  });
-
-  return details
-    .map((d) => mapDetailsToDeviceContact(d.id, d))
-    .filter((c) => c.displayName.trim().length > 0)
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 function mapDetailsToDeviceContact(
@@ -170,16 +128,4 @@ function mapDetailsToDeviceContact(
     email: pickPrimaryEmail(detail.emails),
     imageUri: detail.thumbnail || detail.image || null,
   };
-}
-
-/** iOS 18+ limited-access picker when the user only shared some contacts. */
-export async function presentLimitedAccessPicker(): Promise<DeviceContact[]> {
-  if (typeof Contact.presentAccessPicker !== 'function') return [];
-  const picked = await Contact.presentAccessPicker();
-  const out: DeviceContact[] = [];
-  for (const c of picked) {
-    const details = await c.getDetails([...DEVICE_CONTACT_FIELDS]);
-    out.push(mapDetailsToDeviceContact(c.id, details));
-  }
-  return out;
 }

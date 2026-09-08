@@ -170,7 +170,11 @@ export default function AddServiceScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Add Service" closeIcon />
+      <StackHeader
+        title="Add Service"
+        closeIcon
+        image={require("@/assets/images/lapidary-icon.png")}
+      />
       <ThemedScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"

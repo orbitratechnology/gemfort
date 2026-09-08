@@ -231,7 +231,11 @@ export default function ApSellScreen() {
   if (isLoading || !ap || !line) {
     return (
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-        <StackHeader title="Sell" closeIcon />
+        <StackHeader
+          title="Sell"
+          closeIcon
+          image={require("@/assets/images/ap-icon.png")}
+        />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>
             {isLoading ? "Loading…" : "Gem not found on this AP."}
@@ -244,7 +248,11 @@ export default function ApSellScreen() {
   if (ap.receiverUid !== user?.uid || line.lineStatus !== "held") {
     return (
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-        <StackHeader title="Sell" closeIcon />
+        <StackHeader
+          title="Sell"
+          closeIcon
+          image={require("@/assets/images/ap-icon.png")}
+        />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>
             This gem cannot be sold on AP right now.
@@ -256,7 +264,11 @@ export default function ApSellScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={stepTitle} closeIcon />
+      <StackHeader
+        title={stepTitle}
+        closeIcon
+        image={require("@/assets/images/ap-icon.png")}
+      />
       <ApSellStepRail step={step} />
 
       {step === 0 ? (

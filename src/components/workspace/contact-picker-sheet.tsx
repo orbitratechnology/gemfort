@@ -13,6 +13,7 @@ import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
+import { getContactTypeOption } from '@/constants/contact-types';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { ROLE_LABELS } from '@/constants/roles';
 import {
@@ -170,9 +171,16 @@ function ContactRow({
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
+  const primaryType = contact.contactTypes?.[0]
+    ? getContactTypeOption(contact.contactTypes[0])
+    : null;
   const gemfortBadge = contact.linkedBusinessName
     ? `On GemFort · ${contact.linkedBusinessType?.replace(/_/g, ' ') ?? 'profile'}`
     : null;
+  const contactMeta = gemfortBadge ??
+    [contact.companyName, contact.phone ?? contact.whatsapp]
+      .filter(Boolean)
+      .join(' · ');
   return (
     <Pressable
       accessibilityRole="button"
@@ -200,14 +208,19 @@ function ContactRow({
             <Icon name="verified" size={16} color={colors.accent} />
           ) : null}
         </View>
-        <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-          {gemfortBadge ??
-            ([contact.companyName, contact.phone ?? contact.whatsapp]
-              .filter(Boolean)
-              .join(' · ') ||
-              (contact.contactTypes ?? []).join(', ') ||
-              'Contact')}
-        </Text>
+        {contactMeta || !primaryType ? (
+          <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+            {contactMeta || 'Contact'}
+          </Text>
+        ) : null}
+        {primaryType ? (
+          <View style={styles.roleMeta}>
+            <Icon name={primaryType.icon} size={14} color={colors.textMuted} />
+            <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+              {primaryType.label}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {selected ? <Icon name="check-circle" size={22} color={colors.primary} /> : null}
     </Pressable>
@@ -823,6 +836,7 @@ const styles = StyleSheet.create({
   avatarImg: { width: '100%', height: '100%' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  roleMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   name: { ...Typography.labelMd, fontWeight: '700' },
   meta: { ...Typography.caption },
 

@@ -291,7 +291,11 @@ export default function AddBillScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={step === 0 ? "Direction" : "Add Bill"} closeIcon />
+      <StackHeader
+        title={step === 0 ? "Direction" : "Add Bill"}
+        closeIcon
+        image={require("@/assets/images/bill-icon.png")}
+      />
 
       {step === 0 ? (
         <View

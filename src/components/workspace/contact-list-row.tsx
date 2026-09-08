@@ -14,6 +14,7 @@ import Swipeable, {
 
 import { Icon } from "@/components/ui/icon";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { getContactTypeOption } from "@/constants/contact-types";
 import {
   BrandPalette,
   Spacing,
@@ -53,6 +54,9 @@ function ContactListRowInner({
   const { colors } = useAppTheme();
   const toast = useToast();
   const swipeRef = useRef<SwipeableMethods | null>(null);
+  const primaryType = contact.contactTypes[0]
+    ? getContactTypeOption(contact.contactTypes[0])
+    : null;
 
   const close = useCallback(() => {
     swipeRef.current?.close();
@@ -245,13 +249,21 @@ function ContactListRowInner({
                   >
                     {contact.companyName}
                   </Text>
-                ) : contact.contactTypes[0] ? (
-                  <Text
-                    style={[styles.subtitle, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {contact.contactTypes[0]}
-                  </Text>
+                ) : null}
+                {primaryType ? (
+                  <View style={styles.roleMeta}>
+                    <Icon
+                      name={primaryType.icon}
+                      size={14}
+                      color={colors.textMuted}
+                    />
+                    <Text
+                      style={[styles.subtitle, { color: colors.textMuted }]}
+                      numberOfLines={1}
+                    >
+                      {primaryType.label}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -298,6 +310,11 @@ const styles = StyleSheet.create({
     ...Typography.bodyMd,
     fontSize: 14,
     textTransform: "capitalize",
+  },
+  roleMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
   actionsRow: {
     flexDirection: "row",

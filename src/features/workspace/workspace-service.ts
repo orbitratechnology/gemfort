@@ -1,4 +1,5 @@
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
+import { normalizeContactTypes } from "@/constants/contact-types";
 import {
     findContactForBusiness,
     linkFieldsFromBusiness,
@@ -842,7 +843,7 @@ export async function fetchContacts(ownerUid: string): Promise<Contact[]> {
       return {
         id: d.id,
         ...data,
-        contactTypes: Array.isArray(data.contactTypes) ? data.contactTypes : [],
+        contactTypes: normalizeContactTypes(data.contactTypes),
         photoUrl: data.photoUrl ?? null,
         deviceContactId: data.deviceContactId ?? null,
         linkedBusinessId: data.linkedBusinessId ?? null,
@@ -864,7 +865,7 @@ export async function createContact(
     phone: normalizePhoneForStorage(input.phone),
     whatsapp: normalizePhoneForStorage(input.whatsapp),
     email: input.email ?? null,
-    contactTypes: input.contactTypes ?? [],
+    contactTypes: normalizeContactTypes(input.contactTypes),
     notes: input.notes ?? null,
     isFavourite: input.isFavourite ?? false,
     photoUrl: input.photoUrl ?? null,
@@ -936,7 +937,7 @@ export async function importDeviceContactToWorkspace(
     email: device.email,
     contactTypes: options?.contactTypes?.length
       ? options.contactTypes
-      : ["broker"],
+      : ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl,
@@ -946,59 +947,6 @@ export async function importDeviceContactToWorkspace(
     linkedBusinessType: null,
   });
   return { id, created: true };
-}
-
-export async function importDeviceContactsBatch(
-  ownerUid: string,
-  devices: {
-    id: string;
-    displayName: string;
-    companyName: string | null;
-    phone: string | null;
-    email: string | null;
-    imageUri: string | null;
-  }[],
-  contactTypes?: string[],
-): Promise<{ created: number; linked: number }> {
-  let existing = await fetchContacts(ownerUid);
-  let created = 0;
-  let linked = 0;
-  for (const device of devices) {
-    const result = await importDeviceContactToWorkspace(ownerUid, device, {
-      contactTypes,
-      existing,
-    });
-    if (result.created) {
-      created += 1;
-      const e164 = normalizePhoneForStorage(device.phone);
-      // Keep local list fresh for subsequent duplicate checks
-      existing = [
-        ...existing,
-        {
-          id: result.id,
-          ownerUid,
-          displayName: device.displayName,
-          companyName: device.companyName,
-          phone: e164,
-          whatsapp: e164,
-          email: device.email,
-          contactTypes: contactTypes?.length ? contactTypes : ["broker"],
-          notes: null,
-          isFavourite: false,
-          photoUrl: null,
-          deviceContactId: device.id,
-          linkedBusinessId: null,
-          linkedBusinessName: null,
-          linkedBusinessType: null,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        },
-      ];
-    } else {
-      linked += 1;
-    }
-  }
-  return { created, linked };
 }
 
 async function uploadContactPhoto(
@@ -1016,6 +964,9 @@ async function uploadContactPhoto(
 
 export async function updateContact(contactId: string, data: Partial<Contact>) {
   const payload: Partial<Contact> = { ...data };
+  if (data.contactTypes !== undefined) {
+    payload.contactTypes = normalizeContactTypes(data.contactTypes);
+  }
   if (data.phone !== undefined) {
     payload.phone = normalizePhoneForStorage(data.phone);
   }
@@ -1104,7 +1055,7 @@ export async function ensureContactForBusiness(
     phone,
     whatsapp: business.contacts?.whatsapp?.value ?? phone,
     email: business.contacts?.email?.value ?? null,
-    contactTypes: ["broker"],
+    contactTypes: ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl: business.logoUrl ?? null,
@@ -1120,7 +1071,7 @@ export async function ensureContactForBusiness(
     phone,
     whatsapp: business.contacts?.whatsapp?.value ?? phone,
     email: business.contacts?.email?.value ?? null,
-    contactTypes: ["broker"],
+    contactTypes: ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl: business.logoUrl ?? null,

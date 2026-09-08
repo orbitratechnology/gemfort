@@ -1,3 +1,4 @@
+import { normalizeContactType } from '@/constants/contact-types';
 import type { Contact } from '@/types';
 
 export type ContactSection = {
@@ -11,10 +12,14 @@ export function filterContacts(
   typeFilter: string | null,
 ): Contact[] {
   const normalizedQuery = query.trim().toLowerCase();
+  const normalizedTypeFilter = typeFilter
+    ? normalizeContactType(typeFilter)
+    : null;
 
   return contacts
     .filter((contact) => {
-      if (typeFilter && !(contact.contactTypes ?? []).includes(typeFilter)) return false;
+      const contactTypes = (contact.contactTypes ?? []).map(normalizeContactType);
+      if (normalizedTypeFilter && !contactTypes.includes(normalizedTypeFilter)) return false;
       if (!normalizedQuery) return true;
 
       const haystack = [
@@ -23,7 +28,7 @@ export function filterContacts(
         contact.phone,
         contact.whatsapp,
         contact.email,
-        ...(contact.contactTypes ?? []),
+        ...contactTypes,
       ]
         .filter(Boolean)
         .join(' ')

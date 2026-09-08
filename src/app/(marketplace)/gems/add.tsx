@@ -419,7 +419,11 @@ export default function AddGemScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title="Add gem" closeIcon />
+      <StackHeader
+        title="Add gem"
+        closeIcon
+        image={require("@/assets/images/mygems-icon.png")}
+      />
 
       <ThemedScrollView
         style={{ flex: 0, maxHeight: windowHeight * 0.72 }}

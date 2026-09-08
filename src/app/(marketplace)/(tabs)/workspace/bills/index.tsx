@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import {
     Pressable,
@@ -429,7 +430,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
     zIndex: 100,
   },
 });

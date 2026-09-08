@@ -829,13 +829,13 @@ export default function ApListScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Give on AP"
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: colors.primary },
-            pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-          ]}
-          onPress={() => router.push("/(marketplace)/ap/add" as never)}
-        >
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push("/(marketplace)/ap/add" as never)}
+      >
           <Icon name="add" size={28} color={colors.onPrimary} />
         </Pressable>
       ) : null}

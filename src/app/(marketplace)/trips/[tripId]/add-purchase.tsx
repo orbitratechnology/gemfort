@@ -86,7 +86,11 @@ export default function AddTripPurchaseScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Buy Gem on Trip" closeIcon />
+      <StackHeader
+        title="Buy Gem on Trip"
+        closeIcon
+        image={require("@/assets/images/trips-icon.png")}
+      />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Gem type" padded={false}>

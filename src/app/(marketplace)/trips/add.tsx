@@ -125,6 +125,7 @@ export default function AddTripScreen() {
       <StackHeader
         title={step === 0 ? 'Trip type' : 'Plan trip'}
         closeIcon
+        image={require('@/assets/images/trips-icon.png')}
       />
 
       {step === 0 ? (

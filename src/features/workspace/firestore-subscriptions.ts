@@ -1,5 +1,6 @@
 import { normalizeApRecord } from '@/features/workspace/ap-normalize';
 import { pickPrimaryBusiness } from '@/features/marketplace/marketplace-service';
+import { normalizeContactTypes } from '@/constants/contact-types';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import {
   collection,
@@ -118,7 +119,7 @@ function mapContact(id: string, data: Record<string, unknown>): Contact {
   return {
     id,
     ...data,
-    contactTypes: Array.isArray(data.contactTypes) ? data.contactTypes : [],
+    contactTypes: normalizeContactTypes(data.contactTypes),
     photoUrl: data.photoUrl ?? null,
     deviceContactId: data.deviceContactId ?? null,
     linkedBusinessId: data.linkedBusinessId ?? null,

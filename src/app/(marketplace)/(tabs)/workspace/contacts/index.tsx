@@ -20,8 +20,10 @@ import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactListRow } from "@/components/workspace/contact-list-row";
 import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
-import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-import-sheet";
-import { CONTACT_TYPES } from "@/constants/contact-types";
+import {
+  CONTACT_TYPES,
+  getContactTypeOption,
+} from "@/constants/contact-types";
 import {
   Radius,
   Spacing,
@@ -37,6 +39,7 @@ import {
   countMissedCalls,
   isCallLogsSupported,
 } from "@/features/workspace/call-logs-service";
+import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
 import {
   filterContacts,
   groupContactsByLetter,
@@ -45,6 +48,7 @@ import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
   deleteContact,
   fetchContacts,
+  importDeviceContactToWorkspace,
   syncContactBusinessLinks,
   updateContact,
 } from "@/features/workspace/workspace-service";
@@ -54,6 +58,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 
@@ -121,6 +126,7 @@ function ContactsListHeader({
         renderItem={({ item }) => {
           const isAll = item === "__all__";
           const active = isAll ? typeFilter === null : typeFilter === item;
+          const typeOption = getContactTypeOption(item);
           return (
             <Pressable
               onPress={() =>
@@ -133,6 +139,11 @@ function ContactsListHeader({
                   : { backgroundColor: colors.surfaceContainerHighest },
               ]}
             >
+              <Icon
+                name={isAll ? "contacts" : typeOption.icon}
+                size={16}
+                color={active ? colors.onPrimary : colors.onSurfaceVariant}
+              />
               <Text
                 style={[
                   styles.chipText,
@@ -143,7 +154,7 @@ function ContactsListHeader({
                   },
                 ]}
               >
-                {isAll ? "All" : item}
+                {isAll ? "All" : typeOption.label}
               </Text>
             </Pressable>
           );
@@ -161,7 +172,7 @@ export default function ContactsListScreen() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
   const callLogsSupported = isCallLogsSupported();
   const { logs: callLogs } = useMatchedCallLogs({
     enabled: !!user && callLogsSupported,
@@ -246,6 +257,34 @@ export default function ContactsListScreen() {
     }
   }
 
+  async function handleImportFromPhone() {
+    if (!user || picking) return;
+
+    setPicking(true);
+    try {
+      const deviceContact = await presentDeviceContactPicker();
+      if (!deviceContact) return;
+
+      await withLoading(async () => {
+        const { created } = await importDeviceContactToWorkspace(
+          user.uid,
+          deviceContact,
+          { existing: contacts },
+        );
+        await invalidateContacts();
+        toast.success(
+          created
+            ? "Contact imported from phone."
+            : "Contact is already in GemFort.",
+        );
+      }, "Importing contact…");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not import phone contact."));
+    } finally {
+      setPicking(false);
+    }
+  }
+
   function renderItem({
     item,
     index,
@@ -278,8 +317,9 @@ export default function ContactsListScreen() {
         title="Contacts"
         right={
           <Pressable
-            onPress={() => setImportOpen(true)}
-            style={styles.headerBtn}
+            onPress={() => void handleImportFromPhone()}
+            disabled={picking}
+            style={[styles.headerBtn, { opacity: picking ? 0.5 : 1 }]}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Import contacts from phone"
@@ -351,18 +391,6 @@ export default function ContactsListScreen() {
       >
         <Icon name="person-add" size={26} color={colors.onSecondary} />
       </Pressable>
-
-      {user ? (
-        <PhoneContactsImportSheet
-          visible={importOpen}
-          onClose={() => setImportOpen(false)}
-          ownerUid={user.uid}
-          existingContacts={contacts}
-          onImported={() => {
-            void queryClient.invalidateQueries({ queryKey: ["contacts"] });
-          }}
-        />
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -415,6 +443,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: Radius.full,

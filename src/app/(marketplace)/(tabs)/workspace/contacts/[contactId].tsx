@@ -20,7 +20,11 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { CallLogRow } from "@/components/workspace/call-log-row";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import { CONTACT_TYPES } from "@/constants/contact-types";
+import {
+  CONTACT_TYPE_OPTIONS,
+  getContactTypeOption,
+  normalizeContactTypes,
+} from "@/constants/contact-types";
 import {
   BrandPalette,
   Radius,
@@ -130,7 +134,7 @@ export default function ContactDetailScreen() {
     setPhone(contact.phone ?? "");
     setWhatsapp(contact.whatsapp ?? "");
     setEmail(contact.email ?? "");
-    setContactTypes(contact.contactTypes);
+    setContactTypes(normalizeContactTypes(contact.contactTypes));
     setNotes(contact.notes ?? "");
     setEditing(true);
   }
@@ -250,14 +254,14 @@ export default function ContactDetailScreen() {
               leftIcon="email"
             />
           </FormSection>
-          <FormSection title="Types" padded={false}>
+          <FormSection title="Roles" padded={false}>
             <View style={styles.typeChips}>
-              {CONTACT_TYPES.map((t) => {
-                const active = contactTypes.includes(t);
+              {CONTACT_TYPE_OPTIONS.map(({ value, label, icon }) => {
+                const active = contactTypes.includes(value);
                 return (
                   <Pressable
-                    key={t}
-                    onPress={() => toggleType(t)}
+                    key={value}
+                    onPress={() => toggleType(value)}
                     style={[
                       styles.chip,
                       active
@@ -271,6 +275,13 @@ export default function ContactDetailScreen() {
                           },
                     ]}
                   >
+                    <Icon
+                      name={icon}
+                      size={18}
+                      color={
+                        active ? colors.onPrimary : colors.onSurfaceVariant
+                      }
+                    />
                     <Text
                       style={[
                         styles.chipText,
@@ -281,7 +292,7 @@ export default function ContactDetailScreen() {
                         },
                       ]}
                     >
-                      {t}
+                      {label}
                     </Text>
                   </Pressable>
                 );
@@ -367,24 +378,32 @@ export default function ContactDetailScreen() {
           ) : null}
           {contact.contactTypes.length ? (
             <View style={styles.typeRow}>
-              {contact.contactTypes.map((t) => (
-                <View
-                  key={t}
-                  style={[
-                    styles.typeBadge,
-                    { backgroundColor: colors.surfaceContainerHighest },
-                  ]}
-                >
-                  <Text
+              {contact.contactTypes.map((t) => {
+                const option = getContactTypeOption(t);
+                return (
+                  <View
+                    key={t}
                     style={[
-                      styles.typeBadgeText,
-                      { color: colors.onSurfaceVariant },
+                      styles.typeBadge,
+                      { backgroundColor: colors.surfaceContainerHighest },
                     ]}
                   >
-                    {t}
-                  </Text>
-                </View>
-              ))}
+                    <Icon
+                      name={option.icon}
+                      size={15}
+                      color={colors.onSurfaceVariant}
+                    />
+                    <Text
+                      style={[
+                        styles.typeBadgeText,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           ) : null}
           {contact.deviceContactId ? (
@@ -752,6 +771,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: Radius.full,
@@ -818,6 +840,9 @@ const styles = StyleSheet.create({
   emptyHistory: { ...Typography.bodyMd },
 
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Radius.full,

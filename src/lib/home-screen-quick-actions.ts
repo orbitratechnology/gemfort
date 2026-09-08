@@ -119,7 +119,7 @@ function lapidaryActions(scheme: "light" | "dark"): RouterAction[] {
       "Contacts",
       "/(marketplace)/(tabs)/workspace/contacts",
       icon("contact", AndroidIconKey.contacts, scheme),
-      "Brokers, buyers & partners",
+      "Traders, buyers & partners",
     ),
     action(
       "bill",

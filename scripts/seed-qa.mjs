@@ -294,12 +294,12 @@ async function main() {
   await db.collection('gemtrack_contacts').doc('qa-trader-contact-1').set(
     {
       ownerUid: uids.trader,
-      displayName: 'QA Broker Ravi',
+      displayName: 'QA Trader Ravi',
       companyName: 'Ravi Gems',
       phone: '+94771112233',
       whatsapp: '+94771112233',
       email: null,
-      contactTypes: ['broker', 'ap_holder', 'cutter'],
+      contactTypes: ['trader', 'other', 'cutter'],
       notes: 'Seeded contact for cheque/AP/cutting',
       isFavourite: true,
       createdAt: now,
@@ -320,7 +320,7 @@ async function main() {
       currency: 'LKR',
       amountBase: 25000,
       counterpartyContactId: 'qa-trader-contact-1',
-      issuedBy: 'QA Broker Ravi',
+      issuedBy: 'QA Trader Ravi',
       issueDate: now,
       maturityDate: maturity,
       depositedDate: null,

@@ -102,7 +102,11 @@ export default function AddTripExpenseScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Expense" closeIcon />
+      <StackHeader
+        title="Add Expense"
+        closeIcon
+        image={require("@/assets/images/shortcuts/shortcut_money_light.png")}
+      />
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <FormSection title="Category" padded={false}>

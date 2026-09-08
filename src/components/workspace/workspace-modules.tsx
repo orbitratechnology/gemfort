@@ -1,5 +1,7 @@
+import { BlurTargetView, BlurView } from "expo-blur";
 import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
+import { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
@@ -40,7 +42,7 @@ type WorkspaceModulesProps = {
 };
 
 type TilePalette = {
-  wash: string;
+  meshColors: [string, string, string];
   badgeBg: string;
   badgeFg: string;
 };
@@ -49,56 +51,41 @@ function formatModuleCount(value: number): string {
   return value > 99 ? "99+" : String(value);
 }
 
-/** Soft pastel-adjacent washes using theme surfaces (layout inspired by reference cards). */
+/** Soft monochrome mesh colors using the app's semantic surface family. */
 function tilePalette(
   index: number,
   colors: ThemeColors,
   isDark: boolean,
 ): TilePalette {
   if (isDark) {
-    const whiteWashes = [
-      `
-        linear-gradient(125deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 42%, rgba(255,255,255,0.10) 100%),
-        radial-gradient(ellipse 75% 95% at 100% 45%, rgba(255,255,255,0.16) 0%, transparent 58%)
-      `,
+    const meshPalettes: TilePalette[] = [
+      {
+        meshColors: [colors.primary + "20", colors.secondary + "18", colors.tertiary + "16"],
+        badgeBg: colors.surfaceContainerHigh + "E6",
+        badgeFg: colors.onSurfaceVariant,
+      },
     ];
-    return {
-      wash: whiteWashes[index % whiteWashes.length]!,
-      badgeBg: "rgba(255,255,255,0.12)",
-      badgeFg: colors.onSurfaceVariant,
-    };
+    return meshPalettes[index % meshPalettes.length]!;
   }
 
   const palettes: TilePalette[] = [
     {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainerHigh} 0%, ${colors.surfaceContainerLowest} 48%, ${colors.primaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.primary}12 0%, transparent 62%)
-      `,
+      meshColors: [colors.primary + "14", colors.secondary + "12", colors.tertiary + "10"],
       badgeBg: colors.surfaceContainerLowest + "E6",
       badgeFg: colors.onSurfaceVariant,
     },
     {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainer} 0%, ${colors.surfaceContainerLowest} 52%, ${colors.secondaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.secondary}14 0%, transparent 62%)
-      `,
+      meshColors: [colors.secondary + "15", colors.tertiary + "12", colors.primary + "0E"],
       badgeBg: colors.surfaceContainerLowest + "E6",
       badgeFg: colors.onSurfaceVariant,
     },
     {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainerLow} 0%, ${colors.surfaceContainerLowest} 50%, ${colors.tertiaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.tertiary}12 0%, transparent 62%)
-      `,
+      meshColors: [colors.tertiary + "13", colors.primary + "10", colors.secondary + "12"],
       badgeBg: colors.surfaceContainerLowest + "E6",
       badgeFg: colors.onSurfaceVariant,
     },
     {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceVariant}55 0%, ${colors.surfaceContainerLowest} 55%, ${colors.surfaceContainerHigh} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.outline}18 0%, transparent 62%)
-      `,
+      meshColors: [colors.outline + "14", colors.primary + "0D", colors.surfaceVariant + "18"],
       badgeBg: colors.surfaceContainerLowest + "E6",
       badgeFg: colors.onSurfaceVariant,
     },
@@ -120,6 +107,7 @@ function ModuleTile({
   const countLabel = formatModuleCount(item.value);
   const palette = tilePalette(index, colors, isDark);
   const featured = item.featured === true;
+  const meshTargetRef = useRef<View | null>(null);
 
   return (
     <Animated.View
@@ -137,7 +125,6 @@ function ModuleTile({
           styles.tile,
           featured && styles.tileFeatured,
           {
-            experimental_backgroundImage: palette.wash,
             backgroundColor: isDark
               ? colors.surfaceContainer
               : colors.surfaceContainerLowest,
@@ -154,9 +141,33 @@ function ModuleTile({
           },
         ]}
       >
+        <View pointerEvents="none" style={styles.mesh}>
+          <BlurTargetView ref={meshTargetRef} style={styles.meshTarget}>
+            <View
+              style={[styles.meshBlob, styles.meshBlobTop, { backgroundColor: palette.meshColors[0] }]}
+            />
+            <View
+              style={[styles.meshBlob, styles.meshBlobBottom, { backgroundColor: palette.meshColors[1] }]}
+            />
+            <View
+              style={[styles.meshBlob, styles.meshBlobSide, { backgroundColor: palette.meshColors[2] }]}
+            />
+          </BlurTargetView>
+          <BlurView
+            blurMethod="dimezisBlurViewSdk31Plus"
+            blurTarget={meshTargetRef}
+            intensity={isDark ? 42 : 52}
+            tint={isDark ? "dark" : "light"}
+            style={styles.meshBlur}
+          />
+          <View
+            style={[styles.meshSheen, { backgroundColor: colors.white + "24" }]}
+          />
+        </View>
+
         <View style={styles.copyCol}>
-          <View style={[styles.badge]}>
-            <Text style={[styles.badgeText, { color: colors.textMuted }]}>
+          <View style={[styles.badge, { backgroundColor: palette.badgeBg }]}>
+            <Text style={[styles.badgeText, { color: palette.badgeFg }]}>
               {countLabel}
             </Text>
           </View>
@@ -308,6 +319,52 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "stretch",
+  },
+  mesh: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  meshTarget: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  meshBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  meshBlob: {
+    position: "absolute",
+    borderRadius: 999,
+  },
+  meshBlobTop: {
+    width: 188,
+    height: 118,
+    top: -70,
+    right: -58,
+    transform: [{ rotate: "-12deg" }],
+  },
+  meshBlobBottom: {
+    width: 196,
+    height: 132,
+    bottom: -88,
+    left: -66,
+    transform: [{ rotate: "14deg" }],
+  },
+  meshBlobSide: {
+    width: 112,
+    height: 168,
+    top: 14,
+    right: -54,
+    transform: [{ rotate: "22deg" }],
+  },
+  meshSheen: {
+    position: "absolute",
+    width: "140%",
+    height: 46,
+    top: -28,
+    left: -34,
+    borderRadius: 999,
+    opacity: 0.55,
+    transform: [{ rotate: "-8deg" }],
   },
   tileFeatured: {
     minHeight: 128,
