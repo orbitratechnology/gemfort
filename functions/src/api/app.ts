@@ -6,7 +6,7 @@ import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 
 import { deleteMyAccountForApi, type DeleteAccountResult } from '../account/delete-account-api';
-import { linkVerifiedPhoneForApi } from '../auth/link-verified-phone';
+import { syncPhoneProfileForApi } from '../auth/sync-phone-profile';
 import {
   cancelApRequestForApi,
   createApRequestForApi,
@@ -89,7 +89,6 @@ const COMPAT_CALLABLES = new Set([
   'deleteApRecord',
   'requestServiceCancellation',
   'respondServiceCancellation',
-  'linkVerifiedPhone',
   'deleteMyAccount',
   'searchFlights',
   'getFlightPriceCalendar',
@@ -109,7 +108,6 @@ const COMPAT_MUTATIONS = new Set([
   'deleteApRecord',
   'requestServiceCancellation',
   'respondServiceCancellation',
-  'linkVerifiedPhone',
   'deleteMyAccount',
 ]);
 
@@ -134,7 +132,7 @@ export type ApiAppOptions = {
   cancelApRequest?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
   returnApGem?: (apId: string, uid: string, gemId: string) => Promise<ApLifecycleResult>;
   deleteApRecord?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
-  linkVerifiedPhone?: (uid: string, token: unknown) => Promise<{ phoneNumber: string }>;
+  syncPhoneProfile?: (uid: string) => Promise<{ phoneNumber: string }>;
   deleteMyAccount?: (uid: string, authTime: number | undefined) => Promise<DeleteAccountResult>;
   requestServiceCancellation?: (
     serviceId: string,
@@ -325,7 +323,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const cancelApRequest = options.cancelApRequest ?? cancelApRequestForApi;
   const returnApGem = options.returnApGem ?? returnApGemForApi;
   const deleteApRecord = options.deleteApRecord ?? deleteApRecordForApi;
-  const linkVerifiedPhone = options.linkVerifiedPhone ?? linkVerifiedPhoneForApi;
+  const syncPhoneProfile = options.syncPhoneProfile ?? syncPhoneProfileForApi;
   const deleteMyAccount = options.deleteMyAccount ?? deleteMyAccountForApi;
   const requestServiceCancellation =
     options.requestServiceCancellation ?? requestServiceCancellationForApi;
@@ -456,14 +454,9 @@ export function createApiApp(options: ApiAppOptions = {}) {
     ));
   });
 
-  app.post('/v1/auth/phone/link', auth, appCheck, async (c) => {
-    const input = await readJson(c);
-    if (!input || typeof input !== 'object') {
-      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
-    }
-    const token = (input as { token?: unknown }).token;
-    return success(c, await mutation(c, { token }, (uid) => linkVerifiedPhone(uid, token)));
-  });
+  app.post('/v1/auth/phone/sync', auth, appCheck, async (c) =>
+    success(c, await mutation(c, null, (uid) => syncPhoneProfile(uid))),
+  );
 
   app.delete('/v1/account', auth, appCheck, async (c) => {
     const user = requireUser(c);
@@ -580,10 +573,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
               const value = data as { serviceId?: unknown; action?: unknown };
               if (typeof value.serviceId !== 'string') throw new ApiError('invalid-argument', 'serviceId is required.');
               return respondServiceCancellation(value.serviceId, user.uid, actionOf(value.action));
-            }
-            case 'linkVerifiedPhone': {
-              const token = data && typeof data === 'object' ? (data as { token?: unknown }).token : undefined;
-              return linkVerifiedPhone(user.uid, token);
             }
             case 'deleteMyAccount':
               return deleteMyAccount(user.uid, user.token.auth_time);

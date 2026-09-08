@@ -1,6 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Redirect, router } from "expo-router";
+import {
+    Redirect,
+    router,
+    useLocalSearchParams,
+} from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -17,7 +21,7 @@ import { CityField } from "@/components/ui/city-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
-import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
@@ -25,6 +29,11 @@ import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+    businessProfileSectionTitle,
+    isBusinessProfileSection,
+    type BusinessProfileSection,
+} from "@/constants/business-profile-sections";
 import { cityBelongsToCountry } from "@/constants/cities";
 import type { CurrencyCode } from "@/constants/currencies";
 import {
@@ -174,9 +183,16 @@ type FormProps = {
   user: AuthUser;
   profile: UserProfile | null;
   colors: ThemeColors;
+  section: BusinessProfileSection | null;
 };
 
-function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
+function BusinessProfileForm({
+  business,
+  user,
+  profile,
+  colors,
+  section,
+}: FormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -242,9 +258,17 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
+  const showAllSections = section === null;
+  const showPhotos = showAllSections || section === "photos";
+  const showIdentity = showAllSections || section === "identity";
+  const showLocation = showAllSections || section === "location";
+  const showServices = showAllSections || section === "services";
+  const showContact = showAllSections || section === "contact";
+  const showWebsite = showAllSections || section === "website";
+  const showSocial = showAllSections || section === "social";
 
   useEffect(() => {
-    if (business?.location) return;
+    if (!showLocation || business?.location) return;
     let active = true;
     setLocationDetecting(true);
     void detectProfileLocation()
@@ -262,7 +286,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     return () => {
       active = false;
     };
-  }, [business?.id, business?.location]);
+  }, [business?.id, business?.location, showLocation]);
 
   function updateLapidaryServiceDraft(
     serviceId: string,
@@ -442,8 +466,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   return (
     <>
-      {/* Edge-to-edge banner + centered avatar (Instagram edit profile) */}
-      <View style={styles.hero}>
+      {showPhotos ? (
+        <>
+          {/* Edge-to-edge banner + centered avatar (Instagram edit profile) */}
+          <View style={styles.hero}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Change cover photo"
@@ -537,20 +563,23 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             {isVerified ? " · Verified" : ""}
           </Text>
         </View>
-      </View>
+          </View>
 
-      <FormSection title="Business Photos">
-        <MediaAlbumField
-          value={galleryLocal}
-          onChange={setGalleryLocal}
-          max={MAX_GALLERY_PHOTOS}
-          emptyTitle="Add business photos"
-          emptySubtitle="Works, work samples, showroom, and business photos"
-        />
-      </FormSection>
+          <FormSection title="Business Photos">
+            <MediaAlbumField
+              value={galleryLocal}
+              onChange={setGalleryLocal}
+              max={MAX_GALLERY_PHOTOS}
+              emptyTitle="Add business photos"
+              emptySubtitle="Works, work samples, showroom, and business photos"
+            />
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="IDENTITY" />
-      <FormSection>
+      {showIdentity ? (
+        <>
+          <FormSection>
         <Input
           label="Business name"
           value={businessName}
@@ -567,10 +596,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           style={styles.textArea}
           leftIcon="notes"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="LOCATION" />
-      <FormSection>
+      {showLocation ? (
+        <>
+          <FormSection>
         <CountryField
           label="Country"
           value={country}
@@ -641,11 +673,12 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           placeholder="Street, building, area"
           leftIcon="home"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      {isLapidary ? (
+      {showServices && isLapidary ? (
         <>
-          <FormSectionLabel title="PUBLIC SERVICES" />
           <FormSection>
             <Text style={[styles.serviceHint, { color: colors.textMuted }]}>
               Select every service your workshop provides. Pricing is optional and
@@ -784,8 +817,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         </>
       ) : null}
 
-      <FormSectionLabel title="CONTACT" />
-      <FormSection>
+      {showContact ? (
+        <>
+          <FormSection>
         <PhoneNumberField
           label="WhatsApp"
           value={whatsapp}
@@ -796,10 +830,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           value={phone}
           onChangeText={setPhone}
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="WEBSITE" />
-      <FormSection>
+      {showWebsite ? (
+        <>
+          <FormSection>
         <SocialLinkField
           platform="website"
           label="Website"
@@ -810,10 +847,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           keyboardType="url"
           placeholder="yourbusiness.com"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="SOCIAL" />
-      <FormSection>
+      {showSocial ? (
+        <>
+          <FormSection>
         <SocialLinkField
           platform="instagram"
           label="Instagram"
@@ -850,7 +890,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           autoCorrect={false}
           placeholder="WeChat ID"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
       <View style={styles.actions}>
         <Button
@@ -901,6 +943,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 export default function MyBusinessProfileScreen() {
   const { colors } = useAppTheme();
   const { user, profile } = useAuth();
+  const { section: sectionParam } = useLocalSearchParams<{
+    section?: string | string[];
+  }>();
+  const section = isBusinessProfileSection(sectionParam) ? sectionParam : null;
 
   const { data: business, isLoading } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
@@ -910,10 +956,11 @@ export default function MyBusinessProfileScreen() {
     enabled: !!user,
   });
 
-  const screenTitle = useMemo(
-    () => (business ? "Edit Business" : "My Business"),
-    [business],
-  );
+  const screenTitle = section
+    ? businessProfileSectionTitle(section)
+    : business
+      ? "Edit Business"
+      : "My Business";
 
   const canPreviewPublic =
     !!business &&
@@ -929,7 +976,7 @@ export default function MyBusinessProfileScreen() {
     >
       <StackHeader
         title={screenTitle}
-        closeIcon
+        closeIcon={!section}
         right={
           canPreviewPublic ? (
             <Pressable
@@ -964,6 +1011,7 @@ export default function MyBusinessProfileScreen() {
             user={user}
             profile={profile}
             colors={colors}
+            section={section}
           />
         </ThemedScrollView>
       )}

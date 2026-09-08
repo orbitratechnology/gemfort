@@ -17,7 +17,7 @@ export { onLikeCreated } from './gemnet/likes';
 
 export { onNotificationCreated } from './notifications/on-created';
 
-// Auth account deletion and phone linking are handled through gemfortApi;
+// Auth account deletion and phone profile synchronization are handled through gemfortApi;
 // retain the Auth trigger as the server-side cleanup safety net.
 export { onAuthUserDeleted } from './account/delete-account';
 

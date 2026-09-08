@@ -20,6 +20,26 @@ const authenticatedApi = createApiApp({
   },
 });
 
+const syncPhoneApi = createApiApp({
+  appCheckMode: 'enforce',
+  executeMutation: async ({ execute }) => execute(),
+  verifyIdToken: async (token) => {
+    assert.equal(token, 'id-token');
+    return { uid: 'user-1' } as DecodedIdToken;
+  },
+  verifyAppCheck: async (token) => {
+    assert.equal(token, 'app-check-token');
+    return {
+      appId: 'app-1',
+      token: {} as VerifyAppCheckTokenResponse['token'],
+    };
+  },
+  syncPhoneProfile: async (uid) => {
+    assert.equal(uid, 'user-1');
+    return { phoneNumber: '+94770000001' };
+  },
+});
+
 test('health endpoint returns a request id and safe service metadata', async () => {
   const response = await apiApp.request('/healthz');
   const body = (await response.json()) as {
@@ -94,6 +114,25 @@ test('protected routes enforce App Check after Firebase Auth', async () => {
   assert.equal(body.error.code, 'unauthenticated');
 });
 
+test('phone profile sync uses the authenticated Firebase Auth profile', async () => {
+  const response = await syncPhoneApi.request('/v1/auth/phone/sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer id-token',
+      'X-Firebase-AppCheck': 'app-check-token',
+      'Idempotency-Key': 'phone-sync-test',
+    },
+    body: '{}',
+  });
+  const body = (await response.json()) as {
+    data: { phoneNumber: string };
+  };
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.data, { phoneNumber: '+94770000001' });
+});
+
 test('all canonical migration routes are registered behind Firebase Auth', async () => {
   const routes = [
     ['POST', '/v1/ap/requests'],
@@ -108,7 +147,7 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['DELETE', '/v1/ap/records/ap-1'],
     ['POST', '/v1/services/service-1/cancellation'],
     ['POST', '/v1/services/service-1/cancellation/respond'],
-    ['POST', '/v1/auth/phone/link'],
+    ['POST', '/v1/auth/phone/sync'],
     ['DELETE', '/v1/account'],
     ['POST', '/v1/flights/search'],
     ['POST', '/v1/flights/calendar'],

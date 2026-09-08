@@ -55,14 +55,14 @@ The live project contains 32 deployed functions in `asia-south1` after removing 
 
 | Category | Count | Migration treatment |
 |---|---:|---|
-| Callable/API functions | 17 | Consolidate into the Hono API behind one HTTP entry point, with an explicit compatibility layer during cutover |
+| Callable/API functions | 16 | Consolidate into the Hono API behind one HTTP entry point, with an explicit compatibility layer during cutover |
 | Firestore/Eventarc triggers | 12 | Leave deployed and unchanged |
 | Scheduled functions | 2 | Leave deployed and unchanged |
 | Authentication user-delete trigger | 1 | Leave as gen1 because Firebase currently does not provide an equivalent gen2 Auth user-delete event |
 
 ### Callable/API functions in scope for consolidation
 
-`apPaymentReceived`, `apPaymentSent`, `cancelApRequest`, `createApRequest`, `createFlightBookingLink`, `deleteApRecord`, `deleteMyAccount`, `getFlightPriceCalendar`, `linkVerifiedPhone`, `recordApGemSale`, `requestApCancellation`, `requestServiceCancellation`, `respondApCancellation`, `respondApRequest`, `respondServiceCancellation`, `returnApGem`, and `searchFlights`.
+`apPaymentReceived`, `apPaymentSent`, `cancelApRequest`, `createApRequest`, `createFlightBookingLink`, `deleteApRecord`, `deleteMyAccount`, `getFlightPriceCalendar`, `recordApGemSale`, `requestApCancellation`, `requestServiceCancellation`, `respondApCancellation`, `respondApRequest`, `respondServiceCancellation`, `returnApGem`, and `searchFlights`.
 
 ### Firestore/Eventarc triggers to preserve
 
@@ -88,7 +88,7 @@ Observed gen2 defaults across the deployed function set:
 - Maximum instances: 10 for all observed gen2 functions.
 - Minimum instances: no configured minimum instances were observed.
 - Most functions use concurrency 1.
-- The following hot callables use concurrency 40: `apPaymentReceived`, `apPaymentSent`, `createApRequest`, `linkVerifiedPhone`, and `respondApRequest`.
+- The following hot callables use concurrency 40: `apPaymentReceived`, `apPaymentSent`, `createApRequest`, and `respondApRequest`.
 - Most callable functions use 256 MiB and a 60-second timeout; flight callables use 30 seconds.
 - `deleteMyAccount` uses 1 GiB and a 540-second timeout.
 
@@ -102,7 +102,6 @@ Cloud Logging request records returned 1,837 request rows over the observed seve
 |---|---:|---:|---:|---:|
 | `searchflights` | 26 | 284 ms | 2,841 ms | 4,492 ms |
 | `getflightpricecalendar` | 22 | 505 ms | 1,810 ms | 2,254 ms |
-| `linkverifiedphone` | 11 | 778 ms | 4,816 ms | 4,816 ms |
 | `requestservicecancellation` | 13 | 2,236 ms | 4,696 ms | 4,696 ms |
 | `respondservicecancellation` | 14 | 476 ms | 6,944 ms | 6,944 ms |
 | `deletemyaccount` | 6 | 5 ms | 4,464 ms | 4,464 ms |
@@ -111,7 +110,7 @@ Cloud Logging request records returned 1,837 request rows over the observed seve
 
 The seven-day Cloud Run revision query returned the following log-entry counts at severity `ERROR`. These are not deduplicated incidents or unique failed requests:
 
-Two entries each were observed for multiple API functions, including `createaprequest`, `respondapcancellation`, `linkverifiedphone`, `deletemyaccount`, `deleteaprecord`, `requestapcancellation`, `returnapgem`, `searchflights`, `appaymentreceived`, `cancelaprequest`, `appaymentsent`, `respondaprequest`, and `respondservicecancellation`.
+Two entries each were observed for multiple API functions, including `createaprequest`, `respondapcancellation`, `deletemyaccount`, `deleteaprecord`, `requestapcancellation`, `returnapgem`, `searchflights`, `appaymentreceived`, `cancelaprequest`, `appaymentsent`, `respondaprequest`, and `respondservicecancellation`.
 
 The current transaction-abort query returned no matching `ABORTED`/transaction signals. This is evidence from the selected log query only, not proof that no transaction contention exists. No explicit cold-start classification was available in the request log fields; a controlled cold/warm probe is required in Phase 1.
 
@@ -138,7 +137,7 @@ It sends the Firebase ID token, retries after refreshing an expired token on HTT
 
 Observed call sites include:
 
-- Phone verification: `linkVerifiedPhone`.
+- Phone verification profile synchronization: `syncPhoneProfile`.
 - Flights: `searchFlights`, `getFlightPriceCalendar`, `createFlightBookingLink`.
 - Service lifecycle: `requestServiceCancellation`, `respondServiceCancellation`.
 - Account lifecycle: `deleteMyAccount`.

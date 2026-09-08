@@ -1,8 +1,8 @@
 import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
     Linking,
@@ -34,11 +34,11 @@ import {
 } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import {
-  LAPIDARY_SERVICE_OPTIONS,
-  isVerifiedRole,
-  marketTabFromBusinessType,
-  normalizeLapidaryServiceId,
-  type LapidaryServiceId,
+    isVerifiedRole,
+    LAPIDARY_SERVICE_OPTIONS,
+    marketTabFromBusinessType,
+    normalizeLapidaryServiceId,
+    type LapidaryServiceId,
 } from "@/constants/roles";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
 import {
@@ -65,15 +65,14 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import {
-  openProfileLocation,
-  profileLocationLabel,
+    openProfileLocation,
+    profileLocationLabel,
 } from "@/lib/location/profile-location";
 import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { Business, BusinessType, MarketplaceListing } from "@/types";
-import type { LapidaryServiceOffering } from "@/types";
+import type { Business, BusinessType, LapidaryServiceOffering, MarketplaceListing } from "@/types";
 
 function initials(name: string) {
   return name

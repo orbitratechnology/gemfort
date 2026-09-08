@@ -95,7 +95,10 @@ export default function RegisterScreen() {
     try {
       await withLoading(async () => {
         await completePendingSocialRegistration(role!);
-        router.replace("/(auth)/complete-phone");
+        router.replace({
+          pathname: "/(auth)/complete-phone",
+          params: { afterRegistration: "1" },
+        });
       }, "Finishing your account...");
     } catch (error) {
       toast.error(friendlyError(error, "Could not finish creating your account."));
@@ -148,7 +151,10 @@ export default function RegisterScreen() {
           role: data.role,
         });
         if (user) {
-          router.replace("/(auth)/complete-phone");
+          router.replace({
+            pathname: "/(auth)/complete-phone",
+            params: { afterRegistration: "1" },
+          });
         }
       }, "Creating account…");
     } catch (e) {
@@ -169,7 +175,10 @@ export default function RegisterScreen() {
     try {
       await withLoading(async () => {
         await signIn(role);
-        router.replace("/(auth)/complete-phone");
+        router.replace({
+          pathname: "/(auth)/complete-phone",
+          params: { afterRegistration: "1" },
+        });
       }, "Creating account...");
     } catch (error) {
       toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));

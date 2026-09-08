@@ -40,6 +40,17 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
     return 'Too many attempts. Please wait a moment and try again.';
   }
 
+  // App Check protects the API after Firebase Auth succeeds. Surface this
+  // separately so a missing or rejected native token is not misreported as
+  // an invalid OTP.
+  if (
+    code === 'app-check/unavailable' ||
+    hay.includes('app check') ||
+    hay.includes('integrity')
+  ) {
+    return 'This app could not be verified for secure sign-in. Update and try again.';
+  }
+
   // Authentication.
   if (
     code === 'auth/invalid-credential' ||
@@ -58,6 +69,12 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
   }
   if (code === 'auth/requires-recent-login') {
     return 'For security, enter your password again and try once more.';
+  }
+  if (code === 'auth/credential-already-in-use') {
+    return 'That phone number is already linked to another account.';
+  }
+  if (code === 'auth/provider-already-linked' || hay.includes('already been linked to the given provider')) {
+    return 'A phone number is already linked to this account.';
   }
   if (code === 'auth/invalid-verification-code' || code === 'auth/invalid-verification-id') {
     return 'That code is incorrect. Please try again.';

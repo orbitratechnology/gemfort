@@ -96,8 +96,8 @@ type QuickAction = {
 
 const PORTAL_ACTION: QuickAction = {
   id: "certificate-portals",
-  label: "Portals",
-  icon: "open-in-new",
+  label: "Verify",
+  icon: "workspace-premium",
   href: "/verify-certificate-portals",
 };
 

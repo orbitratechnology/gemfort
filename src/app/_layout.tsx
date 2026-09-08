@@ -7,7 +7,7 @@ import { warmUpFirestore } from "@/lib/firebase/init";
 // Side-effect: register background notification task at module load.
 import "@/lib/notifications/rich-display";
 import {
-    formSheetFitContentOptions,
+    formSheetScreenOptions,
     silkStackScreenOptions
 } from "@/navigation/silk-stack-options";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -127,7 +127,7 @@ function RootNavigator() {
       <Stack.Screen
         name="verify-certificate-portals"
         options={{
-          ...formSheetFitContentOptions,
+          ...formSheetScreenOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />

@@ -326,7 +326,7 @@ export default function AccountSettingsScreen() {
             <Button
               title={
                 socialProvider && !hasPasswordProvider
-                  ? `Continue with ${socialProvider === "apple.com" ? "Apple" : "Google"} to delete`
+                  ? `Continue to delete`
                   : "Delete my account"
               }
               icon="delete-forever"

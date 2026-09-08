@@ -27,6 +27,10 @@ export default function AuthLayout() {
         name="onboarding"
         options={{ contentStyle: { backgroundColor: '#000000' } }}
       />
+      <Stack.Screen
+        name="business-onboarding"
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="complete-phone" />

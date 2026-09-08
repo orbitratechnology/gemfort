@@ -1,27 +1,37 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { friendlyError } from "@/lib/errors";
-import { savePhoneForVerification } from "@/lib/firebase/auth-service";
-import { withLoading } from "@/providers/loading-provider";
+import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
 import { useToast } from "@/providers/toast-provider";
 
 export default function CompletePhoneScreen() {
   const toast = useToast();
+  const { afterRegistration } = useLocalSearchParams<{
+    afterRegistration?: string | string[];
+  }>();
   const [phone, setPhone] = useState("");
 
-  async function handleContinue() {
+  function handleContinue() {
     try {
-      await withLoading(async () => {
-        const verifiedPhone = await savePhoneForVerification(phone);
-        router.replace({
-          pathname: "/(auth)/verify-otp",
-          params: { phone: verifiedPhone },
-        });
-      }, "Saving phone number…");
+      const normalizedPhone = normalizePhoneNumber(phone);
+      if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
+        throw new Error("Select your country and enter a valid mobile number.");
+      }
+      const params: { phone: string; afterRegistration?: string } = {
+        phone: normalizedPhone,
+      };
+      const registrationFlow = Array.isArray(afterRegistration)
+        ? afterRegistration[0]
+        : afterRegistration;
+      if (registrationFlow === "1") params.afterRegistration = "1";
+      router.replace({
+        pathname: "/(auth)/verify-otp",
+        params,
+      });
     } catch (error) {
       toast.error(
         friendlyError(error, "Enter a valid mobile number to continue."),
