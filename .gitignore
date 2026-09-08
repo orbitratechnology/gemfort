@@ -35,6 +35,10 @@ yarn-error.*
 .env
 .env*.local
 
+# workspace-scoped CLI configuration
+.firebase-config/
+.gcloud/
+
 # typescript
 *.tsbuildinfo
 
@@ -47,7 +51,14 @@ example
 *.plan.md
 
 /dogfood-output
-/docs
+/docs/*
+!/docs/
+!/docs/phase-0-backend-migration-baseline.md
+!/docs/adr-001-gemfort-api-consolidation.md
+!/docs/phase-1-api-contract.md
+!/docs/phase-2-hono-shell.md
+!/docs/phase-3-client-canary.md
+!/docs/phase-4-app-check-canary.md
 /plan
 
 # Firebase native configuration is supplied to cloud builds through sensitive
@@ -57,5 +68,11 @@ google-services*.json
 GoogleService-Info.plist
 GoogleService-Info*.plist
 
+# Logs
+*.log
 
-.log
+# Artifacts
+*.apk
+
+# Temporary agent media
+.tmp-*

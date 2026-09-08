@@ -273,96 +273,11 @@
       ]
     },
     {
-      "collectionGroup": "certification_requests",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "traderUid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "certification_requests",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "labUid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "lapidary_jobs",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "lapidaryUid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "certificates",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "labUid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "certificates",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "certificateNumber", "order": "ASCENDING" },
-        { "fieldPath": "visibility", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "gem_news",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "publishedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "gem_news",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "region", "order": "ASCENDING" },
-        { "fieldPath": "publishedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "gem_news",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "topics", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "publishedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "gem_news",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "region", "order": "ASCENDING" },
-        { "fieldPath": "topics", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "publishedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "exhibitions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "exhibitions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isVisible", "order": "ASCENDING" },
-        { "fieldPath": "region", "order": "ASCENDING" },
-        { "fieldPath": "startDate", "order": "ASCENDING" }
       ]
     },
     {

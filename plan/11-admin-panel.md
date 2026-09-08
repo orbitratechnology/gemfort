@@ -190,13 +190,11 @@ The admin panel is a web application accessible only to users with the admin rol
   CREATE / EDIT ANNOUNCEMENT
     Type selection:
       📢 Platform Announcement
-      📰 Industry News
       ⭐ Featured Spotlight (select business, auto-generates card)
       💎 New Listing (auto-generated, admin cannot manually create)
 
     Fields by type:
       Platform: Title + Content (200 char max) + Optional CTA link
-      Industry News: Title + Summary + External URL + Image (optional)
       Featured Spotlight: Select business → auto-generates card
 
     Scheduling:

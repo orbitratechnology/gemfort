@@ -25,7 +25,6 @@ import type {
   MarketplaceListing,
   Payable,
   Payment,
-  PublicCertificate,
   Receivable,
   ServiceRecord,
   ServiceRequest,
@@ -803,7 +802,7 @@ export function subscribeListingBySlug(
   };
 }
 
-// ─── Jobs / requests / certificates ─────────────────
+// ─── Jobs / requests ───────────────────────────────
 
 export function subscribeOutgoingServiceRequests(
   traderUid: string,
@@ -854,25 +853,6 @@ export function subscribeLapidaryJobs(
       limit(100),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as LapidaryJob),
-    onData,
-    onError,
-  );
-}
-
-export function subscribeLabCertificates(
-  labUid: string,
-  onData: (rows: PublicCertificate[]) => void,
-  onError?: ErrCb,
-): Unsub {
-  return listenCollection(
-    query(
-      collection(getFirebaseDb(), 'certificates'),
-      where('labUid', '==', labUid),
-      orderBy('createdAt', 'desc'),
-      limit(100),
-    ),
-    (docs) =>
-      docs.map((d) => ({ id: d.id, ...d.data() }) as PublicCertificate),
     onData,
     onError,
   );

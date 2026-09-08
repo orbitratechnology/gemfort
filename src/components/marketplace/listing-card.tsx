@@ -102,19 +102,6 @@ export function ListingCard({
           </Text>
         </View>
 
-        {listing.isCertified ? (
-          <View
-            style={[
-              styles.badge,
-              hasOriginFlag && styles.badgeWithFlag,
-              { backgroundColor: colors.primary },
-            ]}
-          >
-            <Text style={[styles.badgeText, { color: colors.onPrimary }]}>
-              Certified
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       <View style={styles.body}>
@@ -193,23 +180,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
-  },
-  badge: {
-    position: "absolute",
-    bottom: Spacing.sm,
-    left: Spacing.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeWithFlag: {
-    bottom: 26,
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
   },
   body: {
     paddingHorizontal: 10,

@@ -54,6 +54,7 @@ describe('addGemSchema', () => {
     const r = parseForm(addGemSchema, {
       title: 'Lot A blue',
       gemType: 'sapphire',
+      stoneStage: 'rough',
       roughWeight: '3.2',
       acquisitionCost: '150,000',
       originCountry: '',
@@ -78,6 +79,7 @@ describe('addGemSchema', () => {
     const r = parseForm(addGemSchema, {
       title: 'Lot A blue',
       gemType: 'sapphire',
+      stoneStage: 'cut',
       roughWeight: '3.2',
       acquisitionCost: '150,000',
       originCountry: 'Sri Lanka',
@@ -99,6 +101,7 @@ describe('addGemSchema', () => {
     const r = parseForm(addGemSchema, {
       title: 'Lot A blue',
       gemType: 'sapphire',
+      stoneStage: 'rough',
       roughWeight: '0',
       acquisitionCost: '100',
       originCountry: '',
@@ -109,6 +112,41 @@ describe('addGemSchema', () => {
       status: '',
     });
     expect(r.success).toBe(false);
+  });
+
+  it('reports a useful error when the gem state is empty', () => {
+    const r = parseForm(addGemSchema, {
+      title: 'Lot A blue',
+      gemType: 'sapphire',
+      stoneStage: '',
+      roughWeight: '3.2',
+      acquisitionCost: '150,000',
+      originCountry: '',
+      colorPrimary: '',
+      clarity: '',
+      shape: '',
+      treatment: '',
+      status: '',
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.errors.stoneStage).toBe('Choose a gem state');
+  });
+
+  it('allows status to be omitted when the gem is not linked to a trip', () => {
+    const r = parseForm(addGemSchema, {
+      title: 'Lot A blue',
+      gemType: 'sapphire',
+      stoneStage: 'rough',
+      roughWeight: '3.2',
+      acquisitionCost: '150,000',
+      originCountry: '',
+      colorPrimary: '',
+      clarity: '',
+      shape: '',
+      treatment: '',
+      status: undefined,
+    });
+    expect(r.success).toBe(true);
   });
 });
 

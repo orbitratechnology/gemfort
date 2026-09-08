@@ -82,7 +82,6 @@ const gemStatusEnum = z.enum([
   "heated",
   "with_polisher",
   "polished",
-  "certified",
   "ready_for_sale",
   "on_ap",
   "on_trip",
@@ -90,6 +89,14 @@ const gemStatusEnum = z.enum([
   "sold",
   "returned",
 ]);
+
+const gemStoneStageEnum = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.enum(["rough", "cut", "heated", "polished"], {
+    required_error: "Choose a gem state",
+    invalid_type_error: "Choose a gem state",
+  }),
+);
 
 /** Empty string → undefined so optional picker fields stay optional. */
 const optionalTrimmed = z
@@ -104,6 +111,7 @@ export const addGemSchema = z.object({
     .min(1, "Enter a title")
     .max(80, "Title must be 80 characters or less"),
   gemType: z.string().min(1, "Choose a gem type"),
+  stoneStage: gemStoneStageEnum,
   roughWeight: positiveNumber("Weight", 10_000),
   acquisitionCost: positiveNumber("Purchase price"),
   originCountry: optionalTrimmed,
@@ -116,6 +124,7 @@ export const addGemSchema = z.object({
     .pipe(gemTreatmentEnum.optional()),
   status: z
     .string()
+    .optional()
     .transform((v) => (v === "" ? undefined : v))
     .pipe(gemStatusEnum.optional()),
 });
@@ -237,7 +246,6 @@ export const addServiceSchema = z.object({
     "cutting",
     "heating",
     "polishing",
-    "certification",
     "recutting",
     "appraisal",
   ]),
@@ -368,7 +376,7 @@ export const registerSchema = z.object({
     .max(60, "Name is too long"),
   email: z.string().trim().email("Enter a valid email address"),
   password: strongPassword,
-  role: z.enum(["trader", "lapidary", "gem_lab"]),
+  role: z.enum(["trader", "lapidary"]),
 });
 
 export type RegisterForm = z.infer<typeof registerSchema>;

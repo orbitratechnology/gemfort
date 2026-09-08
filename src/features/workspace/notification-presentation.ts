@@ -5,7 +5,6 @@ export function fallbackIconForType(type: string): IconName {
   if (type.startsWith("bill_")) return "receipt-long";
   if (type.startsWith("ap_")) return "handshake";
   if (type.startsWith("service_")) return "handyman";
-  if (type.startsWith("cert_")) return "workspace-premium";
   if (type.startsWith("payment_")) return "payments";
   if (type.startsWith("verification_")) return "verified-user";
   if (type.startsWith("announcement_")) return "campaign";
@@ -37,6 +36,8 @@ export type InboxActionId =
   | "decline_ap"
   | "accept_ap_cancel"
   | "decline_ap_cancel"
+  | "accept_gem_transfer"
+  | "decline_gem_transfer"
   | "view_listing"
   | "view_verify"
   | "view_account";
@@ -173,6 +174,21 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
   ap_return_due_soon: alert("AP", "warning"),
   ap_payment_overdue: alert("AP", "critical"),
 
+  gem_transfer_requested: social(
+    "Gem sale",
+    "sent you a gem transfer request",
+    [
+      { id: "accept_gem_transfer", label: "Accept", variant: "primary" },
+      { id: "decline_gem_transfer", label: "Decline", variant: "destructive" },
+      { id: "open", label: "Details", variant: "ghost" },
+    ],
+    "info",
+    "gem_transfer",
+  ),
+  gem_transfer_accepted: social("Gem sale", "accepted the gem transfer", [OPEN], "success"),
+  gem_transfer_rejected: social("Gem sale", "declined the gem transfer", [OPEN], "warning"),
+  gem_transfer_cancelled: social("Gem sale", "marked the gem unsold", [OPEN], "warning"),
+
   // Cheques / bills / payments
   cheque_maturing_tomorrow: alert("Cheque", "warning"),
   cheque_bounced: alert("Cheque", "critical"),
@@ -213,23 +229,6 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "kept the job open",
     [OPEN],
   ),
-  cert_request_received: social("Certificate", "requested a certificate", [
-    OPEN,
-  ]),
-  cert_request_accepted: social(
-    "Certificate",
-    "accepted your cert request",
-    [OPEN],
-    "success",
-  ),
-  cert_request_rejected: social(
-    "Certificate",
-    "declined your cert request",
-    [OPEN],
-    "warning",
-  ),
-  cert_ready: social("Certificate", "certificate is ready", [OPEN], "success"),
-
   // GemNet
   listing_offer_received: social(
     "Offer",
@@ -238,8 +237,7 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "info",
     "listing_offer",
   ),
-  announcement_platform: media("News"),
-  announcement_industry_news: media("News"),
+  announcement_platform: media("Announcements"),
   verification_approved: system(
     "Verification",
     "success",
@@ -308,11 +306,11 @@ function typeLabelFallback(type: string): string {
   if (type.startsWith("service_")) return "Service";
   if (type.startsWith("payment_")) return "Payment";
   if (type.startsWith("verification_")) return "Verification";
-  if (type.startsWith("announcement_")) return "News";
-  if (type.startsWith("cert_")) return "Certificate";
+  if (type.startsWith("announcement_")) return "Announcements";
   if (type.startsWith("report_")) return "Report";
   if (type.startsWith("account_")) return "Account";
   if (type.startsWith("listing_offer")) return "Offer";
+  if (type.startsWith("gem_transfer_")) return "Gem sale";
   return "Alert";
 }
 

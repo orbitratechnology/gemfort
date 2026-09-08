@@ -4,7 +4,7 @@ import { addDays, format } from "date-fns";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import {
     ActivityIndicator,
     Platform,
@@ -15,6 +15,8 @@ import {
     Text,
     View,
 } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -56,6 +58,13 @@ import { useReduceMotion } from "@/hooks/use-reduce-motion";
 import { friendlyError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useToast } from "@/providers/toast-provider";
+
+/** Gesture-handler ScrollView supported by Keyboard Controller. */
+const GestureScrollView = ScrollView as NonNullable<
+  ComponentProps<typeof KeyboardAwareScrollView>["ScrollViewComponent"]
+>;
+
+const KEYBOARD_TOOLBAR_OFFSET = 62;
 
 type SortMode = "price" | "duration" | "stops";
 type DatePickerTarget = "departure" | "return" | null;
@@ -880,11 +889,13 @@ export default function FlightsScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <Animated.ScrollView
+      <KeyboardAwareScrollView
+        ScrollViewComponent={GestureScrollView}
         style={styles.scroll}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
         refreshControl={
           criteria ? (
             <RefreshControl
@@ -944,7 +955,7 @@ export default function FlightsScreen() {
             setSelected(offer);
           }}
         />
-      </Animated.ScrollView>
+      </KeyboardAwareScrollView>
 
       {datePicker ? (
         <DateTimePicker

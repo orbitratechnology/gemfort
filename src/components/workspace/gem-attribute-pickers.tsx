@@ -23,7 +23,6 @@ import {
     GEM_CUTS,
     GEM_ORIGINS,
     GEM_SHAPES,
-    GEM_STATUS_GROUPS,
     GEM_TREATMENTS,
     GEM_TYPES,
     formatColorLabel,
@@ -880,22 +879,6 @@ export function TreatmentPickerSheet(
 ) {
   return (
     <OptionPickerSheet {...props} title="Treatment" options={GEM_TREATMENTS} />
-  );
-}
-
-export function StatusPickerSheet(
-  props: Omit<OptionPickerSheetProps, "title" | "options">,
-) {
-  // Add-gem only needs stone stage; custody/outcome are set later in flows.
-  const stoneOptions =
-    GEM_STATUS_GROUPS.find((g) => g.key === "stone")?.options ?? [];
-  return (
-    <OptionPickerSheet
-      {...props}
-      title="Stone stage"
-      options={stoneOptions}
-      searchable={false}
-    />
   );
 }
 

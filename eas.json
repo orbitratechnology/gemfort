@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "bun": "1.4.2",
       "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
@@ -16,7 +17,25 @@
         "simulator": true
       }
     },
+    "canary": {
+      "bun": "1.4.2",
+      "extends": "development",
+      "channel": "canary",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi"
+      }
+    },
+    "ap-canary": {
+      "bun": "1.4.2",
+      "extends": "canary",
+      "channel": "ap-canary",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "development"
+      }
+    },
     "preview": {
+      "bun": "1.4.2",
       "environment": "preview",
       "distribution": "internal",
       "channel": "preview",
@@ -28,6 +47,7 @@
       }
     },
     "production": {
+      "bun": "1.4.2",
       "environment": "production",
       "autoIncrement": true,
       "channel": "production",
@@ -36,6 +56,7 @@
       }
     },
     "production-apk": {
+      "bun": "1.4.2",
       "environment": "production",
       "distribution": "internal",
       "channel": "production",

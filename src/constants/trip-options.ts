@@ -28,7 +28,6 @@ export const TRIP_EXPENSE_CATEGORIES: { id: string; label: string; icon: IconNam
   { id: 'mine_visit', label: 'Mine visit', icon: 'terrain' },
   { id: 'communication', label: 'Comms', icon: 'phone' },
   { id: 'shipping', label: 'Shipping', icon: 'local-shipping' },
-  { id: 'exhibition', label: 'Exhibition', icon: 'storefront' },
   { id: 'entertainment', label: 'Entertainment', icon: 'celebration' },
   { id: 'equipment', label: 'Equipment', icon: 'build' },
   { id: 'other', label: 'Other', icon: 'more-horiz' },

@@ -14,6 +14,7 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { CallLogRow } from "@/components/workspace/call-log-row";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     WorkspaceModules,
     type WorkspaceModuleItem,
@@ -31,7 +32,6 @@ import {
   subscribeGems,
   subscribeIncomingServiceRequests,
   subscribeLapidaryJobs,
-  subscribeLabCertificates,
   subscribeServices,
   subscribeTransactions,
   subscribeTrips,
@@ -39,13 +39,12 @@ import {
 } from "@/features/workspace/firestore-subscriptions";
 import {
     fetchIncomingServiceRequests,
-    fetchLabCertificates,
     fetchLapidaryJobs,
 } from "@/features/marketplace/request-service";
 import { isApOngoing } from "@/features/workspace/ap-normalize";
 import {
-  isTerminalOutcome,
   resolveGemLifecycle,
+  resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import {
     detectBillsDueToday,
@@ -277,14 +276,6 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "jobs"),
   });
 
-  const { data: certificates = [] } = useFirestoreLiveQuery({
-    queryKey: ["lab-certificates", userId],
-    queryFn: () => fetchLabCertificates(userId!),
-    subscribe: (onData, onError) =>
-      subscribeLabCertificates(userId!, onData, onError),
-    enabled: !!userId && canAccessModule(role, "certificates"),
-  });
-
   const { data: incomingServiceRequests = [] } = useFirestoreLiveQuery({
     queryKey: ["incoming-service-requests", userId],
     queryFn: () => fetchIncomingServiceRequests(userId!),
@@ -347,7 +338,7 @@ export default function WorkspaceHub() {
   const monthNet = monthIncome - monthExpense;
   // Active inventory (excludes sold / archived terminal outcomes) — matches My Gems list.
   const activeGems = gems.filter(
-    (g) => !isTerminalOutcome(resolveGemLifecycle(g).outcome),
+    (g) => resolveGemSaleStatus(g) !== "sold" && resolveGemLifecycle(g).outcome !== "returned",
   );
   const totalInventoryValue = activeGems.reduce(
     (sum, g) => sum + (g.acquisitionCostBase || g.acquisitionCost || 0),
@@ -359,8 +350,7 @@ export default function WorkspaceHub() {
     return (
       life.stoneStage === "polished" ||
       life.outcome === "listed" ||
-      g.status === "ready_for_sale" ||
-      g.status === "certified"
+      g.status === "ready_for_sale"
     );
   }).length;
   const inService = activeGems.filter((g) => {
@@ -407,14 +397,6 @@ export default function WorkspaceHub() {
       group: "inventory",
     },
     {
-      label: "Certificates",
-      value: certificates.length,
-      icon: "workspace-premium",
-      image: require("@/assets/images/certificate-icon.png"),
-      route: `${WORKSPACE}/certificates`,
-      group: "inventory",
-    },
-    {
       label: "Trips",
       value: activeTrips.length,
       icon: "flight",
@@ -457,8 +439,6 @@ export default function WorkspaceHub() {
 
   const modules = allModules.filter((m) => {
     if (m.label === "Jobs") return canAccessModule(role, "jobs");
-    if (m.label === "Certificates")
-      return canAccessModule(role, "certificates");
     if (m.label === "Gems") return canAccessModule(role, "gems");
     if (m.label === "Services")
       return canAccessModule(role, "services");
@@ -482,23 +462,7 @@ export default function WorkspaceHub() {
     route: string;
     primary?: boolean;
   }[] =
-    role === "gem_lab"
-      ? [
-          {
-            label: "Add certificate",
-            icon: "workspace-premium",
-            image: require("@/assets/images/certificate-icon.png"),
-            route: `${WORKSPACE}/certificates?add=1`,
-            primary: true,
-          },
-          {
-            label: "Verify",
-            icon: "verified",
-            image: require("@/assets/images/certificate-icon.png"),
-            route: "/verify-certificate",
-          },
-        ]
-      : role === "lapidary"
+    role === "lapidary"
         ? [
             {
               label: "Jobs",
@@ -619,43 +583,32 @@ export default function WorkspaceHub() {
   const showNeedsAttention = alerts.length > 0;
   const showGemsHero = canAccessModule(role, "gems");
   const showJobsHero = canAccessModule(role, "jobs");
-  const showCertsHero = canAccessModule(role, "certificates");
 
   const heroTitle = showGemsHero
     ? "Inventory value"
     : showJobsHero
       ? "Workshop jobs"
-      : showCertsHero
-        ? "Certificates published"
-        : "Workspace";
+      : "Workspace";
   const heroValue = showGemsHero
     ? formatBase(totalInventoryValue)
     : showJobsHero
       ? String(jobs.length)
-      : showCertsHero
-        ? String(certificates.length)
-        : formatBase(monthNet);
+      : formatBase(monthNet);
   const heroRoute = showGemsHero
     ? `${WORKSPACE}/gems`
     : showJobsHero
       ? `${WORKSPACE}/jobs`
-      : showCertsHero
-        ? `${WORKSPACE}/certificates`
-        : `${MONEY}`;
+      : `${MONEY}`;
   const heroLink = showGemsHero
     ? "Open inventory"
     : showJobsHero
       ? "Open jobs"
-      : showCertsHero
-        ? "Open certificates"
-        : "Open money";
+      : "Open money";
   const heroIcon: IconName = showGemsHero
     ? "diamond"
     : showJobsHero
       ? "construction"
-      : showCertsHero
-        ? "workspace-premium"
-        : "account-balance-wallet";
+      : "account-balance-wallet";
 
   // Estimate until onLayout (header ~56).
   const topPad =
@@ -787,20 +740,6 @@ export default function WorkspaceHub() {
                     ).length
                   }{" "}
                   pending requests
-                </Text>
-              </View>
-            ) : null}
-            {showCertsHero ? (
-              <View
-                style={[
-                  styles.heroPill,
-                  { backgroundColor: colors.onPrimary + "1A" },
-                ]}
-              >
-                <Text
-                  style={[styles.heroPillText, { color: colors.onPrimary }]}
-                >
-                  Public verification
                 </Text>
               </View>
             ) : null}
@@ -1012,9 +951,12 @@ export default function WorkspaceHub() {
                       },
                     ]}
                   >
-                    <View style={[styles.alertIcon, { backgroundColor: tone.bg }]}>
-                      <Icon name={tone.icon} size={18} color={tone.fg} />
-                    </View>
+                    <GemThumb
+                      uri={j.gemPhotoUrl}
+                      label={j.gemName || "Gem"}
+                      size={40}
+                      radius={12}
+                    />
                     <View style={styles.alertText}>
                       <Text
                         style={[

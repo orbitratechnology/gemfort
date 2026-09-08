@@ -1,23 +1,21 @@
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection } from "@/components/ui/form-section";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Button } from "@/components/ui/button";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
-import {
-  GemPickerSheet,
-  GemSelectField,
-} from "@/components/workspace/gem-picker-sheet";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { GemThumb } from "@/components/workspace/gem-thumb";
+import { GemPickerSheet } from "@/components/workspace/gem-picker-sheet";
+import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import {
   LAPIDARY_SERVICE_OPTIONS,
   isVerifiedRole,
+  normalizeLapidaryServiceId,
   type LapidaryServiceId,
 } from "@/constants/roles";
 import {
@@ -34,6 +32,7 @@ import {
   createServiceRequest,
 } from "@/features/marketplace/request-service";
 import { fetchGems } from "@/features/workspace/workspace-service";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
@@ -44,20 +43,14 @@ import type { WorkspaceGem } from "@/types";
 
 const SERVICE_ICONS: Record<LapidaryServiceId, IconName> = {
   cutting: "content-cut",
-  polishing: "auto-fix-high",
-  shaping: "category",
   heating: "local-fire-department",
-  chemical_treatment: "science",
-  other: "more-horiz",
+  polishing: "auto-fix-high",
 };
 
 const SERVICE_HINTS: Record<LapidaryServiceId, string> = {
   cutting: "Facet or re-cut the stone",
-  polishing: "Finish and bring out luster",
-  shaping: "Shape or preform the rough",
   heating: "Controlled heat treatment",
-  chemical_treatment: "Chemical enhancement",
-  other: "Describe in notes",
+  polishing: "Finish and bring out luster",
 };
 
 function gemDisplayName(gem: WorkspaceGem): string {
@@ -70,25 +63,34 @@ function gemDisplayName(gem: WorkspaceGem): string {
   );
 }
 
+function serviceLabel(id: LapidaryServiceId): string {
+  return LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === id)?.label ?? id;
+}
+
+type RequestStep = "services" | "gem" | "preview";
+const SHEET_TRANSITION_DELAY = Motion.normal + 40;
+
 export default function RequestServiceScreen() {
   const {
     businessId,
     gemId: gemIdParam,
-    mode,
   } = useLocalSearchParams<{
     businessId: string;
     gemId?: string;
-    mode?: "service" | "cert";
   }>();
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
 
+  const [step, setStep] = useState<RequestStep | null>(null);
   const [notes, setNotes] = useState("");
-  const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<LapidaryServiceId[]>([]);
   const [gemId, setGemId] = useState(gemIdParam ?? "");
-  const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const didAutoOpen = useRef(false);
+  const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingStepRef = useRef<RequestStep | null>(null);
 
   const { data: business } = useFirestoreLiveQuery({
     queryKey: ["business", businessId],
@@ -119,20 +121,50 @@ export default function RequestServiceScreen() {
   );
 
   const serviceOptions = useMemo(() => {
-    const offered = business?.providerProfile?.servicesOffered ?? [];
-    if (!offered.length) return [...LAPIDARY_SERVICE_OPTIONS];
-    const filtered = LAPIDARY_SERVICE_OPTIONS.filter((s) =>
-      offered.includes(s.id),
+    const configuredServices = business?.providerProfile?.services;
+    const activeConfiguredValues = (configuredServices ?? [])
+      .filter((service) => service.isActive !== false)
+      .map((service) => service.serviceId || service.name)
+      .map(normalizeLapidaryServiceId)
+      .filter((value): value is LapidaryServiceId => value !== null);
+    const configuredValues =
+      activeConfiguredValues.length > 0
+        ? activeConfiguredValues
+        : business?.providerProfile?.servicesOffered ?? [];
+    const offered = new Set(
+      configuredValues
+        .map(normalizeLapidaryServiceId)
+        .filter((value): value is LapidaryServiceId => value !== null),
     );
-    return filtered.length ? filtered : [...LAPIDARY_SERVICE_OPTIONS];
-  }, [business?.providerProfile?.servicesOffered]);
+    return LAPIDARY_SERVICE_OPTIONS.filter((option) => offered.has(option.id));
+  }, [business?.providerProfile?.services, business?.providerProfile?.servicesOffered]);
+
+  useEffect(() => {
+    setServiceTypes((previous) =>
+      previous.filter((id) => serviceOptions.some((option) => option.id === id)),
+    );
+  }, [serviceOptions]);
+
+  useEffect(() => {
+    if (
+      user &&
+      business &&
+      isVerifiedRole(profile, "trader") &&
+      !didAutoOpen.current
+    ) {
+      didAutoOpen.current = true;
+      setStep("services");
+    }
+  }, [business, profile, user]);
+
+  useEffect(
+    () => () => {
+      if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    },
+    [],
+  );
 
   if (!user) return <Redirect href="/(auth)/login" />;
-
-  // Certification is verified on GemFort against lab uploads — not requested from labs.
-  if (mode === "cert") {
-    return <Redirect href="/verify-certificate" />;
-  }
 
   if (!isVerifiedRole(profile, "trader")) {
     return (
@@ -159,9 +191,11 @@ export default function RequestServiceScreen() {
     });
   }
 
-  function toggleService(id: string) {
+  function toggleService(serviceId: LapidaryServiceId) {
     setServiceTypes((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      prev.includes(serviceId)
+        ? prev.filter((x) => x !== serviceId)
+        : [...prev, serviceId],
     );
     clearField("serviceTypes");
   }
@@ -169,7 +203,45 @@ export default function RequestServiceScreen() {
   function selectGem(gem: WorkspaceGem) {
     setGemId(gem.id);
     clearField("gemId");
-    setGemSheetOpen(false);
+    pendingStepRef.current = "preview";
+    setStep(null);
+    queueStep("preview");
+  }
+
+  function handleSheetClose() {
+    const next = pendingStepRef.current;
+    pendingStepRef.current = null;
+    setStep(null);
+    if (next) {
+      queueStep(next);
+      return;
+    }
+    router.back();
+  }
+
+  function transitionAfterClose(next: RequestStep) {
+    pendingStepRef.current = next;
+    setStep(null);
+    queueStep(next);
+  }
+
+  function queueStep(next: RequestStep) {
+    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    transitionTimer.current = setTimeout(() => {
+      transitionTimer.current = null;
+      pendingStepRef.current = null;
+      setStep(next);
+    }, SHEET_TRANSITION_DELAY);
+  }
+
+  function continueServices() {
+    if (serviceTypes.length === 0) {
+      setErrors({ serviceTypes: "Select at least one service" });
+      toast.error("Select at least one service");
+      return;
+    }
+    clearField("serviceTypes");
+    transitionAfterClose("gem");
   }
 
   async function submit() {
@@ -185,6 +257,7 @@ export default function RequestServiceScreen() {
       return;
     }
     setErrors({});
+    setSubmitting(true);
     try {
       await withLoading(async () => {
         const gemName = gemDisplayName(gem!);
@@ -195,6 +268,7 @@ export default function RequestServiceScreen() {
           lapidaryBusinessId: business.id,
           gemId: gem!.id,
           gemName,
+          gemPhotoUrl: gemPrimaryPhotoUrl(gem),
           serviceTypes,
           notes,
         });
@@ -202,7 +276,12 @@ export default function RequestServiceScreen() {
           recipientUid: business.ownerUid,
           type: "service_request_received",
           title: "New service request",
-          message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes.join(", ")} for ${gemName}.`,
+          message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes
+            .map((id) =>
+              LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === id)?.label ??
+              id,
+            )
+            .join(", ")} for ${gemName}.`,
           referenceType: "service_request",
           referenceId: id,
         });
@@ -211,6 +290,8 @@ export default function RequestServiceScreen() {
       }, "Sending request…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not send request."));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -220,69 +301,25 @@ export default function RequestServiceScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
+      style={styles.safe}
       edges={["top"]}
     >
-      <StackHeader title="Request service" />
-      <ThemedScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <FormSection title="Workshop">
-          <View
-            style={[
-              styles.workshopCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.outlineVariant,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.workshopIcon,
-                { backgroundColor: colors.primaryContainer },
-              ]}
-            >
-              <Icon
-                name="handyman"
-                size={22}
-                color={colors.onPrimaryContainer}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                style={[styles.workshopName, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {business?.businessName ?? "Lapidary"}
-              </Text>
-              {placeLine ? (
-                <Text
-                  style={[styles.workshopMeta, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {placeLine}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        </FormSection>
-
-        <FormSection title="Gem" hint="Choose the stone to send for work">
-          <GemSelectField
-            label="Your gem"
-            gem={selectedGem}
-            placeholder="Select from inventory"
-            onPress={() => setGemSheetOpen(true)}
-            error={errors.gemId}
+      <BottomSheet
+        visible={step === "services"}
+        onClose={handleSheetClose}
+        title="Choose services"
+        footer={
+          <Button
+            title={serviceOptions.length ? "Continue" : "No services available"}
+            onPress={continueServices}
+            disabled={serviceTypes.length === 0 || serviceOptions.length === 0}
           />
-        </FormSection>
-
-        <FormSection
-          title="Services"
-          hint="Select one or more services for this job"
-        >
+        }
+      >
+        <Text style={[styles.sheetIntro, { color: colors.textMuted }]}>
+          Select the services this workshop has published. You can choose more than one.
+        </Text>
+        {serviceOptions.length > 0 ? (
           <View style={styles.serviceList}>
             {serviceOptions.map((s) => {
               const active = serviceTypes.includes(s.id);
@@ -324,20 +361,12 @@ export default function RequestServiceScreen() {
                       color={active ? colors.onPrimary : colors.onSurfaceVariant}
                     />
                   </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text
-                      style={[
-                        styles.serviceLabel,
-                        { color: colors.onSurface },
-                      ]}
-                    >
+                  <View style={styles.serviceBody}>
+                    <Text style={[styles.serviceLabel, { color: colors.onSurface }]}>
                       {s.label}
                     </Text>
                     <Text
-                      style={[
-                        styles.serviceHint,
-                        { color: colors.textMuted },
-                      ]}
+                      style={[styles.serviceHint, { color: colors.textMuted }]}
                       numberOfLines={1}
                     >
                       {SERVICE_HINTS[s.id]}
@@ -352,66 +381,157 @@ export default function RequestServiceScreen() {
               );
             })}
           </View>
-          {errors.serviceTypes ? (
-            <Text style={[styles.fieldError, { color: colors.error }]}>
-              {errors.serviceTypes}
+        ) : (
+          <View style={styles.emptyServices}>
+            <Icon name="handyman" size={30} color={colors.outlineVariant} />
+            <Text style={[styles.emptyServicesTitle, { color: colors.onSurface }]}>
+              No services published
             </Text>
-          ) : null}
-        </FormSection>
-
-        <FormSection title="Notes">
-          <Input
-            label="Notes for the workshop"
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Optional instructions, timing, preferences…"
-            leftIcon="notes"
-            multiline
-          />
-        </FormSection>
-      </ThemedScrollView>
-
-      <FormFooter
-        title="Send request"
-        onPress={submit}
-        icon="send"
-      />
+            <Text style={[styles.emptyServicesHint, { color: colors.textMuted }]}>
+              This lapidary has not selected Cut, Heat, or Polish in their profile yet.
+            </Text>
+          </View>
+        )}
+        {errors.serviceTypes ? (
+          <Text style={[styles.fieldError, { color: colors.error }]}>
+            {errors.serviceTypes}
+          </Text>
+        ) : null}
+      </BottomSheet>
 
       <GemPickerSheet
-        visible={gemSheetOpen}
-        onClose={() => setGemSheetOpen(false)}
+        visible={step === "gem"}
+        onClose={handleSheetClose}
         gems={gems}
         value={gemId}
         title="Select gem"
         emptyHint="Add a gem in Workspace first."
         onSelect={selectGem}
       />
+
+      <BottomSheet
+        visible={step === "preview"}
+        onClose={handleSheetClose}
+        title="Review request"
+        footer={
+          <Button
+            title="Send request"
+            icon="send"
+            onPress={submit}
+            loading={submitting}
+            disabled={!selectedGem || serviceTypes.length === 0}
+          />
+        }
+      >
+        <View style={styles.previewBlock}>
+          <Text style={[styles.previewLabel, { color: colors.textMuted }]}>Workshop</Text>
+          <View
+            style={[
+              styles.previewCard,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant,
+              },
+            ]}
+          >
+            <Icon name="handyman" size={22} color={colors.primary} />
+            <View style={styles.previewBody}>
+              <Text style={[styles.workshopName, { color: colors.onSurface }]}>
+                {business?.businessName ?? "Lapidary"}
+              </Text>
+              {placeLine ? (
+                <Text style={[styles.workshopMeta, { color: colors.textMuted }]}>
+                  {placeLine}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.previewBlock}>
+          <View style={styles.previewHeader}>
+            <Text style={[styles.previewLabel, { color: colors.textMuted }]}>Services</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Change services"
+              onPress={() => transitionAfterClose("services")}
+            >
+              <Text style={[styles.stepAction, { color: colors.primary }]}>Change</Text>
+            </Pressable>
+          </View>
+          <View style={styles.chipRow}>
+            {serviceTypes.map((id) => (
+              <View
+                key={id}
+                style={[styles.summaryChip, { backgroundColor: colors.primaryContainer }]}
+              >
+                <Icon name={SERVICE_ICONS[id]} size={16} color={colors.primary} />
+                <Text style={[styles.summaryChipText, { color: colors.onPrimaryContainer }]}>
+                  {serviceLabel(id)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.previewBlock}>
+          <View style={styles.previewHeader}>
+            <Text style={[styles.previewLabel, { color: colors.textMuted }]}>Gem</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Change gem"
+              onPress={() => transitionAfterClose("gem")}
+            >
+              <Text style={[styles.stepAction, { color: colors.primary }]}>Change</Text>
+            </Pressable>
+          </View>
+          <View
+            style={[
+              styles.previewCard,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant,
+              },
+            ]}
+          >
+            <GemThumb
+              uri={gemPrimaryPhotoUrl(selectedGem)}
+              label={selectedGem ? gemDisplayName(selectedGem) : "Gem"}
+              size={56}
+              radius={14}
+            />
+            <View style={styles.previewBody}>
+              <Text style={[styles.workshopName, { color: colors.onSurface }]}>
+                {selectedGem ? gemDisplayName(selectedGem) : "Select a gem"}
+              </Text>
+              {selectedGem ? (
+                <Text style={[styles.workshopMeta, { color: colors.textMuted }]}>
+                  {formatGemType(selectedGem.gemType)} · {selectedGem.currentWeight} ct
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        <Input
+          label="Notes for the workshop"
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Optional instructions, timing, preferences…"
+          leftIcon="notes"
+          multiline
+        />
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  content: { paddingBottom: Spacing.xxl, gap: Spacing.md },
-  workshopCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  workshopIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  safe: { flex: 1, backgroundColor: "transparent" },
   workshopName: { ...Typography.bodyLg, fontWeight: "700" },
   workshopMeta: { ...Typography.caption },
+  stepAction: { ...Typography.labelMd, fontWeight: "700" },
+  sheetIntro: { ...Typography.bodyMd, lineHeight: 20 },
   serviceList: { gap: Spacing.sm },
   serviceRow: {
     flexDirection: "row",
@@ -432,5 +552,44 @@ const styles = StyleSheet.create({
   },
   serviceLabel: { ...Typography.bodyMd, fontWeight: "600" },
   serviceHint: { ...Typography.caption },
+  serviceBody: { flex: 1, minWidth: 0, gap: 2 },
   fieldError: { ...Typography.caption, marginTop: Spacing.xs },
+  emptyServices: {
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+  },
+  emptyServicesTitle: { ...Typography.bodyMd, fontWeight: "700" },
+  emptyServicesHint: { ...Typography.bodySmall, textAlign: "center" },
+  previewBlock: { gap: Spacing.sm },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  previewLabel: {
+    ...Typography.caption,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  previewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
+  },
+  previewBody: { flex: 1, minWidth: 0, gap: 2 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.xs },
+  summaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+  },
+  summaryChipText: { ...Typography.labelMd, fontWeight: "700" },
 });

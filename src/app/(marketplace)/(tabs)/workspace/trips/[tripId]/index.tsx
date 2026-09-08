@@ -46,7 +46,6 @@ import {
     fetchTrip,
     fetchTripExpenses,
     fetchTripGems,
-    recordTripGemSale,
     updateTripBudget,
     updateTripStatus,
 } from "@/features/workspace/workspace-service";
@@ -188,37 +187,12 @@ export default function TripDetailScreen() {
     });
   }
 
-  async function handleConfirmSale(
-    tripGem: { id: string; gemId: string },
-    price: number,
-  ) {
-    if (!user || !trip) return;
-    if (!price || price <= 0) {
-      toast.error("Enter a valid sale price.");
-      throw new Error("Invalid sale price");
-    }
-    try {
-      await withLoading(async () => {
-        await recordTripGemSale(
-          user.uid,
-          trip.id,
-          tripGem.id,
-          tripGem.gemId,
-          price,
-        );
-        await queryClient.invalidateQueries({
-          queryKey: ["trip-gems", tripId],
-        });
-        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
-        await queryClient.invalidateQueries({ queryKey: ["trips"] });
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        toast.success("Sale recorded on trip.");
-      }, "Recording sale…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not record sale."));
-      throw e;
-    }
+  function handleRequestSale(tripGem: { id: string; gemId: string }) {
+    if (!trip) return;
+    setGemsOpen(false);
+    router.push(
+      `/(marketplace)/(tabs)/workspace/gems/${encodeURIComponent(tripGem.gemId)}?sell=1&tripId=${encodeURIComponent(trip.id)}&tripGemId=${encodeURIComponent(tripGem.id)}` as never,
+    );
   }
 
   if (isLoading || !trip || !summary) {
@@ -434,7 +408,7 @@ export default function TripDetailScreen() {
         onOpenGem={(gemId) =>
           router.push(`/(marketplace)/(tabs)/workspace/gems/${gemId}` as never)
         }
-        onConfirmSale={handleConfirmSale}
+        onRequestSale={handleRequestSale}
         showAddGem={isSourcing}
         showAddGems={isSelling}
         onAddGem={() => router.push(sheets.addGem as never)}

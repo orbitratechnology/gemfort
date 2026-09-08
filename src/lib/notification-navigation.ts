@@ -77,6 +77,10 @@ export function navigateFromNotificationRef(
     go('/notifications' as Href, options);
     return;
   }
+  if (type === 'gem_transfer') {
+    go('/notifications' as Href, options);
+    return;
+  }
   if (type === 'account') {
     go('/(marketplace)/profile' as Href, options);
     return;

@@ -1,15 +1,12 @@
 import {
     businessTypeFromRole,
+    LAPIDARY_SERVICE_OPTIONS,
     marketTabFromBusinessType,
+    normalizeLapidaryServiceId,
     normalizeUserRole,
     ROLE_LABELS,
 } from "@/constants/roles";
-import {
-    defaultLabCertificateOfferings,
-    reportTypesFromOfferings,
-    sanitizeLabCertificateOfferings,
-} from "@/features/marketplace/lab-certificate-offerings";
-import { convertToBase } from "@/lib/exchange-rates";
+import { callApi } from "@/lib/api/api-client";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import {
     collection,
@@ -36,17 +33,16 @@ import type {
     Business,
     BusinessType,
     FraudReportType,
-  LabCertificateOffering,
-  LapidaryServiceOffering,
-    ListingOffer,
-    MarketplaceListing,
-    UserRole,
+    LapidaryServiceOffering,
+  ListingOffer,
+  MarketplaceListing,
+  ProfileLocation,
+  UserRole,
 } from "@/types";
 
 export type MarketBusinessFilter =
   | "trader"
   | "lapidary"
-  | "gem_lab"
   | "seller"
   | "provider";
 
@@ -104,13 +100,6 @@ export function filterBusinesses(
       (b) =>
         marketTabFromBusinessType(b.businessType) === "lapidaries" ||
         b.providerProfile != null,
-    );
-  }
-  if (filters?.businessType === "gem_lab") {
-    result = result.filter(
-      (b) =>
-        marketTabFromBusinessType(b.businessType) === "labs" ||
-        b.labProfile != null,
     );
   }
   if (filters?.city) {
@@ -233,6 +222,7 @@ export async function createBusinessProfile(
     whatsapp?: string;
     phone?: string;
     address?: string;
+    location?: ProfileLocation | null;
     socialLinks?: {
       website?: string;
       instagram?: string;
@@ -252,6 +242,7 @@ export async function createBusinessProfile(
       city: input.city,
       country: input.country,
       address: input.address,
+      location: input.location,
       whatsapp: input.whatsapp,
       phone: input.phone,
       socialLinks: input.socialLinks,
@@ -268,7 +259,6 @@ export async function createBusinessProfile(
         : input.businessType;
   const isTrader = type === "trader";
   const isLapidary = type === "lapidary";
-  const isLab = type === "gem_lab";
   const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
   const ph = normalizePhoneForStorage(input.phone) ?? "";
   const id = queueDocCreate("businesses", {
@@ -287,6 +277,7 @@ export async function createBusinessProfile(
     district: "Kalutara",
     province: "Western",
     country: input.country?.trim() || "Sri Lanka",
+    location: input.location ?? null,
     verificationStatus: "none",
     verificationTier: "none",
     badges: {
@@ -318,18 +309,6 @@ export async function createBusinessProfile(
           isAcceptingOrders: true,
           portfolioCount: 0,
         }
-      : null,
-    labProfile: isLab
-      ? (() => {
-          const certificateOfferings = defaultLabCertificateOfferings();
-          return {
-            accreditations: [],
-            reportTypes: reportTypesFromOfferings(certificateOfferings),
-            certificateOfferings,
-            isAcceptingOrders: true,
-            certificatesIssued: 0,
-          };
-        })()
       : null,
     contacts: {
       whatsapp: { value: wa, isVisible: !!wa },
@@ -370,6 +349,7 @@ export async function updateBusinessProfile(
     city?: string;
     country?: string;
     address?: string;
+    location?: ProfileLocation | null;
     whatsapp?: string;
     phone?: string;
     logoUrl?: string | null;
@@ -381,9 +361,7 @@ export async function updateBusinessProfile(
       facebook?: string;
       wechat?: string;
     };
-    /** Gem Lab certificate menu (prices + active tiers). */
-    certificateOfferings?: LabCertificateOffering[];
-    /** Public fixed-price service menu for a lapidary. */
+    /** Public service types for a lapidary; pricing is optional per type. */
     lapidaryServiceOfferings?: LapidaryServiceOffering[];
     /** Business gallery photos (works, work samples, showroom, business photos). */
     galleryPhotos?: Business["galleryPhotos"];
@@ -397,6 +375,7 @@ export async function updateBusinessProfile(
   if (data.city !== undefined) updates.city = data.city.trim();
   if (data.country !== undefined) updates.country = data.country.trim();
   if (data.address !== undefined) updates.address = data.address.trim();
+  if (data.location !== undefined) updates.location = data.location;
   if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl;
   if (data.coverPhotoUrl !== undefined)
     updates.coverPhotoUrl = data.coverPhotoUrl;
@@ -417,34 +396,48 @@ export async function updateBusinessProfile(
       wechat: data.socialLinks.wechat?.trim() ?? "",
     };
   }
-  if (data.certificateOfferings !== undefined) {
-    const certificateOfferings = sanitizeLabCertificateOfferings(
-      data.certificateOfferings,
-    );
-    updates["labProfile.certificateOfferings"] = certificateOfferings;
-    updates["labProfile.reportTypes"] =
-      reportTypesFromOfferings(certificateOfferings);
-  }
   if (data.lapidaryServiceOfferings !== undefined) {
+    const seenServiceIds = new Set<string>();
     const services = data.lapidaryServiceOfferings
       .slice(0, 20)
-      .map((service) => ({
-        serviceId: service.serviceId.trim(),
-        name: service.name.trim().slice(0, 80),
-        description: service.description.trim().slice(0, 500),
-        pricingType: "fixed" as const,
-        priceMin: Math.max(0, Number(service.priceMin) || 0),
-        priceMax: Math.max(0, Number(service.priceMax) || 0),
-        currency: service.currency.trim().toUpperCase().slice(0, 8) || "LKR",
-        turnaroundDaysMin: Math.max(0, Number(service.turnaroundDaysMin) || 0),
-        turnaroundDaysMax: Math.max(0, Number(service.turnaroundDaysMax) || 0),
-        isActive: service.isActive !== false,
-      }))
-      .filter((service) => service.serviceId && service.name);
+      .flatMap((service) => {
+        const serviceId =
+          normalizeLapidaryServiceId(service.serviceId) ??
+          normalizeLapidaryServiceId(service.name);
+        if (!serviceId || seenServiceIds.has(serviceId)) return [];
+        seenServiceIds.add(serviceId);
+        const option = LAPIDARY_SERVICE_OPTIONS.find((item) => item.id === serviceId)!;
+        const priceMin =
+          service.priceMin == null
+            ? null
+            : Math.max(0, Number(service.priceMin));
+        const priceMax =
+          service.priceMax == null
+            ? priceMin
+            : Math.max(0, Number(service.priceMax));
+        const hasPrice =
+          priceMin != null && Number.isFinite(priceMin) &&
+          priceMax != null && Number.isFinite(priceMax);
+
+        return [{
+          serviceId,
+          name: option.label,
+          description: "",
+          pricingType: hasPrice ? ("fixed" as const) : ("optional" as const),
+          priceMin: hasPrice ? priceMin : null,
+          priceMax: hasPrice ? priceMax : null,
+          currency: hasPrice
+            ? service.currency?.trim().toUpperCase().slice(0, 8) || "LKR"
+            : null,
+          turnaroundDaysMin: Math.max(0, Number(service.turnaroundDaysMin) || 0),
+          turnaroundDaysMax: Math.max(0, Number(service.turnaroundDaysMax) || 0),
+          isActive: service.isActive !== false,
+        }];
+      });
     updates["providerProfile.services"] = services;
     updates["providerProfile.servicesOffered"] = services
       .filter((service) => service.isActive)
-      .map((service) => service.name);
+      .map((service) => service.serviceId);
   }
   if (data.galleryPhotos !== undefined) {
     updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);
@@ -551,7 +544,6 @@ export function demoBusinesses(filters?: {
         preferredCurrencies: ["LKR", "USD"],
       },
       providerProfile: null,
-      labProfile: null,
       analytics: {
         profileViewsTotal: 0,
         listingViewsTotal: 0,
@@ -574,43 +566,6 @@ export function demoBusinesses(filters?: {
         gemSpecializations: ["blue_sapphire"],
         isAcceptingOrders: true,
         portfolioCount: 12,
-      },
-      labProfile: null,
-      analytics: {
-        profileViewsTotal: 0,
-        listingViewsTotal: 0,
-        whatsappTapsTotal: 0,
-        phoneTapsTotal: 0,
-      },
-    },
-    {
-      ...base,
-      id: "demo-lab-1",
-      businessType: "gem_lab",
-      businessName: "Ceylon Gem Lab",
-      ownerName: "Demo Lab",
-      shortDescription: "Independent gem reports",
-      city: "Colombo",
-      sellerProfile: null,
-      providerProfile: null,
-      labProfile: {
-        accreditations: ["NGJA"],
-        reportTypes: ["standard_photo_certificate", "gem_brief_memo"],
-        certificateOfferings: defaultLabCertificateOfferings().map((o) => ({
-          ...o,
-          isActive:
-            o.id === "standard_photo_certificate" || o.id === "gem_brief_memo",
-          price:
-            o.id === "gem_brief_memo"
-              ? 3500
-              : o.id === "standard_photo_certificate"
-                ? 8500
-                : o.id === "advanced_origin_certificate"
-                  ? 18000
-                  : 22000,
-        })),
-        isAcceptingOrders: true,
-        certificatesIssued: 120,
       },
       analytics: {
         profileViewsTotal: 0,
@@ -692,9 +647,6 @@ export function demoListings(): MarketplaceListing[] {
     visibility: "public" as const,
     clarity: "VS",
     shape: "Oval",
-    isCertified: true,
-    certifyingLab: "GIA",
-    certificateNumber: null,
     showPrice: true,
     currency: "USD",
     status: "active" as const,
@@ -836,16 +788,6 @@ export const LISTING_OFFER_LIMITS = {
   submitDebounceMs: 1500,
 } as const;
 
-function offerCreatedAtMs(offer: ListingOffer): number {
-  const raw = offer.createdAt as
-    | { toMillis?: () => number; seconds?: number }
-    | null
-    | undefined;
-  if (raw && typeof raw.toMillis === "function") return raw.toMillis();
-  if (raw && typeof raw.seconds === "number") return raw.seconds * 1000;
-  return 0;
-}
-
 export function isListingOfferUnread(offer: ListingOffer): boolean {
   return (
     offer.status === "pending" &&
@@ -917,73 +859,48 @@ export async function submitListingOffer(input: {
     throw new Error("You cannot offer on your own listing.");
   }
 
-  const existing = await fetchBuyerOffersForListing(
-    input.buyerUid,
-    input.listing.id,
-  );
-  const pending = existing.find((o) => o.status === "pending");
-  if (pending) {
-    throw new Error(
-      "You already have a pending offer on this gem. Withdraw it first to send a new one.",
-    );
-  }
-
-  const cooldownMs =
-    LISTING_OFFER_LIMITS.cooldownHoursPerListing * 60 * 60 * 1000;
-  const recentSame = existing.find((o) => {
-    if (o.status !== "withdrawn" && o.status !== "declined") return false;
-    return Date.now() - offerCreatedAtMs(o) < cooldownMs;
-  });
-  if (recentSame) {
-    throw new Error(
-      `Wait ${LISTING_OFFER_LIMITS.cooldownHoursPerListing} hours after withdrawing before offering on this gem again.`,
-    );
-  }
-
-  const dayAgo = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
-  const dayQ = query(
-    collection(getFirebaseDb(), "listing_offers"),
-    where("buyerUid", "==", input.buyerUid),
-    where("createdAt", ">=", dayAgo),
-    orderBy("createdAt", "desc"),
-    limit(LISTING_OFFER_LIMITS.maxOffersPerDay + 1),
-  );
-  const daySnap = await getDocs(dayQ);
-  if (daySnap.size >= LISTING_OFFER_LIMITS.maxOffersPerDay) {
-    throw new Error(
-      `Offer limit reached (${LISTING_OFFER_LIMITS.maxOffersPerDay} per day). Try again tomorrow.`,
-    );
-  }
-
-  const amountBase = await convertToBase(amount, input.currency);
   const message = input.message?.trim() || null;
-  const now = serverTimestamp();
   const biz = input.buyerBusiness;
+  const result = await callApi<
+    { offerId: string },
+    {
+      amount: number;
+      currency: string;
+      buyerName: string;
+      buyerBusiness: {
+        id: string;
+        businessName: string;
+        logoUrl: string | null;
+        country: string;
+      } | null;
+      message: string | null;
+    }
+  >(
+    `/v1/listings/${encodeURIComponent(input.listing.id)}/offers`,
+    {
+      amount,
+      currency: input.currency,
+      buyerName: input.buyerName.trim() || "Buyer",
+      buyerBusiness: biz
+        ? {
+            id: biz.id,
+            businessName: biz.businessName?.trim() || "",
+            logoUrl: biz.logoUrl ?? null,
+            country: biz.country?.trim() || "",
+          }
+        : null,
+      message,
+    },
+    {
+      retryAuthOn401: true,
+      idempotencyKey: `mobile-listing-offer-${encodeURIComponent(input.listing.id)}-${Date.now().toString(36)}`.slice(
+        0,
+        128,
+      ),
+    },
+  );
 
-  const id = queueDocCreate("listing_offers", {
-    listingId: input.listing.id,
-    listingSlug: input.listing.shareableSlug,
-    listingTitle: input.listing.title,
-    sellerUid: input.listing.sellerUid,
-    businessId: input.listing.businessId,
-    buyerUid: input.buyerUid,
-    buyerName: input.buyerName.trim() || "Buyer",
-    buyerBusinessId: biz?.id ?? null,
-    buyerBusinessName: biz?.businessName?.trim() || null,
-    buyerLogoUrl: biz?.logoUrl ?? null,
-    buyerCountry: biz?.country?.trim() || null,
-    amount,
-    currency: input.currency,
-    amountBase,
-    message,
-    status: "pending" satisfies ListingOffer["status"],
-    sellerCleared: false,
-    sellerReadAt: null,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return id;
+  return result.offerId;
 }
 
 export async function withdrawListingOffer(offerId: string): Promise<void> {

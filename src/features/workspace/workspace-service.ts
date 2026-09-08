@@ -7,7 +7,9 @@ import {
 import { isApOngoing } from "@/features/workspace/ap-normalize";
 import {
   applyLifecyclePatch,
+  canListGem,
   derivePrimaryStatus,
+  gemActionAvailability,
   isGemStoneStage,
   isTerminalOutcome,
   patchFromFlatStatus,
@@ -69,6 +71,15 @@ import type {
 
 // ─── Gems ───────────────────────────────────────────
 
+function locationForCustody(custody: GemLifecycle["custody"]): string | null {
+  if (custody === "on_ap") return "AP";
+  if (custody === "on_trip") return "Trip";
+  if (custody === "with_cutter" || custody === "with_heater" || custody === "with_polisher") {
+    return "Lapidary";
+  }
+  return null;
+}
+
 export async function fetchGems(ownerUid: string): Promise<WorkspaceGem[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_gems"),
@@ -102,7 +113,7 @@ export async function createGem(
     input.status ?? (input.roughWeight > 0 ? "rough" : "ready_for_sale");
   const stoneStage = isGemStoneStage(status)
     ? status
-    : status === "certified" || status === "ready_for_sale"
+    : status === "ready_for_sale"
       ? "polished"
       : "rough";
   const lifecycle = resolveGemLifecycle({
@@ -153,7 +164,7 @@ export async function createGem(
     stoneStage: lifecycle.stoneStage,
     custody: lifecycle.custody,
     outcome: lifecycle.outcome,
-    currentLocation: null,
+    currentLocation: locationForCustody(lifecycle.custody),
     currentHolderContactId: null,
     totalCost: acquisitionCostBase,
     totalCostCurrency: "LKR",
@@ -167,9 +178,21 @@ export async function createGem(
     soldPriceCurrency: null,
     soldPriceBase: null,
     soldDate: null,
+    saleTransferRequestId: null,
+    saleStatus: "unsold",
+    soldToUid: null,
+    soldToBusinessId: null,
+    soldToContactId: null,
+    soldToName: null,
+    salePaymentMethod: null,
+    acquiredFromUid: null,
+    acquiredFromName: null,
+    acquiredAt: null,
+    lastSaleRequestId: null,
+    lastSoldPrice: null,
+    lastSoldPriceCurrency: null,
+    lastSalePaymentMethod: null,
     photoUrls: input.photoUrls ?? [],
-    certificateUrl: input.certificateUrl ?? null,
-    certificateFileName: input.certificateFileName ?? null,
     isListedOnMarketplace: false,
     marketplaceListingId: null,
     notes: input.notes ?? null,
@@ -223,8 +246,6 @@ export type UpdateGemDetailsInput = {
   isNatural: boolean;
   treatmentStatus: string;
   photoUrls: string[];
-  certificateUrl: string | null;
-  certificateFileName: string | null;
 };
 
 /** Persist photo URLs after a late/background upload finishes. */
@@ -277,8 +298,6 @@ export async function updateGemDetails(
     isNatural: input.isNatural,
     treatmentStatus: input.treatmentStatus,
     photoUrls: input.photoUrls,
-    certificateUrl: input.certificateUrl,
-    certificateFileName: input.certificateFileName,
     updatedAt: serverTimestamp(),
   });
 
@@ -288,9 +307,6 @@ export async function updateGemDetails(
   ) {
     queueDocUpdate("gems", gem.marketplaceListingId, {
       photoUrls: input.photoUrls,
-      certificateUrl: input.certificateUrl,
-      certificateFileName: input.certificateFileName,
-      isCertified: Boolean(input.certificateUrl),
       updatedAt: serverTimestamp(),
     });
   }
@@ -359,6 +375,9 @@ export async function updateGemLifecycle(
     status: primary,
     updatedAt: now,
   };
+  if (patch.custody !== undefined) {
+    updates.currentLocation = locationForCustody(next.custody);
+  }
 
   if (next.outcome === "listed") {
     updates.isListedOnMarketplace = true;
@@ -537,6 +556,23 @@ export async function createService(
     | "resultNotes"
   >,
 ) {
+  const gem = await fetchGem(input.gemId);
+  if (!gem || gem.ownerUid !== ownerUid) {
+    throw new Error("Gem not found in your inventory.");
+  }
+  const available = gemActionAvailability(gem);
+  const canStart =
+    input.serviceType === "cutting"
+      ? available.send_for_cutting
+      : input.serviceType === "heating" || input.serviceType === "heat_treatment"
+        ? available.send_for_heating
+        : input.serviceType === "polishing"
+          ? available.send_for_polishing
+          : available.give_on_ap;
+  if (!canStart) {
+    throw new Error("This gem is not available for that service right now.");
+  }
+
   const now = Timestamp.now();
   const id = queueDocCreate("gemtrack_services", {
     ...input,
@@ -555,10 +591,16 @@ export async function createService(
     createdAt: now,
     updatedAt: now,
   });
+  const serviceCustody: GemStatus =
+    input.serviceType === "heating" || input.serviceType === "heat_treatment"
+      ? "with_heater"
+      : input.serviceType === "polishing"
+        ? "with_polisher"
+        : "with_cutter";
   void updateGemStatus(
     input.gemId,
     ownerUid,
-    "with_cutter",
+    serviceCustody,
     `Sent for ${input.serviceType}`,
   );
   return id;
@@ -621,6 +663,9 @@ export async function completeService(
       currentWeight: input.weightAfter,
       totalCost: newTotal,
       status: newStatus,
+      stoneStage: newStatus,
+      custody: null,
+      currentLocation: null,
       updatedAt: now,
     });
     queueDocCreate("gemtrack_gem_costs", {
@@ -1542,10 +1587,10 @@ export async function updateBill(
 }
 
 export async function updateBillStatus(billId: string, status: BillStatus) {
-  queueDocUpdate("gemtrack_bills", billId, {
-      status,
-      updatedAt: serverTimestamp(),
-    });
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_bills", billId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function deleteBill(billId: string, ownerUid: string) {
@@ -1559,8 +1604,10 @@ export async function deleteBill(billId: string, ownerUid: string) {
       where("billId", "==", billId),
     ),
   );
-  for (const d of paymentsSnap.docs) forgetSync(deleteDoc(d.ref));
-  queueDocDelete("gemtrack_bills", billId);
+  const batch = db.batch();
+  for (const d of paymentsSnap.docs) batch.delete(d.ref);
+  batch.delete(doc(db, "gemtrack_bills", billId));
+  await batch.commit();
 }
 
 export async function recordBillPayment(
@@ -1575,85 +1622,95 @@ export async function recordBillPayment(
   },
 ) {
   if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
-  const ref = doc(getFirebaseDb(), "gemtrack_bills", billId);
+  const db = getFirebaseDb();
+  const ref = doc(db, "gemtrack_bills", billId);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Bill not found");
-  const data = snap.data() as Bill;
-  if (data.ownerUid !== ownerUid) throw new Error("Bill not found");
-  if (data.status === "cancelled" || data.status === "paid") {
+  const initialData = snap.data() as Bill;
+  if (initialData.ownerUid !== ownerUid) throw new Error("Bill not found");
+  if (initialData.status === "cancelled" || initialData.status === "paid") {
     throw new Error("Bill cannot accept payment");
   }
 
-  const remaining = Math.round((data.amount - data.amountSettled) * 100) / 100;
-  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
-    throw new Error(
-      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
-    );
-  }
-
-  const newSettled = Math.min(
-    data.amount,
-    data.amountSettled + paymentAmount,
-  );
-  const status: BillStatus =
-    newSettled >= data.amount
-      ? "paid"
-      : newSettled > 0
-        ? "partial"
-        : data.jobId
-          ? "ongoing"
-          : "open";
   const now = Timestamp.now();
-  const currency = options?.currency ?? data.currency ?? "LKR";
+  const currency = options?.currency ?? initialData.currency ?? "LKR";
   const commission =
-    data.commissionPercent != null && data.commissionPercent > 0
-      ? Math.round(paymentAmount * (data.commissionPercent / 100) * 100) / 100
+    initialData.commissionPercent != null && initialData.commissionPercent > 0
+      ? Math.round(paymentAmount * (initialData.commissionPercent / 100) * 100) /
+        100
       : 0;
-  const primaryGemId =
-    data.gemId ??
-    (Array.isArray(data.gemIds) && data.gemIds.length > 0
-      ? data.gemIds[0]
-      : null);
-  const noteLabel = data.notes?.trim() || "Bill";
-
-  forgetSync(
-    updateDoc(ref, {
-      amountSettled: newSettled,
-      status,
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  const isReceivable = data.direction === "receivable";
   // The commission is a bill/payment metadata concept (your withheld cut or the
   // counterparty's), not a separate cash flow — matching the AP model where the
   // full sale is booked and the commission is tracked on the record only. Booking
   // the gross here keeps the ledger reconciled with the recorded payment amount.
   const principalBase = await convertToBase(paymentAmount, currency);
-  const txnId = await createTransaction(ownerUid, {
-    type: isReceivable ? "income" : "expense",
-    amount: paymentAmount,
-    currency,
-    amountBase: principalBase,
-    category: isReceivable ? "other_income" : "other_expense",
-    description: isReceivable
-      ? `Bill received: ${noteLabel}`
-      : `Bill paid: ${noteLabel}`,
-    gemId: primaryGemId,
-    contactId: data.counterpartyContactId,
-    sourceType: "bill",
-    sourceId: billId,
-    receiptUrl: options?.receiptUrl ?? null,
-    date: now,
-  });
+  const txnRef = doc(collection(db, "gemtrack_transactions"));
+  const paymentRef = doc(collection(db, "gemtrack_payments"));
 
-  const settlementBase = principalBase;
-  queueDocCreate("gemtrack_payments", {
+  await db.runTransaction(async (transaction) => {
+    const currentSnap = await transaction.get(ref);
+    if (!currentSnap.exists()) throw new Error("Bill not found");
+    const data = currentSnap.data() as Bill;
+    if (data.ownerUid !== ownerUid) throw new Error("Bill not found");
+    if (data.status === "cancelled" || data.status === "paid") {
+      throw new Error("Bill cannot accept payment");
+    }
+
+    const amountSettled = Number(data.amountSettled ?? 0);
+    const remaining = Math.round((data.amount - amountSettled) * 100) / 100;
+    if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
+      throw new Error(
+        `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+      );
+    }
+
+    const newSettled = Math.min(data.amount, amountSettled + paymentAmount);
+    const status: BillStatus =
+      newSettled >= data.amount
+        ? "paid"
+        : newSettled > 0
+          ? "partial"
+          : data.jobId
+            ? "ongoing"
+            : "open";
+    const isReceivable = data.direction === "receivable";
+    const primaryGemId =
+      data.gemId ??
+      (Array.isArray(data.gemIds) && data.gemIds.length > 0
+        ? data.gemIds[0]
+        : null);
+    const noteLabel = data.notes?.trim() || "Bill";
+    const txnId = txnRef.id;
+
+    transaction.update(ref, {
+      amountSettled: newSettled,
+      status,
+      updatedAt: now,
+    });
+    transaction.set(txnRef, {
+      ownerUid,
+      type: isReceivable ? "income" : "expense",
+      amount: paymentAmount,
+      currency,
+      amountBase: principalBase,
+      category: isReceivable ? "other_income" : "other_expense",
+      description: isReceivable
+        ? `Bill received: ${noteLabel}`
+        : `Bill paid: ${noteLabel}`,
+      gemId: primaryGemId,
+      contactId: data.counterpartyContactId,
+      sourceType: "bill",
+      sourceId: billId,
+      receiptUrl: options?.receiptUrl ?? null,
+      date: now,
+      createdAt: now,
+    });
+    transaction.set(paymentRef, {
       ownerUid,
       direction: isReceivable ? "in" : "out",
       amount: paymentAmount,
       currency,
-      amountBase: settlementBase,
+      amountBase: principalBase,
       paymentMethod: options?.paymentMethod ?? null,
       commission: commission > 0 ? commission : null,
       receivableId: null,
@@ -1669,6 +1726,7 @@ export async function recordBillPayment(
       paymentDate: now,
       createdAt: now,
     });
+  });
 }
 
 // ─── Cheques ──────────────────────────────────────
@@ -1815,7 +1873,7 @@ export async function updateChequeStatus(
   if (status === "replaced" && extra?.replacementChequeId) {
     updates.replacementChequeId = extra.replacementChequeId;
   }
-  queueDocUpdate("gemtrack_cheques", chequeId, updates);
+  await updateDoc(doc(getFirebaseDb(), "gemtrack_cheques", chequeId), updates);
 }
 
 export async function deleteCheque(chequeId: string, ownerUid: string) {
@@ -2079,6 +2137,7 @@ export async function createGemOnSourcingTrip(
   const gem = await createGem(ownerUid, {
     ...input,
     status: "on_trip",
+    custody: "on_trip",
     notes: input.notes ?? "Purchased on trip",
   });
 
@@ -2105,6 +2164,28 @@ export async function addGemsToSellingTrip(
   tripId: string,
   gemIds: string[],
 ): Promise<void> {
+  const existingTripGems = await fetchTripGems(tripId, ownerUid);
+  const existingIds = new Set(existingTripGems.map((tripGem) => tripGem.gemId));
+  const requestedIds = new Set<string>();
+  const gems = await Promise.all(gemIds.map((gemId) => fetchGem(gemId)));
+  for (let index = 0; index < gemIds.length; index += 1) {
+    const gem = gems[index];
+    const gemId = gemIds[index]!;
+    if (!gem || gem.ownerUid !== ownerUid) {
+      throw new Error("One or more selected gems are not in your inventory.");
+    }
+    if (existingIds.has(gemId)) {
+      throw new Error("One or more selected gems are already on this trip.");
+    }
+    if (requestedIds.has(gemId)) {
+      throw new Error("A gem cannot be added to the same trip twice.");
+    }
+    requestedIds.add(gemId);
+    if (!gemActionAvailability(gem).add_to_trip) {
+      throw new Error("Only available gems can be added to a selling trip.");
+    }
+  }
+
   const now = Timestamp.now();
   for (const gemId of gemIds) {
     queueDocCreate("gemtrack_trip_gems", {
@@ -2126,41 +2207,6 @@ export async function addGemsToSellingTrip(
       "Added to selling trip parcel",
     );
   }
-  void refreshTripSummary(tripId, ownerUid);
-}
-
-export async function recordTripGemSale(
-  ownerUid: string,
-  tripId: string,
-  tripGemId: string,
-  gemId: string,
-  salePrice: number,
-): Promise<void> {
-  const now = Timestamp.now();
-  queueDocUpdate("gemtrack_trip_gems", tripGemId, {
-      salePrice,
-      saleDate: now,
-      status: "sold",
-      updatedAt: serverTimestamp(),
-    });
-  void updateGemStatus(
-    gemId,
-    ownerUid,
-    "sold",
-    `Sold on trip for ${salePrice}`,
-  );
-  void createTransaction(ownerUid, {
-    type: "income",
-    amount: salePrice,
-    currency: "LKR",
-    category: "gem_sale",
-    description: "Sale during selling trip",
-    gemId,
-    contactId: null,
-    sourceType: "trip",
-    sourceId: tripId,
-    date: now,
-  });
   void refreshTripSummary(tripId, ownerUid);
 }
 
@@ -2292,6 +2338,13 @@ export async function createListing(
         ...gemSnap.data(),
       } as import("@/types").WorkspaceGem;
       const life = resolveGemLifecycle(gemData);
+      if (!canListGem(gemData)) {
+        throw new Error(
+          life.custody
+            ? "This gem is currently away from your account. Complete or return its active placement first."
+            : "This gem is already on Market or is not available for listing.",
+        );
+      }
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"
@@ -2389,6 +2442,17 @@ export async function createListing(
         outcome: gem.outcome ?? null,
         isListedOnMarketplace: Boolean(gem.isListedOnMarketplace),
       });
+      const gemForListing = {
+        id: workspaceGemId,
+        ...gem,
+      } as import("@/types").WorkspaceGem;
+      if (!canListGem(gemForListing)) {
+        throw new Error(
+          life.custody
+            ? "This gem is currently away from your account. Complete or return its active placement first."
+            : "This gem is already on Market or is not available for listing.",
+        );
+      }
       if (isTerminalOutcome(life.outcome)) {
         throw new Error(
           life.outcome === "sold"

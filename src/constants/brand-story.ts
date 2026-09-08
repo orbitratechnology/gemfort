@@ -13,12 +13,11 @@ export const Brand = {
 export type OnboardingChapterId =
   | "welcome"
   | "lapidaries"
-  | "labs"
   | "workspace"
   | "roles";
 
 export type OnboardingRoleCue = {
-  id: "trader" | "lapidary" | "gem_lab";
+  id: "trader" | "lapidary";
   label: string;
   subtitle: string;
   icon: "storefront" | "handyman" | "workspace-premium";
@@ -49,12 +48,6 @@ export const OnboardingChapters: readonly OnboardingChapter[] = [
     cta: "Continue",
   },
   {
-    id: "labs",
-    title: "Gem labs, certificates & verification",
-    body: "Issue reports, manage certificate work, and let anyone verify a stone by report number — trust that travels with the gem.",
-    cta: "Continue",
-  },
-  {
     id: "workspace",
     title: "Cheques, bills, AP, inventory & trips",
     body: "GemTrack keeps post-dated cheques, bills, stones on approval, inventory, and sourcing trips clear — so you always know where stones and money are.",
@@ -63,7 +56,7 @@ export const OnboardingChapters: readonly OnboardingChapter[] = [
   {
     id: "roles",
     title: "GemFort. By Orbitra Tech",
-    subtitle: "Traders, Lapidaries & Labs.",
+    subtitle: "Traders & Lapidaries.",
     body: "Choose your role when you create an account. Or browse the market as a guest.",
     cta: "Create account",
     roles: [
@@ -78,12 +71,6 @@ export const OnboardingChapters: readonly OnboardingChapter[] = [
         label: "Lapidary",
         subtitle: "Jobs, cutting & polish",
         icon: "handyman",
-      },
-      {
-        id: "gem_lab",
-        label: "Gem Lab",
-        subtitle: "Reports, certificates & verification",
-        icon: "workspace-premium",
       },
     ],
   },

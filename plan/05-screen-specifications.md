@@ -42,13 +42,6 @@
     Price display
     [View Listing button]  [WhatsApp button]
 
-  Industry News Card
-    GemNet logo
-    📰 label
-    Headline (max 80 characters)
-    Short summary (max 120 characters)
-    [Read More →] link to external URL
-
   Platform Announcement Card
     GemNet logo
     📢 label
@@ -64,7 +57,6 @@
     New listing cards auto-appear when seller publishes public listing
     Featured cards show for the duration of the paid placement
     Cards do not have like, comment, or share functionality
-    External news links open in in-app browser
 ```
 
 ---

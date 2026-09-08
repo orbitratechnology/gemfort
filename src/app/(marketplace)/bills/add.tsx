@@ -28,6 +28,7 @@ import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     GemPickerSheet,
     GemSelectField,
@@ -40,6 +41,7 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { resolveProfileRole } from "@/constants/roles";
 import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
     billCommissionAmount,
     billNetAfterCommission,
@@ -53,7 +55,6 @@ import {
     createBill,
     fetchContacts,
     fetchGems,
-    updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -103,19 +104,15 @@ export default function AddBillScreen() {
     notes?: string;
     jobId?: string;
     gemId?: string;
-    markSold?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
   const paramNotes = decodeShareParam(raw.notes);
   const paramJobId = firstParam(raw.jobId);
   const paramGemId = firstParam(raw.gemId);
-  const markSold = firstParam(raw.markSold) === "1";
 
   const presetDirection: BillDirection | null = isLapidary
     ? "receivable"
-    : markSold
-      ? "receivable"
-      : null;
+    : null;
 
   const [step, setStep] = useState(presetDirection ? 1 : 0);
   const [direction, setDirection] = useState<BillDirection | null>(
@@ -274,34 +271,11 @@ export default function AddBillScreen() {
           jobId: isLapidary ? jobId || null : null,
           status: isLapidary ? "ongoing" : "open",
         });
-        if (markSold && paramGemId && !isLapidary) {
-          // Same offline rule: do not await server ACK on gem update.
-          void updateGemLifecycle(
-            paramGemId,
-            user.uid,
-            { outcome: "sold" },
-            `Sold on bill`,
-            {
-              soldPrice: result.data.amount,
-              soldPriceCurrency: money.currency,
-            },
-          ).catch(() => {
-            toast.error(
-              "Bill saved, but gem sold status may still be syncing.",
-            );
-          });
-          void queryClient.invalidateQueries({ queryKey: ["gems"] });
-          void queryClient.invalidateQueries({
-            queryKey: ["gem", paramGemId],
-          });
-        }
         void queryClient.invalidateQueries({ queryKey: ["bills"] });
         toast.success(
-          markSold
-            ? "Bill saved · gem marked sold"
-            : isLapidary
-              ? "Bill started — ongoing until due date"
-              : "Bill saved",
+          isLapidary
+            ? "Bill started — ongoing until due date"
+            : "Bill saved",
         );
         replaceWithAnchor(
           `/(marketplace)/(tabs)/workspace/bills/${id}` as never,
@@ -378,6 +352,16 @@ export default function AddBillScreen() {
                     ]}
                   >
                     <View style={styles.gemHeader}>
+                      <GemThumb
+                        uri={gemPrimaryPhotoUrl(gem)}
+                        label={
+                          gem.variety?.trim() ||
+                          formatGemType(gem.gemType) ||
+                          "Gem"
+                        }
+                        size={52}
+                        radius={12}
+                      />
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text
                           style={[styles.gemTitle, { color: colors.onSurface }]}

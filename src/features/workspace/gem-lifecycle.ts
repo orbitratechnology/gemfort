@@ -1,6 +1,7 @@
 import type {
   GemCustody,
   GemOutcome,
+  GemSaleStatus,
   GemStatus,
   GemStoneStage,
   WorkspaceGem,
@@ -49,6 +50,20 @@ export type GemLifecycle = {
   outcome: GemOutcome | null;
 };
 
+export function resolveGemSaleStatus(
+  gem: Pick<WorkspaceGem, "outcome" | "saleTransferRequestId" | "saleStatus">,
+): GemSaleStatus {
+  if (gem.saleStatus === "pending" || gem.saleTransferRequestId) return "pending";
+  if (gem.saleStatus === "sold" || gem.outcome === "sold") return "sold";
+  return "unsold";
+}
+
+export function isGemSalePending(
+  gem: Pick<WorkspaceGem, "outcome" | "saleTransferRequestId" | "saleStatus">,
+): boolean {
+  return resolveGemSaleStatus(gem) === "pending";
+}
+
 /** Derive three independent axes from new fields or legacy single `status`. */
 export function resolveGemLifecycle(
   gem: Pick<
@@ -63,17 +78,15 @@ export function resolveGemLifecycle(
       ? gem.stoneStage
       : isGemStoneStage(legacy)
         ? legacy
-        : legacy === "certified" || legacy === "ready_for_sale"
+        : legacy === "ready_for_sale"
           ? "polished"
           : "rough";
 
   let custody: GemCustody | null =
-    gem.custody === undefined
-      ? isGemCustody(legacy)
+    gem.custody && isGemCustody(gem.custody)
+      ? gem.custody
+      : isGemCustody(legacy)
         ? legacy
-        : null
-      : gem.custody && isGemCustody(gem.custody)
-        ? gem.custody
         : null;
 
   let outcome: GemOutcome | null =
@@ -151,7 +164,7 @@ export function patchFromFlatStatus(status: GemStatus): {
   if (isGemStoneStage(status)) return { stoneStage: status };
   if (isGemCustody(status)) return { custody: status };
   if (isGemOutcome(status)) return { outcome: status };
-  if (status === "certified" || status === "ready_for_sale") {
+  if (status === "ready_for_sale") {
     return { stoneStage: "polished" };
   }
   return {};
@@ -190,8 +203,56 @@ export function canListGem(
   >,
 ): boolean {
   const life = resolveGemLifecycle(gem);
+  if (life.custody) return false;
   if (isTerminalOutcome(life.outcome)) return false;
   if (life.outcome === "listed" || gem.isListedOnMarketplace) return false;
-  if (life.stoneStage === "rough") return false;
   return true;
+}
+
+export type GemAction =
+  | "send_for_cutting"
+  | "send_for_heating"
+  | "send_for_polishing"
+  | "give_on_ap"
+  | "add_to_trip"
+  | "list_on_market"
+  | "remove_from_market"
+  | "mark_sold"
+  | "mark_unsold";
+
+/**
+ * Actions are derived from custody and sale state. A caller can still choose
+ * a different service type, but cannot bypass a locked AP/trip/service or a
+ * pending ownership transfer by writing a flat status.
+ */
+export function gemActionAvailability(gem: WorkspaceGem): Record<GemAction, boolean> {
+  const life = resolveGemLifecycle(gem);
+  const saleStatus = resolveGemSaleStatus(gem);
+  const isWithOwner = life.custody == null;
+  const isSaleActive = saleStatus !== "sold" && !isTerminalOutcome(life.outcome);
+  const isSalePending = saleStatus === "pending";
+  const isMarketListed =
+    life.outcome === "listed" || gem.isListedOnMarketplace === true;
+  const canMoveIntoCustody =
+    isWithOwner && isSaleActive && !isSalePending && !isMarketListed;
+
+  return {
+    send_for_cutting:
+      canMoveIntoCustody && life.stoneStage === "rough",
+    send_for_heating:
+      canMoveIntoCustody && life.stoneStage === "cut",
+    send_for_polishing:
+      canMoveIntoCustody && life.stoneStage === "heated",
+    give_on_ap:
+      canMoveIntoCustody,
+    add_to_trip:
+      canMoveIntoCustody,
+    list_on_market:
+      isWithOwner && isSaleActive && !isSalePending && canListGem(gem),
+    remove_from_market:
+      isSaleActive && Boolean(gem.isListedOnMarketplace || life.outcome === "listed"),
+    mark_sold:
+      isWithOwner && saleStatus === "unsold" && !isTerminalOutcome(life.outcome),
+    mark_unsold: isSalePending,
+  };
 }

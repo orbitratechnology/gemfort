@@ -3,7 +3,10 @@ import * as logger from 'firebase-functions/logger';
 
 import { db } from '../admin';
 import { REGION } from '../config';
-import { createNotificationDoc, formatCurrency } from '../notifications/create';
+import {
+  ensureDeterministicNotificationDoc,
+  formatCurrency,
+} from '../notifications/create';
 
 /** Notify the listing owner when a buyer submits a price offer. */
 export const onListingOfferCreated = onDocumentCreated(
@@ -33,7 +36,7 @@ export const onListingOfferCreated = onDocumentCreated(
       }
     }
 
-    const id = await createNotificationDoc({
+    const id = await ensureDeterministicNotificationDoc({
       recipientUid: data.sellerUid,
       type: 'listing_offer_received',
       title: 'New offer received',
@@ -44,6 +47,7 @@ export const onListingOfferCreated = onDocumentCreated(
       actorName: buyerName,
       actorPhotoUrl: data.buyerLogoUrl ? String(data.buyerLogoUrl) : null,
       imageUrl: listingImage,
+      dedupeKey: `listing-offer:${event.params.offerId}`,
     });
 
     logger.info('listing_offer_received notified', {

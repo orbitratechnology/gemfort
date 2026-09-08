@@ -13,15 +13,22 @@ const mockQueueDocUpdate = jest.fn();
 const mockQueueDocDelete = jest.fn();
 const mockQueueDocSet = jest.fn();
 const mockForgetSync = jest.fn();
+const mockTransactionSet = jest.fn();
+const mockTransactionUpdate = jest.fn();
+const mockRunTransaction = jest.fn();
+const mockDb = { runTransaction: mockRunTransaction };
 
 jest.mock('@/lib/firebase/config', () => ({
   getFirebaseAuth: jest.fn(() => ({ currentUser: { uid: 'owner-1' } })),
-  getFirebaseDb: jest.fn(() => ({})),
+  getFirebaseDb: jest.fn(() => mockDb),
 }));
 
 jest.mock('@/lib/firebase/db', () => ({
   collection: jest.fn((_db, name) => ({ name })),
-  doc: jest.fn((_db, _name, id) => ({ id })),
+  doc: jest.fn((dbOrCollection, name, id) => ({
+    id: id ?? `${dbOrCollection.name ?? name}-1`,
+    collection: id == null ? dbOrCollection.name : name,
+  })),
   getDoc: jest.fn(),
   getDocs: jest.fn(),
   updateDoc: jest.fn(),
@@ -93,8 +100,8 @@ function mockSnap(data: Record<string, unknown>) {
 }
 
 function txns(): Array<{ collection: string; data: Record<string, unknown> }> {
-  return mockQueueDocCreate.mock.calls
-    .map(([collection, data]) => ({ collection, data }))
+  return mockTransactionSet.mock.calls
+    .map(([ref, data]) => ({ collection: ref.collection, data }))
     .filter((c) => c.collection === 'gemtrack_transactions');
 }
 
@@ -102,6 +109,14 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockQueueDocCreate.mockImplementation((_collection: string) => 'doc-1');
   mockForgetSync.mockImplementation((p: unknown) => p);
+  mockRunTransaction.mockImplementation(
+    async (callback: (transaction: unknown) => Promise<unknown>) =>
+      callback({
+        get: (ref: unknown) => getDoc(ref),
+        set: mockTransactionSet,
+        update: mockTransactionUpdate,
+      }),
+  );
 });
 
 describe('bill commission double-count', () => {
@@ -156,8 +171,8 @@ describe('bill commission double-count', () => {
       paymentMethod: 'cash',
     });
 
-    const payment = mockQueueDocCreate.mock.calls.find(
-      ([c]) => c === 'gemtrack_payments',
+    const payment = mockTransactionSet.mock.calls.find(
+      ([ref]) => ref.collection === 'gemtrack_payments',
     );
     expect(payment).toBeDefined();
     expect(payment![1].amount).toBe(1000);

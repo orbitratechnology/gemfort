@@ -18,7 +18,7 @@ import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen
 import { GemCard } from "@/components/workspace/gem-card";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { filterGems } from "@/features/workspace/gem-utils";
-import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
+import { resolveGemLifecycle, resolveGemSaleStatus } from "@/features/workspace/gem-lifecycle";
 import { subscribeGems } from "@/features/workspace/firestore-subscriptions";
 import { fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -51,7 +51,7 @@ export default function GemsArchiveScreen() {
     });
     if (tab === "sold") {
       rows = rows.filter(
-        (g) => resolveGemLifecycle(g).outcome === "sold",
+        (g) => resolveGemSaleStatus(g) === "sold",
       );
     } else if (tab === "returned") {
       rows = rows.filter(

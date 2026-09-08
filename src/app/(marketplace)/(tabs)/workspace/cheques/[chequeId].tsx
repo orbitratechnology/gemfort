@@ -211,15 +211,20 @@ export default function ChequeDetailScreen() {
         cancelLabel: "No",
         icon: "cancel",
         onConfirm: async () => {
-          await updateChequeStatus(cheque.id, "cancelled");
-          await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-          await queryClient.invalidateQueries({
-            queryKey: ["cheque", chequeId],
-          });
-          await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          toast.success(
-            `Cheque marked as ${CHEQUE_STATUS_LABELS.cancelled.toLowerCase()}.`,
-          );
+          try {
+            await updateChequeStatus(cheque.id, "cancelled");
+            await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+            await queryClient.invalidateQueries({
+              queryKey: ["cheque", chequeId],
+            });
+            await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+            toast.success(
+              `Cheque marked as ${CHEQUE_STATUS_LABELS.cancelled.toLowerCase()}.`,
+            );
+          } catch (error) {
+            toast.error(friendlyError(error, "Could not cancel cheque."));
+            throw error;
+          }
         },
       });
       return;

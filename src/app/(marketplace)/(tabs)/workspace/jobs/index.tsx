@@ -323,18 +323,30 @@ export default function LapidaryJobsScreen() {
                         { backgroundColor: colors.surfaceContainerLowest },
                       ]}
                     >
-                      <Text
-                        style={[styles.title, { color: colors.onSurface }]}
-                        numberOfLines={1}
-                      >
-                        {r.gemName}
-                      </Text>
-                      <Text style={[styles.sub, { color: colors.textMuted }]}>
-                        {r.serviceTypes
-                          .map((t) => t.replace(/_/g, " "))
-                          .join(", ")}
-                        {r.notes ? ` · ${r.notes}` : ""}
-                      </Text>
+                      <View style={styles.requestGemRow}>
+                        <GemThumb
+                          uri={r.gemPhotoUrl}
+                          label={r.gemName || "Gem"}
+                          size={48}
+                          radius={10}
+                        />
+                        <View style={styles.requestGemBody}>
+                          <Text
+                            style={[styles.title, { color: colors.onSurface }]}
+                            numberOfLines={1}
+                          >
+                            {r.gemName}
+                          </Text>
+                          <Text
+                            style={[styles.sub, { color: colors.textMuted }]}
+                          >
+                            {r.serviceTypes
+                              .map((t) => t.replace(/_/g, " "))
+                              .join(", ")}
+                            {r.notes ? ` · ${r.notes}` : ""}
+                          </Text>
+                        </View>
+                      </View>
                       <View style={styles.row}>
                         <Button
                           title="Accept"
@@ -492,7 +504,7 @@ export default function LapidaryJobsScreen() {
                 <View style={styles.mediaCol}>
                   <View style={styles.mediaStack}>
                     <GemThumb
-                      uri={null}
+                      uri={j.gemPhotoUrl}
                       label={j.gemName}
                       size={56}
                       radius={12}
@@ -605,6 +617,12 @@ const styles = StyleSheet.create({
   title: { ...Typography.headlineSmMobile, fontWeight: "700" },
   sub: { ...Typography.caption },
   row: { flexDirection: "row", gap: Spacing.stackSm, marginTop: Spacing.stackSm },
+  requestGemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  requestGemBody: { flex: 1, minWidth: 0, gap: 4 },
 
   searchBox: {
     flexDirection: "row",

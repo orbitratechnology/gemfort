@@ -1,5 +1,7 @@
 import { FontFamily } from "@/constants/design-tokens";
+import { NetworkStatusIndicator } from "@/components/ui/network-status-indicator";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { initializeFirebaseAppCheck } from "@/lib/firebase/app-check";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { warmUpFirestore } from "@/lib/firebase/init";
 // Side-effect: register background notification task at module load.
@@ -115,16 +117,13 @@ function RootNavigator() {
       <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
       <Stack.Screen
         name="request/[businessId]"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen name="handle-share" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="verify-certificate"
         options={{
-          ...formSheetFitContentOptions,
-          contentStyle: { backgroundColor: colors.background },
+          headerShown: false,
+          presentation: "transparentModal",
+          contentStyle: { backgroundColor: "transparent" },
         }}
       />
+      <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen
         name="verify-certificate-portals"
         options={{
@@ -132,7 +131,6 @@ function RootNavigator() {
           contentStyle: { backgroundColor: colors.background },
         }}
       />
-      <Stack.Screen name="news/index" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -151,7 +149,9 @@ export default function RootLayout() {
     if (!isFirebaseConfigured) return;
 
     let cancelled = false;
-    void warmUpFirestore()
+    void initializeFirebaseAppCheck()
+      .catch(() => undefined)
+      .then(() => warmUpFirestore())
       .catch(() => undefined)
       .finally(() => {
         if (!cancelled) setFirebaseReady(true);
@@ -185,6 +185,7 @@ export default function RootLayout() {
                       <PushNotificationRegistrar />
                       <QuickActionsRegistrar />
                       <RootNavigator />
+                      <NetworkStatusIndicator />
                       <KeyboardToolbar />
                     </BiometricLockProvider>
                   </AuthProvider>

@@ -209,7 +209,7 @@ export function popularityScore(b: Business): number {
 
 export function popularByRole(
   businesses: Business[],
-  role: 'traders' | 'labs' | 'lapidaries',
+  role: 'traders' | 'lapidaries',
   limit = 6,
 ): Business[] {
   return businesses

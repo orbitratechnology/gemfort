@@ -1,4 +1,4 @@
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 
 import { db, messaging } from '../admin';
 import { resolvePushMedia } from './resolve-media';
@@ -53,7 +53,9 @@ export async function sendPushForNotification(
     | 'actorName'
     | 'actorPhotoUrl'
     | 'imageUrl'
-  >,
+  > & {
+    notificationId?: string;
+  },
 ): Promise<{
   sent: boolean;
   media: {
@@ -90,6 +92,7 @@ export async function sendPushForNotification(
 
   // All data values must be strings for FCM.
   const data: Record<string, string> = {
+    notificationId: notification.notificationId ?? '',
     title: notification.title,
     body: notification.message,
     type: String(notification.type),

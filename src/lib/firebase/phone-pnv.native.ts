@@ -5,7 +5,7 @@ import {
 } from '@react-native-firebase/phone-number-verification';
 import { Platform } from 'react-native';
 
-import { callFunction } from '@/lib/firebase/call-function';
+import { callApi } from '@/lib/api/api-client';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 
 const TEST_SESSION = process.env.EXPO_PUBLIC_PNV_TEST_SESSION;
@@ -107,9 +107,13 @@ async function runPnvAttempt(
     }
   }
 
-  const { phoneNumber } = await callFunction<{ phoneNumber: string }, { token: string }>(
-    'linkVerifiedPhone',
+  const { phoneNumber } = await callApi<{ phoneNumber: string }, { token: string }>(
+    '/v1/auth/phone/link',
     { token: result.token },
+    {
+      retryAuthOn401: true,
+      idempotencyKey: `mobile-phone-link-${Date.now().toString(36)}`.slice(0, 128),
+    },
   );
   return { status: 'verified', phoneNumber };
 }

@@ -23,7 +23,6 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
   heat_treatment_fee: { label: 'Treatment', icon: 'local-fire-department' },
   chemical_treatment_fee: { label: 'Treatment', icon: 'science' },
   polishing_fee: { label: 'Polishing', icon: 'auto-awesome' },
-  lab_certification_fee: { label: 'Certification', icon: 'verified' },
   trip_expense: { label: 'Trips', icon: 'flight' },
   transport: { label: 'Transport', icon: 'local-shipping' },
   insurance: { label: 'Insurance', icon: 'shield' },

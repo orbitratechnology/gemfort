@@ -296,7 +296,7 @@
 {
   id:                     string,
   type:                   string,
-  // "platform" | "industry_news" | "featured_spotlight" | "new_listing"
+  // "platform" | "featured_spotlight" | "new_listing"
   title:                  string,
   content:                string | null,
   externalUrl:            string | null,
@@ -732,7 +732,7 @@
   category:               string,
   // "flight" | "accommodation" | "food" | "transport"
   // "guide_fee" | "mine_visit" | "communication" | "medical"
-  // "shipping" | "exhibition" | "entertainment" | "equipment" | "other"
+  // "shipping" | "entertainment" | "equipment" | "other"
   description:            string | null,
   amount:                 number,
   currency:               string,

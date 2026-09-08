@@ -4,13 +4,11 @@ import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
     Pressable,
     StyleSheet,
     Text,
     View,
-    useWindowDimensions,
+    useWindowDimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -26,13 +24,16 @@ import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
+    PartyPickerSheet,
+    type PartySelection,
+} from "@/components/workspace/contact-picker-sheet";
+import {
     FontFamily,
     Radius,
     Spacing,
     Typography,
 } from "@/constants/design-tokens";
 import {
-    GEM_STATUS_GROUPS,
     formatCostTypeLabel,
     formatGemStatusLabel,
     formatGemType,
@@ -46,39 +47,40 @@ import {
 } from "@/features/marketplace/marketplace-service";
 import {
     subscribeBusinessByOwnerUid,
+    subscribeContacts,
     subscribeGem,
     subscribeGemCosts,
     subscribeGemEvents,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-    canListGem,
     formatLifecycleSummary,
-    isTerminalOutcome,
+    gemActionAvailability,
     resolveGemLifecycle,
-    type GemLifecycle,
+    resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
-import { getGemQuickActions } from "@/features/workspace/gem-utils";
 import {
-    createTransaction,
+    cancelGemTransferRequest,
+    createGemTransferRequest,
+} from "@/features/workspace/gem-transfer-api";
+import {
+    fetchContacts,
     fetchGem,
     fetchGemCosts,
     fetchGemEvents,
     removeGemFromMarket,
-    updateGemLifecycle,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { Timestamp } from "@/lib/firebase/db";
 import { shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm, showActions } from "@/providers/confirm-provider";
+import { confirm } from "@/providers/confirm-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { GemStatus } from "@/types";
+import type { GemPaymentMethod, GemStatus } from "@/types";
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
@@ -97,7 +99,6 @@ const STATUS_ICONS: Partial<Record<GemStatus, IconName>> = {
   heated: "local-fire-department",
   with_polisher: "auto-awesome",
   polished: "auto-awesome",
-  certified: "verified",
   ready_for_sale: "sell",
   on_ap: "handshake",
   on_trip: "flight",
@@ -111,7 +112,6 @@ function eventIcon(eventType: string): IconName {
   if (t.includes("cut")) return "content-cut";
   if (t.includes("heat")) return "local-fire-department";
   if (t.includes("polish")) return "auto-awesome";
-  if (t.includes("cert")) return "verified";
   if (t.includes("ap") || t.includes("consign")) return "handshake";
   if (t.includes("sale") || t.includes("sold")) return "sell";
   if (t.includes("list") || t.includes("market")) return "storefront";
@@ -119,17 +119,6 @@ function eventIcon(eventType: string): IconName {
   if (t.includes("status")) return "swap-horiz";
   if (t.includes("cost") || t.includes("purchase")) return "payments";
   return "history";
-}
-
-function actionIcon(title: string): IconName {
-  const t = title.toLowerCase();
-  if (t.includes("cutting") || t.includes("cut")) return "content-cut";
-  if (t.includes("ap")) return "handshake";
-  if (t.includes("market") || t.includes("list") || t.includes("gemnet"))
-    return "storefront";
-  if (t.includes("service")) return "build";
-  if (t.includes("sale") || t.includes("sell")) return "sell";
-  return "arrow-forward";
 }
 
 function initials(name: string) {
@@ -143,7 +132,12 @@ function initials(name: string) {
 }
 
 export default function GemDetailScreen() {
-  const { gemId } = useLocalSearchParams<{ gemId: string }>();
+  const { gemId, sell, tripId, tripGemId } = useLocalSearchParams<{
+    gemId: string;
+    sell?: string;
+    tripId?: string;
+    tripGemId?: string;
+  }>();
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
   const { formatStored, formatBase } = usePreferredMoney();
@@ -152,13 +146,12 @@ export default function GemDetailScreen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const [axisOpen, setAxisOpen] = useState<
-    "stone" | "where" | "outcome" | null
-  >(null);
-  const [statusSaving, setStatusSaving] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
-  const [soldCashOpen, setSoldCashOpen] = useState(false);
-  const [soldSaving, setSoldSaving] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [partyPickerOpen, setPartyPickerOpen] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferParty, setTransferParty] = useState<PartySelection | null>(null);
+  const [transferPaymentMethod, setTransferPaymentMethod] = useState<GemPaymentMethod>("cash");
   const [soldAmount, setSoldAmount] = useState<CurrencyAmountValue>({
     amount: "",
     currency: preferred,
@@ -195,33 +188,12 @@ export default function GemDetailScreen() {
     enabled: !!ownerUid,
   });
 
-  async function handleLifecyclePatch(
-    patch: {
-      stoneStage?: GemLifecycle["stoneStage"];
-      custody?: GemLifecycle["custody"];
-      outcome?: GemLifecycle["outcome"];
-    },
-    label: string,
-  ) {
-    if (!user || !gem || statusSaving) return;
-    setStatusSaving(true);
-    try {
-      await withLoading(async () => {
-        await updateGemLifecycle(gem.id, user.uid, patch, `Updated ${label}`);
-        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-        await queryClient.invalidateQueries({
-          queryKey: ["gem-events", gemId],
-        });
-        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-        setAxisOpen(null);
-        toast.success(`Updated ${label}`);
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not update status."));
-    } finally {
-      setStatusSaving(false);
-    }
-  }
+  const { data: contacts = [] } = useFirestoreLiveQuery({
+    queryKey: ["contacts", user?.uid],
+    queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    enabled: !!user,
+  });
 
   async function handleRemoveFromMarket() {
     if (!user || !gem) return;
@@ -242,91 +214,77 @@ export default function GemDetailScreen() {
     if (!user || !gem) return;
     const ask = gem.askingPrice != null ? String(gem.askingPrice) : "";
     const askCur = (gem.askingPriceCurrency as typeof preferred) || preferred;
-    showActions({
-      title: "Mark as sold",
-      message: "How was this gem sold?",
-      actions: [
-        {
-          label: "Cash",
-          onPress: () => {
-            setSoldAmount({ amount: ask, currency: askCur });
-            setSoldError(null);
-            setSoldCashOpen(true);
-          },
-        },
-        {
-          label: "Bill",
-          onPress: () => {
-            router.push({
-              pathname: "/(marketplace)/bills/add",
-              params: {
-                gemId: gem.id,
-                amount: ask,
-                markSold: "1",
-                notes: `Sale of ${gem.title?.trim() || formatGemType(gem.gemType)}`,
-              },
-            } as never);
-          },
-        },
-        {
-          label: "Cheque",
-          onPress: () => {
-            router.push({
-              pathname: "/(marketplace)/cheques/add",
-              params: {
-                gemId: gem.id,
-                amount: ask,
-                markSold: "1",
-                direction: "received",
-              },
-            } as never);
-          },
-        },
-      ],
-    });
+    setSoldAmount({ amount: ask, currency: askCur });
+    setSoldError(null);
+    setTransferParty(null);
+    setTransferPaymentMethod("cash");
+    setTransferOpen(true);
   }
 
-  async function handleSoldCash() {
-    if (!user || !gem || soldSaving) return;
+  async function handleSaleRequest() {
+    if (!user || !gem || transferSaving) return;
     const amount = parseFloat(soldAmount.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setSoldError("Enter a valid sale amount.");
       return;
     }
     setSoldError(null);
-    setSoldSaving(true);
+    if (!transferParty) {
+      setSoldError("Select a linked trader or contact.");
+      return;
+    }
+    const recipientBusinessId = transferParty.source === "business"
+      ? transferParty.businessId
+      : transferParty.linkedBusinessId;
+    if (!recipientBusinessId) {
+      setSoldError("This contact is not linked to a verified GemFort trader.");
+      return;
+    }
+    setTransferSaving(true);
     try {
       await withLoading(async () => {
-        await createTransaction(user.uid, {
-          type: "income",
+        await createGemTransferRequest({
+          gemId: gem.id,
+          recipientBusinessId,
+          recipientContactId: transferParty.source === "contact" ? transferParty.contactId : null,
+          recipientName: transferParty.label,
           amount,
           currency: soldAmount.currency,
-          category: "sale",
-          description: `Cash sale of ${gem.sku}`,
-          gemId: gem.id,
-          contactId: null,
-          sourceType: "gem",
-          sourceId: gem.id,
-          date: Timestamp.now(),
+          paymentMethod: transferPaymentMethod,
+          sourceTripId: sell === "1" ? tripId : null,
+          sourceTripGemId: sell === "1" ? tripGemId : null,
         });
-        await updateGemLifecycle(
-          gem.id,
-          user.uid,
-          { outcome: "sold" },
-          `Sold for cash`,
-          { soldPrice: amount, soldPriceCurrency: soldAmount.currency },
-        );
         await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
         await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        setSoldCashOpen(false);
-        toast.success("Marked as sold");
-        router.replace("/(marketplace)/(tabs)/workspace/gems" as never);
-      }, "Recording sale…");
+        setTransferOpen(false);
+        toast.success("Sale request sent — waiting for the trader to accept");
+      }, "Sending sale request…");
     } catch (e) {
-      setSoldError(friendlyError(e, "Could not mark sold."));
+      setSoldError(friendlyError(e, "Could not send the sale request."));
     } finally {
-      setSoldSaving(false);
+      setTransferSaving(false);
+    }
+  }
+
+  async function handleMarkUnsold() {
+    if (!user || !gem?.saleTransferRequestId || transferSaving) return;
+    const ok = await confirm({
+      title: "Mark unsold?",
+      message: "Cancel the pending trader request and return the gem to active inventory.",
+      confirmLabel: "Mark unsold",
+      tone: "destructive",
+      onConfirm: () => cancelGemTransferRequest(gem.saleTransferRequestId!),
+    });
+    if (!ok) return;
+    try {
+      setTransferSaving(true);
+      await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+      await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+      toast.success("Gem marked unsold");
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not mark the gem unsold."));
+    } finally {
+      setTransferSaving(false);
     }
   }
 
@@ -358,25 +316,16 @@ export default function GemDetailScreen() {
     profitBase != null && costBase > 0
       ? ((profitBase / costBase) * 100).toFixed(1)
       : null;
-  const quickActions = getGemQuickActions(gem);
-  const primaryAction =
-    quickActions.find((a) => a.variant !== "secondary") ?? quickActions[0];
-  const secondaryActions = quickActions.filter((a) => a !== primaryAction);
   const lifecycle = resolveGemLifecycle(gem);
   const statusLabel = formatLifecycleSummary(lifecycle);
-  const isCertified =
-    Boolean(gem.certificateUrl) ||
-    gem.status === "certified" ||
-    gem.treatmentStatus?.toLowerCase().includes("cert");
   const stoneLabel = formatGemStatusLabel(lifecycle.stoneStage);
-  const whereLabel = lifecycle.custody
-    ? formatGemStatusLabel(lifecycle.custody)
-    : "With me";
-  const outcomeLabel = lifecycle.outcome
-    ? formatGemStatusLabel(lifecycle.outcome)
-    : "None";
-  const activeGroup = GEM_STATUS_GROUPS.find((g) => g.key === axisOpen);
-
+  const locationLabel = gem.currentLocation?.trim() || (lifecycle.custody
+    ? lifecycle.custody === "with_cutter" || lifecycle.custody === "with_heater" || lifecycle.custody === "with_polisher"
+      ? "Lapidary"
+      : formatGemStatusLabel(lifecycle.custody)
+    : "With me");
+  const saleStatus = resolveGemSaleStatus(gem);
+  const saleLabel = saleStatus === "pending" ? "Awaiting trader" : saleStatus === "sold" ? "Sold" : "Unsold";
   const shapeLabel = formatShapeLabel(gem.shape || gem.cutType);
   const treatmentLabel = formatTreatmentLabel(gem.treatmentStatus);
   const specs = [
@@ -386,13 +335,9 @@ export default function GemDetailScreen() {
     ...(gem.clarity ? [{ label: "Clarity", value: gem.clarity }] : []),
     { label: "Treatment", value: treatmentLabel || "None" },
     { label: "Origin", value: gem.originCountry || "Unknown" },
-    ...(gem.certificateUrl
-      ? [{ label: "Certificate / Report", value: gem.certificateFileName || "View attachment" }]
-      : []),
   ];
 
   const tags: string[] = [];
-  if (isCertified) tags.push("Certified");
   if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
   if (gem.clarity) tags.push(gem.clarity);
   tags.push(statusLabel);
@@ -432,11 +377,9 @@ export default function GemDetailScreen() {
   const ownerName =
     business?.businessName?.trim() || profile?.displayName?.trim() || "Owner";
   const ownerRole =
-    business?.businessType === "gem_lab" || business?.businessType === "lab"
-      ? "Gem Lab"
-      : business?.businessType === "lapidary"
-        ? "Lapidary"
-        : (ROLE_LABELS[resolveProfileRole(profile)] ?? "Trader");
+    business?.businessType === "lapidary"
+      ? "Lapidary"
+      : (ROLE_LABELS[resolveProfileRole(profile)] ?? "Trader");
   const ownerAvatar = business?.logoUrl ?? null;
   const ownerVerified = isBusinessVerified(business);
   const ownerInitials = initials(ownerName);
@@ -444,15 +387,26 @@ export default function GemDetailScreen() {
   const heroHeight = windowWidth;
   const bottomBarPad = Math.max(insets.bottom, 12);
   const isOwnGem = !!user && user.uid === gem.ownerUid;
-  const canSell = isOwnGem && !isTerminalOutcome(lifecycle.outcome);
+  const actionAvailability = gemActionAvailability(gem);
+  const canSellFromTrip =
+    sell === "1" &&
+    typeof tripId === "string" &&
+    typeof tripGemId === "string" &&
+    (lifecycle.custody === "on_trip" || gem.status === "on_trip");
+  const canMarkSold = actionAvailability.mark_sold || canSellFromTrip;
   const isListed =
     isOwnGem && (gem.isListedOnMarketplace || lifecycle.outcome === "listed");
-  const hasBottomActions =
-    !!primaryAction ||
-    secondaryActions.length > 0 ||
-    canListGem(gem) ||
-    canSell ||
-    isListed;
+  const actionButtons = [
+    ...(canMarkSold ? [{ title: "Sold", icon: "sell" as IconName, onPress: openSoldChooser, primary: true }] : []),
+    ...(actionAvailability.mark_unsold ? [{ title: "Mark unsold", icon: "undo" as IconName, onPress: () => void handleMarkUnsold(), primary: true }] : []),
+    ...(actionAvailability.send_for_cutting ? [{ title: "Send for Cutting", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=cutting` }] : []),
+    ...(actionAvailability.send_for_heating ? [{ title: "Send for Heating", icon: "local-fire-department" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating` }] : []),
+    ...(actionAvailability.send_for_polishing ? [{ title: "Send for Polishing", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=polishing` }] : []),
+    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "handshake" as IconName, href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
+    ...(actionAvailability.list_on_market ? [{ title: "Sell on Market", icon: "storefront" as IconName, href: `/listings/create?workspaceGemId=${gem.id}` }] : []),
+    ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "storefront" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
+  ];
+  const hasBottomActions = isOwnGem && actionButtons.length > 0;
 
   async function handleShareGem() {
     if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
@@ -493,17 +447,7 @@ export default function GemDetailScreen() {
             wrapFirstPage={(node) => (
               <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
             )}
-            overlay={
-              isCertified ? (
-                <View
-                  style={[styles.heroBadge, { top: insets.top + 56 }]}
-                  pointerEvents="none"
-                >
-                  <Icon name="verified" size={12} color="#FFFFFF" />
-                  <Text style={styles.heroBadgeText}>VERIFIED</Text>
-                </View>
-              ) : null
-            }
+            overlay={null}
           />
         </View>
 
@@ -644,87 +588,38 @@ export default function GemDetailScreen() {
             </View>
           </View>
 
-          <View style={styles.axisStack}>
-            {(
-              [
-                {
-                  key: "stone" as const,
-                  title: "Stone",
-                  value: stoneLabel,
-                  icon: STATUS_ICONS[lifecycle.stoneStage] ?? "spa",
-                },
-                {
-                  key: "where" as const,
-                  title: "Where",
-                  value: whereLabel,
-                  icon: lifecycle.custody
-                    ? (STATUS_ICONS[lifecycle.custody] ?? "place")
-                    : "person",
-                },
-                {
-                  key: "outcome" as const,
-                  title: "Outcome",
-                  value: outcomeLabel,
-                  icon: lifecycle.outcome
-                    ? (STATUS_ICONS[lifecycle.outcome] ?? "flag")
-                    : "block",
-                },
-              ] as const
-            ).map((axis) => (
-              <Pressable
-                key={axis.key}
-                onPress={() => setAxisOpen(axis.key)}
-                disabled={statusSaving}
-                accessibilityRole="button"
-                accessibilityLabel={`${axis.title} ${axis.value}. Tap to change`}
-                style={({ pressed }) => [
-                  styles.statusChip,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                    opacity: pressed || statusSaving ? 0.88 : 1,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusChipIcon,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  {statusSaving && axisOpen === axis.key ? (
-                    <ActivityIndicator size="small" color={colors.onPrimary} />
-                  ) : (
-                    <Icon name={axis.icon} size={16} color={colors.onPrimary} />
-                  )}
-                </View>
-                <View style={styles.statusChipText}>
-                  <Text
-                    style={[
-                      styles.statusChipLabel,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {axis.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.statusChipValue,
-                      { color: colors.onSurface },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {axis.value}
-                  </Text>
-                </View>
-                <Icon
-                  name="expand-more"
-                  size={22}
-                  color={colors.onSurfaceVariant}
-                />
-              </Pressable>
+          <View style={styles.lifecycleGrid} accessible accessibilityLabel={`Gem state ${stoneLabel}, location ${locationLabel}, market ${isListed ? "On market" : "Not on market"}, sale ${saleLabel}`}>
+            {[
+              ["State", stoneLabel, STATUS_ICONS[lifecycle.stoneStage] ?? "spa"],
+              ["Location", locationLabel, lifecycle.custody ? (STATUS_ICONS[lifecycle.custody] ?? "place") : "person"],
+              ["Market", isListed ? "On market" : "Not on market", "storefront"],
+              ["Sale", saleLabel, saleStatus === "pending" ? "schedule" : saleStatus === "sold" ? "check-circle" : "sell"],
+            ].map(([label, value, icon]) => (
+              <View key={label} style={[styles.lifecycleCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
+                <Icon name={icon as IconName} size={17} color={colors.primary} />
+                <Text style={[styles.lifecycleLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
+                <Text style={[styles.lifecycleValue, { color: colors.onSurface }]} numberOfLines={2}>{value}</Text>
+              </View>
             ))}
           </View>
+
+          {saleStatus !== "unsold" ? (
+            <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+              <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>
+                {saleStatus === "pending" ? "Sale awaiting acceptance" : "Sale details"}
+              </Text>
+              <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
+              {gem.soldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.soldPrice, currency: gem.soldPriceCurrency || askCurrency, amountBase: gem.soldPriceBase })}</Text> : null}
+              {gem.salePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.salePaymentMethod.replace("_", " ")}</Text> : null}
+            </View>
+          ) : gem.acquiredFromUid ? (
+            <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
+              <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>Acquisition details</Text>
+              <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>From: {gem.acquiredFromName || "Previous owner"}</Text>
+              {gem.lastSoldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.lastSoldPrice, currency: gem.lastSoldPriceCurrency || askCurrency })}</Text> : null}
+              {gem.lastSalePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.lastSalePaymentMethod.replace("_", " ")}</Text> : null}
+            </View>
+          ) : null}
 
           {tags.length ? (
             <View style={styles.tags}>
@@ -745,18 +640,6 @@ export default function GemDetailScreen() {
                 </View>
               ))}
             </View>
-          ) : null}
-
-          {gem.certificateUrl ? (
-            <Pressable
-              onPress={() => void Linking.openURL(gem.certificateUrl!)}
-              accessibilityRole="link"
-              accessibilityLabel="Open certificate or report"
-              style={[styles.readMore, { alignSelf: "flex-start" }]}
-            >
-              <Icon name="description" size={18} color={colors.primary} />
-              <Text style={[styles.readMoreText, { color: colors.primary }]}>View Certificate / Report</Text>
-            </Pressable>
           ) : null}
 
           <View style={styles.specGrid}>
@@ -1086,340 +969,58 @@ export default function GemDetailScreen() {
             },
           ]}
         >
-          {isListed ? (
+          {actionButtons.map((action) => (
             <Pressable
-              onPress={() => void handleRemoveFromMarket()}
+              key={action.title}
+              onPress={() => action.onPress ? void action.onPress() : router.push(action.href as never)}
               accessibilityRole="button"
-              accessibilityLabel="Remove from Market"
+              accessibilityLabel={action.title}
               style={({ pressed }) => [
-                styles.primaryBtn,
+                action.primary ? styles.primaryBtn : styles.secondaryBtn,
                 {
-                  backgroundColor: colors.error,
-                  opacity: pressed ? 0.9 : 1,
+                  backgroundColor: action.primary ? colors.primary : colors.surfaceContainerLowest,
+                  borderColor: action.primary ? colors.primary : colors.outlineVariant,
+                  opacity: pressed || transferSaving ? 0.82 : 1,
                 },
               ]}
             >
-              <Icon name="storefront" size={18} color={colors.onError} />
-              <Text style={[styles.primaryBtnText, { color: colors.onError }]}>
-                Remove
+              <Icon name={action.icon} size={18} color={action.primary ? colors.onPrimary : colors.onSurface} />
+              <Text style={[action.primary ? styles.primaryBtnText : styles.secondaryBtnText, { color: action.primary ? colors.onPrimary : colors.onSurface }]} numberOfLines={1}>
+                {action.title}
               </Text>
             </Pressable>
-          ) : canSell ? (
-            <Pressable
-              onPress={openSoldChooser}
-              accessibilityRole="button"
-              accessibilityLabel="Sold"
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.9 : 1,
-                },
-              ]}
-            >
-              <Icon name="check-circle" size={18} color={colors.onPrimary} />
-              <Text
-                style={[styles.primaryBtnText, { color: colors.onPrimary }]}
-              >
-                Sold
-              </Text>
-            </Pressable>
-          ) : primaryAction ? (
-            <Pressable
-              onPress={() => router.push(primaryAction.href as never)}
-              accessibilityRole="button"
-              accessibilityLabel={primaryAction.title}
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.9 : 1,
-                },
-              ]}
-            >
-              <Icon
-                name={actionIcon(primaryAction.title)}
-                size={18}
-                color={colors.onPrimary}
-              />
-              <Text
-                style={[styles.primaryBtnText, { color: colors.onPrimary }]}
-              >
-                {primaryAction.title}
-              </Text>
-            </Pressable>
-          ) : canListGem(gem) ? (
-            <Pressable
-              onPress={() =>
-                router.push(
-                  `/listings/create?workspaceGemId=${gem.id}` as never,
-                )
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Sell on Market"
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.9 : 1,
-                },
-              ]}
-            >
-              <Icon name="storefront" size={18} color={colors.onPrimary} />
-              <Text
-                style={[styles.primaryBtnText, { color: colors.onPrimary }]}
-              >
-                Sell on Market
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {isListed && canSell ? (
-            <Pressable
-              onPress={openSoldChooser}
-              accessibilityRole="button"
-              accessibilityLabel="Sold"
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                {
-                  borderColor: colors.onSurface,
-                  opacity: pressed ? 0.88 : 1,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.secondaryBtnText, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                Sold
-              </Text>
-            </Pressable>
-          ) : !isListed ? (
-            secondaryActions.slice(0, 1).map((action) => (
-              <Pressable
-                key={action.title}
-                onPress={() => router.push(action.href as never)}
-                accessibilityRole="button"
-                accessibilityLabel={action.title}
-                style={({ pressed }) => [
-                  styles.secondaryBtn,
-                  {
-                    borderColor: colors.onSurface,
-                    opacity: pressed ? 0.88 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.secondaryBtnText, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {action.title}
-                </Text>
-              </Pressable>
-            ))
-          ) : null}
+          ))}
         </View>
       ) : null}
 
       <BottomSheet
-        visible={axisOpen != null}
+        visible={transferOpen}
         onClose={() => {
-          if (!statusSaving) setAxisOpen(null);
+          if (!transferSaving) setTransferOpen(false);
         }}
-        title={activeGroup ? `Set ${activeGroup.title}` : "Set status"}
-      >
-        {activeGroup ? (
-          <>
-            <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
-              {activeGroup.hint}. Other axes stay unchanged.
-            </Text>
-            <View style={styles.statusList}>
-              {activeGroup.clearLabel ? (
-                <Pressable
-                  disabled={statusSaving}
-                  accessibilityRole="button"
-                  accessibilityLabel={activeGroup.clearLabel}
-                  onPress={() => {
-                    if (activeGroup.key === "where") {
-                      void handleLifecyclePatch(
-                        { custody: null },
-                        activeGroup.clearLabel!,
-                      );
-                    } else if (activeGroup.key === "outcome") {
-                      void handleLifecyclePatch(
-                        { outcome: null },
-                        activeGroup.clearLabel!,
-                      );
-                    }
-                  }}
-                  style={({ pressed }) => [
-                    styles.statusOption,
-                    {
-                      backgroundColor:
-                        (activeGroup.key === "where" && !lifecycle.custody) ||
-                        (activeGroup.key === "outcome" && !lifecycle.outcome)
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerLow,
-                      borderColor:
-                        (activeGroup.key === "where" && !lifecycle.custody) ||
-                        (activeGroup.key === "outcome" && !lifecycle.outcome)
-                          ? colors.primary
-                          : colors.outlineVariant,
-                      opacity: pressed ? 0.9 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.statusOptionIcon,
-                      {
-                        backgroundColor:
-                          (activeGroup.key === "where" && !lifecycle.custody) ||
-                          (activeGroup.key === "outcome" && !lifecycle.outcome)
-                            ? colors.primary
-                            : colors.surfaceContainerHighest,
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={activeGroup.key === "where" ? "person" : "block"}
-                      size={18}
-                      color={
-                        (activeGroup.key === "where" && !lifecycle.custody) ||
-                        (activeGroup.key === "outcome" && !lifecycle.outcome)
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.statusOptionLabel,
-                      { color: colors.onSurface },
-                    ]}
-                  >
-                    {activeGroup.clearLabel}
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {activeGroup.options.map((opt) => {
-                const active =
-                  activeGroup.key === "stone"
-                    ? lifecycle.stoneStage === opt.value
-                    : activeGroup.key === "where"
-                      ? lifecycle.custody === opt.value
-                      : lifecycle.outcome === opt.value;
-                const icon = STATUS_ICONS[opt.value] ?? opt.icon;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    disabled={statusSaving}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      selected: active,
-                      disabled: statusSaving,
-                    }}
-                    accessibilityLabel={`${activeGroup.title}: ${opt.label}`}
-                    onPress={() => {
-                      if (active) {
-                        setAxisOpen(null);
-                        return;
-                      }
-                      if (activeGroup.key === "stone") {
-                        void handleLifecyclePatch(
-                          {
-                            stoneStage: opt.value as GemLifecycle["stoneStage"],
-                          },
-                          opt.label,
-                        );
-                      } else if (activeGroup.key === "where") {
-                        void handleLifecyclePatch(
-                          { custody: opt.value as GemLifecycle["custody"] },
-                          opt.label,
-                        );
-                      } else {
-                        void handleLifecyclePatch(
-                          { outcome: opt.value as GemLifecycle["outcome"] },
-                          opt.label,
-                        );
-                      }
-                    }}
-                    style={({ pressed }) => [
-                      styles.statusOption,
-                      {
-                        backgroundColor: active
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerLow,
-                        borderColor: active
-                          ? colors.primary
-                          : colors.outlineVariant,
-                        opacity: pressed ? 0.9 : 1,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.statusOptionIcon,
-                        {
-                          backgroundColor: active
-                            ? colors.primary
-                            : colors.surfaceContainerHighest,
-                        },
-                      ]}
-                    >
-                      <Icon
-                        name={icon}
-                        size={18}
-                        color={
-                          active ? colors.onPrimary : colors.onSurfaceVariant
-                        }
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.statusOptionLabel,
-                        {
-                          color: active
-                            ? colors.onPrimaryContainer
-                            : colors.onSurface,
-                        },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                    {active ? (
-                      <Icon name="check" size={20} color={colors.primary} />
-                    ) : (
-                      <View style={styles.statusOptionSpacer} />
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </>
-        ) : null}
-      </BottomSheet>
-
-      <BottomSheet
-        visible={soldCashOpen}
-        onClose={() => {
-          if (!soldSaving) setSoldCashOpen(false);
-        }}
-        title="Cash sale"
+        title="Sell gem"
         footer={
           <Button
-            title={soldSaving ? "Saving…" : "Mark sold"}
-            icon="check-circle"
-            loading={soldSaving}
-            disabled={soldSaving}
-            onPress={() => void handleSoldCash()}
+            title={transferSaving ? "Sending…" : "Send sale request"}
+            icon="send"
+            loading={transferSaving}
+            disabled={transferSaving}
+            onPress={() => void handleSaleRequest()}
           />
         }
       >
-        <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
-          Enter the final cash amount. The gem will move to Archive.
-        </Text>
+        <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>The trader must accept before ownership moves. Until then, the gem stays in your account and can be marked unsold.</Text>
+        <Pressable
+          onPress={() => setPartyPickerOpen(true)}
+          style={[styles.statusOption, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}
+        >
+          <Icon name="contacts" size={19} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.statusOptionLabel, { color: colors.onSurface }]}>{transferParty?.label ?? "Select trader or contact"}</Text>
+            <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>{transferParty ? "Linked recipient selected" : "A verified linked trader is required"}</Text>
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.onSurfaceVariant} />
+        </Pressable>
         <CurrencyAmountField
           label="Sale amount"
           value={soldAmount}
@@ -1429,7 +1030,46 @@ export default function GemDetailScreen() {
           }}
           error={soldError ?? undefined}
         />
+        <Text style={[styles.statusOptionLabel, { color: colors.onSurface }]}>Payment method</Text>
+        <View style={styles.paymentMethodRow}>
+          {([
+            ["cash", "Cash"],
+            ["bank_transfer", "Bank"],
+            ["cheque", "Cheque"],
+            ["bill", "Bill"],
+            ["other", "Other"],
+          ] as const).map(([value, label]) => {
+            const active = transferPaymentMethod === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setTransferPaymentMethod(value)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                style={[styles.paymentMethod, { backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow, borderColor: active ? colors.primary : colors.outlineVariant }]}
+              >
+                <Text style={[styles.paymentMethodText, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </BottomSheet>
+
+      <PartyPickerSheet
+        visible={partyPickerOpen}
+        onClose={() => setPartyPickerOpen(false)}
+        contacts={contacts}
+        value={transferParty}
+        onSelect={(selection) => {
+          setTransferParty(selection);
+          setPartyPickerOpen(false);
+          setSoldError(null);
+        }}
+        title="Sold to"
+        allowedBusinessKinds={["traders"]}
+        preferBusinesses
+      />
+
     </View>
   );
 }
@@ -1459,26 +1099,6 @@ const styles = StyleSheet.create({
   heroBlock: {
     width: "100%",
   },
-  heroBadge: {
-    position: "absolute",
-    right: Spacing.containerMargin,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.55)",
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  heroBadgeText: {
-    ...Typography.caption,
-    color: "#FFFFFF",
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
-
   sheet: {
     // Sit below the film strip — negative margin was clipping thumb bottoms
     // and exposing the old black heroBlock as a thick bar under the carousel.
@@ -1572,6 +1192,25 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
 
+  lifecycleGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  lifecycleCard: {
+    width: "48%",
+    minHeight: 84,
+    padding: Spacing.sm,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  lifecycleLabel: { ...Typography.caption, textTransform: "uppercase", letterSpacing: 0.4 },
+  lifecycleValue: { ...Typography.bodyMd, fontWeight: "700" },
+  saleInfo: { padding: Spacing.md, borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, gap: 4 },
+  saleInfoTitle: { ...Typography.bodyLg, fontWeight: "700" },
+  saleInfoText: { ...Typography.bodyMd },
   statusChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -1716,6 +1355,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: Spacing.containerMargin,
@@ -1753,12 +1393,9 @@ const styles = StyleSheet.create({
   },
 
   statusSheetHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
-  statusList: { gap: Spacing.stackSm },
-  axisStack: { gap: Spacing.stackSm },
-  statusGroup: { gap: Spacing.stackSm },
-  statusGroupHeader: { gap: 2, marginBottom: 2 },
-  statusGroupTitle: { ...Typography.labelMd, fontWeight: "700" },
-  statusGroupHint: { ...Typography.caption },
+  paymentMethodRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  paymentMethod: { minHeight: 40, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.md, borderWidth: 1 },
+  paymentMethodText: { ...Typography.labelMd, fontWeight: "600" },
   statusOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -1770,13 +1407,5 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     borderWidth: 1.5,
   },
-  statusOptionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   statusOptionLabel: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
-  statusOptionSpacer: { width: 20 },
 });

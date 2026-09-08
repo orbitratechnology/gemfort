@@ -47,9 +47,9 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import type { Business, MarketplaceListing } from "@/types";
 
-type Tab = "gems" | "traders" | "lapidaries" | "labs";
+type Tab = "gems" | "traders" | "lapidaries";
 type BusinessSortBy = "featured" | "rating" | "name";
-const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries", "labs"];
+const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries"];
 
 const QUICK_TYPES: { id: string; label: string }[] = [
   { id: "all", label: "All" },
@@ -114,12 +114,7 @@ export default function MarketScreen() {
     sort: BusinessSortBy;
   }>({ verified: "all", city: "all", sort: "featured" });
 
-  const businessType =
-    tab === "traders"
-      ? ("trader" as const)
-      : tab === "labs"
-        ? ("gem_lab" as const)
-        : ("lapidary" as const);
+  const businessType = tab === "traders" ? ("trader" as const) : ("lapidary" as const);
 
   const {
     data: businesses,
@@ -201,7 +196,6 @@ export default function MarketScreen() {
     { id: "gems", label: "Gems", icon: "diamond" },
     { id: "traders", label: "Traders", icon: "storefront" },
     { id: "lapidaries", label: "Lapidaries", icon: "handyman" },
-    { id: "labs", label: "Labs", icon: "workspace-premium" },
   ];
 
   const isLoading = tab === "gems" ? listingsLoading : businessesLoading;
@@ -279,7 +273,7 @@ export default function MarketScreen() {
                 placeholder={
                   tab === "gems"
                     ? "Search gems, origins…"
-                    : "Search traders, lapidaries, labs…"
+                    : "Search traders, lapidaries…"
                 }
                 placeholderTextColor={colors.textMuted}
                 value={search}
@@ -522,19 +516,11 @@ export default function MarketScreen() {
             <View style={styles.contentInset}>
               <EmptyState
                 icon="business"
-                title={
-                  tab === "labs"
-                    ? "No gem labs yet"
-                    : tab === "lapidaries"
-                      ? "No lapidaries yet"
-                      : "No traders match"
-                }
+                title={tab === "lapidaries" ? "No lapidaries yet" : "No traders match"}
                 subtitle={
-                  tab === "labs"
-                    ? "Verified gem labs will appear here."
-                    : tab === "lapidaries"
-                      ? "Verified lapidaries will appear here."
-                      : "Try clearing filters or check back after verification."
+                  tab === "lapidaries"
+                    ? "Verified lapidaries will appear here."
+                    : "Try clearing filters or check back after verification."
                 }
               />
             </View>
@@ -550,13 +536,7 @@ export default function MarketScreen() {
             ) : (
               <BusinessCard
                 business={item as Business}
-                roleLabel={
-                  tab === "labs"
-                    ? "Gem Lab"
-                    : tab === "lapidaries"
-                      ? "Lapidary"
-                      : "Trader"
-                }
+                roleLabel={tab === "lapidaries" ? "Lapidary" : "Trader"}
                 href={`/business/${item.id}`}
               />
             )}

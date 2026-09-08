@@ -142,6 +142,7 @@ export function normalizeApRecord(raw: ApRecord & Record<string, unknown>): ApRe
     dateGiven: (raw.dateGiven as Timestamp | null) ?? null,
     agreementNotes: (raw.agreementNotes as string | null) ?? null,
     paymentMethod: (raw.paymentMethod as ApRecord['paymentMethod']) ?? null,
+    paymentCurrency: (raw.paymentCurrency as string | null) ?? null,
     paymentAmount: (raw.paymentAmount as number | null) ?? null,
     paymentSentAt: (raw.paymentSentAt as Timestamp | null) ?? null,
     paymentReceivedAt: (raw.paymentReceivedAt as Timestamp | null) ?? null,

@@ -45,7 +45,7 @@ export default function VerifyApplicationScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const role = resolveProfileRole(profile);
-  const needsTradeDocs = role === 'trader' || role === 'gem_lab';
+  const needsTradeDocs = role === 'trader';
   const isLapidary = role === 'lapidary';
 
   const maxDob = useMemo(() => new Date(), []);

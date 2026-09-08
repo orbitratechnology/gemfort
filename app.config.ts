@@ -2,17 +2,8 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 
-const bundleIds: Record<string, string> = {
-  development: "app.gemfort.dev",
-  preview: "app.gemfort.preview",
-  production: "app.gemfort",
-};
-
-const bundleId = bundleIds[env] ?? bundleIds.development;
-
-/** Single Firebase project (gemfort); native config files differ per EAS bundle ID. */
-const googleServicesSuffix =
-  env === "production" ? "" : env === "preview" ? ".preview" : ".dev";
+// All EAS environments use the same native app and Firebase configuration.
+const bundleId = "app.gemfort";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -44,8 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     associatedDomains:
       env === "production" || env === "preview" ? ["applinks:gemfort.app"] : [],
     googleServicesFile:
-      process.env.GOOGLE_SERVICES_PLIST ??
-      `GoogleService-Info${googleServicesSuffix}.plist`,
+      process.env.GOOGLE_SERVICES_PLIST ?? "GoogleService-Info.plist",
   },
   android: {
     package: bundleId,
@@ -61,8 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Pre-adaptive / Play listing fallback
     icon: "./assets/images/icon.png",
     googleServicesFile:
-      process.env.GOOGLE_SERVICES_JSON ??
-      `google-services${googleServicesSuffix}.json`,
+      process.env.GOOGLE_SERVICES_JSON ?? "google-services.json",
     permissions: [
       "android.permission.READ_CALL_LOG",
       "android.permission.READ_PHONE_STATE",
@@ -89,6 +78,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
   },
   plugins: [
+    // "./plugins/with-adi-registration",
     "expo-router",
     [
       "expo-sharing",
@@ -117,6 +107,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-dev-client",
     "expo-font",
     "expo-image",
+    "@maplibre/maplibre-react-native",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "GemFort uses your location to place your business on its public profile.",
+      },
+    ],
     "expo-secure-store",
     "expo-status-bar",
     "expo-web-browser",
@@ -131,6 +129,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "react-native-nitro-google-signin",
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
+    "@react-native-firebase/app-check",
     "@react-native-vector-icons/material-icons",
     "@react-native-vector-icons/fontawesome6",
     [
@@ -141,6 +140,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           forceStaticLinking: [
             "RNFBApp",
             "RNFBAuth",
+            "RNFBAppCheck",
             "RNFBFirestore",
             "RNFBStorage",
           ],
@@ -190,10 +190,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // *_light = black glyph, *_dark = white glyph; JS picks via useColorScheme.
         // Regenerate: python scripts/generate-shortcut-icons.py
         androidIcons: {
-          shortcut_verify_light:
-            "./assets/images/shortcuts/shortcut_verify_light.png",
-          shortcut_verify_dark:
-            "./assets/images/shortcuts/shortcut_verify_dark.png",
           shortcut_gem_light:
             "./assets/images/shortcuts/shortcut_gem_light.png",
           shortcut_gem_dark: "./assets/images/shortcuts/shortcut_gem_dark.png",
@@ -222,10 +218,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "./assets/images/shortcuts/shortcut_bill_light.png",
           shortcut_bill_dark:
             "./assets/images/shortcuts/shortcut_bill_dark.png",
-          shortcut_certificates_light:
-            "./assets/images/shortcuts/shortcut_certificates_light.png",
-          shortcut_certificates_dark:
-            "./assets/images/shortcuts/shortcut_certificates_dark.png",
           shortcut_money_light:
             "./assets/images/shortcuts/shortcut_money_light.png",
           shortcut_money_dark:
@@ -238,33 +230,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "./assets/images/shortcuts/shortcut_search_light.png",
           shortcut_search_dark:
             "./assets/images/shortcuts/shortcut_search_dark.png",
-          shortcut_news_light:
-            "./assets/images/shortcuts/shortcut_news_light.png",
-          shortcut_news_dark:
-            "./assets/images/shortcuts/shortcut_news_dark.png",
         },
         // Static iOS actions available before JS loads; replaced dynamically by role.
         // Prefer outline SF Symbols / built-ins so they match system menu icons.
         iosActions: [
           {
-            id: "verify",
-            title: "Verify certificate",
-            subtitle: "Check a lab certificate",
-            icon: "symbol:checkmark.seal",
-            params: { href: "/verify-certificate" },
+            id: "certificate-portals",
+            title: "Certificate portals",
+            subtitle: "Open external verification pages",
+            icon: "symbol:link",
+            params: { href: "/verify-certificate-portals" },
           },
           {
             id: "market",
             title: "Market",
-            subtitle: "Find traders, lapidaries & labs",
+            subtitle: "Find traders and lapidaries",
             icon: "symbol:person.2",
             params: { href: "/(marketplace)/(tabs)/market" },
-          },
-          {
-            id: "news",
-            title: "Gem news",
-            icon: "symbol:newspaper",
-            params: { href: "/news" },
           },
           {
             id: "search",

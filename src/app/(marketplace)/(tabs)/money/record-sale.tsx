@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
-import { ReceiptField } from "@/components/ui/receipt-field";
 import { type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -19,22 +18,15 @@ import { ContactPicker } from "@/components/workspace/contact-picker";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
-import {
-  createTransaction,
-  fetchContacts,
-  fetchGems,
-  updateGemStatus,
-} from "@/features/workspace/workspace-service";
+import { createGemTransferRequest } from "@/features/workspace/gem-transfer-api";
+import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
+import { fetchContacts, fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { convertToBaseSync } from "@/lib/exchange-rates";
-import { Timestamp } from "@/lib/firebase/db";
-import { uploadReceipt } from "@/lib/firebase/receipt-service";
-import type { LocalMedia } from "@/lib/firebase/storage-service";
-import { formatCurrency } from "@/lib/utils";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
@@ -66,9 +58,7 @@ export default function RecordSaleScreen() {
     currency: preferred,
   });
   const [buyerContactId, setBuyerContactId] = useState("");
-  const [buyerCustomName, setBuyerCustomName] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("transfer");
-  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: gems = [] } = useFirestoreLiveQuery({
@@ -86,7 +76,7 @@ export default function RecordSaleScreen() {
   });
 
   const sellable = useMemo(
-    () => gems.filter((g) => g.status !== "sold"),
+    () => gems.filter((g) => gemActionAvailability(g).mark_sold),
     [gems],
   );
   const gem = useMemo(
@@ -97,8 +87,7 @@ export default function RecordSaleScreen() {
     () => contacts.find((c) => c.id === buyerContactId) ?? null,
     [contacts, buyerContactId],
   );
-  const buyerLabel =
-    buyerContact?.displayName?.trim() || buyerCustomName.trim() || "";
+  const buyerLabel = buyerContact?.displayName?.trim() || "";
 
   const salePrice = parseFloat(price.amount) || 0;
   const costBasis = gem?.totalCost ?? 0;
@@ -148,46 +137,29 @@ export default function RecordSaleScreen() {
       toast.error("Choose which stone you are selling.");
       return;
     }
+    if (!buyerContact?.linkedBusinessId) {
+      toast.error("Select a contact linked to a verified trader business.");
+      return;
+    }
 
     try {
       await withLoading(async () => {
         const data = result.data;
-        const receiptUrl = await uploadReceipt(user.uid, receipt);
-        await createTransaction(user.uid, {
-          type: "income",
+        await createGemTransferRequest({
+          gemId: gem.id,
+          recipientBusinessId: buyerContact.linkedBusinessId,
+          recipientContactId: buyerContact.id,
+          recipientName: buyerLabel,
           amount: data.price,
           currency: price.currency,
-          category: "sale",
-          description: `Sale of ${gem.sku}${data.buyer ? ` to ${data.buyer}` : ""} (${data.method})`,
-          gemId: gem.id,
-          contactId: buyerContactId || null,
-          sourceType: "gem",
-          sourceId: gem.id,
-          receiptUrl,
-          date: Timestamp.now(),
+          paymentMethod: data.method === "transfer" ? "bank_transfer" : data.method,
         });
-        await updateGemStatus(
-          gem.id,
-          user.uid,
-          "sold",
-          `Sold for ${formatCurrency(data.price, price.currency)}`,
-          { soldPrice: data.price, soldPriceCurrency: price.currency },
-        );
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        if (data.method === "cheque") {
-          toast.success(`${gem.sku} sold. Add the cheque next.`);
-          router.replace({
-            pathname: "/(marketplace)/cheques/add",
-            params: { amount: String(data.price), gemId: gem.id },
-          });
-          return;
-        }
-        toast.success(`${gem.sku} marked as sold.`);
+        toast.success(`${gem.sku} sale request sent for trader acceptance.`);
         router.back();
-      }, "Recording sale…");
+      }, "Sending sale request…");
     } catch (e) {
-      toast.error(friendlyError(e, "Could not record sale."));
+      toast.error(friendlyError(e, "Could not send the sale request."));
     }
   }
 
@@ -196,7 +168,7 @@ export default function RecordSaleScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <StackHeader title="Record sale" />
+      <StackHeader title="Request gem sale" />
 
       <ThemedScrollView
         contentContainerStyle={styles.content}
@@ -235,14 +207,7 @@ export default function RecordSaleScreen() {
               setBuyerContactId(id);
               clearField("buyer");
             }}
-            allowCustomName
-            customName={buyerCustomName}
-            onCustomNameChange={(name) => {
-              setBuyerCustomName(name);
-              clearField("buyer");
-            }}
-            customNameLabel="Use as buyer"
-            emptyHint="Add buyers in Workspace → Contacts, or type a name."
+            emptyHint="Select a contact linked to a verified trader business."
             error={errors.buyer}
           />
           <ChipSelect
@@ -256,7 +221,6 @@ export default function RecordSaleScreen() {
             }}
             error={errors.method}
           />
-          <ReceiptField value={receipt} onChange={setReceipt} />
         </FormSection>
 
         {gem && salePrice > 0 ? (
@@ -328,7 +292,7 @@ export default function RecordSaleScreen() {
         gems={sellable}
         value={selectedGemId ?? ""}
         title="Select gem"
-        emptyHint="No sellable gems. Add inventory first."
+        emptyHint="No gems are currently eligible for a sale request."
         initialTab="on_sale"
         onSelect={(g) => {
           setSelectedGemId(g.id);
@@ -337,8 +301,8 @@ export default function RecordSaleScreen() {
       />
 
       <FormFooter
-        title={method === "cheque" ? "Sell & add cheque" : "Confirm sale"}
-        icon="check-circle"
+        title="Send sale request"
+        icon="send"
         onPress={handleConfirm}
       />
     </SafeAreaView>

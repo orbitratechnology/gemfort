@@ -23,6 +23,7 @@ import { safeUserMessage } from '@/lib/errors';
 export const BACKGROUND_NOTIFICATION_TASK = 'GEMFORT_BACKGROUND_NOTIFICATION';
 
 export type RichPushData = {
+  notificationId?: string;
   title?: string;
   body?: string;
   type?: string;
@@ -60,6 +61,7 @@ export function parseRichPushData(
 ): RichPushData {
   if (!raw) return {};
   return {
+    notificationId: asString(raw.notificationId) || undefined,
     title: asString(raw.title) || undefined,
     body: asString(raw.body) || asString(raw.message) || undefined,
     type: asString(raw.type) || undefined,
@@ -171,6 +173,13 @@ function actionsForCategory(categoryId?: string): AndroidAction[] {
       action('view', 'Details'),
     ];
   }
+  if (categoryId === 'gem_transfer') {
+    return [
+      action('accept_gem_transfer', 'Accept'),
+      action('decline_gem_transfer', 'Decline'),
+      action('view', 'Details'),
+    ];
+  }
   if (categoryId === 'listing_offer') return [action('view', 'View listing')];
   return [action('view', 'View')];
 }
@@ -219,11 +228,15 @@ export async function displayRichNotification(data: RichPushData) {
       });
     }
     await notifee.displayNotification({
-      id: [data.type, data.referenceId].filter(Boolean).join(':') || undefined,
+      id:
+        data.notificationId ||
+        [data.type, data.referenceId].filter(Boolean).join(':') ||
+        undefined,
       title: title || 'GemFort',
       body: body || undefined,
       subtitle: data.actorName || undefined,
       data: {
+        notificationId: data.notificationId ?? '',
         type: data.type ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',
@@ -303,6 +316,7 @@ export async function displayRichNotification(data: RichPushData) {
       subtitle: data.actorName || undefined,
       categoryIdentifier: data.categoryId || undefined,
       data: {
+        notificationId: data.notificationId ?? '',
         type: data.type ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',

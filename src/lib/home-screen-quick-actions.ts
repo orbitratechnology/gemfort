@@ -6,7 +6,6 @@ import type { UserProfile, UserRole } from "@/types";
 
 /** Base keys registered as `shortcut_<key>_light` / `_dark` in the config plugin. */
 const AndroidIconKey = {
-  verify: "verify",
   gem: "gem",
   add: "add",
   ap: "ap",
@@ -14,11 +13,9 @@ const AndroidIconKey = {
   jobs: "jobs",
   contacts: "contacts",
   bill: "bill",
-  certificates: "certificates",
   money: "money",
   market: "market",
   search: "search",
-  news: "news",
 } as const;
 
 type AndroidIconKeyName = (typeof AndroidIconKey)[keyof typeof AndroidIconKey];
@@ -60,24 +57,18 @@ function resolveScheme(colorScheme: ColorSchemeName): "light" | "dark" {
 function guestActions(scheme: "light" | "dark"): RouterAction[] {
   return [
     action(
-      "verify",
-      "Verify certificate",
-      "/verify-certificate",
-      icon("symbol:checkmark.seal", AndroidIconKey.verify, scheme),
-      "Check a lab certificate",
+      "certificate-portals",
+      "Certificate portals",
+      "/verify-certificate-portals",
+      icon("symbol:link", AndroidIconKey.market, scheme),
+      "Open external verification pages",
     ),
     action(
       "market",
       "Market",
       "/(marketplace)/(tabs)/market",
       icon("symbol:person.2", AndroidIconKey.market, scheme),
-      "Find traders, lapidaries & labs",
-    ),
-    action(
-      "news",
-      "Gem news",
-      "/news",
-      icon("symbol:newspaper", AndroidIconKey.news, scheme),
+      "Find traders and lapidaries",
     ),
     action(
       "search",
@@ -90,13 +81,6 @@ function guestActions(scheme: "light" | "dark"): RouterAction[] {
 
 function traderActions(scheme: "light" | "dark"): RouterAction[] {
   return [
-    action(
-      "verify",
-      "Verify certificate",
-      "/verify-certificate",
-      icon("symbol:checkmark.seal", AndroidIconKey.verify, scheme),
-      "Check a lab certificate",
-    ),
     action(
       "add-gem",
       "Gem",
@@ -124,13 +108,6 @@ function traderActions(scheme: "light" | "dark"): RouterAction[] {
 function lapidaryActions(scheme: "light" | "dark"): RouterAction[] {
   return [
     action(
-      "verify",
-      "Verify certificate",
-      "/verify-certificate",
-      icon("symbol:checkmark.seal", AndroidIconKey.verify, scheme),
-      "Check a lab certificate",
-    ),
-    action(
       "jobs",
       "Jobs",
       "/(marketplace)/(tabs)/workspace/jobs",
@@ -154,45 +131,11 @@ function lapidaryActions(scheme: "light" | "dark"): RouterAction[] {
   ];
 }
 
-function gemLabActions(scheme: "light" | "dark"): RouterAction[] {
-  return [
-    action(
-      "verify",
-      "Verify certificate",
-      "/verify-certificate",
-      icon("symbol:checkmark.seal", AndroidIconKey.verify, scheme),
-      "Public certificate check",
-    ),
-    action(
-      "certificates",
-      "Certificates",
-      "/(marketplace)/(tabs)/workspace/certificates",
-      icon("symbol:rosette", AndroidIconKey.certificates, scheme),
-      "Issued reports",
-    ),
-    action(
-      "add-certificate",
-      "Issue certificate",
-      "/(marketplace)/(tabs)/workspace/certificates/add",
-      icon("add", AndroidIconKey.add, scheme),
-      "Create a new report",
-    ),
-    action(
-      "money",
-      "Money",
-      "/(marketplace)/(tabs)/money",
-      icon("symbol:banknote", AndroidIconKey.money, scheme),
-      "Receivables & payments",
-    ),
-  ];
-}
-
 function actionsForRole(
   role: UserRole,
   scheme: "light" | "dark",
 ): RouterAction[] {
   if (role === "lapidary") return lapidaryActions(scheme);
-  if (role === "gem_lab") return gemLabActions(scheme);
   return traderActions(scheme);
 }
 

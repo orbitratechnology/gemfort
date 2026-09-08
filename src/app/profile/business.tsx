@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Redirect, router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -14,15 +14,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
 import { CityField } from "@/components/ui/city-field";
-import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
-import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { MaskedInput } from "@/components/ui/masked-input";
+import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { cityBelongsToCountry } from "@/constants/cities";
@@ -34,6 +34,11 @@ import {
     type ThemeColors,
 } from "@/constants/design-tokens";
 import {
+    LAPIDARY_SERVICE_OPTIONS,
+    normalizeLapidaryServiceId,
+    type LapidaryServiceId,
+} from "@/constants/roles";
+import {
     accountTypeLabelFromRegistration,
     businessTypeFromRegistration,
     createBusinessProfile,
@@ -43,120 +48,111 @@ import {
     updateBusinessProfile,
 } from "@/features/marketplace/marketplace-service";
 import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
-import { normalizeLabCertificateOfferings } from "@/features/marketplace/lab-certificate-offerings";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { Timestamp } from "@/lib/firebase/db";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
-import { parseAmountInput } from "@/lib/money/mask";
+import { Timestamp } from "@/lib/firebase/db";
 import {
     extensionForMedia,
     pickLocalMedia,
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import {
+    detectProfileLocation,
+    profileLocationLabel,
+} from "@/lib/location/profile-location";
+import { parseAmountInput } from "@/lib/money/mask";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
-  Business,
-  LabCertificateOffering,
-  LapidaryServiceOffering,
-  UserProfile,
+    Business,
+    LapidaryServiceOffering,
+    ProfileLocation,
+    UserProfile,
 } from "@/types";
 
-type CertDraft = {
-  id: string;
-  title: string;
-  description: string;
-  priceText: string;
-  currency: string;
-  isActive: boolean;
-};
-
 type LapidaryServiceDraft = {
-  serviceId: string;
-  name: string;
-  description: string;
+  serviceId: LapidaryServiceId;
   priceText: string;
   currency: string;
-  isActive: boolean;
 };
 
-function draftsFromBusiness(business: Business | null | undefined): CertDraft[] {
-  return normalizeLabCertificateOfferings(
-    business?.labProfile?.certificateOfferings,
-    business?.labProfile?.reportTypes,
-  ).map((o) => ({
-    id: o.id,
-    title: o.title,
-    description: o.description,
-    priceText: o.price != null ? String(o.price) : "",
-    currency: o.currency || "LKR",
-    isActive: o.isActive,
-  }));
-}
+const LAPIDARY_SERVICE_ICONS: Record<LapidaryServiceId, IconName> = {
+  cutting: "content-cut",
+  heating: "local-fire-department",
+  polishing: "auto-awesome",
+};
 
-function offeringsFromDrafts(drafts: CertDraft[]): LabCertificateOffering[] {
-  return drafts.map((d) => {
-    const parsed = parseAmountInput(d.priceText);
-    return {
-      id: d.id,
-      title: d.title,
-      description: d.description,
-      price: Number.isFinite(parsed) && parsed >= 0 ? parsed : null,
-      currency: d.currency || "LKR",
-      isActive: d.isActive,
-    };
-  });
+const LAPIDARY_SERVICE_HINTS: Record<LapidaryServiceId, string> = {
+  cutting: "Facet, shape, or re-cut gemstones",
+  heating: "Controlled heat treatment",
+  polishing: "Bring out the final luster",
+};
+
+function serviceOption(serviceId: LapidaryServiceId) {
+  return LAPIDARY_SERVICE_OPTIONS.find((service) => service.id === serviceId)!;
 }
 
 function lapidaryDraftsFromBusiness(
   business: Business | null | undefined,
 ): LapidaryServiceDraft[] {
-  return (business?.providerProfile?.services ?? []).map((service) => ({
-    serviceId: service.serviceId,
-    name: service.name,
-    description: service.description,
-    priceText: String(service.priceMin),
-    currency: service.currency || "LKR",
-    isActive: service.isActive,
-  }));
+  const offerings = business?.providerProfile?.services ?? [];
+  const legacyTypes = business?.providerProfile?.servicesOffered ?? [];
+  const drafts: LapidaryServiceDraft[] = [];
+  const seen = new Set<LapidaryServiceId>();
+
+  for (const service of offerings) {
+    const serviceId =
+      normalizeLapidaryServiceId(service.serviceId) ??
+      normalizeLapidaryServiceId(service.name);
+    if (!serviceId || seen.has(serviceId)) continue;
+    seen.add(serviceId);
+    drafts.push({
+      serviceId,
+      priceText:
+        service.pricingType === "optional" || service.priceMin == null
+          ? ""
+          : String(service.priceMin),
+      currency: service.currency || "LKR",
+    });
+  }
+
+  for (const value of legacyTypes) {
+    const serviceId = normalizeLapidaryServiceId(value);
+    if (!serviceId || seen.has(serviceId)) continue;
+    seen.add(serviceId);
+    drafts.push({ serviceId, priceText: "", currency: "LKR" });
+  }
+
+  return drafts;
 }
 
 function lapidaryOfferingsFromDrafts(
   drafts: LapidaryServiceDraft[],
 ): LapidaryServiceOffering[] {
   return drafts.flatMap((draft) => {
-    const price = parseAmountInput(draft.priceText);
-    const name = draft.name.trim();
-    if (!name || !Number.isFinite(price) || price < 0) return [];
+    const priceText = draft.priceText.trim();
+    const price = priceText ? parseAmountInput(priceText) : null;
+    if (priceText && (price == null || !Number.isFinite(price) || price < 0)) return [];
+    const name = serviceOption(draft.serviceId).label;
     return [{
       serviceId: draft.serviceId,
       name,
-      description: draft.description.trim(),
-      pricingType: "fixed" as const,
+      description: "",
+      pricingType: price == null ? ("optional" as const) : ("fixed" as const),
       priceMin: price,
       priceMax: price,
-      currency: draft.currency || "LKR",
+      currency: price == null ? null : draft.currency || "LKR",
       turnaroundDaysMin: 0,
       turnaroundDaysMax: 0,
-      isActive: draft.isActive,
+      isActive: true,
     }];
   });
 }
 
-function newLapidaryServiceDraft(): LapidaryServiceDraft {
-  return {
-    serviceId: `service_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: "",
-    description: "",
-    priceText: "",
-    currency: "LKR",
-    isActive: true,
-  };
-}
 const BANNER_H = COVER_BANNER_HEIGHT;
 const AVATAR = 96;
 const AVATAR_OVERLAP = 48;
@@ -193,6 +189,11 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [city, setCity] = useState(business?.city ?? "Beruwala");
   const [country, setCountry] = useState(business?.country ?? "Sri Lanka");
   const [address, setAddress] = useState(business?.address ?? "");
+  const [location, setLocation] = useState<ProfileLocation | null>(
+    business?.location ?? null,
+  );
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [locationDetecting, setLocationDetecting] = useState(false);
   const [whatsapp, setWhatsapp] = useState(
     business?.contacts?.whatsapp?.value ?? "",
   );
@@ -214,9 +215,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   );
   const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
   const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
-  const [certDrafts, setCertDrafts] = useState<CertDraft[]>(() =>
-    draftsFromBusiness(business),
-  );
   const [lapidaryServiceDrafts, setLapidaryServiceDrafts] = useState<
     LapidaryServiceDraft[]
   >(() => lapidaryDraftsFromBusiness(business));
@@ -237,11 +235,6 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   const accountTypeLabel = accountTypeLabelFromRegistration(profile);
   const derivedBusinessType = businessTypeFromRegistration(profile);
-  const isLab =
-    derivedBusinessType === "gem_lab" ||
-    business?.businessType === "gem_lab" ||
-    business?.businessType === "lab" ||
-    !!business?.labProfile;
   const isLapidary =
     derivedBusinessType === "lapidary" ||
     business?.businessType === "lapidary" ||
@@ -250,11 +243,27 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
   const displayName = businessName.trim() || "Your Business";
 
-  function updateCertDraft(id: string, patch: Partial<CertDraft>) {
-    setCertDrafts((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ...patch } : d)),
-    );
-  }
+  useEffect(() => {
+    if (business?.location) return;
+    let active = true;
+    setLocationDetecting(true);
+    void detectProfileLocation()
+      .then((detected) => {
+        if (!active || !detected) return;
+        setLocation(detected);
+        if (detected.city) setCity(detected.city);
+        if (detected.country) setCountry(detected.country);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLocationDetecting(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [business?.id, business?.location]);
+
   function updateLapidaryServiceDraft(
     serviceId: string,
     patch: Partial<LapidaryServiceDraft>,
@@ -297,6 +306,18 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     if (!canSave) {
       toast.error("Business name and city are required.");
       return;
+    }
+    if (isLapidary) {
+      const hasInvalidPrice = lapidaryServiceDrafts.some((service) => {
+        const value = service.priceText.trim();
+        if (!value) return false;
+        const price = parseAmountInput(value);
+        return !Number.isFinite(price) || price < 0;
+      });
+      if (hasInvalidPrice) {
+        toast.error("Enter a valid price or leave pricing blank.");
+        return;
+      }
     }
     try {
       await withLoading(async () => {
@@ -348,15 +369,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             city,
             country,
             address,
+            location,
             whatsapp,
             phone,
             socialLinks,
             logoUrl: nextLogo,
             coverPhotoUrl: nextCover,
             galleryPhotos: galleryEntries,
-            ...(isLab
-              ? { certificateOfferings: offeringsFromDrafts(certDrafts) }
-              : {}),
             ...(isLapidary
               ? {
                   lapidaryServiceOfferings: lapidaryOfferingsFromDrafts(
@@ -368,7 +387,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         } else {
           if (!derivedBusinessType) {
             toast.error(
-              "Create a business profile after registering as Trader, Lapidary, or Gem Lab.",
+              "Create a business profile after registering as Trader or Lapidary.",
             );
             return;
           }
@@ -381,26 +400,24 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
               city,
               country,
               address,
+              location,
               shortDescription: shortDescription || "Gem business in Beruwala.",
               whatsapp: whatsapp || profile?.phone || undefined,
               phone: phone || profile?.phone || undefined,
               socialLinks,
             },
           );
-          const mediaAndCert: Parameters<typeof updateBusinessProfile>[1] = {};
-          if (nextLogo) mediaAndCert.logoUrl = nextLogo;
-          if (nextCover) mediaAndCert.coverPhotoUrl = nextCover;
-          if (galleryEntries.length > 0) mediaAndCert.galleryPhotos = galleryEntries;
-          if (isLab) {
-            mediaAndCert.certificateOfferings = offeringsFromDrafts(certDrafts);
-          }
+          const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
+          if (nextLogo) mediaUpdates.logoUrl = nextLogo;
+          if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
+          if (galleryEntries.length > 0) mediaUpdates.galleryPhotos = galleryEntries;
           if (isLapidary) {
-            mediaAndCert.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
+            mediaUpdates.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
               lapidaryServiceDrafts,
             );
           }
-          if (Object.keys(mediaAndCert).length > 0) {
-            await updateBusinessProfile(id, mediaAndCert);
+          if (Object.keys(mediaUpdates).length > 0) {
+            await updateBusinessProfile(id, mediaUpdates);
           }
         }
 
@@ -573,6 +590,50 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           onChange={setCity}
           placeholder="Select city"
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Choose business location on map"
+          onPress={() => setLocationPickerOpen(true)}
+          style={({ pressed }) => [
+            styles.locationField,
+            {
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+              opacity: pressed ? 0.82 : 1,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.locationIcon,
+              { backgroundColor: colors.primaryContainer },
+            ]}
+          >
+            {locationDetecting ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon
+                name="location-on"
+                size={20}
+                color={colors.onPrimaryContainer}
+              />
+            )}
+          </View>
+          <View style={styles.locationCopy}>
+            <Text style={[styles.locationTitle, { color: colors.onSurface }]}>Map pin</Text>
+            <Text
+              style={[styles.locationValue, { color: colors.textMuted }]}
+              numberOfLines={2}
+            >
+              {locationDetecting
+                ? "Detecting your current location…"
+                : location
+                  ? profileLocationLabel(location)
+                  : "Choose the exact public location"}
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
+        </Pressable>
         <Input
           label="Address"
           value={address}
@@ -582,200 +643,143 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         />
       </FormSection>
 
-      {isLab ? (
-        <>
-          <FormSectionLabel title="CERTIFICATE TYPES" />
-          <FormSection>
-            <Text style={[styles.certHint, { color: colors.textMuted }]}>
-              Toggle tiers you offer and set a public price. Leave price blank to
-              show “Inquire”.
-            </Text>
-            {certDrafts.map((cert) => (
-              <View
-                key={cert.id}
-                style={[
-                  styles.certCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    opacity: cert.isActive ? 1 : 0.72,
-                  },
-                ]}
-              >
-                <Pressable
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: cert.isActive }}
-                  accessibilityLabel={`${cert.title}, ${cert.isActive ? "offered" : "not offered"}`}
-                  onPress={() =>
-                    updateCertDraft(cert.id, { isActive: !cert.isActive })
-                  }
-                  style={styles.certHeader}
-                >
-                  <View style={styles.certHeaderCopy}>
-                    <Text
-                      style={[styles.certTitle, { color: colors.onSurface }]}
-                      numberOfLines={2}
-                    >
-                      {cert.title}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.certDesc,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                      numberOfLines={3}
-                    >
-                      {cert.description}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.certToggle,
-                      {
-                        backgroundColor: cert.isActive
-                          ? colors.primary
-                          : colors.surfaceContainerHigh,
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={cert.isActive ? "check" : "close"}
-                      size={16}
-                      color={
-                        cert.isActive
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant
-                      }
-                    />
-                  </View>
-                </Pressable>
-                {cert.isActive ? (
-                  <MaskedInput
-                    label={`Price (${cert.currency})`}
-                    mode="currency"
-                    value={cert.priceText}
-                    onChangeText={(priceText) =>
-                      updateCertDraft(cert.id, { priceText })
-                    }
-                    placeholder="0"
-                    leftIcon="payments"
-                  />
-                ) : null}
-              </View>
-            ))}
-          </FormSection>
-        </>
-      ) : null}
-
       {isLapidary ? (
         <>
           <FormSectionLabel title="PUBLIC SERVICES" />
           <FormSection>
-            <Text style={[styles.certHint, { color: colors.textMuted }]}>
-              Add the services you provide. Active services and their prices are
-              shown on your public profile.
+            <Text style={[styles.serviceHint, { color: colors.textMuted }]}>
+              Select every service your workshop provides. Pricing is optional and
+              can be added per service.
             </Text>
-            {lapidaryServiceDrafts.map((service) => (
-              <View
-                key={service.serviceId}
-                style={[
-                  styles.certCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    opacity: service.isActive ? 1 : 0.72,
-                  },
-                ]}
-              >
-                <View style={styles.serviceCardHeader}>
+            <View style={styles.serviceOptions}>
+              {LAPIDARY_SERVICE_OPTIONS.map((option) => {
+                const selected = lapidaryServiceDrafts.some(
+                  (service) => service.serviceId === option.id,
+                );
+                return (
                   <Pressable
-                    accessibilityRole="switch"
-                    accessibilityState={{ checked: service.isActive }}
-                    accessibilityLabel={`${service.name || "New service"}, ${service.isActive ? "shown publicly" : "hidden"}`}
-                    onPress={() =>
-                      updateLapidaryServiceDraft(service.serviceId, {
-                        isActive: !service.isActive,
-                      })
-                    }
-                    style={styles.certHeaderCopy}
-                  >
-                    <Text style={[styles.certTitle, { color: colors.onSurface }]}>
-                      {service.name || "New service"}
-                    </Text>
-                    <Text style={[styles.certDesc, { color: colors.onSurfaceVariant }]}>
-                      {service.isActive ? "Visible on your profile" : "Hidden from your profile"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${service.name || "service"}`}
-                    onPress={() =>
+                    key={option.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={`${option.label} service`}
+                    onPress={() => {
                       setLapidaryServiceDrafts((prev) =>
-                        prev.filter((item) => item.serviceId !== service.serviceId),
-                      )
-                    }
-                    hitSlop={8}
-                    style={styles.removeServiceButton}
+                        selected
+                          ? prev.filter((service) => service.serviceId !== option.id)
+                          : [
+                              ...prev,
+                              {
+                                serviceId: option.id,
+                                priceText: "",
+                                currency: "LKR",
+                              },
+                            ],
+                      );
+                    }}
+                    style={({ pressed }) => [
+                      styles.serviceOption,
+                      {
+                        backgroundColor: selected
+                          ? colors.primaryContainer
+                          : colors.surfaceContainerLowest,
+                        borderColor: selected
+                          ? colors.primary
+                          : colors.outlineVariant,
+                        opacity: pressed ? 0.82 : 1,
+                      },
+                    ]}
                   >
-                    <Icon name="delete-outline" size={20} color={colors.error} />
+                    <View
+                      style={[
+                        styles.serviceOptionIcon,
+                        {
+                          backgroundColor: selected
+                            ? colors.primary
+                            : colors.surfaceContainerHigh,
+                        },
+                      ]}
+                    >
+                      <Icon
+                        name={LAPIDARY_SERVICE_ICONS[option.id]}
+                        size={20}
+                        color={selected ? colors.onPrimary : colors.onSurfaceVariant}
+                      />
+                    </View>
+                    <View style={styles.serviceOptionCopy}>
+                      <Text
+                        style={[styles.serviceTitle, { color: colors.onSurface }]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={[styles.serviceDesc, { color: colors.textMuted }]}
+                        numberOfLines={1}
+                      >
+                        {LAPIDARY_SERVICE_HINTS[option.id]}
+                      </Text>
+                    </View>
+                    <Icon
+                      name={selected ? "check-circle" : "radio-button-unchecked"}
+                      size={22}
+                      color={selected ? colors.primary : colors.outline}
+                    />
                   </Pressable>
-                </View>
-                <Input
-                  label="Service name"
-                  value={service.name}
-                  onChangeText={(name) =>
-                    updateLapidaryServiceDraft(service.serviceId, { name })
-                  }
-                  placeholder="e.g. Precision recutting"
-                  leftIcon="handyman"
-                />
-                <Input
-                  label="Description"
-                  value={service.description}
-                  onChangeText={(description) =>
-                    updateLapidaryServiceDraft(service.serviceId, { description })
-                  }
-                  placeholder="What is included?"
-                  multiline
-                  style={styles.serviceDescription}
-                />
-                <CurrencyAmountField
-                  label="Price"
-                  value={{
-                    amount: service.priceText,
-                    currency: service.currency as CurrencyCode,
-                  }}
-                  onChange={({ amount, currency }) =>
-                    updateLapidaryServiceDraft(service.serviceId, {
-                      priceText: amount,
-                      currency,
-                    })
-                  }
-                  placeholder="0"
-                />
+                );
+              })}
+            </View>
+
+            {lapidaryServiceDrafts.length > 0 ? (
+              <View style={styles.pricingList}>
+                <Text style={[styles.pricingTitle, { color: colors.onSurface }]}>
+                  Pricing (optional)
+                </Text>
+                <Text style={[styles.pricingHint, { color: colors.textMuted }]}>
+                  Leave a price blank to invite a quote.
+                </Text>
+                {lapidaryServiceDrafts.map((service) => {
+                  const option = serviceOption(service.serviceId);
+                  return (
+                    <View
+                      key={service.serviceId}
+                      style={[
+                        styles.pricingCard,
+                        {
+                          backgroundColor: colors.surfaceContainerLow,
+                          borderColor: colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <View style={styles.pricingCardHeader}>
+                        <Icon
+                          name={LAPIDARY_SERVICE_ICONS[service.serviceId]}
+                          size={18}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[styles.pricingLabel, { color: colors.onSurface }]}
+                        >
+                          {option.label}
+                        </Text>
+                      </View>
+                      <CurrencyAmountField
+                        label="Starting price (optional)"
+                        value={{
+                          amount: service.priceText,
+                          currency: service.currency as CurrencyCode,
+                        }}
+                        onChange={({ amount, currency }) =>
+                          updateLapidaryServiceDraft(service.serviceId, {
+                            priceText: amount,
+                            currency,
+                          })
+                        }
+                        placeholder="Quote on request"
+                      />
+                    </View>
+                  );
+                })}
               </View>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add service"
-              onPress={() =>
-                setLapidaryServiceDrafts((prev) => [
-                  ...prev,
-                  newLapidaryServiceDraft(),
-                ])
-              }
-              style={({ pressed }) => [
-                styles.addServiceButton,
-                {
-                  borderColor: colors.outlineVariant,
-                  backgroundColor: colors.surfaceContainerLow,
-                  opacity: pressed ? 0.72 : 1,
-                },
-              ]}
-            >
-              <Icon name="add" size={20} color={colors.primary} />
-              <Text style={[styles.addServiceText, { color: colors.primary }]}>
-                Add service
-              </Text>
-            </Pressable>
+            ) : null}
           </FormSection>
         </>
       ) : null}
@@ -879,6 +883,17 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           </Pressable>
         ) : null}
       </View>
+      <ProfileLocationPicker
+        visible={locationPickerOpen}
+        value={location}
+        onClose={() => setLocationPickerOpen(false)}
+        onSave={(next) => {
+          setLocation(next);
+          if (next.city) setCity(next.city);
+          if (next.country) setCountry(next.country);
+          setLocationPickerOpen(false);
+        }}
+      />
     </>
   );
 }
@@ -1051,6 +1066,27 @@ const styles = StyleSheet.create({
 
   textArea: { minHeight: 96, textAlignVertical: "top", paddingTop: 12 },
 
+  locationField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 64,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderCurve: "continuous",
+  },
+  locationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationCopy: { flex: 1, gap: 2, minWidth: 0 },
+  locationTitle: { ...Typography.labelMd, fontWeight: "600" },
+  locationValue: { ...Typography.caption, lineHeight: 17 },
+
   actions: {
     gap: Spacing.md,
     marginTop: Spacing.sm,
@@ -1067,58 +1103,64 @@ const styles = StyleSheet.create({
   linkText: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
   linkSub: { ...Typography.bodySmall },
 
-  certHint: {
+  serviceHint: {
     ...Typography.caption,
     marginBottom: Spacing.sm,
     paddingHorizontal: 2,
   },
-  certCard: {
+  serviceOptions: {
+    gap: Spacing.sm,
+  },
+  serviceOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 72,
+    padding: Spacing.md,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
+    borderWidth: 1,
+  },
+  serviceOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  serviceOptionCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  serviceTitle: { ...Typography.bodyLg, fontWeight: "700" },
+  serviceDesc: { ...Typography.caption, lineHeight: 16 },
+  pricingList: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  pricingTitle: {
+    ...Typography.labelMd,
+    fontWeight: "700",
+  },
+  pricingHint: {
+    ...Typography.caption,
+    marginTop: -4,
+  },
+  pricingCard: {
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: 1,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
-  certHeader: {
+  pricingCardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-  },
-  certHeaderCopy: { flex: 1, gap: 4, minWidth: 0 },
-  certTitle: { ...Typography.bodyLg, fontWeight: "700" },
-  certDesc: { ...Typography.caption, lineHeight: 16 },
-  certToggle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
     alignItems: "center",
-    justifyContent: "center",
-  },
-  serviceCardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
     gap: Spacing.sm,
   },
-  removeServiceButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+  pricingLabel: {
+    ...Typography.labelMd,
+    fontWeight: "700",
   },
-  serviceDescription: {
-    minHeight: 76,
-    textAlignVertical: "top",
-    paddingTop: 12,
-  },
-  addServiceButton: {
-    minHeight: 48,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  addServiceText: { ...Typography.labelMd, fontWeight: "700" },
 });

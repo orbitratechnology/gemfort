@@ -27,10 +27,10 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_request_accepted',
   'service_request_rejected',
   'service_job_updated',
-  'cert_request_received',
-  'cert_request_accepted',
-  'cert_request_rejected',
-  'cert_ready',
+  'gem_transfer_requested',
+  'gem_transfer_accepted',
+  'gem_transfer_rejected',
+  'gem_transfer_cancelled',
 ] as const;
 
 export const GEMNET_NOTIFICATION_TYPES = [
@@ -39,7 +39,6 @@ export const GEMNET_NOTIFICATION_TYPES = [
   'verification_info_requested',
   'verification_revoked',
   'announcement_platform',
-  'announcement_industry_news',
   'report_resolved',
   'report_dismissed',
   'account_warning',
@@ -61,10 +60,10 @@ export function notificationGroupKeyForType(type: string): string {
     return 'finance';
   }
   if (type.startsWith('ap_')) return 'ap';
+  if (type.startsWith('gem_transfer_')) return 'gems';
   if (type.startsWith('service_')) return 'services';
-  if (type.startsWith('cert_')) return 'certificates';
   if (type.startsWith('listing_') || type.startsWith('like_')) return 'market';
-  if (type.startsWith('announcement_')) return 'news';
+  if (type.startsWith('announcement_')) return 'updates';
   if (type.startsWith('account_') || type.startsWith('verification_') || type.startsWith('report_')) {
     return 'account';
   }
@@ -89,6 +88,8 @@ export type NotificationInput = {
   actorPhotoUrl?: string | null;
   /** Secondary rich media (gem, listing, announcement art). */
   imageUrl?: string | null;
+  /** Optional stable identity for events that share the same navigation reference. */
+  dedupeKey?: string | null;
 };
 
 export type StoredNotification = NotificationInput & {
@@ -109,8 +110,8 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   }
   if (
     type === 'ap_request_received' ||
+    type === 'gem_transfer_requested' ||
     type === 'service_request_received' ||
-    type === 'cert_request_received' ||
     type === 'ap_cancellation_requested' ||
     type === 'service_cancellation_requested' ||
     type === 'ap_overdue' ||
@@ -143,6 +144,7 @@ export const PUSH_MANDATORY_TYPES = new Set<NotificationType>([
 export function pushCategoryForType(type: NotificationType): string {
   if (type === 'ap_request_received') return 'ap_request';
   if (type === 'ap_cancellation_requested') return 'ap_cancel';
+  if (type === 'gem_transfer_requested') return 'gem_transfer';
   if (type === 'listing_offer_received') return 'listing_offer';
   return 'open_ref';
 }

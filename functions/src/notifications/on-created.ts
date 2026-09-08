@@ -1,4 +1,4 @@
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 import { REGION } from '../config';
@@ -19,6 +19,7 @@ export const onNotificationCreated = onDocumentCreated(
     if (data.isPushSent) return;
 
     const { sent, media } = await sendPushForNotification(data.recipientUid, {
+      notificationId: event.params.notifId,
       type: data.type as NotificationType,
       title: data.title,
       message: data.message,

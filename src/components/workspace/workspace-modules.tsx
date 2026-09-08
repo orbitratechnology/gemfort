@@ -61,18 +61,6 @@ function tilePalette(
         linear-gradient(125deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 42%, rgba(255,255,255,0.10) 100%),
         radial-gradient(ellipse 75% 95% at 100% 45%, rgba(255,255,255,0.16) 0%, transparent 58%)
       `,
-      `
-        linear-gradient(135deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.13) 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, rgba(255,255,255,0.14) 0%, transparent 60%)
-      `,
-      `
-        linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0.03) 48%, rgba(255,255,255,0.11) 100%),
-        radial-gradient(ellipse 80% 100% at 100% 40%, rgba(255,255,255,0.15) 0%, transparent 55%)
-      `,
-      `
-        linear-gradient(145deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.12) 100%),
-        radial-gradient(ellipse 72% 88% at 100% 55%, rgba(255,255,255,0.13) 0%, transparent 62%)
-      `,
     ];
     return {
       wash: whiteWashes[index % whiteWashes.length]!,
@@ -190,7 +178,10 @@ function ModuleTile({
           ) : null}
         </View>
 
-        <View style={[styles.artCol, featured && styles.artColFeatured]} pointerEvents="none">
+        <View
+          style={[styles.artCol, featured && styles.artColFeatured]}
+          pointerEvents="none"
+        >
           {item.image ? (
             <Image
               source={item.image}

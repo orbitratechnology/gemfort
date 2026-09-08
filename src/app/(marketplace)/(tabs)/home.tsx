@@ -94,23 +94,22 @@ type QuickAction = {
   href: string;
 };
 
-const VERIFY_ACTION: QuickAction = {
-  id: "verify",
-  label: "Verify",
-  icon: "verified",
-  image: require("@/assets/images/certificate-icon.png"),
-  href: "/verify-certificate",
+const PORTAL_ACTION: QuickAction = {
+  id: "certificate-portals",
+  label: "Portals",
+  icon: "open-in-new",
+  href: "/verify-certificate-portals",
 };
 
 function quickActionsForRole(
   role: ReturnType<typeof resolveProfileRole>,
   signedIn: boolean,
 ): QuickAction[] {
-  if (!signedIn) return [VERIFY_ACTION];
+  if (!signedIn) return [PORTAL_ACTION];
 
   if (role === "lapidary") {
     return [
-      VERIFY_ACTION,
+      PORTAL_ACTION,
       {
         id: "jobs",
         label: "Jobs",
@@ -134,22 +133,9 @@ function quickActionsForRole(
     ];
   }
 
-  if (role === "gem_lab") {
-    return [
-      VERIFY_ACTION,
-      {
-        id: "certificates",
-        label: "Certificates",
-        icon: "workspace-premium",
-        image: require("@/assets/images/certificate-icon.png"),
-        href: "/(marketplace)/(tabs)/workspace/certificates",
-      },
-    ];
-  }
-
   // Trader (and admin treated as full trader tools on home)
   return [
-    VERIFY_ACTION,
+    PORTAL_ACTION,
     {
       id: "add-gem",
       label: "Gem",
@@ -355,7 +341,6 @@ export default function HomeScreen() {
     () => popularByRole(businesses, "traders"),
     [businesses],
   );
-  const labs = useMemo(() => popularByRole(businesses, "labs"), [businesses]);
   const lapidaries = useMemo(
     () => popularByRole(businesses, "lapidaries"),
     [businesses],
@@ -514,13 +499,6 @@ export default function HomeScreen() {
               tab: "traders" as const,
               role: "Trader" as const,
               empty: "Browse traders in the market",
-            },
-            {
-              title: "Popular labs",
-              data: labs,
-              tab: "labs" as const,
-              role: "Gem Lab" as const,
-              empty: "Find gem labs for certification",
             },
             {
               title: "Popular lapidaries",

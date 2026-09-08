@@ -46,20 +46,20 @@ type LoopSlide = BannerSlide & {
 
 const ALL_BANNERS: BannerSlide[] = [
   {
-    id: 'verify',
+    id: 'certificate-portals',
     eyebrow: 'Trust',
-    title: 'Verify a certificate',
-    subtitle: 'Confirm a lab report before you buy or sell.',
-    cta: 'Verify now',
-    icon: 'verified',
-    href: '/verify-certificate',
+    title: 'External certificate portals',
+    subtitle: 'Open official verification pages before you buy or sell.',
+    cta: 'Open portals',
+    icon: 'open-in-new',
+    href: '/verify-certificate-portals',
     tone: 'primary',
   },
   {
     id: 'market',
     eyebrow: 'Marketplace',
     title: 'Browse gems & traders',
-    subtitle: 'Discover verified traders, labs, and new listings.',
+    subtitle: 'Discover verified traders, lapidaries, and new listings.',
     cta: 'Open market',
     icon: 'diamond',
     href: '/(marketplace)/(tabs)/market',

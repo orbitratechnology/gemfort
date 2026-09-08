@@ -1,5 +1,5 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../admin';
@@ -63,7 +63,10 @@ function gemLabelFromDoc(data: Record<string, unknown>, gemId: string): string {
 async function unlockGem(gemId: string) {
   await db.collection('gemtrack_gems').doc(gemId).update({
     status: 'ready_for_sale',
+    custody: null,
+    currentLocation: null,
     currentHolderContactId: null,
+    currentApId: null,
     updatedAt: FieldValue.serverTimestamp(),
   });
 }
@@ -198,7 +201,10 @@ export const createApRequest = onCall(
     for (const line of lines) {
       batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
         status: 'on_ap',
+        custody: 'on_ap',
+        currentLocation: 'AP',
         currentHolderContactId: receiverContactId,
+        currentApId: apRef.id,
         updatedAt: now,
       });
     }
@@ -257,7 +263,10 @@ export const respondApRequest = onCall(
       for (const line of ap.items ?? []) {
         batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
+          currentApId: null,
           updatedAt: now,
         });
       }
@@ -320,7 +329,10 @@ export const cancelApRequest = onCall(
     for (const line of ap.items ?? []) {
       batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
         status: 'ready_for_sale',
+        custody: null,
+        currentLocation: null,
         currentHolderContactId: null,
+        currentApId: null,
         updatedAt: now,
       });
     }
@@ -421,6 +433,8 @@ export const recordApGemSale = onCall(
     batch.update(ref, { items, updatedAt: now });
     batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
       status: 'sold',
+      custody: 'on_ap',
+      currentLocation: 'AP',
       // Owner's gem ledger shows only what they receive — not the holder's full sale.
       soldPrice: ownerReceives,
       soldPriceCurrency: saleCurrency,
@@ -483,13 +497,25 @@ export const returnApGem = onCall(
     const items = [...(ap.items ?? [])];
     const idx = items.findIndex((i) => i.gemId === gemId);
     if (idx < 0) throw new HttpsError('not-found', 'Gem not on this AP.');
+    if (items[idx].lineStatus === 'returned') {
+      const allReturned = items.every((item) => item.lineStatus === 'returned');
+      if (allReturned) {
+        await ref.update({ status: 'done', updatedAt: Timestamp.now() });
+      }
+      return { ok: true as const };
+    }
     if (items[idx].lineStatus !== 'held') {
       throw new HttpsError('failed-precondition', 'Only held gems can be returned.');
     }
 
     const now = Timestamp.now();
     items[idx] = { ...items[idx], lineStatus: 'returned' };
-    await ref.update({ items, updatedAt: now });
+    const allReturned = items.every((item) => item.lineStatus === 'returned');
+    await ref.update({
+      items,
+      ...(allReturned ? { status: 'done' } : {}),
+      updatedAt: now,
+    });
     await unlockGem(gemId);
 
     return { ok: true as const };
@@ -778,7 +804,10 @@ export const respondApCancellation = onCall(
       if (line.lineStatus === 'held') {
         batch.update(db.collection('gemtrack_gems').doc(line.gemId), {
           status: 'ready_for_sale',
+          custody: null,
+          currentLocation: null,
           currentHolderContactId: null,
+          currentApId: null,
           updatedAt: now,
         });
       }

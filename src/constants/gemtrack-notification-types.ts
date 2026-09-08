@@ -16,6 +16,10 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_overdue',
   'payment_due_soon',
   'payment_overdue',
+  'gem_transfer_requested',
+  'gem_transfer_accepted',
+  'gem_transfer_rejected',
+  'gem_transfer_cancelled',
 ] as const;
 
 export type GemTrackNotificationType = (typeof GEMTRACK_NOTIFICATION_TYPES)[number];

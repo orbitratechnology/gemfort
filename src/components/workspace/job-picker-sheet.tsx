@@ -11,6 +11,7 @@ import {
 import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -131,6 +132,12 @@ export function JobPickerSheet({
                   },
                 ]}
               >
+                <GemThumb
+                  uri={item.gemPhotoUrl}
+                  label={item.gemName || "Gem"}
+                  size={48}
+                  radius={10}
+                />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text
                     style={[styles.title, { color: colors.onSurface }]}
@@ -201,23 +208,31 @@ export function JobSelectField({
         ]}
       >
         {job ? (
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text
-              style={[styles.fieldTitle, { color: colors.onSurface }]}
-              numberOfLines={1}
-            >
-              {job.gemName || "Gem job"}
-            </Text>
-            <Text
-              style={[styles.fieldSub, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {JOB_STATUS_LABELS[job.status]}
-              {job.serviceTypes?.length
-                ? ` · ${job.serviceTypes.join(", ")}`
-                : ""}
-            </Text>
-          </View>
+          <>
+            <GemThumb
+              uri={job.gemPhotoUrl}
+              label={job.gemName || "Gem"}
+              size={48}
+              radius={10}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={[styles.fieldTitle, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {job.gemName || "Gem job"}
+              </Text>
+              <Text
+                style={[styles.fieldSub, { color: colors.textMuted }]}
+                numberOfLines={1}
+              >
+                {JOB_STATUS_LABELS[job.status]}
+                {job.serviceTypes?.length
+                  ? ` · ${job.serviceTypes.join(", ")}`
+                  : ""}
+              </Text>
+            </View>
+          </>
         ) : (
           <Text style={[styles.placeholder, { color: colors.textMuted }]}>
             {placeholder}

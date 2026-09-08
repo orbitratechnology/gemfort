@@ -1,12 +1,10 @@
 # Firebase native config sync
 
-Firebase has one project with separate Android and iOS apps for each EAS environment:
+Firebase has one Android app and one iOS app shared by every EAS environment:
 
-- `development` → `app.gemfort.dev`
-- `preview` → `app.gemfort.preview`
-- `production` → `app.gemfort`
+- `development`, `preview`, and `production` → `app.gemfort`
 
-The native files are intentionally ignored by git. `app.config.ts` uses EAS file environment variables when they are present and falls back to the matching local files for local native builds.
+The native files are intentionally ignored by git. `app.config.ts` uses EAS file environment variables when they are present and falls back to the shared local files for local native builds.
 
 ## Refresh local files
 

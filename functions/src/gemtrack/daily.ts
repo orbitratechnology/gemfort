@@ -1,4 +1,4 @@
-import { logger } from 'firebase-functions';
+import { logger } from 'firebase-functions/logger';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { db } from '../admin';

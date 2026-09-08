@@ -61,7 +61,7 @@ export function MediaField({
   emptyTitle,
   emptySubtitle,
   variant = 'card',
-  sourcePickerTitle = 'Add certificate or report',
+  sourcePickerTitle = 'Add a document',
   sourcePickerMessage = 'Photos open the editor before being saved as WebP. Documents stay unchanged.',
 }: MediaFieldProps) {
   const { colors } = useAppTheme();

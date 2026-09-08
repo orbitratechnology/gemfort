@@ -1,4 +1,4 @@
-import { callFunction } from '@/lib/firebase/call-function';
+import { callApi } from '@/lib/api/api-client';
 
 export type FlightPlace = {
   type: 'city' | 'airport' | 'country';
@@ -68,15 +68,27 @@ export async function autocompletePlaces(term: string): Promise<FlightPlace[]> {
 }
 
 export function searchFlights(criteria: FlightSearchCriteria) {
-  return callFunction<FlightSearchResult, FlightSearchCriteria>('searchFlights', criteria);
+  return callApi<FlightSearchResult, FlightSearchCriteria>(
+    '/v1/flights/search',
+    criteria,
+    { retryAuthOn401: true },
+  );
 }
 
 export function getFlightPriceCalendar(criteria: FlightSearchCriteria) {
-  return callFunction<FlightCalendarResult, FlightSearchCriteria>('getFlightPriceCalendar', criteria);
+  return callApi<FlightCalendarResult, FlightSearchCriteria>(
+    '/v1/flights/calendar',
+    criteria,
+    { retryAuthOn401: true },
+  );
 }
 
 export function createFlightBookingLink(url: string) {
-  return callFunction<{ bookingUrl: string }, { url: string }>('createFlightBookingLink', { url });
+  return callApi<{ bookingUrl: string }, { url: string }>(
+    '/v1/flights/booking-link',
+    { url },
+    { retryAuthOn401: true },
+  );
 }
 
 export function airlineLogoUrl(iata: string | null, width = 132, height = 44) {

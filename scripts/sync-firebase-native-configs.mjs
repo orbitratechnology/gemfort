@@ -9,25 +9,17 @@ const requestedEnvironment = process.argv.find((arg) =>
   ["development", "preview", "production"].includes(arg),
 );
 
+const nativeConfig = {
+  packageName: "app.gemfort",
+  bundleId: "app.gemfort",
+  androidFile: "google-services.json",
+  iosFile: "GoogleService-Info.plist",
+};
+
 const environments = {
-  development: {
-    packageName: "app.gemfort.dev",
-    bundleId: "app.gemfort.dev",
-    androidFile: "google-services.dev.json",
-    iosFile: "GoogleService-Info.dev.plist",
-  },
-  preview: {
-    packageName: "app.gemfort.preview",
-    bundleId: "app.gemfort.preview",
-    androidFile: "google-services.preview.json",
-    iosFile: "GoogleService-Info.preview.plist",
-  },
-  production: {
-    packageName: "app.gemfort",
-    bundleId: "app.gemfort",
-    androidFile: "google-services.json",
-    iosFile: "GoogleService-Info.plist",
-  },
+  development: nativeConfig,
+  preview: nativeConfig,
+  production: nativeConfig,
 };
 
 const selected = requestedEnvironment

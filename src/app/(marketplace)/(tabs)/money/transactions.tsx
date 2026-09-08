@@ -18,12 +18,14 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { GemThumb } from '@/components/workspace/gem-thumb';
 import {
   getPaymentSourceMeta,
   paymentSourceHref,
   sourceOfTransaction,
 } from '@/features/workspace/payment-source';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
+import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
 import { subscribeGems, subscribeTransactions } from '@/features/workspace/firestore-subscriptions';
 import {
   createTransaction,
@@ -264,9 +266,17 @@ export default function TransactionsScreen() {
                         {item.date?.toDate ? item.date.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(item.date as any).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Text>
                     </View>
-                    {linkedGem && (
-                      <Text style={[styles.txNotes, { color: colors.onSurfaceVariant }]}>Linked: {linkedGem.sku}</Text>
-                    )}
+                    {linkedGem ? (
+                      <View style={styles.linkedGemRow}>
+                        <GemThumb
+                          uri={gemPrimaryPhotoUrl(linkedGem)}
+                          label={linkedGem.title?.trim() || linkedGem.sku || 'Gem'}
+                          size={32}
+                          radius={8}
+                        />
+                        <Text style={[styles.txNotes, { color: colors.onSurfaceVariant }]}>Linked: {linkedGem.sku}</Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               </Pressable>
@@ -338,6 +348,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   sourceText: { ...Typography.caption, fontWeight: '600' },
+  linkedGemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   txNotes: { ...Typography.bodyMd, fontStyle: 'italic', fontSize: 12, marginTop: 4 },
 
   fab: {

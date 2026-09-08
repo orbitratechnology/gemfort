@@ -15,6 +15,7 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
   GemPickerSheet,
   GemSelectField,
@@ -23,6 +24,7 @@ import { resolveCurrencyCode } from "@/constants/currencies";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { createApRequest } from "@/features/workspace/ap-lifecycle-service";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
   subscribeContacts,
   subscribeGems,
@@ -219,6 +221,12 @@ export default function AddApScreen() {
                 ]}
               >
                 <View style={styles.lineHeader}>
+                  <GemThumb
+                    uri={gemPrimaryPhotoUrl(gem)}
+                    label={gem ? gem.variety?.trim() || formatGemType(gem.gemType) : "Gem"}
+                    size={52}
+                    radius={12}
+                  />
                   <View style={{ flex: 1 }}>
                     <Text
                       style={[styles.lineTitle, { color: colors.onSurface }]}
