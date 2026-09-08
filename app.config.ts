@@ -107,6 +107,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-dev-client",
     "expo-font",
     "expo-image",
+    "@maplibre/maplibre-react-native",
     [
       "expo-location",
       {

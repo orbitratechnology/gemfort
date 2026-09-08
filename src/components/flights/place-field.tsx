@@ -108,6 +108,7 @@ export function PlaceField({
           setTerm('');
         }}
         title={`Choose ${label.toLowerCase()}`}
+        autoScrollToFocusedInput={false}
       >
         <View style={styles.sheetContent}>
           <View

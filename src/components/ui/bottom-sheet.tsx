@@ -53,6 +53,8 @@ type BottomSheetProps = {
    * Defaults to true.
    */
   scrollable?: boolean;
+  /** Disable focused-input auto-scrolling when the sheet already avoids the keyboard. */
+  autoScrollToFocusedInput?: boolean;
 };
 
 /**
@@ -66,6 +68,7 @@ export function BottomSheet({
   children,
   footer,
   scrollable = true,
+  autoScrollToFocusedInput = true,
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -241,6 +244,7 @@ export function BottomSheet({
                 contentContainerStyle={styles.bodyContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                enabled={autoScrollToFocusedInput}
                 bottomOffset={62}>
                 {children}
               </KeyboardAwareScrollView>

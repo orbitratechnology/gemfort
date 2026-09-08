@@ -45,7 +45,7 @@ export type UserProfile = {
   updatedAt: Timestamp;
 };
 
-/** A saved, user-selected profile location. Coordinates are kept for map links. */
+/** A saved, user-selected business location. Coordinates are kept for map links. */
 export type ProfileLocation = {
   latitude: number;
   longitude: number;

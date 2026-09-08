@@ -14,13 +14,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
 import { CityField } from "@/components/ui/city-field";
-import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
-import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
+import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import { ThemedScrollView } from "@/components/ui/screen";
@@ -34,9 +34,9 @@ import {
     type ThemeColors,
 } from "@/constants/design-tokens";
 import {
-  LAPIDARY_SERVICE_OPTIONS,
-  normalizeLapidaryServiceId,
-  type LapidaryServiceId,
+    LAPIDARY_SERVICE_OPTIONS,
+    normalizeLapidaryServiceId,
+    type LapidaryServiceId,
 } from "@/constants/roles";
 import {
     accountTypeLabelFromRegistration,
@@ -50,28 +50,28 @@ import {
 import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { Timestamp } from "@/lib/firebase/db";
 import { friendlyError } from "@/lib/errors";
-import {
-  detectProfileLocation,
-  profileLocationLabel,
-} from "@/lib/location/profile-location";
 import type { AuthUser } from "@/lib/firebase/auth-types";
-import { parseAmountInput } from "@/lib/money/mask";
+import { Timestamp } from "@/lib/firebase/db";
 import {
     extensionForMedia,
     pickLocalMedia,
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import {
+    detectProfileLocation,
+    profileLocationLabel,
+} from "@/lib/location/profile-location";
+import { parseAmountInput } from "@/lib/money/mask";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
-  Business,
-  LapidaryServiceOffering,
-  ProfileLocation,
-  UserProfile,
+    Business,
+    LapidaryServiceOffering,
+    ProfileLocation,
+    UserProfile,
 } from "@/types";
 
 type LapidaryServiceDraft = {
@@ -592,7 +592,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Choose profile location on map"
+          accessibilityLabel="Choose business location on map"
           onPress={() => setLocationPickerOpen(true)}
           style={({ pressed }) => [
             styles.locationField,

@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
     "@expo/ui": "~57.0.16",
+    "@maplibre/maplibre-react-native": "^11.3.10",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "26.4.0",
     "@react-native-firebase/app-check": "26.4.0",
@@ -59,7 +60,6 @@
     "react-native-calllogs-android": "0.2.1",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.9",
-    "react-native-maps": "1.27.2",
     "react-native-mask-text": "^0.15.0",
     "react-native-nitro-google-signin": "^2.1.0",
     "react-native-nitro-modules": "0.37.1",
