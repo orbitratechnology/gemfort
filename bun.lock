@@ -56,6 +56,7 @@
         "expo-updates": "~57.0.14",
         "expo-web-browser": "~57.0.2",
         "firebase": "^11.10.0",
+        "input-otp-native": "^0.6.0",
         "react": "19.2.3",
         "react-native": "0.86.3",
         "react-native-calllogs-android": "0.2.1",
@@ -1759,6 +1760,8 @@
     "inherits": ["inherits@2.0.4", "", {}, "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="],
 
     "ini": ["ini@2.0.0", "", {}, "sha512-7PnF4oN3CvZF23ADhA5wRaYEQpJ8qygSkbtTXWBeXWXmEVRXK+1ITciHWwHhsjv1TmW0MgacIv6hEi5pX5NQdA=="],
+
+    "input-otp-native": ["input-otp-native@0.6.0", "", { "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-YkGPnszW21Yh/0S2Y+v+P/fs8UqnTVhjfAbMax6igQrkT/MXe0AgR0B+QrsTsz2j4D0f1hahxDFCi1woDH39bA=="],
 
     "install-artifact-from-github": ["install-artifact-from-github@1.8.0", "", { "bin": { "hash-github-cache": "bin/hash-github-cache.js", "install-from-cache": "bin/install-from-cache.js", "save-to-github-cache": "bin/save-to-github-cache.js" } }, "sha512-EA861BGTOO91yuymA5V6Sx//J5471NBpMHnVZJetquqOYknm4zz25Y2tk/f74ggxerqtd8nfBrn9eaR0oxReEA=="],
 

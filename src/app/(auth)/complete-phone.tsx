@@ -1,21 +1,29 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { friendlyError } from "@/lib/errors";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { sendPhoneVerificationCode } from "@/lib/firebase/phone-auth";
 import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
+import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
 
 export default function CompletePhoneScreen() {
   const toast = useToast();
-  const { afterRegistration } = useLocalSearchParams<{
+  const { phone: phoneParam, afterRegistration } = useLocalSearchParams<{
+    phone?: string | string[];
     afterRegistration?: string | string[];
   }>();
-  const [phone, setPhone] = useState("");
+  const initialPhone = Array.isArray(phoneParam) ? phoneParam[0] : phoneParam;
+  const [phone, setPhone] = useState(initialPhone ?? "");
+  const sendingRef = useRef(false);
 
-  function handleContinue() {
+  async function handleContinue() {
+    if (sendingRef.current) return;
+
     try {
       const normalizedPhone = normalizePhoneNumber(phone);
       if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
@@ -28,13 +36,23 @@ export default function CompletePhoneScreen() {
         ? afterRegistration[0]
         : afterRegistration;
       if (registrationFlow === "1") params.afterRegistration = "1";
+      if (!isFirebaseConfigured) {
+        throw new Error("Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.");
+      }
+
+      sendingRef.current = true;
+      const verificationId = await withLoading(
+        () => sendPhoneVerificationCode(normalizedPhone),
+        { message: "Sending code…", overlay: false },
+      );
       router.replace({
         pathname: "/(auth)/verify-otp",
-        params,
+        params: { ...params, verificationId },
       });
     } catch (error) {
+      sendingRef.current = false;
       toast.error(
-        friendlyError(error, "Enter a valid mobile number to continue."),
+        friendlyError(error, "Could not send the verification code. Try again."),
       );
     }
   }

@@ -92,7 +92,7 @@ export default function LoginScreen() {
           router.replace(
             profile?.phone
               ? {
-                  pathname: "/(auth)/verify-otp",
+                  pathname: "/(auth)/complete-phone",
                   params: { phone: profile.phone },
                 }
               : "/(auth)/complete-phone",

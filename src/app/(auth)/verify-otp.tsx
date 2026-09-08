@@ -1,20 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Keyboard, StyleSheet, Text } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OTPInput, REGEXP_ONLY_DIGITS } from 'input-otp-native';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
-import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { Input } from '@/components/ui/input';
+import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
-import { Spacing, Typography } from '@/constants/design-tokens';
+import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { isFirebaseConfigured } from '@/lib/firebase/config';
-import {
-  confirmPhoneVerificationCode,
-  sendPhoneVerificationCode,
-} from '@/lib/firebase/phone-auth';
+import { confirmPhoneVerificationCode } from '@/lib/firebase/phone-auth';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
@@ -26,59 +22,42 @@ import { useToast } from '@/providers/toast-provider';
 export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  const { phone: phoneParam, afterRegistration } = useLocalSearchParams<{
-    phone?: string;
+  const {
+    phone: phoneParam,
+    verificationId: verificationIdParam,
+    afterRegistration,
+  } = useLocalSearchParams<{
+    phone?: string | string[];
+    verificationId?: string | string[];
     afterRegistration?: string | string[];
   }>();
   const { refreshProfile } = useAuth();
-  const phone = normalizePhoneNumber(phoneParam ?? '');
+  const phoneValue = Array.isArray(phoneParam) ? phoneParam[0] : phoneParam;
+  const verificationId = Array.isArray(verificationIdParam)
+    ? verificationIdParam[0]
+    : verificationIdParam;
+  const phone = normalizePhoneNumber(phoneValue ?? '');
   const registrationFlow = Array.isArray(afterRegistration)
     ? afterRegistration[0]
     : afterRegistration;
 
-  const [verificationId, setVerificationId] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [cooldown, setCooldown] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [cooldown]);
+  const verifyingRef = useRef(false);
 
-  const handleSendCode = useCallback(async () => {
-    if (!phone) {
-      toast.error('No phone number to verify.');
-      return;
-    }
-    if (!isFirebaseConfigured) {
-      toast.error('Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.');
-      return;
-    }
-    try {
-      await withLoading(async () => {
-        const id = await sendPhoneVerificationCode(phone, Boolean(verificationId));
-        setVerificationId(id);
-        setCooldown(60);
-        toast.success(`Code sent to ${phone}`);
-      }, 'Sending code…');
-    } catch (e) {
-      toast.error(friendlyError(e, 'Could not send code. Try again.'));
-    }
-  }, [phone, toast, verificationId]);
+  async function handleConfirm(nextCode: string) {
+    if (verifyingRef.current) return;
 
-  async function handleConfirm() {
-    Keyboard.dismiss();
-    if (!verificationId) {
-      toast.error('Send a verification code first.');
-      return;
-    }
-    const result = parseForm(verifyOtpSchema, { code });
+    const result = parseForm(verifyOtpSchema, { code: nextCode });
     if (!result.success) {
       setErrors(result.errors);
       return;
     }
+    if (!verificationId || !phone) {
+      toast.error('This verification session has expired. Enter your phone number again.');
+      return;
+    }
 
+    verifyingRef.current = true;
     setErrors({});
     try {
       await withLoading(async () => {
@@ -92,6 +71,7 @@ export default function VerifyOtpScreen() {
         );
       }, 'Verifying…');
     } catch (e) {
+      verifyingRef.current = false;
       const errorCode =
         typeof e === 'object' && e !== null && 'code' in e
           ? String((e as { code?: unknown }).code ?? '')
@@ -113,53 +93,74 @@ export default function VerifyOtpScreen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
         <ScreenInset style={styles.lead}>
+          <View
+            style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}
+            accessibilityRole="image"
+            accessibilityLabel="Phone verification">
+            <Icon name="phone" size={32} color={colors.primary} />
+          </View>
           <StoryChapter
             title="Verify your phone"
-            body={`We will send a one-time SMS code to ${phone || 'your number'}.`}
+            body={`Enter the 6-digit code sent to ${phone || 'your number'}.`}
+            align="center"
           />
-
-          <Button
-            title={verificationId ? 'Resend code' : 'Send code'}
-            icon="sms"
-            disabled={cooldown > 0}
-            onPress={handleSendCode}
-          />
-          {cooldown > 0 ? (
-            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
-              Resend available in {cooldown}s
-            </Text>
-          ) : null}
         </ScreenInset>
 
-        <FormSection title="Enter code">
-          <Input
-            label="6-digit code"
-            leftIcon="pin"
-            value={code}
-            onChangeText={(text) => {
-              setCode(text.replace(/\D/g, '').slice(0, 6));
-              setErrors({});
-            }}
-            keyboardType="number-pad"
-            maxLength={6}
-            textContentType="oneTimeCode"
-            autoComplete="sms-otp"
-            placeholder="000000"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={handleConfirm}
-            error={errors.code}
-          />
+        <FormSection style={styles.otpSection}>
+          <View style={styles.otpField}>
+            <OTPInput
+              maxLength={6}
+              pattern={REGEXP_ONLY_DIGITS}
+              autoFocus
+              accessibilityLabel="6-digit verification code"
+              onChange={() => {
+                setErrors((current) => (current.code ? {} : current));
+              }}
+              onComplete={handleConfirm}
+              render={({ slots }) => (
+                <View style={styles.otpRow}>
+                  {slots.map((slot, index) => (
+                    <Pressable
+                      key={index}
+                      accessibilityLabel={`Verification digit ${index + 1}`}
+                      accessibilityRole="button"
+                      onPress={slot.focus}
+                      style={({ pressed }) => [
+                        styles.otpPressable,
+                        pressed && styles.pressed,
+                      ]}>
+                      <View
+                        style={[
+                          styles.otpSlot,
+                          {
+                            backgroundColor: colors.surfaceMuted,
+                            borderColor: slot.isActive ? colors.primary : colors.border,
+                          },
+                        ]}>
+                        {slot.char !== null ? (
+                          <Text style={[styles.otpChar, { color: colors.text }]}>
+                            {slot.char}
+                          </Text>
+                        ) : slot.hasFakeCaret ? (
+                          <View
+                            style={[styles.fakeCaret, { backgroundColor: colors.primary }]}
+                          />
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            />
+            {errors.code ? (
+              <Text
+                style={[styles.error, { color: colors.error }]}
+                accessibilityLiveRegion="polite">
+                {errors.code}
+              </Text>
+            ) : null}
+          </View>
         </FormSection>
-
-        <ScreenInset style={styles.cta}>
-          <Button
-            title="Verify & continue"
-            icon="verified"
-            onPress={handleConfirm}
-          />
-
-        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -168,11 +169,58 @@ export default function VerifyOtpScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
+    alignItems: 'center',
   },
-  lead: { gap: Spacing.lg },
-  cta: { gap: Spacing.lg },
-  cooldown: { ...Typography.caption, textAlign: 'center' },
+  lead: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpSection: {
+    alignItems: 'center',
+  },
+  otpField: {
+    width: '100%',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  otpRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  otpPressable: {
+    flex: 1,
+    maxWidth: 44,
+  },
+  otpSlot: {
+    width: '100%',
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 10,
+  },
+  otpChar: {
+    ...Typography.headlineMd,
+  },
+  fakeCaret: {
+    width: 2,
+    height: 28,
+    borderRadius: 1,
+  },
+  pressed: { opacity: 0.7 },
+  error: { ...Typography.bodySmall, textAlign: 'center' },
 });

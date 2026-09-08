@@ -2,6 +2,7 @@ import {
   linkWithCredential,
   PhoneAuthProvider,
   type PhoneAuthListener,
+  type User,
   verifyPhoneNumber,
 } from '@react-native-firebase/auth';
 
@@ -26,8 +27,12 @@ export async function confirmPhoneVerificationCode(
   if (!user) throw new Error('You must be signed in to verify your phone.');
 
   const credential = PhoneAuthProvider.credential(verificationId, code);
+  let linkedUser: User = user;
   try {
-    await linkWithCredential(user, credential);
+    // The returned UserCredential contains the freshly linked Auth user. Use
+    // it before reloading the pre-link user, which can briefly expose stale
+    // phoneNumber data on the first submit.
+    linkedUser = (await linkWithCredential(user, credential)).user;
   } catch (error) {
     if (!isProviderAlreadyLinked(error)) throw error;
     await user.reload();
@@ -42,10 +47,7 @@ export async function confirmPhoneVerificationCode(
     return;
   }
 
-  await user.reload();
-  if (normalizePhoneNumber(user.phoneNumber ?? '') !== expectedPhoneE164) {
-    throw new Error('The verified phone number does not match the selected number.');
-  }
+  await waitForExpectedPhone(linkedUser, expectedPhoneE164);
 
   await syncPhoneProfile(expectedPhoneE164);
 }
@@ -73,6 +75,18 @@ function isProviderAlreadyLinked(error: unknown): boolean {
     errorCode(error) === 'auth/provider-already-linked' ||
     message.includes('already been linked to the given provider')
   );
+}
+
+async function waitForExpectedPhone(user: User, expectedPhoneE164: string): Promise<void> {
+  for (const delayMs of [0, 150, 300, 600]) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (normalizePhoneNumber(user.phoneNumber ?? '') === expectedPhoneE164) return;
+    await user.reload();
+  }
+
+  if (normalizePhoneNumber(user.phoneNumber ?? '') !== expectedPhoneE164) {
+    throw new Error('The verified phone number does not match the selected number.');
+  }
 }
 
 function verificationIdFromListener(listener: PhoneAuthListener): Promise<string> {

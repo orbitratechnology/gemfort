@@ -35,10 +35,7 @@ export default function AuthLayout() {
       <Stack.Screen name="register" />
       <Stack.Screen name="complete-phone" />
       <Stack.Screen name="forgot-password" />
-      <Stack.Screen
-        name="verify-otp"
-        options={{ title: 'Verify Phone', headerShown: true }}
-      />
+      <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
     </Stack>
   );
 }
