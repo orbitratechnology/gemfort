@@ -16,8 +16,8 @@ import Animated, {
 import {
   AuthHeading,
   AuthScreen,
-  authGreeting,
 } from "@/components/auth/auth-screen";
+import { authGreeting } from "@/components/auth/auth-screen-utils";
 import { AuthStepIndicator } from "@/components/auth/auth-step-indicator";
 import { Button } from "@/components/ui/button";
 import { CityField } from "@/components/ui/city-field";
@@ -26,6 +26,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MediaField } from "@/components/ui/media-field";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import {
   Radius,
   Spacing,
@@ -47,10 +48,12 @@ import {
   type LocalMedia,
 } from "@/lib/firebase/storage-service";
 import { haptics } from "@/lib/haptics";
+import { profileLocationLabel } from "@/lib/location/profile-location";
 import { markBusinessProfileOnboardingComplete } from "@/lib/onboarding";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
+import type { ProfileLocation } from "@/types";
 
 const STEP_LABELS = ["Basics", "Photo", "Location", "Contact"] as const;
 const TOTAL_STEPS = STEP_LABELS.length;
@@ -74,6 +77,8 @@ export function BusinessProfileOnboarding() {
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [city, setCity] = useState(DEFAULT_CITY);
   const [address, setAddress] = useState("");
+  const [location, setLocation] = useState<ProfileLocation | null>(null);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [whatsapp, setWhatsapp] = useState(() => profile?.phone ?? "");
 
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -122,6 +127,7 @@ export function BusinessProfileOnboarding() {
               city: city.trim() || DEFAULT_CITY,
               country: country.trim() || DEFAULT_COUNTRY,
               address,
+              location,
               shortDescription:
                 shortDescription.trim() ||
                 `Gem business in ${city.trim() || DEFAULT_CITY}.`,
@@ -285,6 +291,44 @@ export function BusinessProfileOnboarding() {
                 onChange={setCity}
                 placeholder="Select city"
               />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose business location on map"
+                onPress={() => setLocationPickerOpen(true)}
+                style={({ pressed }) => [
+                  styles.locationField,
+                  {
+                    backgroundColor: colors.surfaceContainerLow,
+                    borderColor: colors.outlineVariant,
+                    opacity: pressed ? 0.82 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.locationIcon,
+                    { backgroundColor: colors.primaryContainer },
+                  ]}
+                >
+                  <Icon
+                    name="location-on"
+                    size={20}
+                    color={colors.onPrimaryContainer}
+                  />
+                </View>
+                <View style={styles.locationCopy}>
+                  <Text style={[styles.locationTitle, { color: colors.onSurface }]}>Map pin</Text>
+                  <Text
+                    style={[styles.locationValue, { color: colors.textMuted }]}
+                    numberOfLines={2}
+                  >
+                    {location
+                      ? profileLocationLabel(location)
+                      : "Choose the exact public location"}
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.outline} />
+              </Pressable>
               <Input
                 label="Address (optional)"
                 value={address}
@@ -293,6 +337,17 @@ export function BusinessProfileOnboarding() {
                 leftIcon="home"
               />
             </View>
+            <ProfileLocationPicker
+              visible={locationPickerOpen}
+              value={location}
+              onClose={() => setLocationPickerOpen(false)}
+              onSave={(next) => {
+                setLocation(next);
+                if (next.city) setCity(next.city);
+                if (next.country) setCountry(next.country);
+                setLocationPickerOpen(false);
+              }}
+            />
           </>
         ) : null}
 
@@ -383,6 +438,36 @@ const styles = StyleSheet.create({
     minHeight: 92,
     textAlignVertical: "top",
     paddingTop: Spacing.md,
+  },
+  locationField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    minHeight: 64,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderCurve: "continuous",
+  },
+  locationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  locationTitle: {
+    ...Typography.labelMd,
+    fontWeight: "600",
+  },
+  locationValue: {
+    ...Typography.caption,
+    lineHeight: 17,
   },
   footer: {
     width: "100%",

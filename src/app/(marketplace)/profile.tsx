@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -43,6 +43,7 @@ import {
 } from "@/lib/firebase/auth-service";
 import { friendlyError } from "@/lib/errors";
 import type { ThemePreference } from "@/lib/theme-preference";
+import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -83,7 +84,7 @@ function Row({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
     >
-      <View style={[styles.rowIcon]}>
+      <View style={styles.rowIcon}>
         <Icon
           name={icon}
           size={20}
@@ -119,7 +120,7 @@ export default function ProfileScreen() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [savingCurrency, setSavingCurrency] = useState(false);
+  const savingCurrencyRef = useRef(false);
 
   const { data: business } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
@@ -150,16 +151,18 @@ export default function ProfileScreen() {
   }
 
   async function handleCurrencySelect(code: CurrencyCode) {
-    if (!user || code === preferredCurrency || savingCurrency) return;
-    setSavingCurrency(true);
+    if (!user || code === preferredCurrency || savingCurrencyRef.current) return;
+    savingCurrencyRef.current = true;
     try {
-      await updatePreferredCurrency(user.uid, code);
-      await refreshProfile();
-      toast.success(`Display currency set to ${code}`);
+      await runWithCleanup(async () => {
+        await updatePreferredCurrency(user.uid, code);
+        await refreshProfile();
+        toast.success(`Display currency set to ${code}`);
+      }, () => {
+        savingCurrencyRef.current = false;
+      });
     } catch (e) {
       toast.error(friendlyError(e, "Could not update currency."));
-    } finally {
-      setSavingCurrency(false);
     }
   }
 

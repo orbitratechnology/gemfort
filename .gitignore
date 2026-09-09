@@ -76,5 +76,8 @@ GoogleService-Info*.plist
 # Artifacts
 *.apk
 
+# Goldie store screenshot outputs
+goldie/out/
+
 # Temporary agent media
 .tmp-*

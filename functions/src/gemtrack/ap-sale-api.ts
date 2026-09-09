@@ -165,8 +165,7 @@ export async function recordApGemSaleForApi(
       ownerReceives,
       currency: saleCurrency,
     });
-    const eventSnap = await transaction.get(eventRef);
-    const gemSnap = await transaction.get(gemRef);
+    const [eventSnap, gemSnap] = await transaction.getAll(eventRef, gemRef);
 
     if (line.lineStatus === 'sold') {
       if (!eventSnap.exists) {

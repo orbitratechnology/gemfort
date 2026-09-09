@@ -303,16 +303,17 @@ export default function BusinessProfileScreen() {
 
   const suggested = useMemo(() => {
     if (!business) return [] as Business[];
+    const dismissedIdSet = new Set(dismissedIds);
     const sameType = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
-        !dismissedIds.includes(b.id) &&
+        !dismissedIdSet.has(b.id) &&
         b.businessType === business.businessType,
     );
     const others = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
-        !dismissedIds.includes(b.id) &&
+        !dismissedIdSet.has(b.id) &&
         b.businessType !== business.businessType,
     );
     return [...sameType, ...others].slice(0, SUGGEST_LIMIT);
@@ -868,7 +869,8 @@ export default function BusinessProfileScreen() {
                         style={[styles.serviceName, { color: colors.onSurface }]}
                         numberOfLines={1}
                       >
-                        {LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === serviceId)!.label}
+                        {LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === serviceId)?.label ??
+                          serviceId}
                       </Text>
                       <Text
                         style={[styles.serviceDesc, { color: colors.textMuted }]}

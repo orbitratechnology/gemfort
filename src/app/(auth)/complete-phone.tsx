@@ -24,23 +24,25 @@ export default function CompletePhoneScreen() {
   async function handleContinue() {
     if (sendingRef.current) return;
 
-    try {
-      const normalizedPhone = normalizePhoneNumber(phone);
-      if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
-        throw new Error("Select your country and enter a valid mobile number.");
-      }
-      const params: { phone: string; afterRegistration?: string } = {
-        phone: normalizedPhone,
-      };
-      const registrationFlow = Array.isArray(afterRegistration)
-        ? afterRegistration[0]
-        : afterRegistration;
-      if (registrationFlow === "1") params.afterRegistration = "1";
-      if (!isFirebaseConfigured) {
-        throw new Error("Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.");
-      }
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
+      toast.error("Select your country and enter a valid mobile number.");
+      return;
+    }
+    const params: { phone: string; afterRegistration?: string } = {
+      phone: normalizedPhone,
+    };
+    const registrationFlow = Array.isArray(afterRegistration)
+      ? afterRegistration[0]
+      : afterRegistration;
+    if (registrationFlow === "1") params.afterRegistration = "1";
+    if (!isFirebaseConfigured) {
+      toast.error("Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.");
+      return;
+    }
 
-      sendingRef.current = true;
+    sendingRef.current = true;
+    try {
       const verificationId = await withLoading(
         () => sendPhoneVerificationCode(normalizedPhone),
         { message: "Sending code…", overlay: false },

@@ -317,9 +317,11 @@ export async function apPaymentReceivedForApi(
       chequeId,
       receiptUrl,
     });
-    const paymentSnap = await transaction.get(paymentRef);
-    const incomeSnap = await transaction.get(incomeRef);
-    const expenseSnap = await transaction.get(expenseRef);
+    const [paymentSnap, incomeSnap, expenseSnap] = await transaction.getAll(
+      paymentRef,
+      incomeRef,
+      expenseRef,
+    );
     const notification = {
       recipientUid: ap.receiverUid,
       type: 'ap_payment_received' as const,

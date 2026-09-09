@@ -1,27 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
-import {
-  getThemeColors,
-  type ColorScheme,
-  type ThemeColors,
-} from '@/constants/design-tokens';
-import {
-  getThemePreference,
-  setThemePreference,
-  type ThemePreference,
-} from '@/lib/theme-preference';
-
-type ThemeContextValue = {
-  scheme: ColorScheme;
-  colors: ThemeColors;
-  isDark: boolean;
-  preference: ThemePreference;
-  setPreference: (preference: ThemePreference) => Promise<void>;
-};
-
-export const ThemeContext = createContext<ThemeContextValue | null>(null);
+import { getThemeColors, type ColorScheme } from '@/constants/design-tokens';
+import { getThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference';
+import { ThemeContext } from '@/providers/theme-context';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();

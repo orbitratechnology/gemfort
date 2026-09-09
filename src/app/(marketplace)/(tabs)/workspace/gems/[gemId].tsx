@@ -1059,11 +1059,7 @@ export default function GemDetailScreen() {
       </View>
 
       {hasBottomActions ? (
-        <View
-          style={[
-            styles.actionBar
-          ]}
-        >
+          <View style={styles.actionBar}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}

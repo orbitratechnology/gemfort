@@ -23,11 +23,11 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
   AttributePickerField,
-  LISTING_VISIBILITY_OPTIONS,
   ListingVisibilityPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOptionLabel } from "@/constants/gem-options";
+import { LISTING_VISIBILITY_OPTIONS } from "@/constants/listing-visibility-options";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import {
   canListGem,

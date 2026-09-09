@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp, type DocumentSnapshot } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 import { ApiError } from './errors';
 import { db } from '../admin';
@@ -203,10 +203,14 @@ export async function createApRequestForApi(
       };
     }
 
-    const businessSnap = await transaction.get(businessRef);
-    const senderSnap = await transaction.get(senderRef);
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const transactionSnaps = await transaction.getAll(
+      businessRef,
+      senderRef,
+      ...gemRefs,
+    );
+    const businessSnap = transactionSnaps[0]!;
+    const senderSnap = transactionSnaps[1]!;
+    const gemSnaps = transactionSnaps.slice(2);
 
     if (!businessSnap.exists) throw new ApiError('not-found', 'Trader business profile not found.');
     const business = businessSnap.data()!;
@@ -342,8 +346,7 @@ export async function respondApRequestForApi(
     const gemRefs = action === 'rejected'
       ? (ap.items ?? []).map((item) => db.collection('gemtrack_gems').doc(item.gemId))
       : [];
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
     transaction.update(ref, {
       status: decision.status,
       ...(action === 'rejected' ? { rejectionReason: rejectionReason?.trim() || null } : { dateGiven: now }),
@@ -412,8 +415,7 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
 
     const now = Timestamp.now();
     const gemRefs = (ap.items ?? []).map((item) => db.collection('gemtrack_gems').doc(item.gemId));
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
     transaction.update(ref, { status: decision.status, updatedAt: now });
     for (let index = 0; index < gemRefs.length; index += 1) {
       const gemSnap = gemSnaps[index]!;

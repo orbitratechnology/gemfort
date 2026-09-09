@@ -78,9 +78,10 @@ export function matchBusinessForContact(
   if (contactKeys.length === 0) return null;
 
   const matches = new Map<string, Business>();
+  const contactKeySet = new Set(contactKeys);
   for (const business of businesses) {
     const bizKeys = businessPhoneKeys(business);
-    if (bizKeys.some((k) => contactKeys.includes(k))) {
+    if (bizKeys.some((k) => contactKeySet.has(k))) {
       matches.set(business.id, business);
     }
   }

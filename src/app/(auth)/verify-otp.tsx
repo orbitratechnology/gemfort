@@ -1,19 +1,24 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { OtpInput } from 'react-native-otp-entry';
+import { OtpInput, type OtpInputRef } from 'react-native-otp-entry';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
+import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { confirmPhoneVerificationCode } from '@/lib/firebase/phone-auth';
+import {
+  confirmPhoneVerificationCode,
+  sendPhoneVerificationCode,
+} from '@/lib/firebase/phone-auth';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
+import { runWithCleanup } from '@/lib/run-with-cleanup';
 import { parseForm, verifyOtpSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-provider';
@@ -41,18 +46,32 @@ export default function VerifyOtpScreen() {
     ? afterRegistration[0]
     : afterRegistration;
 
+  const activeVerificationIdRef = useRef(verificationId);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpRef = useRef<OtpInputRef>(null);
   const verifyingRef = useRef(false);
+  const resendingRef = useRef(false);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   async function handleConfirm(nextCode: string) {
     if (verifyingRef.current) return;
+
+    const activeVerificationId = activeVerificationIdRef.current;
 
     const result = parseForm(verifyOtpSchema, { code: nextCode });
     if (!result.success) {
       setErrors(result.errors);
       return;
     }
-    if (!verificationId || !phone) {
+    if (!activeVerificationId || !phone) {
       toast.error('This verification session has expired. Enter your phone number again.');
       return;
     }
@@ -61,7 +80,7 @@ export default function VerifyOtpScreen() {
     setErrors({});
     try {
       await withLoading(async () => {
-        await confirmPhoneVerificationCode(verificationId, result.data.code, phone);
+        await confirmPhoneVerificationCode(activeVerificationId, result.data.code, phone);
         await markOnboardingComplete();
         await refreshProfile();
         router.replace(
@@ -87,6 +106,42 @@ export default function VerifyOtpScreen() {
     }
   }
 
+  async function handleResend() {
+    if (resendingRef.current || resendCooldown > 0) return;
+    if (!phone) {
+      toast.error('No phone number to verify.');
+      return;
+    }
+
+    resendingRef.current = true;
+    try {
+      const nextVerificationId = await runWithCleanup(
+        () =>
+          withLoading(
+            () => sendPhoneVerificationCode(phone, true),
+            { message: 'Sending code…', overlay: false },
+          ),
+        () => {
+          resendingRef.current = false;
+        },
+      );
+      activeVerificationIdRef.current = nextVerificationId;
+      otpRef.current?.clear();
+      setErrors({});
+      setResendCooldown(60);
+      toast.success(`Code sent to ${phone}`);
+    } catch (error) {
+      toast.error(friendlyError(error, 'Could not resend the verification code. Try again.'));
+    }
+  }
+
+  function handleChangePhone() {
+    router.replace({
+      pathname: '/(auth)/complete-phone',
+      params: registrationFlow === '1' ? { afterRegistration: '1' } : {},
+    });
+  }
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <ThemedScrollView
@@ -109,6 +164,7 @@ export default function VerifyOtpScreen() {
         <FormSection style={styles.otpSection}>
           <View style={styles.otpField}>
             <OtpInput
+              ref={otpRef}
               numberOfDigits={6}
               autoFocus
               type="numeric"
@@ -144,6 +200,22 @@ export default function VerifyOtpScreen() {
             ) : null}
           </View>
         </FormSection>
+
+        <ScreenInset style={styles.actions}>
+          <Button
+            title={resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}
+            icon="refresh"
+            variant="secondary"
+            disabled={resendCooldown > 0}
+            onPress={() => void handleResend()}
+          />
+          <Button
+            title="Change phone number"
+            icon="edit"
+            variant="ghost"
+            onPress={handleChangePhone}
+          />
+        </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
   );
@@ -202,4 +274,8 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   error: { ...Typography.bodySmall, textAlign: 'center' },
+  actions: {
+    width: '100%',
+    gap: Spacing.sm,
+  },
 });

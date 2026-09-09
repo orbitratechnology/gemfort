@@ -102,8 +102,10 @@ async function requestOnce<TResult, TData>(
   options: ApiRequestOptions,
   forceRefresh: boolean,
 ): Promise<{ response: Response; parsed: ApiSuccess<TResult> | ApiFailure }> {
-  const idToken = await dependencies.getIdToken(user, forceRefresh);
-  const appCheckToken = await dependencies.getAppCheckToken?.();
+  const [idToken, appCheckToken] = await Promise.all([
+    dependencies.getIdToken(user, forceRefresh),
+    dependencies.getAppCheckToken?.(),
+  ]);
   if (!appCheckToken) {
     throw new ApiClientError(
       'This app could not verify its integrity. Please update and try again.',

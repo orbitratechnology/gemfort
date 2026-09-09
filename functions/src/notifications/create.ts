@@ -132,12 +132,8 @@ export async function ensureDeterministicNotificationDoc(
 }
 
 export async function createNotificationsBatch(inputs: NotificationInput[]): Promise<number> {
-  let created = 0;
-  for (const input of inputs) {
-    const id = await createNotificationDoc(input);
-    if (id) created += 1;
-  }
-  return created;
+  const ids = await Promise.all(inputs.map((input) => createNotificationDoc(input)));
+  return ids.filter((id): id is string => id !== null).length;
 }
 
 export function formatCurrency(amount: number, currency = 'LKR'): string {

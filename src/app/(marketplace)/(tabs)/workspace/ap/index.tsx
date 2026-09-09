@@ -619,12 +619,13 @@ export default function ApListScreen() {
     const map = new Map<SectionKey, ApRecord[]>();
     for (const key of SECTION_ORDER) map.set(key, []);
     for (const r of records) {
-      map.get(sectionFor(r.status))!.push(r);
+      const section = map.get(sectionFor(r.status));
+      if (section) section.push(r);
     }
     return SECTION_ORDER.map((key) => ({
       key,
       title: SECTION_TITLE[key],
-      data: map.get(key)!,
+      data: map.get(key) ?? [],
     })).filter((s) => s.data.length > 0);
   }, [records]);
 

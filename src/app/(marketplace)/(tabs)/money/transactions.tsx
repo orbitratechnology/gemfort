@@ -59,7 +59,6 @@ export default function TransactionsScreen() {
   });
   const [description, setDescription] = useState('');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
-  const [gemId, setGemId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -115,7 +114,7 @@ export default function TransactionsScreen() {
           description:
             result.data.description ||
             (type === 'income' ? 'Income' : 'Expense'),
-          gemId,
+          gemId: null,
           contactId: null,
           receiptUrl,
           date: Timestamp.now(),
@@ -123,7 +122,6 @@ export default function TransactionsScreen() {
         setMoney({ amount: '', currency: preferred });
         setDescription('');
         setReceipt(null);
-        setGemId(null);
         setShowForm(false);
         await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       }, 'Adding…');

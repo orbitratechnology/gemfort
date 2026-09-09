@@ -1,7 +1,7 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,10 +69,9 @@ export default function ReceivablesScreen() {
     enabled: !!user,
   });
 
-  const summary = useMemo(() => getReceivableSummary(receivables), [receivables]);
-  const overdueItems = useMemo(
-    () => receivables.filter((r) => effectiveReceivableStatus(r) === 'overdue'),
-    [receivables],
+  const summary = getReceivableSummary(receivables);
+  const overdueItems = receivables.filter(
+    (r) => effectiveReceivableStatus(r) === 'overdue',
   );
 
   async function handleRecordPayment(item: Receivable) {

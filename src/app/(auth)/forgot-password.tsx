@@ -4,7 +4,8 @@ import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { AuthField } from '@/components/auth/auth-field';
 import { AuthIllustration } from '@/components/auth/auth-illustration';
-import { AuthHeading, AuthScreen, authGreeting } from '@/components/auth/auth-screen';
+import { AuthHeading, AuthScreen } from '@/components/auth/auth-screen';
+import { authGreeting } from '@/components/auth/auth-screen-utils';
 import { Button } from '@/components/ui/button';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';

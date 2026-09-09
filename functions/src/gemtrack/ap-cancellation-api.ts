@@ -1,7 +1,6 @@
 import {
   Timestamp,
   type DocumentReference,
-  type DocumentSnapshot,
 } from 'firebase-admin/firestore';
 
 import { ApiError } from '../api/errors';
@@ -156,10 +155,7 @@ export async function respondApCancellationForApi(
       action === 'accepted' && decision.kind === 'transition'
         ? heldItems.map((item) => db.collection('gemtrack_gems').doc(item.gemId))
         : [];
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) {
-      gemSnaps.push(await transaction.get(gemRef));
-    }
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
 
     if (decision.kind === 'transition') {
       if (action === 'accepted') {

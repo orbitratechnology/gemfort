@@ -16,6 +16,7 @@ import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { LISTING_VISIBILITY_OPTIONS } from "@/constants/listing-visibility-options";
 import { easeOut, useReduceMotion } from "@/hooks/use-reduce-motion";
 import {
     GEM_CLARITIES,
@@ -882,21 +883,6 @@ export function TreatmentPickerSheet(
   );
 }
 
-const LISTING_VISIBILITY_OPTIONS = [
-  {
-    value: "public",
-    label: "Public",
-    icon: "public" as IconName,
-    searchText: "Anyone can view this listing",
-  },
-  {
-    value: "contacts",
-    label: "Contacts",
-    icon: "contacts" as IconName,
-    searchText: "Only your contacts can view",
-  },
-] as const;
-
 export function ListingVisibilityPickerSheet(
   props: Omit<OptionPickerSheetProps, "title" | "options" | "searchable">,
 ) {
@@ -909,18 +895,6 @@ export function ListingVisibilityPickerSheet(
     />
   );
 }
-
-export { LISTING_VISIBILITY_OPTIONS };
-
-export {
-    GEM_CLARITIES,
-    GEM_CUTS,
-    GEM_SHAPES,
-    GEM_TREATMENTS,
-    formatColorLabel,
-    formatOptionLabel,
-    formatOriginLabel
-};
 
 const styles = StyleSheet.create({
   fieldWrap: { gap: 8 },

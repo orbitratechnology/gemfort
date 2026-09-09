@@ -57,6 +57,7 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
+import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-provider";
 import { useToast } from "@/providers/toast-provider";
@@ -262,26 +263,26 @@ export default function ContactsListScreen() {
 
     setPicking(true);
     try {
-      const deviceContact = await presentDeviceContactPicker();
-      if (!deviceContact) return;
+      await runWithCleanup(async () => {
+        const deviceContact = await presentDeviceContactPicker();
+        if (!deviceContact) return;
 
-      await withLoading(async () => {
-        const { created } = await importDeviceContactToWorkspace(
-          user.uid,
-          deviceContact,
-          { existing: contacts },
-        );
-        await invalidateContacts();
-        toast.success(
-          created
-            ? "Contact imported from phone."
-            : "Contact is already in GemFort.",
-        );
-      }, "Importing contact…");
+        await withLoading(async () => {
+          const { created } = await importDeviceContactToWorkspace(
+            user.uid,
+            deviceContact,
+            { existing: contacts },
+          );
+          await invalidateContacts();
+          toast.success(
+            created
+              ? "Contact imported from phone."
+              : "Contact is already in GemFort.",
+          );
+        }, "Importing contact…");
+      }, () => setPicking(false));
     } catch (e) {
       toast.error(friendlyError(e, "Could not import phone contact."));
-    } finally {
-      setPicking(false);
     }
   }
 

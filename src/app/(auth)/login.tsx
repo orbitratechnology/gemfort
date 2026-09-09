@@ -15,8 +15,8 @@ import {
     AuthFooterLink,
     AuthHeading,
     AuthScreen,
-    authGreeting,
 } from "@/components/auth/auth-screen";
+import { authGreeting } from "@/components/auth/auth-screen-utils";
 import { PasswordVisibilityToggle } from "@/components/auth/password-visibility-toggle";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Button } from "@/components/ui/button";

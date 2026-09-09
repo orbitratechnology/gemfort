@@ -1,7 +1,7 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -62,11 +62,8 @@ export default function PayablesScreen() {
     enabled: !!user,
   });
 
-  const summary = useMemo(() => getPayableSummary(payables), [payables]);
-  const overdueItems = useMemo(
-    () => payables.filter((p) => effectivePayableStatus(p) === 'overdue'),
-    [payables],
-  );
+  const summary = getPayableSummary(payables);
+  const overdueItems = payables.filter((p) => effectivePayableStatus(p) === 'overdue');
 
   async function handleRecordPayment(item: Payable) {
     if (!user) return;

@@ -11,14 +11,16 @@ import {
 } from '@/features/flights/flights-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
+const flightTimeFormatter = new Intl.DateTimeFormat('en', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 function time(value: string | null) {
   if (!value) return '--:--';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) return '--:--';
-  return new Intl.DateTimeFormat('en', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed);
+  return flightTimeFormatter.format(parsed);
 }
 
 function fare(value: number, currency: string) {

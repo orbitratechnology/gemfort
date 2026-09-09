@@ -34,6 +34,14 @@ export type FlightCalendarDay = { date: string; price: number; stops: number; ac
 export type FlightSearchResult = { currency: string; offers: FlightOffer[] };
 export type FlightCalendarResult = { currency: string; days: FlightCalendarDay[] };
 
+const flightDateTimeFormatter = new Intl.DateTimeFormat('en', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 type AutocompleteResponse = {
   type?: FlightPlace['type']; code?: string; name?: string; country_code?: string; country_name?: string;
   city_code?: string | null; city_name?: string | null; main_airport_name?: string | null;
@@ -103,5 +111,5 @@ export function formatFlightDuration(minutes: number | null) {
 export function formatFlightDateTime(value: string | null) {
   if (!value) return 'Time unavailable';
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat('en', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(date);
+  return Number.isNaN(date.valueOf()) ? value : flightDateTimeFormatter.format(date);
 }

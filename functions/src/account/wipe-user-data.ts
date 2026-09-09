@@ -164,25 +164,28 @@ export async function wipeUserData(uid: string): Promise<{
   );
   firestoreDeleted += companyByOwner;
 
-  for (const { collection, field } of OWNED_BY_FIELD) {
-    try {
-      const n = await deleteQueryInBatches(
-        db.collection(collection).where(field, '==', uid),
-      );
-      if (n > 0) {
-        logger.info('Deleted owned docs', { collection, field, uid, n });
+  const ownedCounts = await Promise.all(
+    OWNED_BY_FIELD.map(async ({ collection, field }) => {
+      try {
+        const n = await deleteQueryInBatches(
+          db.collection(collection).where(field, '==', uid),
+        );
+        if (n > 0) {
+          logger.info('Deleted owned docs', { collection, field, uid, n });
+        }
+        return n;
+      } catch (error) {
+        logger.error('Failed deleting collection field', {
+          collection,
+          field,
+          uid,
+          error,
+        });
+        throw error;
       }
-      firestoreDeleted += n;
-    } catch (error) {
-      logger.error('Failed deleting collection field', {
-        collection,
-        field,
-        uid,
-        error,
-      });
-      throw error;
-    }
-  }
+    }),
+  );
+  firestoreDeleted += ownedCounts.reduce((total, count) => total + count, 0);
 
   for (const { collection, field } of ANONYMIZE_FIELDS) {
     try {

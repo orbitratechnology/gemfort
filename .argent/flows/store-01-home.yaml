@@ -1,0 +1,7 @@
+steps:
+  - launch: app.gemfort
+  - await:
+      visible:
+        text: Exchange rates
+  - await:
+      idle: true

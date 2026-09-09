@@ -163,21 +163,23 @@ export async function createGemTransferForApi(
   }
 
   const result = await db.runTransaction(async (transaction) => {
-    // Firestore transactions require all reads to happen before writes. Keep
-    // these reads explicit and sequential so the Admin SDK can track them
-    // consistently across deployed runtimes.
-    const gemSnap = await transaction.get(gemRef);
-    const businessSnap = await transaction.get(
-      db.collection('businesses').doc(input.recipientBusinessId),
-    );
-    const contactSnap = input.recipientContactId
-      ? await transaction.get(db.collection('gemtrack_contacts').doc(input.recipientContactId))
+    const businessRef = db.collection('businesses').doc(input.recipientBusinessId);
+    const contactRef = input.recipientContactId
+      ? db.collection('gemtrack_contacts').doc(input.recipientContactId)
       : null;
-    const sellerSnap = await transaction.get(db.collection('users').doc(sellerUid));
+    const sellerRef = db.collection('users').doc(sellerUid);
     const tripGemRef = sourceTripGemId
       ? db.collection('gemtrack_trip_gems').doc(sourceTripGemId)
       : null;
-    const tripGemSnap = tripGemRef ? await transaction.get(tripGemRef) : null;
+    const initialRefs = [gemRef, businessRef];
+    if (contactRef) initialRefs.push(contactRef);
+    initialRefs.push(sellerRef);
+    const initialSnaps = await transaction.getAll(...initialRefs);
+    let snapIndex = 0;
+    const gemSnap = initialSnaps[snapIndex++]!;
+    const businessSnap = initialSnaps[snapIndex++]!;
+    const contactSnap = contactRef ? initialSnaps[snapIndex++]! : null;
+    const sellerSnap = initialSnaps[snapIndex++]!;
     if (!gemSnap.exists) throw new ApiError('not-found', 'Gem not found.');
     const gem = gemSnap.data() as Record<string, unknown>;
     if (gem.ownerUid !== sellerUid) throw new ApiError('permission-denied', 'You do not own this gem.');
@@ -185,6 +187,9 @@ export async function createGemTransferForApi(
     if (isOnTrip && (!sourceTripId || !sourceTripGemId)) {
       throw new ApiError('failed-precondition', 'Choose the sale action from the active trip.');
     }
+    const tripGemSnap = tripGemRef
+      ? (await transaction.getAll(tripGemRef))[0]!
+      : null;
     if (sourceTripId && sourceTripGemId) {
       if (!tripGemSnap?.exists) throw new ApiError('not-found', 'Trip gem record not found.');
       const tripGem = tripGemSnap.data() as Record<string, unknown>;

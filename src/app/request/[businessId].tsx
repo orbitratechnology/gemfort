@@ -138,6 +138,7 @@ export default function RequestServiceScreen() {
     );
     return LAPIDARY_SERVICE_OPTIONS.filter((option) => offered.has(option.id));
   }, [business?.providerProfile?.services, business?.providerProfile?.servicesOffered]);
+  const selectedServiceTypeSet = new Set(serviceTypes);
 
   useEffect(() => {
     setServiceTypes((previous) =>
@@ -322,7 +323,7 @@ export default function RequestServiceScreen() {
         {serviceOptions.length > 0 ? (
           <View style={styles.serviceList}>
             {serviceOptions.map((s) => {
-              const active = serviceTypes.includes(s.id);
+              const active = selectedServiceTypeSet.has(s.id);
               return (
                 <Pressable
                   key={s.id}

@@ -84,7 +84,7 @@ export default function ChequeCalendarScreen() {
         </ScreenInset>
 
         <FormSection padded={false}>
-        <View style={[styles.calendar]}>
+        <View style={styles.calendar}>
           <View style={styles.weekdayRow}>
             {WEEKDAYS.map((d) => (
               <Text key={d} style={[styles.weekday, { color: colors.textMuted }]}>

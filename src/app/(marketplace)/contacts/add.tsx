@@ -45,15 +45,15 @@ export default function AddContactScreen() {
     sharedPhotoUri?: string;
   }>();
 
-  const [displayName, setDisplayName] = useState(
+  const [displayName, setDisplayName] = useState(() =>
     decodeShareParam(raw.displayName),
   );
   const [companyName, setCompanyName] = useState("");
-  const [phone, setPhone] = useState(firstParam(raw.phone));
-  const [whatsapp, setWhatsapp] = useState(firstParam(raw.phone));
-  const [email, setEmail] = useState(decodeShareParam(raw.email));
+  const [phone, setPhone] = useState(() => firstParam(raw.phone));
+  const [whatsapp, setWhatsapp] = useState(() => firstParam(raw.phone));
+  const [email, setEmail] = useState(() => decodeShareParam(raw.email));
   const [contactTypes, setContactTypes] = useState<string[]>(["trader"]);
-  const [notes, setNotes] = useState(decodeShareParam(raw.notes));
+  const [notes, setNotes] = useState(() => decodeShareParam(raw.notes));
   const [deviceContactId, setDeviceContactId] = useState<string | null>(null);
   const sharedPhotoUri = firstParam(raw.sharedPhotoUri);
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(

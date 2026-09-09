@@ -1955,20 +1955,27 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
   }
   for (const tg of tripGems) {
     queueDocDelete("gemtrack_trip_gems", tg.id);
-    if (tg.status === "on_trip") {
-      const gem = await fetchGem(tg.gemId);
-      if (gem && gem.ownerUid === ownerUid) {
+  }
+  const gemIdsToClear = await Promise.all(
+    tripGems
+      .filter((tg) => tg.status === "on_trip")
+      .map(async (tg) => {
+        const gem = await fetchGem(tg.gemId);
+        if (!gem || gem.ownerUid !== ownerUid) return null;
         const life = resolveGemLifecycle(gem);
-        if (life.custody === "on_trip" || gem.status === "on_trip") {
-          void updateGemLifecycle(
-            tg.gemId,
-            ownerUid,
-            { custody: null },
-            "Removed from trip",
-          );
-        }
-      }
-    }
+        return life.custody === "on_trip" || gem.status === "on_trip"
+          ? tg.gemId
+          : null;
+      }),
+  );
+  for (const gemId of gemIdsToClear) {
+    if (!gemId) continue;
+    void updateGemLifecycle(
+      gemId,
+      ownerUid,
+      { custody: null },
+      "Removed from trip",
+    );
   }
   queueDocDelete("gemtrack_trips", tripId);
 }
@@ -2180,35 +2187,42 @@ export async function distributeTripOverhead(
     0,
   );
   const now = Timestamp.now();
+  const allocations = await Promise.all(
+    purchases.map(async (tg) => {
+      const share =
+        totalPurchase > 0
+          ? (overhead * (tg.purchaseCost ?? 0)) / totalPurchase
+          : overhead / purchases.length;
+      if (share <= 0) return null;
+
+      const gem = await fetchGem(tg.gemId);
+      if (!gem) return null;
+      return { gem, share, tg };
+    }),
+  );
   let distributed = 0;
 
-  for (const tg of purchases) {
-    const share =
-      totalPurchase > 0
-        ? (overhead * (tg.purchaseCost ?? 0)) / totalPurchase
-        : overhead / purchases.length;
-    if (share <= 0) continue;
-
-    const gem = await fetchGem(tg.gemId);
-    if (!gem) continue;
+  for (const allocation of allocations) {
+    if (!allocation) continue;
+    const { gem, share, tg } = allocation;
 
     queueDocCreate("gemtrack_gem_costs", {
-        gemId: tg.gemId,
-        ownerUid,
-        costType: "trip_overhead",
-        description: "Trip overhead allocation",
-        amount: share,
-        currency: "LKR",
-        amountBase: share,
-        serviceRecordId: null,
-        date: now,
-        createdAt: now,
-      });
+      gemId: tg.gemId,
+      ownerUid,
+      costType: "trip_overhead",
+      description: "Trip overhead allocation",
+      amount: share,
+      currency: "LKR",
+      amountBase: share,
+      serviceRecordId: null,
+      date: now,
+      createdAt: now,
+    });
 
     queueDocUpdate("gemtrack_gems", tg.gemId, {
-        totalCost: gem.totalCost + share,
-        updatedAt: serverTimestamp(),
-      });
+      totalCost: gem.totalCost + share,
+      updatedAt: serverTimestamp(),
+    });
     distributed += share;
   }
 

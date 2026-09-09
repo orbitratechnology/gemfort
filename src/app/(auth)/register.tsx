@@ -14,8 +14,8 @@ import {
     AuthFooterLink,
     AuthHeading,
     AuthScreen,
-    authGreeting,
 } from "@/components/auth/auth-screen";
+import { authGreeting } from "@/components/auth/auth-screen-utils";
 import { AuthStepIndicator } from "@/components/auth/auth-step-indicator";
 import { PasswordVisibilityToggle } from "@/components/auth/password-visibility-toggle";
 import { RegisterRoleCards } from "@/components/auth/register-role-cards";

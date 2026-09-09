@@ -167,7 +167,10 @@ export default function AddBillScreen() {
   });
 
   const availableGems = useMemo(
-    () => gems.filter((g) => !gemIds.includes(g.id)),
+    () => {
+      const gemIdSet = new Set(gemIds);
+      return gems.filter((g) => !gemIdSet.has(g.id));
+    },
     [gems, gemIds],
   );
 

@@ -5,7 +5,7 @@ import {
     router,
     useLocalSearchParams,
 } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -229,8 +229,8 @@ function BusinessProfileForm({
   const [logoUri, setLogoUri] = useState<string | null>(
     business?.logoUrl ?? null,
   );
-  const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
-  const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
+  const coverLocalRef = useRef<LocalMedia | null>(null);
+  const logoLocalRef = useRef<LocalMedia | null>(null);
   const [lapidaryServiceDrafts, setLapidaryServiceDrafts] = useState<
     LapidaryServiceDraft[]
   >(() => lapidaryDraftsFromBusiness(business));
@@ -308,7 +308,7 @@ function BusinessProfileForm({
     try {
       const media = await pickLocalMedia({ allows: "images", aspect: [3, 1] });
       if (!media) return;
-      setCoverLocal(media);
+      coverLocalRef.current = media;
       setCoverUri(media.uri);
     } catch (e) {
       toast.error(friendlyError(e, "Could not pick cover photo."));
@@ -319,7 +319,7 @@ function BusinessProfileForm({
     try {
       const media = await pickLocalMedia({ allows: "images", aspect: [1, 1] });
       if (!media) return;
-      setLogoLocal(media);
+      logoLocalRef.current = media;
       setLogoUri(media.uri);
     } catch (e) {
       toast.error(friendlyError(e, "Could not pick profile photo."));
@@ -344,47 +344,48 @@ function BusinessProfileForm({
       }
     }
     try {
+      const nextLogoLocal = logoLocalRef.current;
+      const nextCoverLocal = coverLocalRef.current;
       await withLoading(async () => {
         const socialLinks = { website, instagram, tiktok, facebook, wechat };
         let nextLogo = logoUri;
         let nextCover = coverUri;
 
-        if (logoLocal) {
+        if (nextLogoLocal) {
           nextLogo = await uploadLocalMedia(
-            logoLocal,
-            `businesses/${user.uid}/logo.${extensionForMedia(logoLocal)}`,
+            nextLogoLocal,
+            `businesses/${user.uid}/logo.${extensionForMedia(nextLogoLocal)}`,
           );
         }
-        if (coverLocal) {
+        if (nextCoverLocal) {
           nextCover = await uploadLocalMedia(
-            coverLocal,
-            `businesses/${user.uid}/cover.${extensionForMedia(coverLocal)}`,
+            nextCoverLocal,
+            `businesses/${user.uid}/cover.${extensionForMedia(nextCoverLocal)}`,
           );
         }
 
         const stamp = Date.now();
-        const galleryEntries: Business["galleryPhotos"] = [];
-        for (let i = 0; i < galleryLocal.length; i++) {
-          const item = galleryLocal[i];
-          const existing = existingGalleryByUrl.get(item.uri);
-          if (existing) {
-            galleryEntries.push(existing);
-            continue;
-          }
-          const url = await uploadLocalMedia(
-            item,
-            `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
-          );
-          galleryEntries.push({
-            photoId: `${stamp}_${i}`,
-            url,
-            type: "work",
-            beforeUrl: null,
-            afterUrl: null,
-            caption: null,
-            uploadedAt: Timestamp.now(),
-          });
-        }
+        const galleryEntries: Business["galleryPhotos"] = await Promise.all(
+          galleryLocal.map(async (item, i) => {
+            const existing = existingGalleryByUrl.get(item.uri);
+            if (existing) {
+              return existing;
+            }
+            const url = await uploadLocalMedia(
+              item,
+              `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
+            );
+            return {
+              photoId: `${stamp}_${i}`,
+              url,
+              type: "work",
+              beforeUrl: null,
+              afterUrl: null,
+              caption: null,
+              uploadedAt: Timestamp.now(),
+            };
+          }),
+        );
 
         if (business) {
           await updateBusinessProfile(business.id, {
@@ -445,8 +446,8 @@ function BusinessProfileForm({
           }
         }
 
-        setCoverLocal(null);
-        setLogoLocal(null);
+        coverLocalRef.current = null;
+        logoLocalRef.current = null;
         setCoverUri(nextCover);
         setLogoUri(nextLogo);
         await queryClient.invalidateQueries({ queryKey: ["my-business"] });

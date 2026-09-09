@@ -100,8 +100,15 @@ function mockSnap(data: Record<string, unknown>) {
 }
 
 function txns(): Array<{ collection: string; data: Record<string, unknown> }> {
-  return mockTransactionSet.mock.calls
-    .map(([ref, data]) => ({ collection: ref.collection, data }))
+  const transactionWrites = mockTransactionSet.mock.calls.map(([ref, data]) => ({
+    collection: ref.collection,
+    data,
+  }));
+  const queuedWrites = mockQueueDocCreate.mock.calls.map(([collection, data]) => ({
+    collection,
+    data,
+  }));
+  return [...transactionWrites, ...queuedWrites]
     .filter((c) => c.collection === 'gemtrack_transactions');
 }
 

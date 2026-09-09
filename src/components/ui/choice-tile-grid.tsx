@@ -37,7 +37,7 @@ export function ChoiceTileGrid<T extends string>({
 
   return (
     <View style={styles.wrap} accessibilityRole="radiogroup">
-      <View style={[layout === "pair" ? styles.pairRow : styles.grid]}>
+      <View style={layout === "pair" ? styles.pairRow : styles.grid}>
         {options.map((opt) => {
           const active = value === opt.value;
           const span2 = layout === "grid" && (opt.span ?? 1) === 2;
