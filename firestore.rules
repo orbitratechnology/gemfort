@@ -637,10 +637,30 @@ service cloud.firestore {
         && (isOwner(resource.data.ownerUid)
             || (resource.data.providerUid is string
                 && resource.data.providerUid == uid()));
-      allow write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
+      // Direct service records are owner-created. Business lapidary requests
+      // are created by gemfortApi so gem locking and the request snapshot are
+      // atomic; the client cannot manufacture a provider-side job.
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+        && isOwner(request.resource.data.ownerUid)
+        && isNotSuspended()
+        && (!('serviceKind' in request.resource.data)
+            || request.resource.data.serviceKind != 'lapidary_request');
+      // Owners can maintain their own records, but identities are immutable.
+      // Provider actions go through gemfortApi so status changes and gem
+      // custody changes happen together.
+      allow update: if isOwner(resource.data.ownerUid)
+        && isNotSuspended()
+        && (!('serviceKind' in resource.data)
+            || resource.data.serviceKind != 'lapidary_request')
+        && (!('serviceKind' in request.resource.data)
+            || request.resource.data.serviceKind != 'lapidary_request')
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.providerUid == resource.data.providerUid;
+      allow delete: if isOwner(resource.data.ownerUid)
+        && isNotSuspended()
+        && (!('serviceKind' in resource.data)
+            || resource.data.serviceKind != 'lapidary_request'
+            || resource.data.status in ['rejected', 'cancelled', 'received_back', 'completed']);
       allow read, write: if isAdmin();
     }
 

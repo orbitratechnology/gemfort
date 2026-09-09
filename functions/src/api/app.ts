@@ -48,6 +48,14 @@ import {
   type ServiceCancellationResult,
 } from '../gemtrack/service-cancellation-api';
 import {
+  createServiceRequestForApi,
+  deleteLapidaryJobForApi,
+  parseCreateServiceRequestInput,
+  respondServiceRequestForApi,
+  updateLapidaryServiceStatusForApi,
+  type CreateServiceRequestInput,
+} from '../gemtrack/service-request-api';
+import {
   parseSubmitListingOfferInput,
   submitListingOfferForApi,
   type SubmitListingOfferInput,
@@ -143,6 +151,25 @@ export type ApiAppOptions = {
     uid: string,
     action: 'accepted' | 'rejected',
   ) => Promise<ServiceCancellationResult>;
+  createServiceRequest?: (
+    uid: string,
+    input: CreateServiceRequestInput,
+  ) => Promise<{ serviceId: string; status: 'pending' }>;
+  respondServiceRequest?: (
+    serviceId: string,
+    uid: string,
+    action: 'accepted' | 'rejected',
+    rejectReason?: string | null,
+  ) => Promise<{ serviceId: string; status: 'given' | 'rejected' }>;
+  updateLapidaryServiceStatus?: (
+    serviceId: string,
+    uid: string,
+    status: 'in_progress' | 'ready' | 'returned',
+  ) => Promise<{ serviceId: string; status: 'in_progress' | 'ready' | 'received_back' }>;
+  deleteLapidaryJob?: (
+    serviceId: string,
+    uid: string,
+  ) => Promise<{ serviceId: string; status: 'deleted' }>;
   requestApCancellation?: (apId: string, uid: string) => Promise<ApCancellationResult>;
   respondApCancellation?: (
     apId: string,
@@ -329,6 +356,11 @@ export function createApiApp(options: ApiAppOptions = {}) {
     options.requestServiceCancellation ?? requestServiceCancellationForApi;
   const respondServiceCancellation =
     options.respondServiceCancellation ?? respondServiceCancellationForApi;
+  const createServiceRequest = options.createServiceRequest ?? createServiceRequestForApi;
+  const respondServiceRequest = options.respondServiceRequest ?? respondServiceRequestForApi;
+  const updateLapidaryServiceStatus =
+    options.updateLapidaryServiceStatus ?? updateLapidaryServiceStatusForApi;
+  const deleteLapidaryJob = options.deleteLapidaryJob ?? deleteLapidaryJobForApi;
   const requestApCancellation = options.requestApCancellation ?? requestApCancellationForApi;
   const respondApCancellation = options.respondApCancellation ?? respondApCancellationForApi;
   const recordApGemSale = options.recordApGemSale ?? recordApGemSaleForApi;
@@ -439,6 +471,51 @@ export function createApiApp(options: ApiAppOptions = {}) {
     const serviceId = requiredRouteParam(c, 'serviceId');
     return success(c, await mutation(c, { serviceId }, (uid) =>
       requestServiceCancellation(serviceId, uid),
+    ));
+  });
+
+  app.post('/v1/services/requests', auth, appCheck, async (c) => {
+    const input = parseCreateServiceRequestInput(await readJson(c));
+    return success(c, await mutation(c, input, (uid) => createServiceRequest(uid, input)));
+  });
+
+  app.post('/v1/services/:serviceId/request/respond', auth, appCheck, async (c) => {
+    const input = await readJson(c);
+    if (!input || typeof input !== 'object') {
+      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
+    }
+    const value = input as { action?: unknown; rejectReason?: unknown };
+    const action = actionOf(value.action);
+    const rejectReason = value.rejectReason == null
+      ? null
+      : typeof value.rejectReason === 'string'
+        ? value.rejectReason
+        : (() => { throw new ApiError('invalid-argument', 'rejectReason must be text.'); })();
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId, action, rejectReason }, (uid) =>
+      respondServiceRequest(serviceId, uid, action, rejectReason),
+    ));
+  });
+
+  app.post('/v1/services/:serviceId/status', auth, appCheck, async (c) => {
+    const input = await readJson(c);
+    if (!input || typeof input !== 'object') {
+      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
+    }
+    const status = (input as { status?: unknown }).status;
+    if (status !== 'in_progress' && status !== 'ready' && status !== 'returned') {
+      throw new ApiError('invalid-argument', 'status must be in_progress, ready, or returned.');
+    }
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId, status }, (uid) =>
+      updateLapidaryServiceStatus(serviceId, uid, status),
+    ));
+  });
+
+  app.delete('/v1/services/:serviceId/job', auth, appCheck, async (c) => {
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId }, (uid) =>
+      deleteLapidaryJob(serviceId, uid),
     ));
   });
 

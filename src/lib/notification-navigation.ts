@@ -33,7 +33,7 @@ export function navigateFromNotificationRef(
     go(`/(marketplace)/(tabs)/workspace/ap/${id}` as Href, options);
     return;
   }
-  if (type === 'service' && id) {
+  if ((type === 'service' || type === 'service_request') && id) {
     go(`/(marketplace)/(tabs)/workspace/services/${id}` as Href, options);
     return;
   }

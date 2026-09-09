@@ -50,6 +50,23 @@ export type GemLifecycle = {
   outcome: GemOutcome | null;
 };
 
+/** Keep natural/heated treatment fields consistent with the physical state. */
+export function normalizeGemTreatment(
+  treatmentStatus: string | null | undefined,
+  stoneStage: GemStoneStage | null | undefined,
+  isNatural: boolean | null | undefined,
+): { isNatural: boolean; treatmentStatus: string } {
+  const requestedTreatment =
+    treatmentStatus?.trim() || (isNatural === false ? "heated" : "natural");
+  const normalizedTreatment =
+    stoneStage === "heated" ? "heated" : requestedTreatment;
+
+  return {
+    isNatural: normalizedTreatment === "natural",
+    treatmentStatus: normalizedTreatment,
+  };
+}
+
 export function resolveGemSaleStatus(
   gem: Pick<WorkspaceGem, "outcome" | "saleTransferRequestId" | "saleStatus">,
 ): GemSaleStatus {
@@ -237,12 +254,12 @@ export function gemActionAvailability(gem: WorkspaceGem): Record<GemAction, bool
     isWithOwner && isSaleActive && !isSalePending && !isMarketListed;
 
   return {
-    send_for_cutting:
-      canMoveIntoCustody && life.stoneStage === "rough",
-    send_for_heating:
-      canMoveIntoCustody && life.stoneStage === "cut",
-    send_for_polishing:
-      canMoveIntoCustody && life.stoneStage === "heated",
+    // Lapidary work is repeatable and can be performed in any order. The
+    // current stone stage is a result of the latest completed service, not a
+    // prerequisite for starting the next one.
+    send_for_cutting: canMoveIntoCustody,
+    send_for_heating: canMoveIntoCustody,
+    send_for_polishing: canMoveIntoCustody,
     give_on_ap:
       canMoveIntoCustody,
     add_to_trip:

@@ -46,6 +46,7 @@ const CRITICAL_RED = '#B83A3A';
 const LARGE_ICON_BY_REFERENCE = {
   ap: require('../../../assets/images/ap-icon.png'),
   service: require('../../../assets/images/lapidary-icon.png'),
+  service_request: require('../../../assets/images/lapidary-icon.png'),
   cheque: require('../../../assets/images/cheque-icon.png'),
   bill: require('../../../assets/images/bill-icon.png'),
   listing: require('../../../assets/images/mygems-icon.png'),
@@ -148,7 +149,12 @@ function androidCategoryFor(data: RichPushData): AndroidCategory {
   if (type.includes('due') || type.includes('overdue') || type.includes('maturing')) {
     return AndroidCategory.REMINDER;
   }
-  if (data.referenceType === 'service') return AndroidCategory.SERVICE;
+  if (
+    data.referenceType === 'service' ||
+    data.referenceType === 'service_request'
+  ) {
+    return AndroidCategory.SERVICE;
+  }
   return AndroidCategory.STATUS;
 }
 

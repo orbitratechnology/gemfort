@@ -13,6 +13,7 @@ import {
   gemActionAvailability,
   isGemStoneStage,
   isTerminalOutcome,
+  normalizeGemTreatment,
   patchFromFlatStatus,
   resolveGemLifecycle,
   type GemLifecycle,
@@ -124,6 +125,11 @@ export async function createGem(
     outcome: input.outcome ?? null,
     isListedOnMarketplace: false,
   });
+  const treatment = normalizeGemTreatment(
+    input.treatmentStatus,
+    lifecycle.stoneStage,
+    input.isNatural,
+  );
   const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
   const askingCurrency = input.askingPriceCurrency ?? acquisitionCurrency;
   const minimumCurrency = input.minimumPriceCurrency ?? acquisitionCurrency;
@@ -158,8 +164,8 @@ export async function createGem(
     clarity: input.clarity ?? null,
     cutType: input.cutType ?? null,
     shape: input.shape ?? null,
-    isNatural: input.isNatural ?? true,
-    treatmentStatus: input.treatmentStatus ?? "natural",
+    isNatural: treatment.isNatural,
+    treatmentStatus: treatment.treatmentStatus,
     treatmentDetails: input.treatmentDetails ?? null,
     status: derivePrimaryStatus(lifecycle),
     stoneStage: lifecycle.stoneStage,
@@ -276,6 +282,12 @@ export async function updateGemDetails(
   }
   if (!gem || gem.ownerUid !== ownerUid) throw new Error("Gem not found");
 
+  const treatment = normalizeGemTreatment(
+    input.treatmentStatus,
+    resolveGemLifecycle(gem).stoneStage,
+    input.isNatural,
+  );
+
   const acquisitionCostBase = await convertToBase(
     input.acquisitionCost,
     input.acquisitionCurrency,
@@ -296,8 +308,8 @@ export async function updateGemDetails(
     colorPrimary: input.colorPrimary,
     clarity: input.clarity,
     shape: input.shape,
-    isNatural: input.isNatural,
-    treatmentStatus: input.treatmentStatus,
+    isNatural: treatment.isNatural,
+    treatmentStatus: treatment.treatmentStatus,
     photoUrls: input.photoUrls,
     updatedAt: serverTimestamp(),
   });
@@ -494,9 +506,13 @@ export async function updateGemStatus(
   );
 }
 
-export async function fetchGemEvents(gemId: string): Promise<GemEvent[]> {
+export async function fetchGemEvents(
+  ownerUid: string,
+  gemId: string,
+): Promise<GemEvent[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_gem_events"),
+    where("ownerUid", "==", ownerUid),
     where("gemId", "==", gemId),
     orderBy("createdAt", "asc"),
   );
@@ -504,13 +520,30 @@ export async function fetchGemEvents(gemId: string): Promise<GemEvent[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as GemEvent);
 }
 
-export async function fetchGemCosts(gemId: string): Promise<GemCost[]> {
+export async function fetchGemCosts(
+  ownerUid: string,
+  gemId: string,
+): Promise<GemCost[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_gem_costs"),
+    where("ownerUid", "==", ownerUid),
     where("gemId", "==", gemId),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as GemCost);
+}
+
+export async function fetchGemServices(
+  ownerUid: string,
+  gemId: string,
+): Promise<ServiceRecord[]> {
+  const q = query(
+    collection(getFirebaseDb(), "gemtrack_services"),
+    where("ownerUid", "==", ownerUid),
+    where("gemId", "==", gemId),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord);
 }
 
 // ─── Services ───────────────────────────────────────
@@ -563,11 +596,14 @@ export async function createService(
   }
   const available = gemActionAvailability(gem);
   const canStart =
-    input.serviceType === "cutting"
+    input.serviceType === "cutting" || input.serviceType === "recutting"
       ? available.send_for_cutting
-      : input.serviceType === "heating" || input.serviceType === "heat_treatment"
+      : input.serviceType === "heating" ||
+          input.serviceType === "reheating" ||
+          input.serviceType === "heat_treatment"
         ? available.send_for_heating
-        : input.serviceType === "polishing"
+        : input.serviceType === "polishing" ||
+            input.serviceType === "repolishing"
           ? available.send_for_polishing
           : available.give_on_ap;
   if (!canStart) {
@@ -593,9 +629,11 @@ export async function createService(
     updatedAt: now,
   });
   const serviceCustody: GemStatus =
-    input.serviceType === "heating" || input.serviceType === "heat_treatment"
+    input.serviceType === "heating" ||
+    input.serviceType === "reheating" ||
+    input.serviceType === "heat_treatment"
       ? "with_heater"
-      : input.serviceType === "polishing"
+      : input.serviceType === "polishing" || input.serviceType === "repolishing"
         ? "with_polisher"
         : "with_cutter";
   void updateGemStatus(
@@ -654,13 +692,15 @@ export async function completeService(
     const newTotal = gem.totalCost + finalCostBase;
     const newStatus: GemStatus =
       service.serviceType === "heating" ||
+      service.serviceType === "reheating" ||
       service.serviceType === "heat_treatment"
         ? "heated"
-        : service.serviceType === "polishing"
+        : service.serviceType === "polishing" ||
+            service.serviceType === "repolishing"
           ? "polished"
           : "cut";
 
-    queueDocUpdate("gemtrack_gems", service.gemId, {
+    const gemUpdates: Record<string, unknown> = {
       currentWeight: input.weightAfter,
       totalCost: newTotal,
       status: newStatus,
@@ -668,7 +708,16 @@ export async function completeService(
       custody: null,
       currentLocation: null,
       updatedAt: now,
-    });
+    };
+    if (
+      service.serviceType === "heating" ||
+      service.serviceType === "reheating" ||
+      service.serviceType === "heat_treatment"
+    ) {
+      gemUpdates.isNatural = false;
+      gemUpdates.treatmentStatus = "heated";
+    }
+    queueDocUpdate("gemtrack_gems", service.gemId, gemUpdates);
     queueDocCreate("gemtrack_gem_costs", {
       gemId: service.gemId,
       ownerUid,

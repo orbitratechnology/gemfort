@@ -309,6 +309,7 @@ export const GEM_TREATMENTS = [
   { value: 'diffusion', label: 'Diffusion', icon: 'blur-on' as IconName },
   { value: 'doublet', label: 'Doublet', icon: 'filter-none' as IconName },
   { value: 'dyeing', label: 'Dyeing', icon: 'palette' as IconName },
+  { value: 'heated', label: 'Heated', icon: 'local-fire-department' as IconName },
   {
     value: 'glass_plastic_resin_impregnation',
     label: 'Glass/Plastic/Resin Impregnation',
@@ -651,8 +652,12 @@ export const GEM_COST_TYPE_LABELS: Record<string, string> = {
   acquisition: 'Purchase',
   purchase: 'Purchase',
   cutting: 'Cutting',
+  recutting: 'Recutting',
   heating: 'Heating',
+  heat_treatment: 'Heat treatment',
+  reheating: 'Reheating',
   polishing: 'Polishing',
+  repolishing: 'Repolishing',
   transport: 'Transport',
   other: 'Other',
 };

@@ -35,6 +35,7 @@ export function canDeleteService(service: ServiceRecord): boolean {
   return (
     service.status === "completed" ||
     service.status === "received_back" ||
+    service.status === "rejected" ||
     service.status === "cancelled"
   );
 }
@@ -42,8 +43,10 @@ export function canDeleteService(service: ServiceRecord): boolean {
 /** Active service that still needs cancel (or local cancel) before delete. */
 export function canRequestServiceCancellation(service: ServiceRecord): boolean {
   return (
+    service.status === "pending" ||
     service.status === "given" ||
     service.status === "in_progress" ||
+    service.status === "ready" ||
     service.status === "overdue"
   );
 }

@@ -724,6 +724,10 @@ export default function AddGemScreen() {
                       key={value}
                       onPress={() => {
                         setStoneStage(value);
+                        if (value === "heated") {
+                          setTreatment("heated");
+                          clearField("treatment");
+                        }
                         clearField("stoneStage");
                       }}
                       accessibilityRole="radio"
@@ -881,6 +885,10 @@ export default function AddGemScreen() {
         onClose={() => setSheet(null)}
         value={treatment}
         onSelect={(v) => {
+          if (v === "natural" && stoneStage === "heated") {
+            toast.error("A heated gemstone cannot be Natural.");
+            return;
+          }
           setTreatment(v as GemTreatmentValue);
           clearField("treatment");
         }}

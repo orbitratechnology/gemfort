@@ -145,6 +145,10 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['POST', '/v1/ap/records/ap-1/cancellation'],
     ['POST', '/v1/ap/records/ap-1/cancellation/respond'],
     ['DELETE', '/v1/ap/records/ap-1'],
+    ['POST', '/v1/services/requests'],
+    ['POST', '/v1/services/service-1/request/respond'],
+    ['POST', '/v1/services/service-1/status'],
+    ['DELETE', '/v1/services/service-1/job'],
     ['POST', '/v1/services/service-1/cancellation'],
     ['POST', '/v1/services/service-1/cancellation/respond'],
     ['POST', '/v1/auth/phone/sync'],
@@ -206,6 +210,11 @@ const serviceApi = createApiApp({
     assert.equal(uid, 'owner-1');
     assert.equal(action, 'accepted');
     return { ok: true, status: 'cancelled' };
+  },
+  deleteLapidaryJob: async (serviceId, uid) => {
+    assert.equal(serviceId, 'service-1');
+    assert.equal(uid, 'owner-1');
+    return { serviceId, status: 'deleted' };
   },
   requestApCancellation: async (apId, uid) => {
     assert.equal(apId, 'ap-1');
@@ -308,6 +317,23 @@ test('service mutation routes require a bounded idempotency key', async () => {
   assert.equal(response.status, 400);
   assert.equal(body.error.code, 'invalid-argument');
   assert.equal(called, false);
+});
+
+test('lapidary job deletion passes the authenticated provider identity', async () => {
+  const response = await serviceApi.request('/v1/services/service-1/job', {
+    method: 'DELETE',
+    headers: {
+      Authorization: 'Bearer id-token',
+      'X-Firebase-AppCheck': 'app-check-token',
+      'Idempotency-Key': 'service-job-delete-1',
+    },
+  });
+  const body = (await response.json()) as {
+    data: { serviceId: string; status: string };
+  };
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.data, { serviceId: 'service-1', status: 'deleted' });
 });
 
 test('service cancellation routes pass verified identity and action to the handler', async () => {

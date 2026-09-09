@@ -54,10 +54,12 @@ import {
     subscribeGem,
     subscribeGemCosts,
     subscribeGemEvents,
+    subscribeGemServices,
 } from "@/features/workspace/firestore-subscriptions";
 import {
     formatLifecycleSummary,
     gemActionAvailability,
+    normalizeGemTreatment,
     resolveGemLifecycle,
     resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
@@ -70,6 +72,7 @@ import {
     fetchGem,
     fetchGemCosts,
     fetchGemEvents,
+    fetchGemServices,
     removeGemFromMarket,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -83,7 +86,12 @@ import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { GemEvent, GemPaymentMethod, GemStatus } from "@/types";
+import type {
+    GemEvent,
+    GemPaymentMethod,
+    GemStatus,
+    ServiceRecord,
+} from "@/types";
 
 const INITIAL_HISTORY_COUNT = 4;
 
@@ -124,6 +132,28 @@ function eventIcon(eventType: string): IconName {
   if (t.includes("status")) return "swap-horiz";
   if (t.includes("cost") || t.includes("purchase")) return "payments";
   return "history";
+}
+
+function serviceTypeLabel(serviceType: string): string {
+  const labels: Record<string, string> = {
+    cutting: "Cutting",
+    recutting: "Recutting",
+    heating: "Heating",
+    reheating: "Reheating",
+    heat_treatment: "Heat treatment",
+    polishing: "Polishing",
+    repolishing: "Repolishing",
+  };
+  return labels[serviceType] ?? serviceType.replace(/_/g, " ");
+}
+
+function serviceStatusLabel(status: ServiceRecord["status"]): string {
+  if (status === "received_back" || status === "completed") return "Completed";
+  if (status === "in_progress") return "In progress";
+  if (status === "overdue") return "Overdue";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "cancellation_requested") return "Cancellation requested";
+  return "Pending";
 }
 
 function initials(name: string) {
@@ -260,22 +290,32 @@ export default function GemDetailScreen() {
     subscribe: (onData, onError) => subscribeGem(gemId!, onData, onError),
     enabled: !!gemId,
   });
+  const ownerUid = gem?.ownerUid ?? user?.uid;
 
   const { data: costs = [] } = useFirestoreLiveQuery({
-    queryKey: ["gem-costs", gemId],
-    queryFn: () => fetchGemCosts(gemId!),
-    subscribe: (onData, onError) => subscribeGemCosts(gemId!, onData, onError),
-    enabled: !!gemId,
+    queryKey: ["gem-costs", ownerUid, gemId],
+    queryFn: () => fetchGemCosts(ownerUid!, gemId!),
+    subscribe: (onData, onError) =>
+      subscribeGemCosts(ownerUid!, gemId!, onData, onError),
+    enabled: !!ownerUid && !!gemId,
   });
 
   const { data: events = [] } = useFirestoreLiveQuery({
-    queryKey: ["gem-events", gemId],
-    queryFn: () => fetchGemEvents(gemId!),
-    subscribe: (onData, onError) => subscribeGemEvents(gemId!, onData, onError),
-    enabled: !!gemId,
+    queryKey: ["gem-events", ownerUid, gemId],
+    queryFn: () => fetchGemEvents(ownerUid!, gemId!),
+    subscribe: (onData, onError) =>
+      subscribeGemEvents(ownerUid!, gemId!, onData, onError),
+    enabled: !!ownerUid && !!gemId,
   });
 
-  const ownerUid = gem?.ownerUid ?? user?.uid;
+  const { data: services = [] } = useFirestoreLiveQuery({
+    queryKey: ["gem-services", ownerUid, gemId],
+    queryFn: () => fetchGemServices(ownerUid!, gemId!),
+    subscribe: (onData, onError) =>
+      subscribeGemServices(ownerUid!, gemId!, onData, onError),
+    enabled: !!ownerUid && !!gemId,
+  });
+
   const { data: business } = useFirestoreLiveQuery({
     queryKey: ["business-by-owner", ownerUid],
     queryFn: () => fetchBusinessByOwnerUid(ownerUid!),
@@ -423,7 +463,13 @@ export default function GemDetailScreen() {
   const saleStatus = resolveGemSaleStatus(gem);
   const saleLabel = saleStatus === "pending" ? "Awaiting trader" : saleStatus === "sold" ? "Sold" : "Unsold";
   const shapeLabel = formatShapeLabel(gem.shape || gem.cutType);
-  const treatmentLabel = formatTreatmentLabel(gem.treatmentStatus);
+  const treatmentLabel = formatTreatmentLabel(
+    normalizeGemTreatment(
+      gem.treatmentStatus,
+      lifecycle.stoneStage,
+      gem.isNatural,
+    ).treatmentStatus,
+  );
   const specs = [
     { label: "Weight", value: `${gem.currentWeight} ct` },
     ...(shapeLabel ? [{ label: "Shape", value: shapeLabel }] : []),
@@ -451,6 +497,11 @@ export default function GemDetailScreen() {
   const costLines = [...costs].sort((a, b) => {
     const aMs = toJsDate(a.date ?? a.createdAt)?.getTime() ?? 0;
     const bMs = toJsDate(b.date ?? b.createdAt)?.getTime() ?? 0;
+    return bMs - aMs;
+  });
+  const serviceHistory = [...services].sort((a, b) => {
+    const aMs = toJsDate(a.dateReturned ?? a.dateGiven ?? a.createdAt)?.getTime() ?? 0;
+    const bMs = toJsDate(b.dateReturned ?? b.dateGiven ?? b.createdAt)?.getTime() ?? 0;
     return bMs - aMs;
   });
 
@@ -485,6 +536,9 @@ export default function GemDetailScreen() {
   const bottomBarPad = Math.max(insets.bottom, 12);
   const isOwnGem = !!user && user.uid === gem.ownerUid;
   const actionAvailability = gemActionAvailability(gem);
+  const cuttingServiceType = lifecycle.stoneStage === "cut" ? "recutting" : "cutting";
+  const heatingServiceType = lifecycle.stoneStage === "heated" ? "reheating" : "heating";
+  const polishingServiceType = lifecycle.stoneStage === "polished" ? "repolishing" : "polishing";
   const canSellFromTrip =
     sell === "1" &&
     typeof tripId === "string" &&
@@ -496,9 +550,9 @@ export default function GemDetailScreen() {
   const actionButtons = [
     ...(canMarkSold ? [{ title: "Sold", icon: "price-check" as IconName, onPress: openSoldChooser, primary: true }] : []),
     ...(actionAvailability.mark_unsold ? [{ title: "Mark unsold", icon: "undo" as IconName, onPress: () => void handleMarkUnsold(), primary: true }] : []),
-    ...(actionAvailability.send_for_cutting ? [{ title: "Send for Cutting", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=cutting` }] : []),
-    ...(actionAvailability.send_for_heating ? [{ title: "Service", icon: "build" as IconName, image: require("@/assets/images/lapidary-icon.png"), href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating` }] : []),
-    ...(actionAvailability.send_for_polishing ? [{ title: "Send for Polishing", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=polishing` }] : []),
+    ...(actionAvailability.send_for_cutting ? [{ title: cuttingServiceType === "recutting" ? "Recut" : "Cut", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}` }] : []),
+    ...(actionAvailability.send_for_heating ? [{ title: heatingServiceType === "reheating" ? "Reheat" : "Heat", icon: "local-fire-department" as IconName, image: require("@/assets/images/lapidary-icon.png"), href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}` }] : []),
+    ...(actionAvailability.send_for_polishing ? [{ title: polishingServiceType === "repolishing" ? "Repolish" : "Polish", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}` }] : []),
     ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "handshake" as IconName, image: require("@/assets/images/ap-icon.png"), href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
     ...(actionAvailability.list_on_market ? [{ title: "Sell on Market", icon: "storefront" as IconName, href: `/listings/create?workspaceGemId=${gem.id}` }] : []),
     ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "remove-shopping-cart" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
@@ -865,6 +919,61 @@ export default function GemDetailScreen() {
                 },
               ]}
             >
+              {serviceHistory.length ? (
+                <>
+                  <Text
+                    style={[styles.financeSubheading, { color: colors.onSurfaceVariant }]}
+                  >
+                    Service history
+                  </Text>
+                  {serviceHistory.map((service) => {
+                    const amount = service.finalCost ?? service.agreedPrice;
+                    const currency =
+                      service.finalCost != null
+                        ? service.finalCostCurrency
+                        : service.agreedPriceCurrency;
+                    return (
+                      <View key={`service-${service.id}`} style={styles.financeItem}>
+                        <View style={styles.financeRow}>
+                          <View style={styles.financeLabelRow}>
+                            <Icon
+                              name={eventIcon(service.serviceType)}
+                              size={16}
+                              color={colors.onSurfaceVariant}
+                            />
+                            <View style={styles.financeLabelCol}>
+                              <Text
+                                style={[styles.financeLabel, { color: colors.onSurface }]}
+                              >
+                                {serviceTypeLabel(service.serviceType)}
+                              </Text>
+                              <Text
+                                style={[styles.financeDesc, { color: colors.onSurfaceVariant }]}
+                                numberOfLines={2}
+                              >
+                                {serviceStatusLabel(service.status)}
+                                {service.providerName?.trim()
+                                  ? ` · ${service.providerName.trim()}`
+                                  : ""}
+                                {` · ${formatRelativeTime(
+                                  service.dateReturned ?? service.dateGiven,
+                                )}`}
+                              </Text>
+                            </View>
+                          </View>
+                          {amount != null && currency ? (
+                            <Text
+                              style={[styles.financeValue, { color: colors.onSurface }]}
+                            >
+                              {formatStored({ amount, currency })}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </>
+              ) : null}
               {costLines.length ? (
                 costLines.map((c) => (
                   <View key={c.id} style={styles.financeItem}>
@@ -912,11 +1021,11 @@ export default function GemDetailScreen() {
                     </View>
                   </View>
                 ))
-              ) : (
+              ) : !serviceHistory.length ? (
                 <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
                   No cost lines yet
                 </Text>
-              )}
+              ) : null}
               <View
                 style={[
                   styles.financeDivider,
@@ -1045,15 +1154,33 @@ export default function GemDetailScreen() {
           title=""
           tintColor="#FFFFFF"
           right={
-            <Pressable
-              onPress={() => void handleShareGem()}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Share gem"
-              style={[styles.headerBtn, styles.headerChip]}
-            >
-              <Icon name="share" size={20} color="#FFFFFF" />
-            </Pressable>
+            <View style={styles.headerActions}>
+              {isOwnGem ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(marketplace)/gems/edit",
+                      params: { gemId: gem.id },
+                    } as never)
+                  }
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit gem"
+                  style={[styles.headerBtn, styles.headerChip]}
+                >
+                  <Icon name="edit" size={20} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => void handleShareGem()}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share gem"
+                style={[styles.headerBtn, styles.headerChip]}
+              >
+                <Icon name="share" size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
           }
         />
       </View>
@@ -1232,6 +1359,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   headerChip: {
     borderRadius: 20,
@@ -1511,6 +1643,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   financeLabelCol: { flex: 1, gap: 2, minWidth: 0 },
+  financeSubheading: {
+    ...Typography.caption,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
   financeLabel: { ...Typography.bodyMd, fontWeight: "600", flexShrink: 1 },
   financeDesc: { ...Typography.caption },
   financeValue: {

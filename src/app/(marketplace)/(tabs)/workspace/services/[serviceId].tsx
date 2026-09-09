@@ -49,10 +49,10 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { uploadReceipt } from "@/lib/firebase/receipt-service";
-import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { uploadReceipt } from "@/lib/firebase/receipt-service";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
 import {
     formatDate,
     formatRelativeDue,
@@ -88,6 +88,8 @@ function statusMeta(status: ServiceRecord["status"]): {
   tone: "neutral" | "warning" | "success" | "error";
 } {
   switch (status) {
+    case "ready":
+      return { label: "Ready", icon: "check-circle", tone: "success" };
     case "in_progress":
       return { label: "In Progress", icon: "sync", tone: "warning" };
     case "completed":
@@ -103,6 +105,10 @@ function statusMeta(status: ServiceRecord["status"]): {
       };
     case "cancelled":
       return { label: "Cancelled", icon: "cancel", tone: "neutral" };
+    case "rejected":
+      return { label: "Declined", icon: "block", tone: "error" };
+    case "pending":
+      return { label: "Awaiting response", icon: "schedule", tone: "neutral" };
     default:
       return { label: "Pending", icon: "schedule", tone: "neutral" };
   }
@@ -270,13 +276,15 @@ export default function ServiceDetailScreen() {
       </SafeAreaView>
     );
   }
+  const currentService = service;
 
   const isOwner = service.ownerUid === user?.uid;
   const isProvider = !!user && service.providerUid === user.uid;
   const actionable =
-    service.status === "given" ||
-    service.status === "overdue" ||
-    service.status === "in_progress";
+    service.serviceKind !== "lapidary_request" &&
+    (service.status === "given" ||
+      service.status === "overdue" ||
+      service.status === "in_progress");
   const meta = statusMeta(service.status);
   const steps = timelineSteps(service);
   const serviceTypeLabel = service.serviceType
@@ -300,10 +308,23 @@ export default function ServiceDetailScreen() {
         : meta.tone === "warning"
           ? colors.warningAmber + "18"
           : colors.surfaceContainerHighest;
+  const hasAfterWeight = service.weightAfter != null;
 
   async function invalidate() {
-    await queryClient.invalidateQueries({ queryKey: ["services"] });
-    await queryClient.invalidateQueries({ queryKey: ["service", serviceId] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["services"] }),
+      queryClient.invalidateQueries({ queryKey: ["service", serviceId] }),
+      queryClient.invalidateQueries({ queryKey: ["gem", currentService.gemId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["gem-events", currentService.ownerUid, currentService.gemId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["gem-costs", currentService.ownerUid, currentService.gemId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["gem-services", currentService.ownerUid, currentService.gemId],
+      }),
+    ]);
   }
 
   async function handleComplete() {
@@ -410,117 +431,12 @@ export default function ServiceDetailScreen() {
           </Animated.View>
         </ScreenInset>
 
-        {/* Provider → Gem (bottom-to-top connection) */}
+        {/* Gem → Provider (left-to-right connection) */}
         <ScreenInset>
           <Animated.View
             entering={FadeInDown.delay(60).duration(320)}
             style={styles.relation}
           >
-            <Pressable
-              style={({ pressed }) => [
-                styles.providerBlock,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                if (service.providerContactId) {
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/contacts/${service.providerContactId}` as never,
-                  );
-                } else if (service.providerBusinessId) {
-                  router.push(
-                    `/business/${service.providerBusinessId}` as never,
-                  );
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open provider ${providerName}`}
-            >
-              <View style={styles.providerAvatarWrap}>
-                <ContactAvatar
-                  name={providerName}
-                  photoUrl={providerPhoto}
-                  size={88}
-                />
-                {service.providerBusinessId ? (
-                  <View
-                    style={[
-                      styles.verifiedDot,
-                      {
-                        backgroundColor: colors.primary,
-                        borderColor: colors.background,
-                      },
-                    ]}
-                  >
-                    <Icon name="verified" size={12} color={colors.onPrimary} />
-                  </View>
-                ) : null}
-              </View>
-              <Text
-                style={[styles.providerName, { color: colors.onSurface }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {providerName}
-              </Text>
-            </Pressable>
-
-            {providerPhone || providerWhatsApp ? (
-              <View style={styles.providerActions}>
-                {providerPhone ? (
-                  <Pressable
-                    onPress={() =>
-                      void Linking.openURL(openPhone(providerPhone))
-                    }
-                    style={[
-                      styles.roundBtn,
-                      { backgroundColor: colors.primary },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Call provider"
-                  >
-                    <Icon name="call" size={18} color={colors.onPrimary} />
-                  </Pressable>
-                ) : null}
-                {providerWhatsApp ? (
-                  <Pressable
-                    onPress={() =>
-                      void Linking.openURL(openWhatsApp(providerWhatsApp))
-                    }
-                    style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
-                    accessibilityRole="button"
-                    accessibilityLabel="WhatsApp provider"
-                  >
-                    <Icon name="whatsapp" size={18} color="#FFFFFF" />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
-
-            <View style={styles.relationMid} pointerEvents="none">
-              <View
-                style={[
-                  styles.relationLine,
-                  { backgroundColor: colors.outlineVariant },
-                ]}
-              />
-              <Icon name="keyboard-arrow-up" size={22} color={colors.outline} />
-              <View
-                style={[
-                  styles.relationBadge,
-                  {
-                    backgroundColor: colors.primaryContainer,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon
-                  name={serviceTypeIcon(service.serviceType)}
-                  size={20}
-                  color={colors.onPrimaryContainer}
-                />
-              </View>
-            </View>
-
             <Pressable
               style={({ pressed }) => [
                 styles.gemBlock,
@@ -548,6 +464,113 @@ export default function ServiceDetailScreen() {
                 {gemTitle}
               </Text>
             </Pressable>
+
+            <View style={styles.relationMid} pointerEvents="none">
+              <View
+                style={[
+                  styles.relationLine,
+                  { backgroundColor: colors.outlineVariant },
+                ]}
+              />
+              <View
+                style={[
+                  styles.relationBadge,
+                  {
+                    backgroundColor: colors.primaryContainer,
+                    borderColor: colors.background,
+                  },
+                ]}
+              >
+                <Icon
+                  name={serviceTypeIcon(service.serviceType)}
+                  size={20}
+                  color={colors.onPrimaryContainer}
+                />
+              </View>
+              <Icon name="keyboard-arrow-right" size={22} color={colors.outline} />
+            </View>
+
+            <View style={styles.providerSide}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.providerBlock,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  if (service.providerContactId) {
+                    router.push(
+                      `/(marketplace)/(tabs)/workspace/contacts/${service.providerContactId}` as never,
+                    );
+                  } else if (service.providerBusinessId) {
+                    router.push(
+                      `/business/${service.providerBusinessId}` as never,
+                    );
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open provider ${providerName}`}
+              >
+                <View style={styles.providerAvatarWrap}>
+                  <ContactAvatar
+                    name={providerName}
+                    photoUrl={providerPhoto}
+                    size={88}
+                  />
+                  {service.providerBusinessId ? (
+                    <View
+                      style={[
+                        styles.verifiedDot,
+                        {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.background,
+                        },
+                      ]}
+                    >
+                      <Icon name="verified" size={12} color={colors.onPrimary} />
+                    </View>
+                  ) : null}
+                </View>
+                <Text
+                  style={[styles.providerName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {providerName}
+                </Text>
+              </Pressable>
+
+              {providerPhone || providerWhatsApp ? (
+                <View style={styles.providerActions}>
+                  {providerPhone ? (
+                    <Pressable
+                      onPress={() =>
+                        void Linking.openURL(openPhone(providerPhone))
+                      }
+                      style={[
+                        styles.roundBtn,
+                        { backgroundColor: colors.primary },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Call provider"
+                    >
+                      <Icon name="call" size={18} color={colors.onPrimary} />
+                    </Pressable>
+                  ) : null}
+                  {providerWhatsApp ? (
+                    <Pressable
+                      onPress={() =>
+                        void Linking.openURL(openWhatsApp(providerWhatsApp))
+                      }
+                      style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
+                      accessibilityRole="button"
+                      accessibilityLabel="WhatsApp provider"
+                    >
+                      <Icon name="whatsapp" size={18} color="#FFFFFF" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
           </Animated.View>
         </ScreenInset>
 
@@ -688,22 +711,18 @@ export default function ServiceDetailScreen() {
               ]}
             >
               <Icon
-                name="auto-awesome"
+                name={hasAfterWeight ? "auto-awesome" : "schedule"}
                 size={22}
-                color={
-                  service.weightAfter != null ? colors.accent : colors.textMuted
-                }
+                color={hasAfterWeight ? colors.accent : colors.warningAmber}
               />
               <Text style={[styles.weightLabel, { color: colors.textMuted }]}>
-                {service.weightAfter != null ? "AFTER" : "EXPECTED"}
+                {hasAfterWeight ? "AFTER" : "PENDING"}
               </Text>
               <Text
                 style={[styles.weightValue, { color: colors.primary }]}
                 selectable={false}
               >
-                {service.weightAfter != null
-                  ? `${service.weightAfter} ct`
-                  : "—"}
+                {hasAfterWeight ? `${service.weightAfter} ct` : "..."}
               </Text>
               {service.weightLossPercent != null ? (
                 <Text style={[styles.weightNote, { color: colors.textMuted }]}>
@@ -946,13 +965,20 @@ const styles = StyleSheet.create({
 
   relation: {
     width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  providerSide: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 10,
   },
   providerBlock: {
+    width: "100%",
     alignItems: "center",
     gap: 10,
-    maxWidth: "80%",
   },
   providerName: {
     ...Typography.headlineSm,
@@ -984,18 +1010,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   relationMid: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    height: 64,
-    width: 48,
+    height: 48,
+    width: 72,
   },
   relationLine: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    top: 23,
+    height: 2,
   },
   relationBadge: {
     width: 40,
@@ -1007,7 +1034,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   gemBlock: {
-    width: "100%",
+    flex: 1,
+    minWidth: 0,
     flexDirection: "column",
     alignItems: "center",
     gap: 8,

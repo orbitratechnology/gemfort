@@ -28,7 +28,6 @@ import {
   subscribeGems,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-  createClientNotification,
   createServiceRequest,
 } from "@/features/marketplace/request-service";
 import { fetchGems } from "@/features/workspace/workspace-service";
@@ -262,29 +261,23 @@ export default function RequestServiceScreen() {
     try {
       await withLoading(async () => {
         const gemName = gemDisplayName(gem!);
-        const id = await createServiceRequest({
+        await createServiceRequest({
           traderUid: user.uid,
           traderBusinessId: myBusiness?.id ?? null,
+          traderBusinessName: myBusiness?.businessName ?? profile?.displayName ?? null,
+          traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
           lapidaryUid: business.ownerUid,
           lapidaryBusinessId: business.id,
+          providerName: business.businessName,
+          providerBusinessName: business.businessName,
+          providerBusinessLogoUrl: business.logoUrl,
           gemId: gem!.id,
           gemName,
           gemPhotoUrl: gemPrimaryPhotoUrl(gem),
           serviceTypes,
           notes,
-        });
-        await createClientNotification({
-          recipientUid: business.ownerUid,
-          type: "service_request_received",
-          title: "New service request",
-          message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes
-            .map((id) =>
-              LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === id)?.label ??
-              id,
-            )
-            .join(", ")} for ${gemName}.`,
-          referenceType: "service_request",
-          referenceId: id,
+          expectedReturnDays: 14,
+          weightBefore: gem!.currentWeight,
         });
         toast.success("Service request sent.");
         router.back();

@@ -244,9 +244,11 @@ export const addServiceSchema = z.object({
   daysUntilReturn: wholeDays("Return days", 1, 365),
   serviceType: z.enum([
     "cutting",
-    "heating",
-    "polishing",
     "recutting",
+    "heating",
+    "reheating",
+    "polishing",
+    "repolishing",
     "appraisal",
   ]),
 });

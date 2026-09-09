@@ -16,6 +16,7 @@ export type ServiceCancellationRequestFixture = {
 export type ServiceCancellationResponseFixture = {
   providerUid: string | null | undefined;
   status: string;
+  previousStatus?: string | null;
 };
 
 export type ApMutationFixture = {
@@ -72,7 +73,11 @@ export function decideServiceCancellationRequest(
     };
   }
 
-  if (service.status === 'given' || service.status === 'in_progress' || service.status === 'overdue') {
+  if (service.status === 'pending') {
+    return { kind: 'transition', status: 'cancelled' };
+  }
+
+  if (service.status === 'given' || service.status === 'in_progress' || service.status === 'ready' || service.status === 'overdue') {
     return {
       kind: 'transition',
       status: service.providerUid?.trim() ? 'cancellation_requested' : 'cancelled',
@@ -104,7 +109,10 @@ export function decideServiceCancellationResponse(
   }
 
   if (service.status === 'cancellation_requested') {
-    return { kind: 'transition', status: action === 'accepted' ? 'cancelled' : 'in_progress' };
+    const restoredStatus = ['given', 'in_progress', 'ready', 'overdue'].includes(service.previousStatus ?? '')
+      ? service.previousStatus!
+      : 'in_progress';
+    return { kind: 'transition', status: action === 'accepted' ? 'cancelled' : restoredStatus };
   }
 
   if ((action === 'accepted' && service.status === 'cancelled') ||

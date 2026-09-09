@@ -136,6 +136,26 @@ export async function resolvePushMedia(input: {
           imageUrl = await gemPhoto(firstGemId);
         }
       }
+    } else if (refType === 'service_request' && refId) {
+      const snap = await db.collection('gemtrack_services').doc(refId).get();
+      if (snap.exists) {
+        const request = snap.data() ?? {};
+        const viewerIsLapidary =
+          str(request.providerUid) === input.recipientUid;
+        const actorUid = viewerIsLapidary
+          ? str(request.ownerUid)
+          : str(request.providerUid);
+        const actorBusinessId = viewerIsLapidary
+          ? str(request.traderBusinessId)
+          : str(request.providerBusinessId);
+        const business =
+          (await businessLogoById(actorBusinessId)) ??
+          (await businessLogoByOwnerUid(actorUid));
+
+        actorName = actorName || business?.name || (viewerIsLapidary ? 'Trader' : 'Lapidary');
+        actorPhotoUrl = actorPhotoUrl || business?.logoUrl || null;
+        if (!imageUrl) imageUrl = await gemPhoto(str(request.gemId));
+      }
     } else if (refType === 'service' && refId) {
       const snap = await db.collection('gemtrack_services').doc(refId).get();
       if (snap.exists) {

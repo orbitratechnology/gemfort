@@ -68,23 +68,26 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
   const actions: GemQuickAction[] = [];
   const life = resolveGemLifecycle(gem);
   const available = gemActionAvailability(gem);
-  const isMarketListed =
-    life.outcome === "listed" || gem.isListedOnMarketplace === true;
+  const cuttingServiceType = life.stoneStage === "cut" ? "recutting" : "cutting";
+  const heatingServiceType = life.stoneStage === "heated" ? "reheating" : "heating";
+  const polishingServiceType = life.stoneStage === "polished" ? "repolishing" : "polishing";
 
   if (available.send_for_cutting) {
     actions.push({
-      title: "Send for cutting",
-      href: `/(marketplace)/services/add?gemId=${gem.id}`,
+      title: cuttingServiceType === "recutting" ? "Send for recutting" : "Send for cutting",
+      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}`,
     });
-  } else if (available.send_for_heating) {
+  }
+  if (available.send_for_heating) {
     actions.push({
-      title: "Send for Heating",
-      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=heating`,
+      title: heatingServiceType === "reheating" ? "Send for reheating" : "Send for heating",
+      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}`,
     });
-  } else if (available.send_for_polishing) {
+  }
+  if (available.send_for_polishing) {
     actions.push({
-      title: "Send for polishing",
-      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=polishing`,
+      title: polishingServiceType === "repolishing" ? "Send for repolishing" : "Send for polishing",
+      href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}`,
     });
   }
 
@@ -124,14 +127,6 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
     actions.push({
       title: "View on Market",
       href: `/listing/${gem.marketplaceListingId}`,
-      variant: "secondary",
-    });
-  }
-
-  if (!life.custody && !isMarketListed) {
-    actions.push({
-      title: "Record Service",
-      href: `/(marketplace)/services/add?gemId=${gem.id}`,
       variant: "secondary",
     });
   }

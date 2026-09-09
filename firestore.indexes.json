@@ -12,8 +12,25 @@
       "collectionGroup": "gemtrack_gem_events",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
         { "fieldPath": "gemId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_gem_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gemId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_gem_costs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "gemId", "order": "ASCENDING" }
       ]
     },
     {
@@ -22,6 +39,14 @@
       "fields": [
         { "fieldPath": "ownerUid", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gemtrack_services",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "gemId", "order": "ASCENDING" }
       ]
     },
     {

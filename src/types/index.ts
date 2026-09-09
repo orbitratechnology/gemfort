@@ -306,12 +306,15 @@ export type GemCost = {
 };
 
 export type ServiceRecordStatus =
+  | "pending"
   | "given"
   | "in_progress"
+  | "ready"
   | "completed"
   | "received_back"
   | "overdue"
   | "cancellation_requested"
+  | "rejected"
   | "cancelled";
 
 export type ServiceRecord = {
@@ -327,6 +330,7 @@ export type ServiceRecord = {
   providerUid?: string | null;
   /** Denormalized display name for list/detail screens. */
   providerName?: string | null;
+  providerBusinessName?: string | null;
   dateGiven: Timestamp;
   expectedReturnDate: Timestamp;
   weightBefore: number;
@@ -348,6 +352,25 @@ export type ServiceRecord = {
   paymentStatus: "unpaid" | "partial" | "paid";
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Set for a business lapidary request; the workflow status remains in `status`. */
+  serviceKind?: "lapidary_request" | "record";
+  requestStatus?: RequestStatus;
+  serviceTypes?: string[];
+  traderUid?: string;
+  traderBusinessId?: string | null;
+  traderBusinessName?: string | null;
+  traderBusinessLogoUrl?: string | null;
+  lapidaryUid?: string | null;
+  lapidaryBusinessId?: string | null;
+  providerBusinessLogoUrl?: string | null;
+  jobId?: string | null;
+  rejectReason?: string | null;
+  /** Set when a lapidary removes a terminal job from its own workshop view. */
+  providerDeletedAt?: Timestamp | null;
+  providerDeletedByUid?: string | null;
+  previousStoneStage?: GemStoneStage | null;
+  previousGemStatus?: string | null;
+  previousOutcome?: GemOutcome | null;
 };
 
 export type ApLifecycleStatus =

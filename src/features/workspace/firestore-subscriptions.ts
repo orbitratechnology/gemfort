@@ -1,5 +1,9 @@
 import { normalizeApRecord } from '@/features/workspace/ap-normalize';
 import { pickPrimaryBusiness } from '@/features/marketplace/marketplace-service';
+import {
+  mapServiceToLapidaryJob,
+  mapServiceToRequest,
+} from '@/features/marketplace/request-service';
 import { normalizeContactTypes } from '@/constants/contact-types';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import {
@@ -162,6 +166,7 @@ export function subscribeGem(
 }
 
 export function subscribeGemEvents(
+  ownerUid: string,
   gemId: string,
   onData: (events: GemEvent[]) => void,
   onError?: ErrCb,
@@ -169,6 +174,7 @@ export function subscribeGemEvents(
   return listenCollection(
     query(
       collection(getFirebaseDb(), 'gemtrack_gem_events'),
+      where('ownerUid', '==', ownerUid),
       where('gemId', '==', gemId),
       orderBy('createdAt', 'asc'),
     ),
@@ -179,6 +185,7 @@ export function subscribeGemEvents(
 }
 
 export function subscribeGemCosts(
+  ownerUid: string,
   gemId: string,
   onData: (costs: GemCost[]) => void,
   onError?: ErrCb,
@@ -186,9 +193,28 @@ export function subscribeGemCosts(
   return listenCollection(
     query(
       collection(getFirebaseDb(), 'gemtrack_gem_costs'),
+      where('ownerUid', '==', ownerUid),
       where('gemId', '==', gemId),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as GemCost),
+    onData,
+    onError,
+  );
+}
+
+export function subscribeGemServices(
+  ownerUid: string,
+  gemId: string,
+  onData: (services: ServiceRecord[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'gemtrack_services'),
+      where('ownerUid', '==', ownerUid),
+      where('gemId', '==', gemId),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord),
     onData,
     onError,
   );
@@ -812,12 +838,15 @@ export function subscribeOutgoingServiceRequests(
 ): Unsub {
   return listenCollection(
     query(
-      collection(getFirebaseDb(), 'service_requests'),
-      where('traderUid', '==', traderUid),
-      orderBy('createdAt', 'desc'),
+      collection(getFirebaseDb(), 'gemtrack_services'),
+      where('ownerUid', '==', traderUid),
+      orderBy('updatedAt', 'desc'),
       limit(50),
     ),
-    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRequest),
+    (docs) => docs
+      .map((d) => ({ id: d.id, data: d.data() }))
+      .filter(({ data }) => data.serviceKind === 'lapidary_request')
+      .map(({ id, data }) => mapServiceToRequest(id, data)),
     onData,
     onError,
   );
@@ -830,12 +859,15 @@ export function subscribeIncomingServiceRequests(
 ): Unsub {
   return listenCollection(
     query(
-      collection(getFirebaseDb(), 'service_requests'),
-      where('lapidaryUid', '==', lapidaryUid),
-      orderBy('createdAt', 'desc'),
+      collection(getFirebaseDb(), 'gemtrack_services'),
+      where('providerUid', '==', lapidaryUid),
+      orderBy('updatedAt', 'desc'),
       limit(50),
     ),
-    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRequest),
+    (docs) => docs
+      .map((d) => ({ id: d.id, data: d.data() }))
+      .filter(({ data }) => data.serviceKind === 'lapidary_request')
+      .map(({ id, data }) => mapServiceToRequest(id, data)),
     onData,
     onError,
   );
@@ -848,12 +880,14 @@ export function subscribeLapidaryJobs(
 ): Unsub {
   return listenCollection(
     query(
-      collection(getFirebaseDb(), 'lapidary_jobs'),
-      where('lapidaryUid', '==', lapidaryUid),
-      orderBy('createdAt', 'desc'),
+      collection(getFirebaseDb(), 'gemtrack_services'),
+      where('providerUid', '==', lapidaryUid),
+      orderBy('updatedAt', 'desc'),
       limit(100),
     ),
-    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as LapidaryJob),
+    (docs) => docs
+      .map((d) => mapServiceToLapidaryJob(d.id, d.data()))
+      .filter((job): job is LapidaryJob => job != null),
     onData,
     onError,
   );

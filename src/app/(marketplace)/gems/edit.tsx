@@ -51,7 +51,10 @@ import {
   type GemTreatmentValue,
 } from "@/constants/gem-options";
 import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
-import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
+import {
+  normalizeGemTreatment,
+  resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import {
   fetchGem,
   queueGemPhotoUrls,
@@ -139,6 +142,9 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { height: windowHeight } = useWindowDimensions();
+  const currentStoneStage = resolveGemLifecycle(gem).stoneStage;
+  const isHeatedGem =
+    currentStoneStage === "heated" || gem.treatmentStatus === "heated";
 
   const [title, setTitle] = useState(() => gem.title?.trim() ?? "");
   const [gemType, setGemType] = useState(() => gem.gemType || "sapphire");
@@ -163,8 +169,14 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
   }));
   const [treatment, setTreatment] = useState<GemTreatmentValue | "">(
     () =>
-      (resolveOptionValue(GEM_TREATMENTS, gem.treatmentStatus) ||
-        "") as GemTreatmentValue | "",
+      (resolveOptionValue(
+        GEM_TREATMENTS,
+        normalizeGemTreatment(
+          gem.treatmentStatus,
+          currentStoneStage,
+          gem.isNatural,
+        ).treatmentStatus,
+      ) || "") as GemTreatmentValue | "",
   );
   const [photos, setPhotos] = useState<LocalMedia[]>(() =>
     mediaFromPhotoUrls(gem.photoUrls ?? []),
@@ -177,6 +189,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         gem.clarity ||
         gem.originCountry ||
         gem.colorPrimary ||
+        currentStoneStage === "heated" ||
         (gem.treatmentStatus && gem.treatmentStatus !== "natural"),
     ),
   );
@@ -241,7 +254,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
       colorPrimary: colorShade,
       clarity,
       shape,
-      stoneStage: resolveGemLifecycle(gem).stoneStage,
+      stoneStage: currentStoneStage,
       status: "",
     });
     if (!result.success) {
@@ -625,6 +638,10 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         onClose={() => setSheet(null)}
         value={treatment}
         onSelect={(v) => {
+          if (v === "natural" && isHeatedGem) {
+            toast.error("A heated gemstone cannot be Natural.");
+            return;
+          }
           setTreatment(v as GemTreatmentValue);
           clearField("treatment");
         }}

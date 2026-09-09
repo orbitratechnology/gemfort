@@ -32,6 +32,7 @@ import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-serv
 import {
   canListGem,
   isTerminalOutcome,
+  normalizeGemTreatment,
   resolveGemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
 import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
@@ -292,7 +293,11 @@ export default function CreateListingScreen() {
           clarity: gem.clarity || null,
           shape: gem.shape || gem.cutType || null,
           origin: gem.originCountry || "Unknown",
-          treatmentStatus: gem.treatmentStatus || "natural",
+          treatmentStatus: normalizeGemTreatment(
+            gem.treatmentStatus,
+            life.stoneStage,
+            gem.isNatural,
+          ).treatmentStatus,
           showPrice: true,
           priceMin: parsed.data.price,
           priceMax: null,
