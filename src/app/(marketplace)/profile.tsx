@@ -45,7 +45,7 @@ import { friendlyError } from "@/lib/errors";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
+import { confirm } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [

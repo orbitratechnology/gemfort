@@ -42,7 +42,7 @@ import {
 } from "@/lib/firebase/social-auth";
 import { haptics } from "@/lib/haptics";
 import { parseForm, registerSchema } from "@/lib/validation/form-schemas";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { UserRole } from "@/types";
 

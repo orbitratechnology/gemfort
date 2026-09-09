@@ -21,7 +21,7 @@ import { markOnboardingComplete } from '@/lib/onboarding';
 import { runWithCleanup } from '@/lib/run-with-cleanup';
 import { parseForm, verifyOtpSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function VerifyOtpScreen() {

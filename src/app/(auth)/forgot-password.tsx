@@ -13,7 +13,7 @@ import { resetPassword } from '@/lib/firebase/auth-service';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { forgotPasswordSchema, parseForm } from '@/lib/validation/form-schemas';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function ForgotPasswordScreen() {

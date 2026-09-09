@@ -21,7 +21,7 @@ import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { formatCurrency } from '@/lib/utils';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddGemsToTripScreen() {

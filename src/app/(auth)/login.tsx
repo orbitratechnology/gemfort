@@ -40,7 +40,7 @@ import {
 import { haptics } from "@/lib/haptics";
 import { markOnboardingComplete } from "@/lib/onboarding";
 import { loginSchema, parseForm } from "@/lib/validation/form-schemas";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function LoginScreen() {

@@ -53,8 +53,9 @@ import {
   openPhone,
   openWhatsApp,
 } from "@/lib/utils";
-import { confirm } from "@/providers/confirm-provider";
-import { useIsBusy, withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { useIsBusy } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque, ChequeStatus } from "@/types";
 

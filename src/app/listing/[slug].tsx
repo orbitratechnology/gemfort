@@ -69,8 +69,8 @@ import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ListingOffer } from "@/types";
 

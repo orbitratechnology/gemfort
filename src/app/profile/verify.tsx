@@ -28,7 +28,7 @@ import {
 } from '@/lib/firebase/storage-service';
 import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 const STEPS = ['Documents', 'Review'];

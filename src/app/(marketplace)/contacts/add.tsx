@@ -25,7 +25,7 @@ import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {

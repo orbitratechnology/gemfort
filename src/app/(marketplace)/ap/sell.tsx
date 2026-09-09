@@ -42,7 +42,7 @@ import { haptics } from "@/lib/haptics";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, sellApGemSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {

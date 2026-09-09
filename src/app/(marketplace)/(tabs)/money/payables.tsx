@@ -32,7 +32,7 @@ import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
 import { parseForm, recordPaymentSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import { friendlyError } from '@/lib/errors';
 import { uploadReceipt } from '@/lib/firebase/receipt-service';

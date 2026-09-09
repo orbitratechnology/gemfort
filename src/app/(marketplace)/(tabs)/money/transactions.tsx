@@ -42,7 +42,7 @@ import { uploadReceipt } from '@/lib/firebase/receipt-service';
 import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function TransactionsScreen() {

@@ -8,7 +8,7 @@ import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { sendPhoneVerificationCode } from "@/lib/firebase/phone-auth";
 import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function CompletePhoneScreen() {

@@ -27,7 +27,7 @@ import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { shortGemId } from "@/lib/utils";
-import { confirmDelete } from "@/providers/confirm-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
 import type { WorkspaceGem } from "@/types";
 
 /** Soft cap so tiles stay product-sized on tablets / wide layouts. */

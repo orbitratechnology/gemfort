@@ -51,7 +51,7 @@ import { haptics } from "@/lib/haptics";
 import { profileLocationLabel } from "@/lib/location/profile-location";
 import { markBusinessProfileOnboardingComplete } from "@/lib/onboarding";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ProfileLocation } from "@/types";
 

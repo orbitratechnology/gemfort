@@ -23,7 +23,7 @@ import {
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import { openPhone, openWhatsApp } from "@/lib/utils";
-import { confirmDelete } from "@/providers/confirm-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 

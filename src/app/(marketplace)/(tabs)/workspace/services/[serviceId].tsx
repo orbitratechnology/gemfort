@@ -65,8 +65,8 @@ import {
     parseForm,
 } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { confirmDelete } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ServiceRecord } from "@/types";
 

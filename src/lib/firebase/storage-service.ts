@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { runExternalActivity } from '@/lib/app-lifecycle/external-activity';
 import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
-import { setLoadingMessage } from '@/providers/loading-provider';
+import { setLoadingMessage } from '@/providers/loading-bridge';
 
 export type LocalMediaKind = 'image' | 'video' | 'file';
 

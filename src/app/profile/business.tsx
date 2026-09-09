@@ -74,7 +74,7 @@ import {
 } from "@/lib/location/profile-location";
 import { parseAmountInput } from "@/lib/money/mask";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     Business,

@@ -29,7 +29,7 @@ import { friendlyError } from "@/lib/errors";
 import { convertToBaseSync } from "@/lib/exchange-rates";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 type PaymentMethod = "transfer" | "cash" | "cheque";
