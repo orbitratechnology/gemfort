@@ -24,6 +24,11 @@ describe('priorityForType', () => {
     assert.equal(priorityForType('bill_due_today'), 'medium');
   });
 
+  it('keeps incoming service requests individually visible', () => {
+    assert.equal(priorityForType('service_request_received'), 'high');
+    assert.equal(priorityForType('service_job_completed'), 'medium');
+  });
+
   it('defaults remaining types to low', () => {
     assert.equal(priorityForType('announcement_platform'), 'low');
   });
@@ -42,6 +47,7 @@ describe('pushCategoryForType', () => {
     assert.equal(pushCategoryForType('ap_request_received'), 'ap_request');
     assert.equal(pushCategoryForType('ap_cancellation_requested'), 'ap_cancel');
     assert.equal(pushCategoryForType('listing_offer_received'), 'listing_offer');
+    assert.equal(pushCategoryForType('service_job_completed'), 'service_completed');
     assert.equal(pushCategoryForType('cheque_maturing_tomorrow'), 'open_ref');
   });
 });

@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Pressable,
     StyleSheet,
@@ -39,6 +39,7 @@ import {
 } from "@/components/workspace/job-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { resolveCurrencyCode } from "@/constants/currencies";
 import { resolveProfileRole } from "@/constants/roles";
 import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
@@ -104,15 +105,31 @@ export default function AddBillScreen() {
     notes?: string;
     jobId?: string;
     gemId?: string;
+    direction?: string;
+    dueDate?: string;
+    currency?: string;
+    counterpartyBusinessId?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
   const paramNotes = decodeShareParam(raw.notes);
   const paramJobId = firstParam(raw.jobId);
   const paramGemId = firstParam(raw.gemId);
+  const paramDirection = firstParam(raw.direction);
+  const paramDueDate = firstParam(raw.dueDate);
+  const paramCurrency = resolveCurrencyCode(firstParam(raw.currency), preferred);
+  const paramCounterpartyBusinessId = firstParam(raw.counterpartyBusinessId);
+
+  const initialDueDays = useMemo(() => {
+    const timestamp = Date.parse(paramDueDate);
+    if (!Number.isFinite(timestamp)) return "7";
+    return String(Math.max(0, Math.ceil((timestamp - Date.now()) / 86_400_000)));
+  }, [paramDueDate]);
 
   const presetDirection: BillDirection | null = isLapidary
     ? "receivable"
-    : null;
+    : paramDirection === "payable" || paramDirection === "receivable"
+      ? paramDirection
+      : null;
 
   const [step, setStep] = useState(presetDirection ? 1 : 0);
   const [direction, setDirection] = useState<BillDirection | null>(
@@ -120,10 +137,10 @@ export default function AddBillScreen() {
   );
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
-    currency: preferred,
+    currency: paramCurrency,
   });
   const [contactId, setContactId] = useState("");
-  const [dueDays, setDueDays] = useState("7");
+  const [dueDays, setDueDays] = useState(initialDueDays);
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
@@ -150,6 +167,14 @@ export default function AddBillScreen() {
       subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
+
+  useEffect(() => {
+    if (contactId || !paramCounterpartyBusinessId) return;
+    const linkedContact = contacts.find(
+      (contact) => contact.linkedBusinessId === paramCounterpartyBusinessId,
+    );
+    if (linkedContact) setContactId(linkedContact.id);
+  }, [contactId, contacts, paramCounterpartyBusinessId]);
 
   const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
@@ -271,8 +296,8 @@ export default function AddBillScreen() {
           commissionPercent: isLapidary ? null : result.data.commissionPercent,
           notes: result.data.notes,
           gemIds: isLapidary ? [] : gemIds,
-          jobId: isLapidary ? jobId || null : null,
-          status: isLapidary ? "ongoing" : "open",
+          jobId: jobId || null,
+          status: jobId ? "ongoing" : "open",
         });
         void queryClient.invalidateQueries({ queryKey: ["bills"] });
         toast.success(

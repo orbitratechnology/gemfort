@@ -49,8 +49,10 @@ import {
 } from '../gemtrack/service-cancellation-api';
 import {
   createServiceRequestForApi,
+  completeLapidaryServiceForApi,
   deleteLapidaryJobForApi,
   parseCreateServiceRequestInput,
+  parseCompleteLapidaryServiceInput,
   respondServiceRequestForApi,
   updateLapidaryServiceStatusForApi,
   type CreateServiceRequestInput,
@@ -509,6 +511,14 @@ export function createApiApp(options: ApiAppOptions = {}) {
     const serviceId = requiredRouteParam(c, 'serviceId');
     return success(c, await mutation(c, { serviceId, status }, (uid) =>
       updateLapidaryServiceStatus(serviceId, uid, status),
+    ));
+  });
+
+  app.post('/v1/services/:serviceId/complete', auth, appCheck, async (c) => {
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    const input = parseCompleteLapidaryServiceInput(await readJson(c));
+    return success(c, await mutation(c, { serviceId, ...input }, (uid) =>
+      completeLapidaryServiceForApi(serviceId, uid, input),
     ));
   });
 

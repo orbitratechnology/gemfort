@@ -165,7 +165,8 @@ export default function AddServiceScreen() {
           await createServiceRequest({
             traderUid: user.uid,
             traderBusinessId: senderBusiness?.id ?? null,
-            traderBusinessName: senderBusiness?.businessName ?? null,
+            traderBusinessName:
+              senderBusiness?.businessName ?? user.displayName?.trim() ?? null,
             traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
             lapidaryUid: providerUid,
             lapidaryBusinessId: provider.businessId,

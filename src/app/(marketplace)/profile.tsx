@@ -17,11 +17,13 @@ import { CurrencyFlag } from "@/components/ui/country-flag";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { BusinessReputationBadge } from "@/components/ui/verification-badge";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
     getCurrencyLabel,
     type CurrencyCode,
 } from "@/constants/currencies";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     Radius,
     Spacing,
@@ -175,6 +177,9 @@ export default function ProfileScreen() {
     : new Date().getFullYear();
   const coverUri = business?.coverPhotoUrl ?? null;
   const avatarUri = business?.logoUrl ?? null;
+  const reputationBadge = profile?.memberBadge
+    ? "member"
+    : businessReputationBadgeForBusiness(business);
 
   return (
     <View
@@ -240,6 +245,9 @@ export default function ProfileScreen() {
                 {roleLabel}
               </Text>
             </View>
+            {reputationBadge !== "none" ? (
+              <BusinessReputationBadge type={reputationBadge} />
+            ) : null}
             <Text style={[styles.memberSince, { color: colors.textMuted }]}>
               MEMBER SINCE {memberYear}
             </Text>

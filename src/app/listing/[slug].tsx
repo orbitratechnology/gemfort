@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryFlag, CountryLabel } from "@/components/ui/country-flag";
+import { BusinessReputationBadge } from "@/components/ui/verification-badge";
 import {
     CurrencyAmountField,
     type CurrencyAmountValue,
@@ -33,6 +34,7 @@ import {
     Spacing,
     Typography,
 } from "@/constants/design-tokens";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     formatGemType,
     formatShapeLabel,
@@ -310,6 +312,7 @@ export default function PublicListingScreen() {
   );
   const ownerVerified =
     isBusinessVerified(business) || activeListing.sellerIsVerified === true;
+  const reputationBadge = businessReputationBadgeForBusiness(business);
   const ownerAvatar = business?.logoUrl ?? activeListing.sellerLogoUrl ?? null;
   const ownerInitials = initials(ownerName);
   const yearsActive = business?.badges?.yearsActive;
@@ -609,7 +612,9 @@ export default function PublicListingScreen() {
               >
                 {ownerName}
               </Text>
-              {ownerVerified ? (
+              {reputationBadge !== "none" ? (
+                <BusinessReputationBadge type={reputationBadge} />
+              ) : ownerVerified ? (
                 <View
                   style={[
                     styles.verifiedPill,

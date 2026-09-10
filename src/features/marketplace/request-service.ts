@@ -83,6 +83,7 @@ export function mapServiceToRequest(
     id,
     traderUid: String(data.traderUid ?? data.ownerUid ?? ''),
     traderBusinessId: (data.traderBusinessId as string | null | undefined) ?? null,
+    traderBusinessName: (data.traderBusinessName as string | null | undefined) ?? null,
     lapidaryUid: String(data.lapidaryUid ?? data.providerUid ?? ''),
     lapidaryBusinessId: String(data.lapidaryBusinessId ?? data.providerBusinessId ?? ''),
     gemId: String(data.gemId ?? ''),
@@ -136,6 +137,7 @@ export function mapServiceToLapidaryJob(
     lapidaryUid: request.lapidaryUid,
     lapidaryBusinessId: request.lapidaryBusinessId,
     traderUid: request.traderUid,
+    traderBusinessName: request.traderBusinessName,
     gemId: request.gemId,
     gemName: request.gemName,
     gemPhotoUrl: request.gemPhotoUrl,
@@ -231,6 +233,34 @@ export async function updateLapidaryJobStatus(
       idempotencyKey: `mobile-service-status-${status}-${jobId}-${Date.now().toString(36)}`.slice(0, 128),
     },
   );
+}
+
+export async function completeLapidaryJob(
+  jobId: string,
+  input: {
+    weightAfter: number;
+    finalCost: number;
+    paymentDueDate: Date;
+    currency?: string;
+  },
+): Promise<void> {
+  await callApi<
+    { serviceId: string; status: 'ready' },
+    {
+      weightAfter: number;
+      finalCost: number;
+      paymentDueDateIso: string;
+      currency?: string;
+    }
+  >(`/v1/services/${encodeURIComponent(jobId)}/complete`, {
+    weightAfter: input.weightAfter,
+    finalCost: input.finalCost,
+    paymentDueDateIso: input.paymentDueDate.toISOString(),
+    currency: input.currency,
+  }, {
+    retryAuthOn401: true,
+    idempotencyKey: `mobile-service-complete-${jobId}-${Date.now().toString(36)}`.slice(0, 128),
+  });
 }
 
 /**

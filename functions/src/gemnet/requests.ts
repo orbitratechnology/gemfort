@@ -65,6 +65,7 @@ export const onServiceRequestUpdated = onDocumentUpdated(
 
     if (before.status === after.status || after.requestStatus !== 'accepted') return;
     if (!['in_progress', 'ready', 'received_back'].includes(String(after.status))) return;
+    if (after.status === 'ready' && after.finalCost != null && after.paymentDueDate != null) return;
     const jobStatus = after.status === 'received_back' ? 'returned' : String(after.status);
     await ensureDeterministicNotificationDoc({
       recipientUid: after.ownerUid ?? after.traderUid,

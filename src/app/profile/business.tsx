@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
+import { BusinessReputationBadge } from "@/components/ui/verification-badge";
 import { CityField } from "@/components/ui/city-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
@@ -34,6 +35,7 @@ import {
     isBusinessProfileSection,
     type BusinessProfileSection,
 } from "@/constants/business-profile-sections";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { cityBelongsToCountry } from "@/constants/cities";
 import type { CurrencyCode } from "@/constants/currencies";
 import {
@@ -257,6 +259,9 @@ function BusinessProfileForm({
     !!business?.providerProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
+  const reputationBadge = profile?.memberBadge
+    ? "member"
+    : businessReputationBadgeForBusiness(business);
   const displayName = businessName.trim() || "Your Business";
   const showAllSections = section === null;
   const showPhotos = showAllSections || section === "photos";
@@ -563,6 +568,9 @@ function BusinessProfileForm({
             {accountTypeLabel}
             {isVerified ? " · Verified" : ""}
           </Text>
+          {reputationBadge !== "none" ? (
+            <BusinessReputationBadge type={reputationBadge} />
+          ) : null}
         </View>
           </View>
 

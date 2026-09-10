@@ -12,9 +12,19 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
   const message = error instanceof Error ? error.message : '';
   const hay = `${code} ${message}`.toLowerCase();
 
-  // Firestore index missing or still building.
-  if (code === 'failed-precondition' || hay.includes('requires an index') || hay.includes('needs an index')) {
+  // Firestore index missing or still building. Other failed-precondition
+  // responses are intentional domain errors from the API and should keep
+  // their safe, actionable message.
+  if (
+    code === 'failed-precondition' &&
+    (hay.includes('requires an index') || hay.includes('needs an index'))
+  ) {
     return 'Still getting things ready. Please try again in a moment.';
+  }
+
+  if (code === 'failed-precondition') {
+    const domainMessage = safeUserMessage(message, '');
+    if (domainMessage) return domainMessage;
   }
 
   // Permissions / access.

@@ -12,8 +12,10 @@ import {
 import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
+import { BusinessReputationBadge } from '@/components/ui/verification-badge';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
 import { getContactTypeOption } from '@/constants/contact-types';
+import { businessReputationBadgeForBusiness } from '@/constants/business-reputation';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { ROLE_LABELS } from '@/constants/roles';
 import {
@@ -240,6 +242,7 @@ function BusinessRow({
 }) {
   const { colors } = useAppTheme();
   const role = roleLabelForBusiness(business);
+  const reputationBadge = businessReputationBadgeForBusiness(business);
   const phone =
     business.contacts?.phone?.value ?? business.contacts?.whatsapp?.value ?? null;
   return (
@@ -271,7 +274,9 @@ function BusinessRow({
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
             {business.businessName}
           </Text>
-          {business.badges.isVerified ? (
+          {reputationBadge !== 'none' ? (
+            <BusinessReputationBadge type={reputationBadge} />
+          ) : business.badges.isVerified ? (
             <Icon name="verified" size={16} color={colors.accent} />
           ) : null}
         </View>

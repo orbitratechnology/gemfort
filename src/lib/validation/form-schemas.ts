@@ -324,6 +324,14 @@ export const completeServiceSchema = z.object({
 
 export type CompleteServiceForm = z.infer<typeof completeServiceSchema>;
 
+export const completeLapidaryJobSchema = z.object({
+  weightAfter: positiveNumber("After weight", 10_000),
+  finalCost: positiveNumber("Service fee"),
+  paymentDueDays: wholeDays("Payment due", 0, 730),
+});
+
+export type CompleteLapidaryJobForm = z.infer<typeof completeLapidaryJobSchema>;
+
 const nonNegativeNumber = (label: string, max = 99_999_999) =>
   z
     .string()

@@ -19,6 +19,7 @@ import { BusinessGalleryCarousel } from "@/components/marketplace/business-galle
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { BusinessReputationBadge } from "@/components/ui/verification-badge";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSectionLabel } from "@/components/ui/form-section";
@@ -41,6 +42,7 @@ import {
     type LapidaryServiceId,
 } from "@/constants/roles";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     demoBusinesses,
     demoListings,
@@ -323,6 +325,7 @@ export default function BusinessProfileScreen() {
     ? String(business.badges.yearsActive || business.yearEstablished || "—")
     : "—";
   const likesValue = String(business?.badges?.likeCount ?? 0);
+  const reputationBadge = businessReputationBadgeForBusiness(business);
 
   async function handleLike() {
     if (!user || !myBusiness || !business || liked || liking) return;
@@ -515,8 +518,7 @@ export default function BusinessProfileScreen() {
                 )}
               </View>
             </Link.AppleZoomTarget>
-            {business.badges.isVerified ||
-            business.verificationStatus === "verified" ? (
+            {reputationBadge !== "none" ? (
               <View
                 style={[
                   styles.verifiedBadge,
@@ -525,7 +527,7 @@ export default function BusinessProfileScreen() {
                     borderColor: colors.background,
                   },
                 ]}
-                accessibilityLabel="Verified business"
+                accessibilityLabel={`${reputationBadge} business reputation badge`}
               >
                 <Icon name="verified" size={14} color={colors.onSecondary} />
               </View>
@@ -581,6 +583,9 @@ export default function BusinessProfileScreen() {
             {role}
             {business.ownerName ? ` · ${business.ownerName}` : ""}
           </Text>
+          {reputationBadge !== "none" ? (
+            <BusinessReputationBadge type={reputationBadge} />
+          ) : null}
           {business.shortDescription?.trim() ? (
             <Text style={[styles.bio, { color: colors.onSurface }]}>
               {business.shortDescription.trim()}
@@ -1083,6 +1088,7 @@ function SuggestedCard({
   const role = roleLabel(business.businessType, !!business.providerProfile);
   const verified =
     business.badges.isVerified || business.verificationStatus === "verified";
+  const reputationBadge = businessReputationBadgeForBusiness(business);
 
   return (
     <View
@@ -1131,12 +1137,16 @@ function SuggestedCard({
           >
             {business.businessName}
           </Text>
-          <Text
-            style={[styles.suggestMeta, { color: colors.textMuted }]}
-            numberOfLines={1}
-          >
-            {verified ? "Verified" : "Suggested for you"} · {role}
-          </Text>
+          {reputationBadge !== "none" ? (
+            <BusinessReputationBadge type={reputationBadge} />
+          ) : (
+            <Text
+              style={[styles.suggestMeta, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {verified ? "Verified" : "Suggested for you"} · {role}
+            </Text>
+          )}
         </Pressable>
       </Link>
 

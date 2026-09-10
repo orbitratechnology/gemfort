@@ -10,7 +10,8 @@ import {
 
 import { CountryFlag } from "@/components/ui/country-flag";
 import { ElevatedCard } from "@/components/ui/elevated-card";
-import { Icon } from "@/components/ui/icon";
+import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -61,7 +62,7 @@ export function BusinessCard({
     }
     return [];
   })();
-  const verified = business.badges.isVerified;
+  const reputationBadge = businessReputationBadgeForBusiness(business);
   const inferredRole =
     roleLabel ??
     (business.businessType === "lapidary" || business.providerProfile
@@ -110,14 +111,9 @@ export function BusinessCard({
         <View style={styles.banner}>
           {href ? <Link.AppleZoom>{banner}</Link.AppleZoom> : banner}
         </View>
-        {verified ? (
-          <View
-            style={[
-              styles.verified,
-              { backgroundColor: colors.primaryContainer },
-            ]}
-          >
-            <Icon name="verified" size={14} color={colors.onPrimaryContainer} />
+        {reputationBadge !== "none" ? (
+          <View style={styles.reputation}>
+            <BusinessReputationBadge type={reputationBadge} />
           </View>
         ) : null}
         <View
@@ -201,6 +197,11 @@ const styles = StyleSheet.create({
   media: {
     position: "relative",
   },
+  reputation: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+  },
   banner: {
     width: "100%",
     aspectRatio: 16 / 9,
@@ -227,16 +228,6 @@ const styles = StyleSheet.create({
   },
   logoImg: { width: "100%", height: "100%" },
   logoInitials: { fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
-  verified: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   body: {
     paddingHorizontal: 12,
     paddingTop: 28,

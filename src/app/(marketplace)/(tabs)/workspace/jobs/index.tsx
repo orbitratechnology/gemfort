@@ -31,7 +31,6 @@ import {
     fetchIncomingServiceRequests,
     fetchLapidaryJobs,
     deleteLapidaryJob,
-    respondServiceRequest,
 } from "@/features/marketplace/request-service";
 import {
     subscribeIncomingServiceRequests,
@@ -167,7 +166,8 @@ export default function LapidaryJobsScreen() {
   });
 
   const traderLabel = useMemo(
-    () => (uid: string | null | undefined) => {
+    () => (uid: string | null | undefined, snapshotName?: string | null) => {
+      if (snapshotName?.trim()) return snapshotName.trim();
       if (!uid) return "Trader";
       const business = businesses.find((b) => b.ownerUid === uid);
       return business?.businessName?.trim() || `Trader · ${uid.slice(0, 8)}`;
@@ -194,7 +194,7 @@ export default function LapidaryJobsScreen() {
           j.gemName.toLowerCase().includes(q) ||
           types.toLowerCase().includes(q) ||
           (j.notes ?? "").toLowerCase().includes(q) ||
-          traderLabel(j.traderUid).toLowerCase().includes(q) ||
+          traderLabel(j.traderUid, j.traderBusinessName).toLowerCase().includes(q) ||
           j.id.toLowerCase().includes(q)
         );
       });
@@ -203,22 +203,6 @@ export default function LapidaryJobsScreen() {
       (a, b) => b.createdAt.toMillis() - a.createdAt.toMillis(),
     );
   }, [jobs, filter, debouncedSearch, traderLabel]);
-
-  async function onRespond(
-    id: string,
-    decision: "accepted" | "rejected",
-  ) {
-    try {
-      await respondServiceRequest(id, decision);
-      await queryClient.invalidateQueries({
-        queryKey: ["incoming-service-requests"],
-      });
-      await queryClient.invalidateQueries({ queryKey: ["lapidary-jobs"] });
-      toast.success(decision === "accepted" ? "Job accepted." : "Request declined.");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not update request."));
-    }
-  }
 
   async function onDeleteJob(jobId: string) {
     try {
@@ -286,59 +270,138 @@ export default function LapidaryJobsScreen() {
         ListHeaderComponent={
           <View style={styles.listHeader}>
             {pending.length > 0 ? (
-              <View style={styles.actionSection}>
-                <FormSectionLabel title="Incoming requests" />
-                <ScreenInset style={styles.sectionBody}>
-                  {pending.map((r) => (
-                    <View
-                      key={r.id}
+              <View
+                style={[
+                  styles.incomingSection,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <View style={styles.incomingHeader}>
+                  <View
+                    style={[
+                      styles.incomingIcon,
+                      { backgroundColor: colors.primaryContainer },
+                    ]}
+                  >
+                    <Icon
+                      name="inbox"
+                      size={20}
+                      color={colors.onPrimaryContainer}
+                    />
+                  </View>
+                  <View style={styles.incomingHeaderBody}>
+                    <Text
+                      style={[styles.incomingTitle, { color: colors.onSurface }]}
+                    >
+                      Incoming requests
+                    </Text>
+                    <Text
+                      style={[styles.incomingSub, { color: colors.textMuted }]}
+                    >
+                      Tap a request to review the job and respond.
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.incomingCount,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.card,
-                        { backgroundColor: colors.surfaceContainerLowest },
+                        styles.incomingCountText,
+                        { color: colors.onPrimary },
                       ]}
                     >
-                      <View style={styles.requestGemRow}>
-                        <GemThumb
-                          uri={r.gemPhotoUrl}
-                          label={r.gemName || "Gem"}
-                          size={48}
-                          radius={10}
-                        />
-                        <View style={styles.requestGemBody}>
-                          <Text
-                            style={[styles.title, { color: colors.onSurface }]}
-                            numberOfLines={1}
-                          >
-                            {r.gemName}
-                          </Text>
-                          <Text
-                            style={[styles.sub, { color: colors.textMuted }]}
-                          >
-                            {r.serviceTypes
-                              .map((t) => t.replace(/_/g, " "))
-                              .join(", ")}
-                            {r.notes ? ` · ${r.notes}` : ""}
-                          </Text>
+                      {pending.length}
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.requestList,
+                    { borderTopColor: colors.outlineVariant },
+                  ]}
+                >
+                  {pending.map((r) => (
+                    <ContextActionsLink
+                      key={r.id}
+                      href={`/(marketplace)/(tabs)/workspace/jobs/${r.id}` as never}
+                      accessibilityLabel={`${r.gemName}, incoming service request`}
+                    >
+                      {({ pressed }) => (
+                        <View
+                          style={[
+                            styles.requestRow,
+                            { borderBottomColor: colors.outlineVariant },
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <GemThumb
+                            uri={r.gemPhotoUrl}
+                            label={r.gemName || "Gem"}
+                            size={52}
+                            radius={14}
+                          />
+                          <View style={styles.requestBody}>
+                            <View style={styles.requestTitleRow}>
+                              <Text
+                                style={[
+                                  styles.requestTitle,
+                                  { color: colors.onSurface },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {r.gemName || "Gem"}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.requestTime,
+                                  { color: colors.textMuted },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {formatRelativeTime(r.updatedAt)}
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.requestTypes,
+                                { color: colors.onSurfaceVariant },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {r.serviceTypes.length > 0
+                                ? r.serviceTypes
+                                    .map((type) => type.replace(/_/g, " "))
+                                    .join(", ")
+                                : "Service request"}
+                            </Text>
+                            {r.notes ? (
+                              <Text
+                                style={[
+                                  styles.requestNote,
+                                  { color: colors.textMuted },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {r.notes}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <Icon
+                            name="chevron-right"
+                            size={20}
+                            color={colors.outline}
+                          />
                         </View>
-                      </View>
-                      <View style={styles.row}>
-                        <Button
-                          title="Accept"
-                          onPress={() =>
-                            onRespond(r.id, "accepted")
-                          }
-                        />
-                        <Button
-                          title="Reject"
-                          variant="secondary"
-                          onPress={() =>
-                            onRespond(r.id, "rejected")
-                          }
-                        />
-                      </View>
-                    </View>
+                      )}
+                    </ContextActionsLink>
                   ))}
-                </ScreenInset>
+                </View>
               </View>
             ) : null}
 
@@ -448,7 +511,7 @@ export default function LapidaryJobsScreen() {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading || pending.length > 0 ? null : (
             <EmptyState
               icon="construction"
               title="No jobs"
@@ -462,7 +525,7 @@ export default function LapidaryJobsScreen() {
         }
         renderItem={({ item: j }) => {
           const tone = statusTone(j.status, colors);
-          const traderName = traderLabel(j.traderUid);
+          const traderName = traderLabel(j.traderUid, j.traderBusinessName);
           const traderAvatar = traderPhoto(j.traderUid);
           const types = j.serviceTypes
             .map((t) => t.replace(/_/g, " "))
@@ -598,12 +661,66 @@ const styles = StyleSheet.create({
   title: { ...Typography.headlineSmMobile, fontWeight: "700" },
   sub: { ...Typography.caption },
   row: { flexDirection: "row", gap: Spacing.stackSm, marginTop: Spacing.stackSm },
-  requestGemRow: {
+  incomingSection: {
+    borderRadius: Radius.xl,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.07)",
+  },
+  incomingHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
+    gap: 12,
+    padding: Spacing.lg,
   },
-  requestGemBody: { flex: 1, minWidth: 0, gap: 4 },
+  incomingIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  incomingHeaderBody: { flex: 1, minWidth: 0, gap: 3 },
+  incomingTitle: { ...Typography.headlineSmMobile, fontWeight: "800" },
+  incomingSub: { ...Typography.caption, lineHeight: 17 },
+  incomingCount: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 8,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  incomingCountText: {
+    ...Typography.labelMd,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  requestList: { borderTopWidth: StyleSheet.hairlineWidth },
+  requestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  requestBody: { flex: 1, minWidth: 0, gap: 3 },
+  requestTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  requestTitle: { ...Typography.bodyMd, fontWeight: "800", flex: 1 },
+  requestTime: { ...Typography.caption, fontVariant: ["tabular-nums"] },
+  requestTypes: {
+    ...Typography.caption,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  requestNote: { ...Typography.caption },
+  pressed: { opacity: 0.78 },
 
   searchBox: {
     flexDirection: "row",

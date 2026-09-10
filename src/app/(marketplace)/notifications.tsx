@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
@@ -27,6 +27,7 @@ import { respondGemTransferRequest } from "@/features/workspace/gem-transfer-api
 import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
   fetchNotifications,
+  fetchService,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/workspace/workspace-service";
@@ -38,6 +39,7 @@ import {
   notificationGroupForType,
   type NotificationGroup,
 } from "@/lib/notifications/grouping";
+import { pushWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { AppNotification } from "@/types";
@@ -261,6 +263,31 @@ export default function NotificationsScreen() {
           );
           await queryClient.invalidateQueries({ queryKey: ["notifications"] });
           await queryClient.invalidateQueries({ queryKey: ["gems"] });
+          return;
+        }
+
+        if (actionId === "add_service_bill") {
+          if (!n.referenceId) throw new Error("Missing service reference.");
+          const service = await fetchService(n.referenceId);
+          if (!service?.finalCost || !service.paymentDueDate) {
+            throw new Error("Completion details are not available yet.");
+          }
+          await markRead(n);
+          if (router.canDismiss()) router.dismiss();
+          requestAnimationFrame(() => {
+            pushWithAnchor({
+              pathname: "/(marketplace)/bills/add",
+              params: {
+                direction: "payable",
+                amount: String(service.finalCost),
+                currency: service.finalCostCurrency ?? "LKR",
+                dueDate: service.paymentDueDate!.toDate().toISOString(),
+                jobId: service.id,
+                gemId: service.gemId,
+                counterpartyBusinessId: service.providerBusinessId ?? "",
+              },
+            } as never);
+          });
           return;
         }
 

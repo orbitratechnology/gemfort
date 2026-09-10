@@ -5,7 +5,9 @@ import {
   respondApRequest,
 } from '@/features/workspace/ap-lifecycle-service';
 import { respondGemTransferRequest } from '@/features/workspace/gem-transfer-api';
+import { fetchService } from '@/features/workspace/workspace-service';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
+import { pushWithAnchor } from '@/navigation/tab-stack-nav';
 
 export async function handleNotificationAction(
   actionId: string,
@@ -58,6 +60,25 @@ export async function handleNotificationAction(
       if (notificationId) await notifee.cancelNotification(notificationId);
       navigateFromNotificationRef(referenceType, referenceId);
       return;
+    }
+    if (actionId === 'add_service_bill' && referenceType === 'service' && referenceId) {
+      const service = await fetchService(referenceId);
+      if (service?.finalCost != null && service.paymentDueDate) {
+        if (notificationId) await notifee.cancelNotification(notificationId);
+        pushWithAnchor({
+          pathname: '/(marketplace)/bills/add',
+          params: {
+            direction: 'payable',
+            amount: String(service.finalCost),
+            currency: service.finalCostCurrency ?? 'LKR',
+            dueDate: service.paymentDueDate.toDate().toISOString(),
+            jobId: service.id,
+            gemId: service.gemId,
+            counterpartyBusinessId: service.providerBusinessId ?? '',
+          },
+        } as never);
+        return;
+      }
     }
   } catch {}
 

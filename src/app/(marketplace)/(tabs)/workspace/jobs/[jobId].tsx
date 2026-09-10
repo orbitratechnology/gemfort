@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { addDays, format as formatCalendarDate } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -16,7 +18,11 @@ import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
-import { updateLapidaryJobStatus } from "@/features/marketplace/request-service";
+import {
+    completeLapidaryJob,
+    respondServiceRequest,
+    updateLapidaryJobStatus,
+} from "@/features/marketplace/request-service";
 import {
     subscribeGem,
     subscribeService,
@@ -40,8 +46,13 @@ import {
     formatRelativeTime,
     openPhone,
     openWhatsApp,
-    shortGemId,
+  shortGemId,
 } from "@/lib/utils";
+import {
+    completeLapidaryJobSchema,
+    parseForm,
+} from "@/lib/validation/form-schemas";
+import { pushWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
@@ -136,11 +147,15 @@ export default function LapidaryJobDetailScreen() {
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatFace } = usePreferredMoney();
+  const { formatFace, preferred } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [weightAfter, setWeightAfter] = useState("");
+  const [finalCost, setFinalCost] = useState("");
+  const [paymentDueDays, setPaymentDueDays] = useState("7");
+  const [completionErrors, setCompletionErrors] = useState<Record<string, string>>({});
 
-  const { data: service } = useFirestoreLiveQuery({
+  const { data: service, isLoading } = useFirestoreLiveQuery({
     queryKey: ["service", jobId],
     queryFn: () => fetchService(jobId!),
     subscribe: (onData, onError) => subscribeService(jobId!, onData, onError),
@@ -162,12 +177,19 @@ export default function LapidaryJobDetailScreen() {
   });
 
   const senderBusiness = useMemo(
-    () =>
-      service?.traderBusinessId
-        ? businesses.find((business) => business.id === service.traderBusinessId) ?? null
-        : null,
-    [businesses, service?.traderBusinessId],
+    () => {
+      if (!service) return null;
+      return (
+        (service.traderBusinessId
+          ? businesses.find((business) => business.id === service.traderBusinessId)
+          : null) ??
+        businesses.find((business) => business.ownerUid === service.ownerUid) ??
+        null
+      );
+    },
+    [businesses, service?.ownerUid, service?.traderBusinessId],
   );
+  const senderBusinessId = senderBusiness?.id ?? service?.traderBusinessId ?? null;
   const senderName =
     service?.traderBusinessName?.trim() ||
     senderBusiness?.businessName?.trim() ||
@@ -183,17 +205,37 @@ export default function LapidaryJobDetailScreen() {
   const gemTitle =
     gem?.title?.trim() ||
     (gem ? formatGemType(gem.gemType) : null) ||
+    service?.gemName?.trim() ||
     (service ? `Gem · ${shortGemId(service.gemId)}` : "Gem");
   const gemPhoto =
-    gemPrimaryPhotoUrl(gem) || service?.photoBeforeUrls?.[0] || null;
+    gemPrimaryPhotoUrl(gem) ||
+    service?.gemPhotoUrl ||
+    service?.photoBeforeUrls?.[0] ||
+    null;
 
   async function invalidate(serviceId: string, gemId: string) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["lapidary-jobs"] }),
+      queryClient.invalidateQueries({ queryKey: ["incoming-service-requests"] }),
       queryClient.invalidateQueries({ queryKey: ["service", serviceId] }),
       queryClient.invalidateQueries({ queryKey: ["gem", gemId] }),
       queryClient.invalidateQueries({ queryKey: ["provider-services"] }),
     ]);
+  }
+
+  async function handleRequestDecision(action: "accepted" | "rejected") {
+    if (!service) return;
+    try {
+      await withLoading(async () => {
+        await respondServiceRequest(service.id, action);
+        await invalidate(service.id, service.gemId);
+        toast.success(
+          action === "accepted" ? "Job accepted." : "Request declined.",
+        );
+      }, action === "accepted" ? "Accepting…" : "Declining…");
+    } catch (error) {
+      toast.error(friendlyError(error, "Could not respond to request."));
+    }
   }
 
   async function handleStatus(status: "in_progress" | "ready" | "returned") {
@@ -213,6 +255,51 @@ export default function LapidaryJobDetailScreen() {
     } catch (error) {
       toast.error(friendlyError(error, "Could not update job."));
     }
+  }
+
+  async function handleComplete() {
+    if (!service) return;
+    const result = parseForm(completeLapidaryJobSchema, {
+      weightAfter,
+      finalCost,
+      paymentDueDays,
+    });
+    if (!result.success) {
+      setCompletionErrors(result.errors);
+      toast.error(Object.values(result.errors)[0]!);
+      return;
+    }
+    setCompletionErrors({});
+    try {
+      await withLoading(async () => {
+        await completeLapidaryJob(service.id, {
+          weightAfter: result.data.weightAfter,
+          finalCost: result.data.finalCost,
+          paymentDueDate: addDays(new Date(), result.data.paymentDueDays),
+          currency: preferred,
+        });
+        await invalidate(service.id, service.gemId);
+        toast.success("Completion details sent to sender.");
+      }, "Sending…");
+    } catch (error) {
+      toast.error(friendlyError(error, "Could not send completion details."));
+    }
+  }
+
+  function openReceiveBill() {
+    if (!service || service.finalCost == null || !service.paymentDueDate) return;
+    pushWithAnchor({
+      pathname: "/(marketplace)/bills/add",
+      params: {
+        direction: "receivable",
+        amount: String(service.finalCost),
+        currency: service.finalCostCurrency ?? preferred,
+        dueDate: service.paymentDueDate.toDate().toISOString(),
+        jobId: service.id,
+        gemId: service.gemId,
+        counterpartyBusinessId: service.traderBusinessId ?? "",
+      },
+    } as never);
   }
 
   async function handleCancellation(action: "accepted" | "rejected") {
@@ -236,7 +323,15 @@ export default function LapidaryJobDetailScreen() {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <StackHeader title="Job details" />
-        <Text style={[styles.loading, { color: colors.textMuted }]}>Loading…</Text>
+        {isLoading ? (
+          <Text style={[styles.loading, { color: colors.textMuted }]}>Loading…</Text>
+        ) : (
+          <EmptyState
+            icon="construction"
+            title="Job unavailable"
+            subtitle="This workshop job was removed or is no longer available to your account."
+          />
+        )}
       </SafeAreaView>
     );
   }
@@ -292,6 +387,15 @@ export default function LapidaryJobDetailScreen() {
         : service.status === "ready"
           ? "returned"
           : null;
+  const canCompleteJob =
+    (service.status === "in_progress" || service.status === "ready") &&
+    service.finalCost == null;
+  const paymentDuePreview = (() => {
+    const days = Number(paymentDueDays);
+    return Number.isInteger(days) && days >= 0
+      ? formatCalendarDate(addDays(new Date(), days), "d MMM yyyy")
+      : null;
+  })();
 
   return (
     <SafeAreaView
@@ -319,13 +423,17 @@ export default function LapidaryJobDetailScreen() {
           >
             <Pressable
               style={({ pressed }) => [styles.flowSide, pressed && styles.pressed]}
-              onPress={() => {
-                if (service.traderBusinessId) {
-                  router.push(`/business/${service.traderBusinessId}` as never);
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open sender ${senderName}`}
+              onPress={
+                senderBusinessId
+                  ? () => router.push(`/business/${senderBusinessId}` as never)
+                  : undefined
+              }
+              accessibilityRole={senderBusinessId ? "button" : undefined}
+              accessibilityLabel={
+                senderBusinessId
+                  ? `Open sender ${senderName}`
+                  : `Sender ${senderName}`
+              }
             >
               <ContactAvatar name={senderName} photoUrl={senderPhoto} size={84} />
               <Text style={[styles.flowName, { color: colors.onSurface }]} numberOfLines={2}>
@@ -371,22 +479,17 @@ export default function LapidaryJobDetailScreen() {
               <Icon name="arrow-forward" size={22} color={colors.outline} />
             </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.flowSide, pressed && styles.pressed]}
-              onPress={() =>
-                router.push(
-                  `/(marketplace)/(tabs)/workspace/gems/${service.gemId}` as never,
-                )
-              }
-              accessibilityRole="link"
-              accessibilityLabel={`Open gem ${gemTitle}`}
+            <View
+              style={styles.flowSide}
+              accessible
+              accessibilityLabel={`${gemTitle}, shared service gem`}
             >
               <GemThumb uri={gemPhoto} label={gemTitle} size={96} radius={18} />
               <Text style={[styles.flowName, { color: colors.onSurface }]} numberOfLines={2}>
                 {gemTitle}
               </Text>
-              <Text style={[styles.flowCaption, { color: colors.textMuted }]}>Gem</Text>
-            </Pressable>
+              <Text style={[styles.flowCaption, { color: colors.textMuted }]}>Service gem</Text>
+            </View>
           </Animated.View>
         </ScreenInset>
 
@@ -488,7 +591,90 @@ export default function LapidaryJobDetailScreen() {
           </FormSection>
         ) : null}
 
-        {service.status === "cancellation_requested" ? (
+        {canCompleteJob ? (
+          <FormSection title="Send completion details">
+            <Text style={[styles.notes, { color: colors.textMuted }]}>
+              Send the final weight, service fee, and expected payment date to the sender.
+            </Text>
+            <MaskedInput
+              label="After/End Weight (ct)"
+              mode="weight"
+              value={weightAfter}
+              onChangeText={(value) => setWeightAfter(value)}
+              leftIcon="scale"
+              error={completionErrors.weightAfter}
+            />
+            <MaskedInput
+              label="Service fee / amount"
+              mode="currency"
+              value={finalCost}
+              onChangeText={(value) => setFinalCost(value)}
+              leftIcon="payments"
+              error={completionErrors.finalCost}
+            />
+            <MaskedInput
+              label="Payment due in (days)"
+              mode="custom"
+              mask="999"
+              value={paymentDueDays}
+              onChangeText={(value) => setPaymentDueDays(value)}
+              keyboardType="number-pad"
+              leftIcon="event"
+              error={completionErrors.paymentDueDays}
+            />
+            {paymentDuePreview ? (
+              <View style={styles.paymentRow}>
+                <Text style={[styles.paymentLabel, { color: colors.textMuted }]}>Expected payment date</Text>
+                <Text style={[styles.paymentValue, { color: colors.onSurface }]}>{paymentDuePreview}</Text>
+              </View>
+            ) : null}
+            <Button
+              title="Send to sender"
+              icon="send"
+              onPress={() => void handleComplete()}
+            />
+          </FormSection>
+        ) : null}
+
+        {service.finalCost != null && service.paymentDueDate ? (
+          <FormSection title="Payment">
+            <View style={styles.paymentRow}>
+              <Text style={[styles.paymentLabel, { color: colors.textMuted }]}>Expected payment</Text>
+              <Text style={[styles.paymentValue, { color: colors.onSurface }]}>
+                {formatCalendarDate(service.paymentDueDate.toDate(), "d MMM yyyy")}
+              </Text>
+            </View>
+            <Button
+              title="Add as receive bill"
+              icon="receipt-long"
+              variant="secondary"
+              onPress={openReceiveBill}
+            />
+          </FormSection>
+        ) : null}
+
+        {service.status === "pending" ? (
+          <FormSection title="Incoming request">
+            <Text style={[styles.notes, { color: colors.textMuted }]}>
+              Review the gem and requested work before choosing whether to take this job.
+            </Text>
+            <View style={styles.actionRow}>
+              <Button
+                title="Accept"
+                icon="check"
+                onPress={() => void handleRequestDecision("accepted")}
+                style={styles.flex}
+              />
+              <Button
+                title="Reject"
+                icon="close"
+                variant="destructive"
+                onPress={() => void handleRequestDecision("rejected")}
+                style={styles.flex}
+              />
+            </View>
+          </FormSection>
+        ) : service.status === "cancellation_requested" ? (
           <FormSection title="Cancellation request">
             <Text style={[styles.notes, { color: colors.textMuted }]}>The sender asked to cancel this service.</Text>
             <View style={styles.actionRow}>
@@ -496,7 +682,7 @@ export default function LapidaryJobDetailScreen() {
               <Button title="Decline" icon="close" variant="secondary" onPress={() => void handleCancellation("rejected")} style={styles.flex} />
             </View>
           </FormSection>
-        ) : nextStatus ? (
+        ) : nextStatus && !(nextStatus === "ready" && canCompleteJob) ? (
           <ScreenInset>
             <Button
               title={nextStatus === "in_progress" ? "Start job" : nextStatus === "ready" ? "Mark ready" : "Mark returned"}
@@ -541,6 +727,9 @@ const styles = StyleSheet.create({
   serviceChip: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, paddingVertical: 9, borderRadius: Radius.full, backgroundColor: "rgba(128,128,128,0.10)" },
   serviceLabel: { ...Typography.labelMd, fontWeight: "700" },
   notes: { ...Typography.bodyMd, lineHeight: 22 },
+  paymentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  paymentLabel: { ...Typography.bodyMd, fontWeight: "600" },
+  paymentValue: { ...Typography.bodyMd, fontWeight: "800" },
   timeline: { gap: 8 },
   timelineRow: { flexDirection: "row", minHeight: 64 },
   timelineRail: { width: 28, alignItems: "center" },

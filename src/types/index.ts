@@ -11,6 +11,13 @@ export type VerificationStatus =
   | "rejected"
   | "revoked";
 
+export type BusinessReputationBadge =
+  | "none"
+  | "basic"
+  | "pro"
+  | "ultra"
+  | "member";
+
 export type UserProfile = {
   uid: string;
   email: string;
@@ -40,6 +47,12 @@ export type UserProfile = {
   phoneVerified?: boolean;
   /** ISO date `YYYY-MM-DD` — collected during verification. */
   dateOfBirth?: string | null;
+  /** Set by the admin review flow after a NIC document is accepted. */
+  nicVerified?: boolean;
+  /** Admin-controlled reputation badge for recognised, partnered, or sponsored accounts. */
+  memberBadge?: boolean;
+  memberBadgeAssignedAt?: Timestamp | null;
+  memberBadgeAssignedByAdminUid?: string | null;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
@@ -90,10 +103,14 @@ export type Business = {
   country: string;
   location?: ProfileLocation | null;
   verificationStatus: VerificationStatus;
-  verificationTier: "none" | "basic" | "full";
+  /** `full` is retained for legacy documents and maps to the Ultra badge. */
+  verificationTier: "none" | "basic" | "pro" | "ultra" | "full";
+  memberBadgeAssignedAt?: Timestamp | null;
+  memberBadgeAssignedByAdminUid?: string | null;
   badges: {
     isVerified: boolean;
     isBasicVerified: boolean;
+    businessReputation?: BusinessReputationBadge;
     isNgjaRegistered: boolean;
     isPremium: boolean;
     verifiedSinceYear: number | null;
@@ -321,6 +338,9 @@ export type ServiceRecord = {
   id: string;
   ownerUid: string;
   gemId: string;
+  /** Denormalized gem snapshot retained for shared service records. */
+  gemName?: string | null;
+  gemPhotoUrl?: string | null;
   serviceType: string;
   /** Local saved contact (Workspace → Contacts). Empty when provider is a GemFort business. */
   providerContactId: string;
@@ -349,6 +369,8 @@ export type ServiceRecord = {
   status: ServiceRecordStatus;
   finalCost: number | null;
   finalCostCurrency: string | null;
+  /** Expected date the sender should pay the completed service fee. */
+  paymentDueDate?: Timestamp | null;
   paymentStatus: "unpaid" | "partial" | "paid";
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -894,6 +916,7 @@ export type ServiceRequest = {
   id: string;
   traderUid: string;
   traderBusinessId: string | null;
+  traderBusinessName?: string | null;
   lapidaryUid: string;
   lapidaryBusinessId: string;
   gemId: string;
@@ -917,6 +940,7 @@ export type LapidaryJob = {
   lapidaryUid: string;
   lapidaryBusinessId: string;
   traderUid: string;
+  traderBusinessName?: string | null;
   gemId: string;
   gemName: string;
   /** Primary gem photo carried forward from the service request. */

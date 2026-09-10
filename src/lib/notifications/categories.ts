@@ -18,6 +18,7 @@ export const PUSH_CATEGORIES = {
   apCancel: 'ap_cancel',
   listingOffer: 'listing_offer',
   gemTransfer: 'gem_transfer',
+  serviceCompleted: 'service_completed',
 } as const;
 
 export async function ensureAndroidNotificationChannels() {
@@ -120,6 +121,19 @@ export async function registerNotificationCategories() {
       identifier: 'decline_gem_transfer',
       buttonTitle: 'Decline',
       options: { opensAppToForeground: true, isDestructive: true },
+    },
+    {
+      identifier: 'view',
+      buttonTitle: 'Details',
+      options: { opensAppToForeground: true },
+    },
+  ]);
+
+  await Notifications.setNotificationCategoryAsync(PUSH_CATEGORIES.serviceCompleted, [
+    {
+      identifier: 'add_service_bill',
+      buttonTitle: 'Add bill',
+      options: { opensAppToForeground: true },
     },
     {
       identifier: 'view',

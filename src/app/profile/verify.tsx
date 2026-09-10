@@ -45,7 +45,6 @@ export default function VerifyApplicationScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const role = resolveProfileRole(profile);
-  const needsTradeDocs = role === 'trader';
   const isLapidary = role === 'lapidary';
 
   const maxDob = useMemo(() => new Date(), []);
@@ -104,22 +103,12 @@ export default function VerifyApplicationScreen() {
     }
     setApplicantErrors({});
 
-    if (needsTradeDocs) {
-      if (!brNumber.trim() || !gemLicenseNumber.trim() || !tinNumber.trim()) {
-        toast.error('BR number, Gem License, and TIN are required.');
-        return;
-      }
-      if (!idPhoto || !brPhoto || !licensePhoto) {
-        toast.error('Upload NIC, BR, and Gem License photos.');
-        return;
-      }
+    if (!idPhoto) {
+      toast.error('Upload your NIC photo to continue.');
+      return;
     }
     if (isLapidary && servicesOffered.length === 0) {
       toast.error('Select at least one service you provide.');
-      return;
-    }
-    if (isLapidary && !idPhoto) {
-      toast.error('Upload your NIC photo.');
       return;
     }
 
@@ -331,69 +320,56 @@ export default function VerifyApplicationScreen() {
                   );
                 })}
               </View>
-              <MediaField
-                label="NIC photo"
-                value={idPhoto}
-                onChange={setIdPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="BR number (optional)"
-                value={brNumber}
-                onChangeText={setBrNumber}
-                leftIcon="badge"
-              />
             </FormSection>
           </>
         ) : null}
 
-        {needsTradeDocs ? (
-          <>
-            <FormSectionLabel title="REQUIRED DOCUMENTS" />
-            <FormSection>
-              <MediaField
-                label="NIC (front/back)"
-                value={idPhoto}
-                onChange={setIdPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="Business Registration (BR) number"
-                value={brNumber}
-                onChangeText={setBrNumber}
-                leftIcon="badge"
-              />
-              <MediaField
-                label="BR certificate photo"
-                value={brPhoto}
-                onChange={setBrPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="Gem License number"
-                value={gemLicenseNumber}
-                onChangeText={setGemLicenseNumber}
-                leftIcon="workspace-premium"
-              />
-              <MediaField
-                label="Gem License photo"
-                value={licensePhoto}
-                onChange={setLicensePhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="TIN (Taxpayer Identification Number)"
-                value={tinNumber}
-                onChangeText={setTinNumber}
-                leftIcon="receipt"
-              />
-            </FormSection>
-          </>
-        ) : null}
+        <FormSectionLabel title="BUSINESS REPUTATION" />
+        <FormSection>
+          <Text style={[styles.reputationHint, { color: colors.textMuted }]}>
+            NIC is required for every applicant. TIN earns Basic; BR or Gem License
+            earns Pro; all three business documents earn Ultra after admin review.
+          </Text>
+          <MediaField
+            label="NIC photo (required)"
+            value={idPhoto}
+            onChange={setIdPhoto}
+            allows="images"
+            variant="row"
+          />
+          <Input
+            label="TIN (optional)"
+            value={tinNumber}
+            onChangeText={setTinNumber}
+            leftIcon="receipt"
+          />
+          <Input
+            label="Business Registration (BR) number (optional)"
+            value={brNumber}
+            onChangeText={setBrNumber}
+            leftIcon="badge"
+          />
+          <MediaField
+            label="BR certificate photo (optional)"
+            value={brPhoto}
+            onChange={setBrPhoto}
+            allows="images"
+            variant="row"
+          />
+          <Input
+            label="Gem License number (optional)"
+            value={gemLicenseNumber}
+            onChangeText={setGemLicenseNumber}
+            leftIcon="workspace-premium"
+          />
+          <MediaField
+            label="Gem License photo (optional)"
+            value={licensePhoto}
+            onChange={setLicensePhoto}
+            allows="images"
+            variant="row"
+          />
+        </FormSection>
 
         <ScreenInset style={styles.actions}>
           <Button title="Submit for review" icon="send" onPress={handleSubmit} />
@@ -437,6 +413,7 @@ const styles = StyleSheet.create({
   },
   dobValue: { ...Typography.bodyLg, flex: 1 },
   dobError: { ...Typography.labelMd },
+  reputationHint: { ...Typography.bodySm, lineHeight: 20 },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,

@@ -187,6 +187,9 @@ function actionsForCategory(categoryId?: string): AndroidAction[] {
     ];
   }
   if (categoryId === 'listing_offer') return [action('view', 'View listing')];
+  if (categoryId === 'service_completed') {
+    return [action('add_service_bill', 'Add bill'), action('view', 'Details')];
+  }
   return [action('view', 'View')];
 }
 
@@ -210,11 +213,19 @@ export async function displayRichNotification(data: RichPushData) {
   const channelId = channelForPriority(data.priority);
   const group = notificationGroupForType(data.type ?? '');
   const threadId = data.threadId || notificationThreadIdForType(data.type ?? '');
-  // Keep high-priority security / overdue alerts individually prominent.
-  const shouldGroup = data.priority !== 'high';
+  // Requests need to remain visible as the actionable notification itself.
+  // Otherwise Android shows only the generic service-group summary when the
+  // request is the first item in the group.
+  const shouldGroup =
+    data.priority !== 'high' && data.type !== 'service_request_received';
 
   if (Platform.OS === 'android') {
     const senderIcon = profileUrl || fallbackLargeIcon(data.referenceType);
+    if (data.type === 'service_request_received') {
+      // Remove a summary left by an older grouped service notification so the
+      // actionable request is the only service alert shown to the recipient.
+      await notifee.cancelNotification(`summary:${group.key}`);
+    }
     if (shouldGroup) {
       // Android requires the summary to exist before child notifications can be
       // displayed as one expandable group in the system shade.
@@ -279,7 +290,7 @@ export async function displayRichNotification(data: RichPushData) {
                 picture: gemUrl,
                 // Keep the sender visible in both collapsed and expanded layouts.
                 largeIcon: senderIcon,
-                summary: data.actorName || undefined,
+                ...(data.actorName ? { summary: data.actorName } : {}),
               },
             }
           : body
@@ -287,7 +298,7 @@ export async function displayRichNotification(data: RichPushData) {
                 style: {
                   type: AndroidStyle.BIGTEXT,
                   text: body,
-                  summary: data.actorName || undefined,
+                  ...(data.actorName ? { summary: data.actorName } : {}),
                 },
               }
             : {}),

@@ -6,6 +6,7 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
@@ -127,6 +128,8 @@ function timelineSteps(service: ServiceRecord): {
       ? "completed"
       : status === "overdue"
         ? "in_progress"
+        : status === "ready"
+          ? "in_progress"
         : status === "cancellation_requested" || status === "cancelled"
           ? status === "cancelled"
             ? "given"
@@ -183,7 +186,7 @@ export default function ServiceDetailScreen() {
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { data: services = [] } = useFirestoreLiveQuery({
+  const { data: services = [], isLoading: servicesLoading } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],
     queryFn: () => fetchServices(user!.uid),
     subscribe: (onData, onError) =>
@@ -193,7 +196,10 @@ export default function ServiceDetailScreen() {
 
   const ownedService = services.find((s) => s.id === serviceId);
 
-  const { data: fetchedService } = useFirestoreLiveQuery({
+  const {
+    data: fetchedService,
+    isLoading: fetchedServiceLoading,
+  } = useFirestoreLiveQuery({
     queryKey: ["service", serviceId],
     queryFn: () => fetchService(serviceId!),
     subscribe: (onData, onError) =>
@@ -261,8 +267,10 @@ export default function ServiceDetailScreen() {
   const gemTitle =
     gem?.title?.trim() ||
     (gem ? formatGemType(gem.gemType) : null) ||
+    service?.gemName?.trim() ||
     (service ? `Gem · ${shortGemId(service.gemId)}` : "Gem");
-  const gemPhoto = gemPrimaryPhotoUrl(gem);
+  const gemPhoto =
+    gemPrimaryPhotoUrl(gem) || service?.gemPhotoUrl || service?.photoBeforeUrls?.[0] || null;
 
   if (!service) {
     return (
@@ -270,9 +278,15 @@ export default function ServiceDetailScreen() {
         style={[styles.safe, { backgroundColor: colors.background }]}
       >
         <StackHeader title="Service Detail" />
-        <Text style={[styles.loading, { color: colors.textMuted }]}>
-          Loading...
-        </Text>
+        {servicesLoading || fetchedServiceLoading ? (
+          <Text style={[styles.loading, { color: colors.textMuted }]}>Loading…</Text>
+        ) : (
+          <EmptyState
+            icon="handyman"
+            title="Service unavailable"
+            subtitle="This service record was removed or is no longer available to your account."
+          />
+        )}
       </SafeAreaView>
     );
   }
@@ -403,6 +417,27 @@ export default function ServiceDetailScreen() {
     isOwner &&
     (canRequestServiceCancellation(service) || canDeleteService(service));
 
+  const gemVisual = (
+    <>
+      <GemThumb
+        uri={gemPhoto}
+        label={gemTitle}
+        size={64}
+        radius={14}
+      />
+      <Text
+        style={[styles.gemName, { color: colors.onSurface }]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {gemTitle}
+      </Text>
+      <Text style={[styles.gemCaption, { color: colors.textMuted }]}>
+        {isOwner ? "Gem" : "Service gem"}
+      </Text>
+    </>
+  );
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -437,33 +472,31 @@ export default function ServiceDetailScreen() {
             entering={FadeInDown.delay(60).duration(320)}
             style={styles.relation}
           >
-            <Pressable
-              style={({ pressed }) => [
-                styles.gemBlock,
-                pressed && styles.pressed,
-              ]}
-              onPress={() =>
-                router.push(
-                  `/(marketplace)/(tabs)/workspace/gems/${service.gemId}` as never,
-                )
-              }
-              accessibilityRole="link"
-              accessibilityLabel={`Open gem ${gemTitle}`}
-            >
-              <GemThumb
-                uri={gemPhoto}
-                label={gemTitle}
-                size={64}
-                radius={14}
-              />
-              <Text
-                style={[styles.gemName, { color: colors.onSurface }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
+            {isOwner ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.gemBlock,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() =>
+                  router.push(
+                    `/(marketplace)/(tabs)/workspace/gems/${service.gemId}` as never,
+                  )
+                }
+                accessibilityRole="link"
+                accessibilityLabel={`Open gem ${gemTitle}`}
               >
-                {gemTitle}
-              </Text>
-            </Pressable>
+                {gemVisual}
+              </Pressable>
+            ) : (
+              <View
+                style={styles.gemBlock}
+                accessible
+                accessibilityLabel={`${gemTitle}, shared service gem`}
+              >
+                {gemVisual}
+              </View>
+            )}
 
             <View style={styles.relationMid} pointerEvents="none">
               <View
@@ -803,6 +836,17 @@ export default function ServiceDetailScreen() {
           </FormSection>
         ) : null}
 
+        {service.paymentDueDate ? (
+          <FormSection title="Payment">
+            <View style={styles.costRow}>
+              <Text style={[styles.costLabel, { color: colors.onSurfaceVariant }]}>Expected payment</Text>
+              <Text style={[styles.costValue, { color: colors.onSurface }]}>
+                {formatDate(service.paymentDueDate)}
+              </Text>
+            </View>
+          </FormSection>
+        ) : null}
+
         {actionable ? (
           <FormSection title="Mark as received">
             <MaskedInput
@@ -1044,6 +1088,9 @@ const styles = StyleSheet.create({
     ...Typography.labelMd,
     fontWeight: "700",
     textAlign: "center",
+  },
+  gemCaption: {
+    ...Typography.caption,
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
 

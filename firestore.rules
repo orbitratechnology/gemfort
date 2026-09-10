@@ -74,7 +74,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && getUserRole() == 'admin';
+      return isSignedIn() && getUserRole() == 'admin' && isNotSuspended();
     }
 
     function isVerifiedTrader() {
@@ -148,7 +148,11 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.role in ['trader', 'lapidary']
         && request.resource.data.isSuspended == false
-        && request.resource.data.verificationStatus == 'none';
+        && request.resource.data.verificationStatus == 'none'
+        && request.resource.data.get('nicVerified', false) == false
+        && request.resource.data.get('memberBadge', false) == false
+        && request.resource.data.get('memberBadgeAssignedAt', null) == null
+        && request.resource.data.get('memberBadgeAssignedByAdminUid', null) == null;
 
       // Push token / profile field updates — use resource.data (not get()) so
       // concurrent writes to the same user doc do not fail isNotSuspended().
@@ -159,7 +163,9 @@ service cloud.firestore {
            .affectedKeys().hasAny([
              'role', 'verificationStatus', 'isSuspended',
              'isActive', 'suspendedReason', 'suspendedAt',
-             'phone', 'phoneVerified'
+             'phone', 'phoneVerified',
+             'nicVerified', 'memberBadge',
+             'memberBadgeAssignedAt', 'memberBadgeAssignedByAdminUid'
            ]);
 
       // Narrow allow for FCM token registration (owner only).
@@ -216,6 +222,7 @@ service cloud.firestore {
         && request.resource.data.isActive == true
         && request.resource.data.isFeatured == false
         && request.resource.data.badges.isVerified == false
+        && request.resource.data.badges.get('businessReputation', 'none') == 'none'
         // Accept both app generations during the Directory/Endorse migration.
         && request.resource.data.badges.get('likeCount', 0) == 0
         && request.resource.data.badges.get('endorsementCount', 0) == 0
@@ -386,7 +393,10 @@ service cloud.firestore {
         && request.resource.data.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.businessName is string
         && request.resource.data.businessName.size() >= 2
-        && request.resource.data.businessName.size() <= 80;
+        && request.resource.data.businessName.size() <= 80
+        && request.resource.data.documents is map
+        && request.resource.data.documents.nicPhotoUrl is string
+        && request.resource.data.documents.nicPhotoUrl.size() > 0;
 
       // Applicant can resubmit when info requested
       allow update: if isOwner(resource.data.applicantUid)
@@ -400,7 +410,10 @@ service cloud.firestore {
         && request.resource.data.dateOfBirth.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.businessName is string
         && request.resource.data.businessName.size() >= 2
-        && request.resource.data.businessName.size() <= 80;
+        && request.resource.data.businessName.size() <= 80
+        && request.resource.data.documents is map
+        && request.resource.data.documents.nicPhotoUrl is string
+        && request.resource.data.documents.nicPhotoUrl.size() > 0;
 
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -418,19 +431,9 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data)
            .affectedKeys().hasOnly(['isRead']);
 
-      // Cloud Functions (Admin SDK), admin, or signed-in users sending request notifications
-      allow create: if isAdmin()
-        || (isAnySignedIn()
-            && request.resource.data.recipientUid is string
-            && request.resource.data.recipientUid != uid()
-            && request.resource.data.type in [
-              'service_request_received', 'service_request_accepted', 'service_request_rejected',
-              'service_job_updated',
-              'ap_request_received', 'ap_request_accepted', 'ap_request_rejected',
-              'ap_request_cancelled', 'ap_gem_sold', 'ap_payment_sent', 'ap_payment_received',
-              'ap_cancellation_requested', 'ap_cancellation_rejected', 'ap_cancellation_accepted'
-            ]
-            && request.resource.data.isRead == false);
+      // Notifications are server-owned. Cloud Functions use the Admin SDK,
+      // so client writes must not be able to impersonate another user's alerts.
+      allow create: if isAdmin();
       allow delete: if isOwner(resource.data.recipientUid)
                     || isAdmin();
     }
@@ -528,9 +531,13 @@ service cloud.firestore {
       // flow by writing sold/owner fields directly.
       allow update: if isOwner(resource.data.ownerUid)
         && isNotSuspended()
+        && resource.data.get('currentApId', null) == null
+        && resource.data.get('status', '') != 'on_ap'
+        && resource.data.get('custody', null) != 'on_ap'
         && request.resource.data.ownerUid == resource.data.ownerUid
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'ownerUid',
+          'currentApId', 'currentHolderContactId',
           'saleTransferRequestId', 'saleStatus',
           'soldPrice', 'soldPriceCurrency', 'soldPriceBase', 'soldDate',
           'soldToUid', 'soldToBusinessId', 'soldToContactId', 'soldToName',
@@ -583,23 +590,8 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.senderUid == uid()
           || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.ownerUid == uid()
         );
-      // AP counterparty may transition a locked gem (unlock / mark sold).
-      allow update: if isSignedIn() && isNotSuspended()
-        && resource.data.currentApId is string
-        && exists(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId))
-        && (
-          get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.receiverUid == uid()
-          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.senderUid == uid()
-          || get(/databases/$(database)/documents/gemtrack_ap_records/$(resource.data.currentApId)).data.ownerUid == uid()
-        )
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly([
-               'status', 'currentHolderContactId', 'currentApId', 'updatedAt',
-               'currentLocation',
-               'soldPrice', 'soldPriceCurrency', 'soldPriceBase', 'soldDate',
-               'stoneStage', 'custody', 'outcome', 'isListedOnMarketplace'
-             ]);
+      // AP custody and sale transitions are coordinated by gemfortApi with
+      // the AP record, so participants must not mutate the shared gem here.
       allow read, write: if isAdmin();
     }
 
@@ -679,18 +671,9 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0;
-      allow update: if isSignedIn() && isNotSuspended()
-        && (resource.data.ownerUid == uid()
-            || resource.data.senderUid == uid()
-            || resource.data.receiverUid == uid())
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.senderUid == resource.data.senderUid
-        && request.resource.data.receiverUid == resource.data.receiverUid;
-      allow delete: if isSignedIn() && isNotSuspended()
-        && (resource.data.ownerUid == uid()
-            || resource.data.senderUid == uid()
-            || resource.data.receiverUid == uid())
-        && resource.data.status in ['done', 'cancelled', 'rejected'];
+      // AP state, custody, and deletion are coordinated atomically by
+      // gemfortApi. Prevent direct participant edits from bypassing it.
+      allow update, delete: if isAdmin();
       allow read, write: if isAdmin();
     }
 
@@ -699,18 +682,8 @@ service cloud.firestore {
         && (resource.data.senderUid == uid()
             || resource.data.receiverUid == uid()
             || resource.data.ownerUid == uid());
-      allow create: if isAnySignedIn()
-        && isNotSuspended()
-        && request.resource.data.actorUid == uid()
-        && (request.resource.data.senderUid == uid()
-            || request.resource.data.receiverUid == uid()
-            || request.resource.data.ownerUid == uid());
-      allow update: if false;
-      allow delete: if isAdmin()
-        || (isSignedIn() && isNotSuspended()
-            && (resource.data.senderUid == uid()
-                || resource.data.receiverUid == uid()
-                || resource.data.ownerUid == uid()));
+      // Payment records are written by gemfortApi together with AP state.
+      allow create, update, delete: if isAdmin();
       allow read, write: if isAdmin();
     }
 
@@ -832,7 +805,8 @@ service cloud.firestore {
       allow read: if isAdmin()
         || resource.data.requestedByUid == uid()
         || resource.data.approverUid == uid();
-      allow create: if isAnySignedIn();
+      allow create: if isAnySignedIn()
+        && request.resource.data.requestedByUid == uid();
       allow update: if isAdmin()
         || resource.data.approverUid == uid();
       allow delete: if isAdmin();
@@ -841,7 +815,8 @@ service cloud.firestore {
     match /company_audit_logs/{logId} {
       allow read: if isAdmin()
         || get(/databases/$(database)/documents/company_members/$(resource.data.companyId + '_' + uid())).data.subRole in ['owner', 'manager'];
-      allow create: if isAnySignedIn();
+      // Audit entries are server/admin-owned and immutable.
+      allow create: if isAdmin();
       // Immutable
       allow update: if false;
       allow delete: if false;

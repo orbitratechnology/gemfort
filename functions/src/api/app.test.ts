@@ -7,8 +7,9 @@ import { apiApp, createApiApp } from './app';
 
 const authenticatedApi = createApiApp({
   appCheckMode: 'enforce',
-  verifyIdToken: async (token) => {
+  verifyIdToken: async (token, checkRevoked) => {
     assert.equal(token, 'id-token');
+    assert.equal(checkRevoked, true);
     return { uid: 'user-1' } as DecodedIdToken;
   },
   verifyAppCheck: async (token) => {
@@ -23,8 +24,9 @@ const authenticatedApi = createApiApp({
 const syncPhoneApi = createApiApp({
   appCheckMode: 'enforce',
   executeMutation: async ({ execute }) => execute(),
-  verifyIdToken: async (token) => {
+  verifyIdToken: async (token, checkRevoked) => {
     assert.equal(token, 'id-token');
+    assert.equal(checkRevoked, true);
     return { uid: 'user-1' } as DecodedIdToken;
   },
   verifyAppCheck: async (token) => {
@@ -148,6 +150,7 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['POST', '/v1/services/requests'],
     ['POST', '/v1/services/service-1/request/respond'],
     ['POST', '/v1/services/service-1/status'],
+    ['POST', '/v1/services/service-1/complete'],
     ['DELETE', '/v1/services/service-1/job'],
     ['POST', '/v1/services/service-1/cancellation'],
     ['POST', '/v1/services/service-1/cancellation/respond'],

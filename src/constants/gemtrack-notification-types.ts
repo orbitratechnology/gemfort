@@ -14,6 +14,7 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'ap_payment_sent',
   'ap_payment_received',
   'service_overdue',
+  'service_job_completed',
   'payment_due_soon',
   'payment_overdue',
   'gem_transfer_requested',

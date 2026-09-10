@@ -38,6 +38,7 @@ export type InboxActionId =
   | "decline_ap_cancel"
   | "accept_gem_transfer"
   | "decline_gem_transfer"
+  | "add_service_bill"
   | "view_listing"
   | "view_verify"
   | "view_account";
@@ -212,6 +213,16 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "warning",
   ),
   service_job_updated: social("Service", "updated a job", [OPEN]),
+  service_job_completed: social(
+    "Service",
+    "completed a job",
+    [
+      { id: "add_service_bill", label: "Add bill", variant: "primary" },
+      { id: "open", label: "Details", variant: "ghost" },
+    ],
+    "success",
+    "service_completed",
+  ),
   service_cancellation_requested: social(
     "Service",
     "requested cancellation",

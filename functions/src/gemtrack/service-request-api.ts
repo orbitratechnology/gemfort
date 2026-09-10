@@ -58,6 +58,7 @@ type ServiceRequestDoc = CreateServiceRequestInput & {
   receiptUrl: string | null;
   finalCost: number | null;
   finalCostCurrency: string | null;
+  paymentDueDate?: Timestamp | null;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   rejectReason: string | null;
   serviceRecordId: string;
@@ -113,6 +114,43 @@ function finiteNumberOf(value: unknown, name: string, min: number, max: number):
     throw new ApiError('invalid-argument', `${name} is invalid.`);
   }
   return result;
+}
+
+function strictFiniteNumberOf(value: unknown, name: string, min: number, max: number): number {
+  if (typeof value !== 'number') {
+    throw new ApiError('invalid-argument', `${name} is invalid.`);
+  }
+  return finiteNumberOf(value, name, min, max);
+}
+
+export type CompleteLapidaryServiceInput = {
+  weightAfter: number;
+  finalCost: number;
+  paymentDueDateIso: string;
+  currency?: string | null;
+};
+
+export function parseCompleteLapidaryServiceInput(value: unknown): CompleteLapidaryServiceInput {
+  const input = objectOf(value);
+  const paymentDueDateIso = textOf(input.paymentDueDateIso, 'paymentDueDateIso', 80);
+  const paymentDueDate = new Date(paymentDueDateIso);
+  const now = Date.now();
+  if (Number.isNaN(paymentDueDate.getTime()) || paymentDueDate.getTime() < now - 86_400_000) {
+    throw new ApiError('invalid-argument', 'paymentDueDateIso must be today or a future date.');
+  }
+  if (paymentDueDate.getTime() > now + 730 * 86_400_000) {
+    throw new ApiError('invalid-argument', 'paymentDueDateIso is too far in the future.');
+  }
+  const currency = optionalTextOf(input.currency, 'currency', 3)?.toUpperCase() ?? null;
+  if (currency && !/^[A-Z]{3}$/.test(currency)) {
+    throw new ApiError('invalid-argument', 'currency must be a 3-letter code.');
+  }
+  return {
+    weightAfter: strictFiniteNumberOf(input.weightAfter, 'weightAfter', 0.000001, 1_000_000),
+    finalCost: strictFiniteNumberOf(input.finalCost, 'finalCost', 0.01, 100_000_000),
+    paymentDueDateIso,
+    currency,
+  };
 }
 
 export function parseCreateServiceRequestInput(value: unknown): CreateServiceRequestInput {
@@ -207,7 +245,7 @@ function notificationMessage(input: CreateServiceRequestInput): string {
 
 async function notifyServiceRequest(input: {
   recipientUid: string;
-  type: 'service_request_received' | 'service_request_accepted' | 'service_request_rejected' | 'service_job_updated';
+  type: 'service_request_received' | 'service_request_accepted' | 'service_request_rejected' | 'service_job_updated' | 'service_job_completed';
   title: string;
   message: string;
   serviceId: string;
@@ -315,6 +353,7 @@ export async function createServiceRequestForApi(
       receiptUrl: null,
       finalCost: null,
       finalCostCurrency: null,
+      paymentDueDate: null,
       paymentStatus: 'unpaid',
       rejectReason: null,
       serviceRecordId: serviceRef.id,
@@ -464,6 +503,7 @@ export async function updateLapidaryServiceStatusForApi(
       if (gemSnap.exists && gem?.ownerUid === service.ownerUid && gem?.custody === serviceCustody(service.serviceTypes ?? service.serviceType)) {
         const stage = returnedStage(service.serviceTypes ?? service.serviceType);
         transaction.update(gemRef, {
+          currentWeight: service.weightAfter ?? gem.currentWeight,
           status: stage,
           stoneStage: stage,
           custody: null,
@@ -489,6 +529,77 @@ export async function updateLapidaryServiceStatusForApi(
 
   if (notification) await notifyServiceRequest(notification!);
   return { serviceId: id, status: nextStatus };
+}
+
+function serviceWeightLossPercent(weightBefore: number, weightAfter: number): number | null {
+  if (!Number.isFinite(weightBefore) || weightBefore <= 0) return null;
+  return Math.round(((weightBefore - weightAfter) / weightBefore) * 10_000) / 100;
+}
+
+export async function completeLapidaryServiceForApi(
+  serviceId: string,
+  uid: string,
+  input: CompleteLapidaryServiceInput,
+): Promise<{ serviceId: string; status: 'ready' }> {
+  const id = assertServiceId(serviceId);
+  const serviceRef = db.collection('gemtrack_services').doc(id);
+  let notification: Parameters<typeof notifyServiceRequest>[0] | null = null;
+
+  await db.runTransaction(async (transaction) => {
+    const serviceSnap = await transaction.get(serviceRef);
+    if (!serviceSnap.exists) throw new ApiError('not-found', 'Service not found.');
+    const service = serviceSnap.data() as ServiceRequestDoc;
+    if (service.serviceKind !== 'lapidary_request' || service.providerUid !== uid) {
+      throw new ApiError('permission-denied', 'Only the selected lapidary can complete this job.');
+    }
+    if (service.requestStatus !== 'accepted' || !['in_progress', 'ready'].includes(service.status)) {
+      throw new ApiError('failed-precondition', 'Start the job before sending completion details.');
+    }
+    if (service.finalCost != null || service.paymentDueDate != null) {
+      throw new ApiError('failed-precondition', 'Completion details have already been sent.');
+    }
+
+    const gemRef = db.collection('gemtrack_gems').doc(service.gemId);
+    const gemSnap = await transaction.get(gemRef);
+    const gem = gemSnap.data() as Record<string, unknown> | undefined;
+    const custody = serviceCustody(service.serviceTypes ?? service.serviceType);
+    if (!gemSnap.exists || gem?.ownerUid !== service.ownerUid || gem?.custody !== custody) {
+      throw new ApiError('failed-precondition', 'The service gem is no longer in this workshop job.');
+    }
+
+    const now = Timestamp.now();
+    const paymentDueDate = Timestamp.fromDate(new Date(input.paymentDueDateIso));
+    const currency = input.currency || service.finalCostCurrency || service.agreedPriceCurrency || 'LKR';
+    transaction.update(serviceRef, {
+      status: 'ready',
+      weightAfter: input.weightAfter,
+      weightLossPercent: serviceWeightLossPercent(service.weightBefore, input.weightAfter),
+      finalCost: input.finalCost,
+      finalCostCurrency: currency,
+      paymentStatus: 'unpaid',
+      paymentDueDate,
+      updatedAt: now,
+    });
+    transaction.update(gemRef, {
+      currentWeight: input.weightAfter,
+      updatedAt: now,
+    });
+
+    notification = {
+      recipientUid: service.ownerUid,
+      type: 'service_job_completed',
+      title: 'Service completed',
+      message: `Your lapidary completed ${service.gemName}. Fee: ${input.finalCost} ${currency}. Payment expected by ${paymentDueDate.toDate().toISOString().slice(0, 10)}.`,
+      serviceId: id,
+      actorName: service.providerBusinessName ?? service.providerName ?? 'Lapidary',
+      actorPhotoUrl: service.providerBusinessLogoUrl,
+      imageUrl: service.gemPhotoUrl,
+      dedupeKey: `service_job_completed:${id}`,
+    };
+  });
+
+  if (notification) await notifyServiceRequest(notification);
+  return { serviceId: id, status: 'ready' };
 }
 
 /**

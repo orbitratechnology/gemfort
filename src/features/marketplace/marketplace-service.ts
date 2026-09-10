@@ -283,6 +283,7 @@ export async function createBusinessProfile(
     badges: {
       isVerified: false,
       isBasicVerified: false,
+      businessReputation: "none",
       isNgjaRegistered: false,
       isPremium: false,
       verifiedSinceYear: null,
@@ -501,10 +502,11 @@ export function demoBusinesses(filters?: {
     province: "Western",
     country: "Sri Lanka",
     verificationStatus: "verified" as const,
-    verificationTier: "full" as const,
+    verificationTier: "ultra" as const,
     badges: {
       isVerified: true,
       isBasicVerified: false,
+      businessReputation: "ultra",
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2010,
