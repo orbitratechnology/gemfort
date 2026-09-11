@@ -10,7 +10,7 @@ import {
 
 import { CountryFlag } from "@/components/ui/country-flag";
 import { ElevatedCard } from "@/components/ui/elevated-card";
-import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
@@ -111,11 +111,6 @@ export function BusinessCard({
         <View style={styles.banner}>
           {href ? <Link.AppleZoom>{banner}</Link.AppleZoom> : banner}
         </View>
-        {reputationBadge !== "none" ? (
-          <View style={styles.reputation}>
-            <BusinessReputationBadge type={reputationBadge} />
-          </View>
-        ) : null}
         <View
           style={[
             styles.logo,
@@ -126,6 +121,10 @@ export function BusinessCard({
           ]}
         >
           {logoInner}
+          <AvatarVerificationBadge
+            type={reputationBadge}
+            borderColor={colors.surfaceContainerLowest}
+          />
         </View>
       </View>
 
@@ -196,11 +195,6 @@ const styles = StyleSheet.create({
   },
   media: {
     position: "relative",
-  },
-  reputation: {
-    position: "absolute",
-    top: 8,
-    right: 8,
   },
   banner: {
     width: "100%",

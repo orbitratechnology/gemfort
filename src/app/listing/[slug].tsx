@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryFlag, CountryLabel } from "@/components/ui/country-flag";
-import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import {
     CurrencyAmountField,
     type CurrencyAmountValue,
@@ -46,7 +46,6 @@ import {
     fetchBusinessByOwnerUid,
     fetchBuyerOffersForListing,
     fetchOffersForListing,
-    isBusinessVerified,
     isListingOfferUnread,
     LISTING_OFFER_LIMITS,
     markListingOffersRead,
@@ -310,9 +309,14 @@ export default function PublicListingScreen() {
   const ownerRole = businessRoleLabel(
     business?.businessType ?? activeListing.sellerBusinessType ?? undefined,
   );
-  const ownerVerified =
-    isBusinessVerified(business) || activeListing.sellerIsVerified === true;
   const reputationBadge = businessReputationBadgeForBusiness(business);
+  const ownerVerified = activeListing.sellerIsVerified === true;
+  const ownerAvatarVerification =
+    reputationBadge !== "none"
+      ? reputationBadge
+      : ownerVerified
+        ? "identity"
+        : "none";
   const ownerAvatar = business?.logoUrl ?? activeListing.sellerLogoUrl ?? null;
   const ownerInitials = initials(ownerName);
   const yearsActive = business?.badges?.yearsActive;
@@ -591,19 +595,10 @@ export default function PublicListingScreen() {
                   </Text>
                 )}
               </View>
-              {ownerVerified ? (
-                <View
-                  style={[
-                    styles.ownerVerifiedDot,
-                    {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.surfaceContainerLowest,
-                    },
-                  ]}
-                >
-                  <Icon name="verified" size={10} color={colors.onPrimary} />
-                </View>
-              ) : null}
+              <AvatarVerificationBadge
+                type={ownerAvatarVerification}
+                borderColor={colors.surfaceContainerLowest}
+              />
             </View>
             <View style={styles.ownerText}>
               <Text
@@ -612,25 +607,6 @@ export default function PublicListingScreen() {
               >
                 {ownerName}
               </Text>
-              {reputationBadge !== "none" ? (
-                <BusinessReputationBadge type={reputationBadge} />
-              ) : ownerVerified ? (
-                <View
-                  style={[
-                    styles.verifiedPill,
-                    { backgroundColor: colors.primaryContainer },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.verifiedPillText,
-                      { color: colors.onPrimaryContainer },
-                    ]}
-                  >
-                    VERIFIED SELLER
-                  </Text>
-                </View>
-              ) : null}
               <Text
                 style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
@@ -1250,32 +1226,9 @@ const styles = StyleSheet.create({
     borderRadius: 26,
   },
   ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
-  ownerVerifiedDot: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   ownerText: { flex: 1, gap: 4, minWidth: 0 },
   ownerName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
   ownerRole: { ...Typography.caption },
-  verifiedPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.sm,
-  },
-  verifiedPillText: {
-    ...Typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    fontSize: 9,
-  },
 
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {

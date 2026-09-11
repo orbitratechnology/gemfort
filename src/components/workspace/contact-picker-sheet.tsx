@@ -12,7 +12,7 @@ import {
 import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { BusinessReputationBadge } from '@/components/ui/verification-badge';
+import { AvatarVerificationBadge } from '@/components/ui/verification-badge';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
 import { getContactTypeOption } from '@/constants/contact-types';
 import { businessReputationBadgeForBusiness } from '@/constants/business-reputation';
@@ -196,19 +196,22 @@ function ContactRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <ContactAvatar
-        name={contact.displayName}
-        photoUrl={photoUrl ?? contact.photoUrl}
-        size={40}
-      />
+      <View style={styles.contactAvatarWrap}>
+        <ContactAvatar
+          name={contact.displayName}
+          photoUrl={photoUrl ?? contact.photoUrl}
+          size={40}
+        />
+        <AvatarVerificationBadge
+          type={contact.linkedBusinessId ? 'member' : 'none'}
+          borderColor={selected ? colors.primaryContainer : colors.surfaceContainerLow}
+        />
+      </View>
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
             {contact.displayName}
           </Text>
-          {contact.linkedBusinessId ? (
-            <Icon name="verified" size={16} color={colors.accent} />
-          ) : null}
         </View>
         {contactMeta || !primaryType ? (
           <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
@@ -268,17 +271,16 @@ function BusinessRow({
         ) : (
           <Icon name={marketIcon(business)} size={20} color={colors.primary} />
         )}
+        <AvatarVerificationBadge
+          type={reputationBadge}
+          borderColor={selected ? colors.primaryContainer : colors.surfaceContainerLow}
+        />
       </View>
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
             {business.businessName}
           </Text>
-          {reputationBadge !== 'none' ? (
-            <BusinessReputationBadge type={reputationBadge} />
-          ) : business.badges.isVerified ? (
-            <Icon name="verified" size={16} color={colors.accent} />
-          ) : null}
         </View>
         <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
           {role}
@@ -831,7 +833,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minHeight: 64,
   },
+  contactAvatarWrap: {
+    position: 'relative',
+  },
   avatar: {
+    position: 'relative',
     width: 44,
     height: 44,
     borderRadius: 22,

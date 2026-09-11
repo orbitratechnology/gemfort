@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
-import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { CityField } from "@/components/ui/city-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
@@ -543,19 +543,11 @@ function BusinessProfileForm({
                 </View>
               )}
             </View>
-            {isVerified ? (
-              <View
-                style={[
-                  styles.verifiedBadge,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon name="verified" size={16} color={colors.onSecondary} />
-              </View>
-            ) : null}
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.background}
+              size="md"
+            />
             <View
               style={[styles.avatarCam, { backgroundColor: colors.primary }]}
             >
@@ -573,9 +565,6 @@ function BusinessProfileForm({
             {accountTypeLabel}
             {isVerified ? " · Verified" : ""}
           </Text>
-          {reputationBadge !== "none" ? (
-            <BusinessReputationBadge type={reputationBadge} />
-          ) : null}
         </View>
           </View>
 
@@ -1095,17 +1084,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitials: { ...Typography.headlineMdMobile, fontWeight: "700" },
-  verifiedBadge: {
-    position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   avatarCam: {
     position: "absolute",
     left: 2,

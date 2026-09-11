@@ -17,7 +17,7 @@ import { CurrencyFlag } from "@/components/ui/country-flag";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
     getCurrencyLabel,
@@ -228,19 +228,11 @@ export default function ProfileScreen() {
                   </Text>
                 )}
               </View>
-              {isVerified ? (
-                <View
-                  style={[
-                    styles.verifiedDot,
-                    {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.background,
-                    },
-                  ]}
-                >
-                  <Icon name="verified" size={16} color={colors.onSecondary} />
-                </View>
-              ) : null}
+              <AvatarVerificationBadge
+                type={reputationBadge}
+                borderColor={colors.background}
+                size="md"
+              />
             </View>
             <Text style={[styles.name, { color: colors.primary }]}>
               {profile?.displayName}
@@ -250,9 +242,6 @@ export default function ProfileScreen() {
                 {roleLabel}
               </Text>
             </View>
-            {reputationBadge !== "none" ? (
-              <BusinessReputationBadge type={reputationBadge} />
-            ) : null}
             <Text style={[styles.memberSince, { color: colors.textMuted }]}>
               MEMBER SINCE {memberYear}
             </Text>
@@ -477,17 +466,6 @@ const styles = StyleSheet.create({
   },
   avatarImg: { width: "100%", height: "100%" },
   avatarInitial: { fontSize: 36, fontWeight: "700" },
-  verifiedDot: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   name: { ...Typography.headlineSm },
   roleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   role: { ...Typography.bodyLg },

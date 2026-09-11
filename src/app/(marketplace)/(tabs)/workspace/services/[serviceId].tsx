@@ -13,9 +13,11 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { formatGemType } from "@/constants/gem-options";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
@@ -239,6 +241,8 @@ export default function ServiceDetailScreen() {
   const providerBusiness = service?.providerBusinessId
     ? (businesses.find((b) => b.id === service.providerBusinessId) ?? null)
     : null;
+  const providerReputationBadge =
+    businessReputationBadgeForBusiness(providerBusiness);
 
   const providerName =
     service?.providerName?.trim() ||
@@ -549,19 +553,10 @@ export default function ServiceDetailScreen() {
                     photoUrl={providerPhoto}
                     size={88}
                   />
-                  {service.providerBusinessId ? (
-                    <View
-                      style={[
-                        styles.verifiedDot,
-                        {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.background,
-                        },
-                      ]}
-                    >
-                      <Icon name="verified" size={12} color={colors.onPrimary} />
-                    </View>
-                  ) : null}
+                  <AvatarVerificationBadge
+                    type={providerReputationBadge}
+                    borderColor={colors.background}
+                  />
                 </View>
                 <Text
                   style={[styles.providerName, { color: colors.onSurface }]}
@@ -1031,17 +1026,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   providerAvatarWrap: { position: "relative" },
-  verifiedDot: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   providerActions: {
     flexDirection: "row",
     gap: 12,

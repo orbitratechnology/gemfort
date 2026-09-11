@@ -19,7 +19,7 @@ import { BusinessGalleryCarousel } from "@/components/marketplace/business-galle
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { BusinessReputationBadge } from "@/components/ui/verification-badge";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSectionLabel } from "@/components/ui/form-section";
@@ -518,20 +518,11 @@ export default function BusinessProfileScreen() {
                 )}
               </View>
             </Link.AppleZoomTarget>
-            {reputationBadge !== "none" ? (
-              <View
-                style={[
-                  styles.verifiedBadge,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.background,
-                  },
-                ]}
-                accessibilityLabel={`${reputationBadge} business reputation badge`}
-              >
-                <Icon name="verified" size={14} color={colors.onSecondary} />
-              </View>
-            ) : null}
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.background}
+              size="md"
+            />
           </View>
 
           <View style={styles.statsRow}>
@@ -583,9 +574,6 @@ export default function BusinessProfileScreen() {
             {role}
             {business.ownerName ? ` · ${business.ownerName}` : ""}
           </Text>
-          {reputationBadge !== "none" ? (
-            <BusinessReputationBadge type={reputationBadge} />
-          ) : null}
           {business.shortDescription?.trim() ? (
             <Text style={[styles.bio, { color: colors.onSurface }]}>
               {business.shortDescription.trim()}
@@ -1130,6 +1118,10 @@ function SuggestedCard({
                 {initials(business.businessName)}
               </Text>
             )}
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.surfaceContainerLowest}
+            />
           </View>
           <Text
             style={[styles.suggestName, { color: colors.onSurface }]}
@@ -1137,16 +1129,14 @@ function SuggestedCard({
           >
             {business.businessName}
           </Text>
-          {reputationBadge !== "none" ? (
-            <BusinessReputationBadge type={reputationBadge} />
-          ) : (
+          {reputationBadge === "none" ? (
             <Text
               style={[styles.suggestMeta, { color: colors.textMuted }]}
               numberOfLines={1}
             >
               {verified ? "Verified" : "Suggested for you"} · {role}
             </Text>
-          )}
+          ) : null}
         </Pressable>
       </Link>
 
@@ -1221,17 +1211,6 @@ const styles = StyleSheet.create({
   },
   avatarImg: { width: "100%", height: "100%" },
   avatarInitials: { fontSize: 26, fontWeight: "700" },
-  verifiedBadge: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   statsRow: {
     flex: 1,
     flexDirection: "row",
@@ -1429,6 +1408,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    position: "relative",
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",

@@ -7,8 +7,8 @@ import { ChoicePreviewCard, ChoiceTileGrid } from '@/components/ui/choice-tile-g
 import { CityField } from '@/components/ui/city-field';
 import { CountryField } from '@/components/ui/country-field';
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
@@ -171,7 +171,7 @@ export default function AddTripScreen() {
                   setTripName(v);
                   clearField('tripName');
                 }}
-                placeholder="e.g. Ratnapura March run"
+                placeholder="e.g. China, Bangkok, Madagascar..."
                 leftIcon="flight"
                 error={errors.tripName}
               />
