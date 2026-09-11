@@ -13,10 +13,11 @@ export type VerificationStatus =
 
 export type BusinessReputationBadge =
   | "none"
-  | "basic"
-  | "pro"
-  | "ultra"
-  | "member";
+  | "member"
+  | "identity"
+  | "business"
+  | "gem"
+  | "recognized";
 
 export type UserProfile = {
   uid: string;
@@ -49,10 +50,10 @@ export type UserProfile = {
   dateOfBirth?: string | null;
   /** Set by the admin review flow after a NIC document is accepted. */
   nicVerified?: boolean;
-  /** Admin-controlled reputation badge for recognised, partnered, or sponsored accounts. */
-  memberBadge?: boolean;
-  memberBadgeAssignedAt?: Timestamp | null;
-  memberBadgeAssignedByAdminUid?: string | null;
+  /** Admin-controlled Recognized tier for established industry accounts. */
+  recognizedBadge?: boolean;
+  recognizedBadgeAssignedAt?: Timestamp | null;
+  recognizedBadgeAssignedByAdminUid?: string | null;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
@@ -103,13 +104,21 @@ export type Business = {
   country: string;
   location?: ProfileLocation | null;
   verificationStatus: VerificationStatus;
-  /** `full` is retained for legacy documents and maps to the Ultra badge. */
-  verificationTier: "none" | "basic" | "pro" | "ultra" | "full";
-  memberBadgeAssignedAt?: Timestamp | null;
-  memberBadgeAssignedByAdminUid?: string | null;
+  /** Legacy values are retained for migration and map to the new tiers. */
+  verificationTier:
+    | "none"
+    | "member"
+    | "identity"
+    | "business"
+    | "gem"
+    | "basic"
+    | "pro"
+    | "ultra"
+    | "full";
+  recognizedBadgeAssignedAt?: Timestamp | null;
+  recognizedBadgeAssignedByAdminUid?: string | null;
   badges: {
     isVerified: boolean;
-    isBasicVerified: boolean;
     businessReputation?: BusinessReputationBadge;
     isNgjaRegistered: boolean;
     isPremium: boolean;
@@ -940,6 +949,7 @@ export type LapidaryJob = {
   lapidaryUid: string;
   lapidaryBusinessId: string;
   traderUid: string;
+  traderBusinessId: string | null;
   traderBusinessName?: string | null;
   gemId: string;
   gemName: string;

@@ -19,7 +19,6 @@ import { ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactListRow } from "@/components/workspace/contact-list-row";
-import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
 import {
   CONTACT_TYPES,
   getContactTypeOption,
@@ -35,10 +34,6 @@ import {
   subscribeContacts,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
-import {
-  countMissedCalls,
-  isCallLogsSupported,
-} from "@/features/workspace/call-logs-service";
 import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
 import {
   filterContacts,
@@ -55,7 +50,6 @@ import {
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
 import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
@@ -174,11 +168,6 @@ export default function ContactsListScreen() {
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: callLogs } = useMatchedCallLogs({
-    enabled: !!user && callLogsSupported,
-  });
-  const missedCount = callLogsSupported ? countMissedCalls(callLogs) : 0;
   const openSwipeRef = useRef<{
     id: string;
     methods: SwipeableMethods;
@@ -329,8 +318,6 @@ export default function ContactsListScreen() {
           </Pressable>
         }
       />
-      <ContactsHubTabs active="contacts" missedCount={missedCount} />
-
       <SectionList
         sections={sections}
         keyExtractor={(c) => c.id}

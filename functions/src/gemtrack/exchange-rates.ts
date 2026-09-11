@@ -122,7 +122,7 @@ export async function loadServerRates(): Promise<ServerRates> {
 /** Daily FX sync at 01:00 Asia/Colombo — caches rates for clients + CF. */
 export const syncExchangeRates = onSchedule(
   {
-    schedule: '0 1 * * *',
+    schedule: '0 */6 * * *',
     timeZone: 'Asia/Colombo',
     region: REGION,
     memory: '256MiB',

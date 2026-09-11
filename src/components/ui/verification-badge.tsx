@@ -10,7 +10,7 @@ type BadgeType = "verified" | "basic" | "pending" | "revoked";
 
 const config: Record<BadgeType, { bg: string; label: string }> = {
   verified: { bg: Palette.verifiedGreen, label: "Verified" },
-  basic: { bg: Palette.basicBlue, label: "Basic Verified" },
+  basic: { bg: Palette.basicBlue, label: "Identity Verified" },
   pending: { bg: Palette.pendingAmber, label: "Pending" },
   revoked: { bg: Palette.revokedRed, label: "Revoked" },
 };
@@ -30,14 +30,19 @@ const reputationConfig: Record<
   Exclude<BusinessReputationBadgeType, "none">,
   { bg: string; icon: IconName; label: string }
 > = {
-  basic: { bg: Palette.basicBlue, icon: "receipt", label: "Basic" },
-  pro: { bg: Palette.gemBlue, icon: "badge", label: "Pro" },
-  ultra: {
+  member: { bg: Palette.basicBlue, icon: "person", label: "Member" },
+  identity: {
+    bg: Palette.basicBlue,
+    icon: "verified-user",
+    label: "Identity Verified",
+  },
+  business: { bg: Palette.gemBlue, icon: "business", label: "Business Verified" },
+  gem: {
     bg: Palette.verifiedGreen,
     icon: "workspace-premium",
-    label: "Ultra",
+    label: "Gem Verified",
   },
-  member: { bg: Palette.gemGold, icon: "verified-user", label: "Member" },
+  recognized: { bg: Palette.gemGold, icon: "star", label: "Recognized" },
 };
 
 export function BusinessReputationBadge({

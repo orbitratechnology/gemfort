@@ -29,10 +29,9 @@ import {
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-    businessLogoUrl,
-    gemPrimaryPhotoUrl,
-    resolveBusinessPhotoById,
-    resolveBusinessPhotoByOwnerUid,
+  businessLogoUrl,
+  gemPrimaryPhotoUrl,
+  resolveBusinessPhotoById,
 } from "@/features/workspace/party-photo";
 import { respondServiceCancellation } from "@/features/workspace/service-lifecycle-service";
 import { fetchGem, fetchService } from "@/features/workspace/workspace-service";
@@ -182,9 +181,7 @@ export default function LapidaryJobDetailScreen() {
       return (
         (service.traderBusinessId
           ? businesses.find((business) => business.id === service.traderBusinessId)
-          : null) ??
-        businesses.find((business) => business.ownerUid === service.ownerUid) ??
-        null
+          : null)
       );
     },
     [businesses, service?.ownerUid, service?.traderBusinessId],
@@ -197,7 +194,6 @@ export default function LapidaryJobDetailScreen() {
   const senderPhoto =
     service?.traderBusinessLogoUrl?.trim() ||
     resolveBusinessPhotoById(service?.traderBusinessId, businesses) ||
-    resolveBusinessPhotoByOwnerUid(service?.ownerUid, businesses) ||
     businessLogoUrl(senderBusiness);
   const senderPhone = senderBusiness?.contacts?.phone?.value?.trim() || null;
   const senderWhatsApp =

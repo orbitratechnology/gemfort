@@ -6,51 +6,80 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isActiveUser() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('isSuspended', false) != true;
+    }
+
     function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+      return isActiveUser() && request.auth.uid == uid;
     }
 
     function isAdmin() {
-      return isSignedIn()
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isActiveUser()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+    }
+
+    function isValidImageUpload() {
+      return request.resource.size <= 15 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif)');
+    }
+
+    function isValidReceiptUpload() {
+      return request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType.matches('(image/(jpeg|png|webp|heic|heif)|application/pdf)');
     }
 
     match /users/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /gemtrack_gems/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /trips/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /cheques/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /receipts/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidReceiptUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /verification/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /listings/{userId}/{allPaths=**} {
       // Marketplace download URLs are already persisted with the public
       // listing, but direct Storage API reads still require authentication.
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow read: if isActiveUser();
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /businesses/{userId}/{allPaths=**} {
       // Marketplace download URLs are already persisted with the public
       // business profile, but direct Storage API reads still require auth.
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow read: if isActiveUser();
+      allow create, update: if isOwner(userId) && isValidImageUpload();
+      allow delete: if isOwner(userId);
     }
 
     match /gem_shows/{showId}/{allPaths=**} {

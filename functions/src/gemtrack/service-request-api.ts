@@ -17,7 +17,6 @@ const STONE_STAGES = new Set(['rough', 'cut', 'heated', 'polished']);
 
 export type CreateServiceRequestInput = {
   traderBusinessId: string | null;
-  lapidaryUid: string;
   lapidaryBusinessId: string;
   gemId: string;
   gemName: string;
@@ -164,7 +163,6 @@ export function parseCreateServiceRequestInput(value: unknown): CreateServiceReq
 
   return {
     traderBusinessId: optionalIdOf(input.traderBusinessId, 'traderBusinessId'),
-    lapidaryUid: idOf(input.lapidaryUid, 'lapidaryUid'),
     lapidaryBusinessId: idOf(input.lapidaryBusinessId, 'lapidaryBusinessId'),
     gemId: idOf(input.gemId, 'gemId'),
     gemName: textOf(input.gemName, 'gemName', 200),
@@ -278,8 +276,6 @@ export async function createServiceRequestForApi(
   uid: string,
   input: CreateServiceRequestInput,
 ): Promise<{ serviceId: string; status: 'pending' }> {
-  if (input.lapidaryUid === uid) throw new ApiError('invalid-argument', 'Choose another lapidary.');
-
   const serviceRef = db.collection('gemtrack_services').doc();
   const gemRef = db.collection('gemtrack_gems').doc(input.gemId);
   const providerRef = db.collection('businesses').doc(input.lapidaryBusinessId);
@@ -288,6 +284,7 @@ export async function createServiceRequestForApi(
     now.toMillis() + input.expectedReturnDays * 86_400_000,
   );
 
+  let providerUid = '';
   await db.runTransaction(async (transaction) => {
     const [gemSnap, providerSnap] = await transaction.getAll(gemRef, providerRef);
     if (!gemSnap.exists) throw new ApiError('not-found', 'Gem not found.');
@@ -296,8 +293,12 @@ export async function createServiceRequestForApi(
     const gem = gemSnap.data() as Record<string, unknown>;
     const provider = providerSnap.data() as Record<string, unknown>;
     if (gem.ownerUid !== uid) throw new ApiError('permission-denied', 'You do not own this gem.');
-    if (provider.ownerUid !== input.lapidaryUid) {
-      throw new ApiError('failed-precondition', 'The selected lapidary profile is no longer available.');
+    providerUid = typeof provider.ownerUid === 'string' ? provider.ownerUid : '';
+    if (!providerUid) {
+      throw new ApiError('failed-precondition', 'The selected lapidary profile is unavailable.');
+    }
+    if (providerUid === uid) {
+      throw new ApiError('invalid-argument', 'Choose another lapidary.');
     }
     if (provider.isActive === false || provider.verificationStatus !== 'verified') {
       throw new ApiError('failed-precondition', 'The selected lapidary is not currently available.');
@@ -331,7 +332,7 @@ export async function createServiceRequestForApi(
       ...input,
       ownerUid: uid,
       traderUid: uid,
-      providerUid: input.lapidaryUid,
+      providerUid,
       providerBusinessId: input.lapidaryBusinessId,
       serviceKind: 'lapidary_request',
       requestStatus: 'pending',
@@ -376,7 +377,7 @@ export async function createServiceRequestForApi(
   });
 
   await notifyServiceRequest({
-    recipientUid: input.lapidaryUid,
+    recipientUid: providerUid,
     type: 'service_request_received',
     title: 'New service request',
     message: notificationMessage(input),

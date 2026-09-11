@@ -51,9 +51,9 @@ GemTrack is a recordkeeping and workflow tool. It does not provide banking, acco
 
 GemFort does not guarantee the validity, negotiability, clearance, payment, or replacement of a cheque, nor the accuracy of a counterparty’s information. Do not use the Service as your only record of a legally or financially important matter.
 
-## 7. Contacts, call logs, and uploaded files
+## 7. Contacts and uploaded files
 
-If you import contacts, attach contact photos, use call matching, or upload documents, you represent that you have the necessary authority and that the use is lawful. You must not use GemFort to harass, spam, surveil, profile, or unlawfully contact people. You must not upload malware, secrets that you are not authorised to disclose, or another person’s identity or financial documents without a lawful basis.
+If you import contacts, attach contact photos, or upload documents, you represent that you have the necessary authority and that the use is lawful. You must not use GemFort to harass, spam, surveil, profile, or unlawfully contact people. You must not upload malware, secrets that you are not authorised to disclose, or another person’s identity or financial documents without a lawful basis.
 
 You are responsible for the accuracy, legality, consent, and security of your content and for complying with applicable data-protection, telecommunications, banking, export, sanctions, consumer, intellectual-property, and recordkeeping laws.
 
@@ -71,7 +71,7 @@ You must not:
 - misrepresent identity, business authority, verification status, licences, origin, treatment, weight, quality, price, ownership, availability, or transaction history;
 - upload or publish content that is unlawful, defamatory, threatening, hateful, deceptive, invasive of privacy, sexually exploitative, or infringing;
 - collect, scrape, copy, index, resell, or bulk-export profiles, listings, contacts, or other data except as permitted by the Service and law;
-- use imported contacts or call information to build an unauthorised contact database, send unsolicited messages, or monitor people;
+- use imported contacts to build an unauthorised contact database or send unsolicited messages;
 - bypass authentication, App Check, access controls, rate limits, verification, moderation, or deletion controls;
 - probe, scan, reverse engineer, decompile, interfere with, overload, or introduce malicious code into the Service;
 - use automated access or bots without our written permission;
@@ -103,7 +103,7 @@ Third-party names, marks, data, maps, images, and services belong to their respe
 
 ## 14. Privacy
 
-Our [Privacy Policy](./privacy-policy.md) describes the data GemFort collects and processes, including account data, verification documents, public profiles, workspace records, contacts, location, notifications, uploads, call-log matching, and flight searches. Review it before using features that require sensitive data or device permissions.
+Our [Privacy Policy](./privacy-policy.md) describes the data GemFort collects and processes, including account data, verification documents, public profiles, workspace records, contacts, location, notifications, uploads, and flight searches. Review it before using features that require sensitive data or device permissions.
 
 ## 15. Availability and disclaimers
 
@@ -144,4 +144,3 @@ If a provision is held invalid, the remaining provisions remain effective. Our f
 Legal and support questions: **[confirmed support/legal email]**  
 Controller/operator: **[exact legal entity and registered address]**  
 Website: [confirm live GemFort legal-policy URL]
-

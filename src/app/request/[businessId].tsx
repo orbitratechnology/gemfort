@@ -266,7 +266,6 @@ export default function RequestServiceScreen() {
           traderBusinessId: myBusiness?.id ?? null,
           traderBusinessName: myBusiness?.businessName ?? profile?.displayName ?? null,
           traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
-          lapidaryUid: business.ownerUid,
           lapidaryBusinessId: business.id,
           providerName: business.businessName,
           providerBusinessName: business.businessName,

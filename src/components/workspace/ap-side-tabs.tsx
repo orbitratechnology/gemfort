@@ -23,7 +23,7 @@ const TABS: {
   { id: "taken", label: "Taken", icon: "call-received" },
 ];
 
-/** Given ↔ Taken switcher — matches ContactsHubTabs / Money segment. */
+/** Given ↔ Taken switcher — matches the Money segment. */
 export function ApSideTabs({
   side,
   onChange,

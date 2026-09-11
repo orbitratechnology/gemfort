@@ -121,6 +121,7 @@ service cloud.firestore {
       return fieldName in [
         'verificationStatus', 'verificationTier',
         'verifiedAt', 'verifiedByAdminUid',
+        'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid',
         'isFeatured', 'featuredUntil', 'featuredByAdminUid',
         'badges.isVerified', 'badges.isNgjaRegistered',
         'analytics', 'isActive', 'subscriptionPlan',
@@ -150,9 +151,9 @@ service cloud.firestore {
         && request.resource.data.isSuspended == false
         && request.resource.data.verificationStatus == 'none'
         && request.resource.data.get('nicVerified', false) == false
-        && request.resource.data.get('memberBadge', false) == false
-        && request.resource.data.get('memberBadgeAssignedAt', null) == null
-        && request.resource.data.get('memberBadgeAssignedByAdminUid', null) == null;
+        && request.resource.data.get('recognizedBadge', false) == false
+        && request.resource.data.get('recognizedBadgeAssignedAt', null) == null
+        && request.resource.data.get('recognizedBadgeAssignedByAdminUid', null) == null;
 
       // Push token / profile field updates — use resource.data (not get()) so
       // concurrent writes to the same user doc do not fail isNotSuspended().
@@ -164,8 +165,8 @@ service cloud.firestore {
              'role', 'verificationStatus', 'isSuspended',
              'isActive', 'suspendedReason', 'suspendedAt',
              'phone', 'phoneVerified',
-             'nicVerified', 'memberBadge',
-             'memberBadgeAssignedAt', 'memberBadgeAssignedByAdminUid'
+             'nicVerified', 'recognizedBadge',
+             'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid'
            ]);
 
       // Narrow allow for FCM token registration (owner only).
@@ -198,16 +199,6 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════
 
     match /businesses/{businessId} {
-
-      // Market queries: only verified + active appear in list results.
-      allow list: if resource.data.verificationStatus == 'verified'
-                  && resource.data.isActive == true;
-
-      // Direct get by ID (e.g. from a public listing's businessId) — verified + active
-      // businesses are readable so listing cards show owner name/logo/contacts.
-      allow get: if resource.data.isActive == true
-                  && resource.data.verificationStatus == 'verified';
-
       // Owner reads own (even pending / inactive)
       allow get, list: if isSignedIn()
                   && isBusinessOwner(resource.data);
@@ -222,7 +213,7 @@ service cloud.firestore {
         && request.resource.data.isActive == true
         && request.resource.data.isFeatured == false
         && request.resource.data.badges.isVerified == false
-        && request.resource.data.badges.get('businessReputation', 'none') == 'none'
+        && request.resource.data.badges.get('businessReputation', 'member') in ['none', 'member']
         // Accept both app generations during the Directory/Endorse migration.
         && request.resource.data.badges.get('likeCount', 0) == 0
         && request.resource.data.badges.get('endorsementCount', 0) == 0
@@ -235,6 +226,7 @@ service cloud.firestore {
            .affectedKeys().hasAny([
              'verificationStatus', 'verificationTier',
              'verifiedAt', 'verifiedByAdminUid',
+             'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid',
              'isFeatured', 'featuredUntil', 'featuredByAdminUid',
              'badges', 'analytics', 'isActive',
              'subscriptionPlan', 'subscriptionExpiry',
@@ -250,6 +242,14 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['analytics', 'updatedAt']);
 
       allow delete: if isAdmin();
+    }
+
+    // Server-maintained allowlisted mirror for public directory/profile reads.
+    // Clients cannot create, update, or delete projection documents.
+    match /public_businesses/{businessId} {
+      allow get, list: if resource.data.verificationStatus == 'verified'
+                       && resource.data.isActive == true;
+      allow create, update, delete: if false;
     }
 
     // ═══════════════════════════════════════════════

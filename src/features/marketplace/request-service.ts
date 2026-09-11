@@ -19,7 +19,6 @@ import type {
 export async function createServiceRequest(input: {
   traderUid: string;
   traderBusinessId: string | null;
-  lapidaryUid: string;
   lapidaryBusinessId: string;
   gemId: string;
   gemName: string;
@@ -39,7 +38,6 @@ export async function createServiceRequest(input: {
     Omit<typeof input, 'traderUid'>
   >('/v1/services/requests', {
     traderBusinessId: input.traderBusinessId,
-    lapidaryUid: input.lapidaryUid,
     lapidaryBusinessId: input.lapidaryBusinessId,
     gemId: input.gemId,
     gemName: input.gemName,
@@ -137,6 +135,7 @@ export function mapServiceToLapidaryJob(
     lapidaryUid: request.lapidaryUid,
     lapidaryBusinessId: request.lapidaryBusinessId,
     traderUid: request.traderUid,
+    traderBusinessId: request.traderBusinessId,
     traderBusinessName: request.traderBusinessName,
     gemId: request.gemId,
     gemName: request.gemName,

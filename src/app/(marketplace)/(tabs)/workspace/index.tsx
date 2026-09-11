@@ -13,7 +13,6 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
-import { CallLogRow } from "@/components/workspace/call-log-row";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     WorkspaceModules,
@@ -50,7 +49,6 @@ import {
     detectBillsDueToday,
     getBillSummary,
 } from "@/features/workspace/bill-utils";
-import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
@@ -74,7 +72,6 @@ import {
     fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { outstandingBase } from "@/lib/money";
 import { useAuth } from "@/providers/auth-provider";
@@ -283,13 +280,6 @@ export default function WorkspaceHub() {
       subscribeIncomingServiceRequests(userId!, onData, onError),
     enabled: !!userId && role === "lapidary",
   });
-
-  const showContacts = canAccessModule(role, "contacts");
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: recentCalls } = useMatchedCallLogs({
-    enabled: !!userId && showContacts && callLogsSupported,
-  });
-  const recentCallPreview = recentCalls.slice(0, 5);
 
   if (!user) {
     return (
@@ -985,48 +975,6 @@ export default function WorkspaceHub() {
           </View>
         ) : null}
 
-        {/* Recent calls — Android only (matched to contacts / businesses) */}
-        {showContacts && callLogsSupported && recentCallPreview.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: colors.onSurface, marginBottom: 0 },
-                ]}
-              >
-                Recent calls
-              </Text>
-              <Pressable
-                onPress={() =>
-                  router.push(`${WORKSPACE}/contacts/calls` as never)
-                }
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="See all calls"
-              >
-                <Text style={[styles.seeAll, { color: colors.primary }]}>
-                  See all
-                </Text>
-              </Pressable>
-            </View>
-            <View
-              style={[
-                styles.recentCallsList,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              {recentCallPreview.map((log, index) => (
-                <CallLogRow
-                  key={log.id}
-                  log={log}
-                  isLast={index === recentCallPreview.length - 1}
-                  onPress={() => router.push(log.href as never)}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
       </ThemedScrollView>
 
       <View
@@ -1116,10 +1064,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...Typography.headlineSmMobile },
   seeAll: { ...Typography.labelMd, fontWeight: "600" },
-  recentCallsList: {
-    marginHorizontal: -Spacing.containerMargin,
-    overflow: "hidden",
-  },
   countPill: {
     minWidth: 24,
     height: 24,

@@ -1005,9 +1005,14 @@ async function uploadContactPhoto(
 ): Promise<string> {
   const ext = localUri.split("?")[0]?.split(".").pop()?.toLowerCase();
   const safeExt = ext && ext.length <= 5 ? ext : "jpg";
+  const contentType =
+    safeExt === "jpg" || safeExt === "jpeg"
+      ? "image/jpeg"
+      : `image/${safeExt}`;
   return uploadBlobToStorage(
     localUri,
     `users/${ownerUid}/contacts/${deviceContactId}.${safeExt}`,
+    contentType,
   );
 }
 

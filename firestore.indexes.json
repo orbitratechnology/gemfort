@@ -239,6 +239,14 @@
       ]
     },
     {
+      "collectionGroup": "public_businesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "businesses",
       "queryScope": "COLLECTION",
       "density": "SPARSE_ALL",

@@ -18,7 +18,9 @@ import {
     orderBy,
     query,
     serverTimestamp,
+    setDoc,
     Timestamp,
+    updateDoc,
     where,
 } from "@/lib/firebase/db";
 import {
@@ -63,7 +65,7 @@ export async function fetchBusinesses(filters?: {
   verifiedOnly?: boolean;
 }): Promise<Business[]> {
   const q = query(
-    collection(getFirebaseDb(), "businesses"),
+    collection(getFirebaseDb(), "public_businesses"),
     where("verificationStatus", "==", "verified"),
     where("isActive", "==", true),
   );
@@ -123,7 +125,7 @@ export function filterBusinesses(
 export async function fetchBusiness(
   businessId: string,
 ): Promise<Business | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), "businesses", businessId));
+  const snap = await getDoc(doc(getFirebaseDb(), "public_businesses", businessId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as Business;
 }
@@ -261,7 +263,8 @@ export async function createBusinessProfile(
   const isLapidary = type === "lapidary";
   const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
   const ph = normalizePhoneForStorage(input.phone) ?? "";
-  const id = queueDocCreate("businesses", {
+  const businessRef = doc(collection(getFirebaseDb(), "businesses"));
+  await setDoc(businessRef, {
     ownerUid,
     businessType: type,
     businessName: input.businessName.trim(),
@@ -279,11 +282,10 @@ export async function createBusinessProfile(
     country: input.country?.trim() || "Sri Lanka",
     location: input.location ?? null,
     verificationStatus: "none",
-    verificationTier: "none",
+    verificationTier: "member",
     badges: {
       isVerified: false,
-      isBasicVerified: false,
-      businessReputation: "none",
+      businessReputation: "member",
       isNgjaRegistered: false,
       isPremium: false,
       verifiedSinceYear: null,
@@ -336,7 +338,7 @@ export async function createBusinessProfile(
     createdAt: now,
     updatedAt: now,
   });
-  return id;
+  return businessRef.id;
 }
 
 /** Maximum number of business gallery photos (works / work samples / business photos). */
@@ -443,7 +445,7 @@ export async function updateBusinessProfile(
   if (data.galleryPhotos !== undefined) {
     updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);
   }
-  queueDocUpdate("businesses", businessId, updates);
+  await updateDoc(doc(getFirebaseDb(), "businesses", businessId), updates);
 }
 
 type BusinessAnalyticsField =
@@ -502,11 +504,10 @@ export function demoBusinesses(filters?: {
     province: "Western",
     country: "Sri Lanka",
     verificationStatus: "verified" as const,
-    verificationTier: "ultra" as const,
+    verificationTier: "gem" as const,
     badges: {
       isVerified: true,
-      isBasicVerified: false,
-      businessReputation: "ultra",
+      businessReputation: "gem",
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2010,

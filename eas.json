@@ -49,10 +49,14 @@
     "production": {
       "bun": "1.4.2",
       "environment": "production",
+      "distribution": "store",
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
+        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
+        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
       }
     },
     "production-apk": {
@@ -61,7 +65,10 @@
       "distribution": "internal",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
+        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
+        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
       },
       "android": {
         "buildType": "apk"

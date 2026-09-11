@@ -32,20 +32,37 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const { user, profile, isLoading } = useAuth();
+  const uid = user?.uid ?? null;
+  const hasProfile = profile !== null;
+  const pushEnabled = profile?.notificationPreferences?.pushEnabled !== false;
   const uidRef = useRef<string | null>(null);
   const registeringRef = useRef(false);
+  const tokenRef = useRef<{ uid: string | null; token: string | null }>({
+    uid: null,
+    token: null,
+  });
 
   useEffect(() => {
-    uidRef.current = user?.uid ?? null;
-  }, [user]);
+    uidRef.current = uid;
+    if (tokenRef.current.uid !== uid) {
+      tokenRef.current = { uid, token: profile?.fcmToken ?? null };
+    } else if (profile?.fcmToken !== undefined) {
+      tokenRef.current.token = profile.fcmToken ?? null;
+    }
+  }, [uid, profile?.fcmToken]);
 
   useEffect(() => {
     // Wait until a Firestore profile exists — prevents permission-denied when
     // Auth restores before/without a users/{uid} document.
-    if (isLoading || !user || !profile || !canRegisterForPushNotifications()) return;
-
-    const pushEnabled = profile.notificationPreferences?.pushEnabled !== false;
-    if (!pushEnabled) return;
+    if (
+      isLoading ||
+      !uid ||
+      !hasProfile ||
+      !pushEnabled ||
+      !canRegisterForPushNotifications()
+    ) {
+      return;
+    }
 
     let pushTokenSubscription: Notifications.EventSubscription | undefined;
     let cancelled = false;
@@ -53,16 +70,35 @@ export function usePushNotifications() {
     const saveToken = async (tokenValue: string) => {
       const uid = uidRef.current;
       if (!uid) return;
+      if (tokenRef.current.uid !== uid) {
+        tokenRef.current = { uid, token: null };
+      }
+
+      const previousToken = tokenRef.current.token;
+      if (previousToken === tokenValue) return;
+      tokenRef.current.token = tokenValue;
+
       try {
         await updateFcmToken(uid, tokenValue);
-      } catch {}
+      } catch {
+        if (
+          tokenRef.current.uid === uid &&
+          tokenRef.current.token === tokenValue
+        ) {
+          tokenRef.current.token = previousToken;
+        }
+      }
     };
 
     const register = async () => {
-      if (cancelled || registeringRef.current || !uidRef.current) return;
+      const uid = uidRef.current;
+      if (cancelled || registeringRef.current || !uid) return;
       registeringRef.current = true;
       try {
-        await registerPushTokenForUser(uidRef.current);
+        const token = await registerPushTokenForUser(uid, tokenRef.current.token);
+        if (token && tokenRef.current.uid === uid) {
+          tokenRef.current.token = token;
+        }
       } catch {
         // Registration is retried when the app becomes active.
       } finally {
@@ -90,5 +126,5 @@ export function usePushNotifications() {
       pushTokenSubscription?.remove();
       appStateSub.remove();
     };
-  }, [user, profile, isLoading]);
+  }, [hasProfile, isLoading, pushEnabled, uid]);
 }

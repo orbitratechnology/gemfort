@@ -324,11 +324,14 @@ export default function VerifyApplicationScreen() {
           </>
         ) : null}
 
-        <FormSectionLabel title="BUSINESS REPUTATION" />
+        <FormSectionLabel title="VERIFICATION TIERS" />
         <FormSection>
           <Text style={[styles.reputationHint, { color: colors.textMuted }]}>
-            NIC is required for every applicant. TIN earns Basic; BR or Gem License
-            earns Pro; all three business documents earn Ultra after admin review.
+            Member is every registered account. NIC verification earns Identity Verified;
+            NIC, TIN, and BR earn Business Verified; adding a verified Gem Licence earns
+            Gem Verified. The Recognized tier is manually approved by GemFort for an
+            established partner, sponsor, association, institution, lab, or notable
+            industry organization.
           </Text>
           <MediaField
             label="NIC photo (required)"
@@ -357,13 +360,13 @@ export default function VerifyApplicationScreen() {
             variant="row"
           />
           <Input
-            label="Gem License number (optional)"
+            label="Gem Licence number (optional)"
             value={gemLicenseNumber}
             onChangeText={setGemLicenseNumber}
             leftIcon="workspace-premium"
           />
           <MediaField
-            label="Gem License photo (optional)"
+            label="Gem Licence photo (optional)"
             value={licensePhoto}
             onChange={setLicensePhoto}
             allows="images"

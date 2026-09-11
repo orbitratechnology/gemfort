@@ -177,9 +177,14 @@ export default function ProfileScreen() {
     : new Date().getFullYear();
   const coverUri = business?.coverPhotoUrl ?? null;
   const avatarUri = business?.logoUrl ?? null;
-  const reputationBadge = profile?.memberBadge
-    ? "member"
-    : businessReputationBadgeForBusiness(business);
+  const businessReputationBadge = business
+    ? businessReputationBadgeForBusiness(business)
+    : "member";
+  const reputationBadge = profile?.recognizedBadge
+    ? "recognized"
+    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
+      ? "identity"
+      : businessReputationBadge;
 
   return (
     <View

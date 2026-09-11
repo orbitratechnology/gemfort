@@ -52,12 +52,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: "./assets/images/icon.png",
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ?? "google-services.json",
-    permissions: [
-      "android.permission.READ_CALL_LOG",
-      "android.permission.READ_PHONE_STATE",
-    ],
-    // Library manifests WRITE_CALL_LOG; we only read history.
-    blockedPermissions: ["android.permission.WRITE_CALL_LOG"],
     intentFilters:
       env === "production" || env === "preview"
         ? [
@@ -145,10 +139,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "RNFBStorage",
           ],
         },
-        // android: {
-        //   enableProguardInReleaseBuilds: true,
-        //   enableShrinkResourcesInReleaseBuilds: true,
-        // },
+        android: {
+          compileSdkVersion: 36,
+          targetSdkVersion: 36,
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
       },
     ],
     [

@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
-import { CallLogRow } from "@/components/workspace/call-log-row";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
   CONTACT_TYPE_OPTIONS,
@@ -38,7 +37,6 @@ import {
   subscribeServices,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
-import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import {
   deleteContact,
@@ -49,7 +47,6 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -112,21 +109,8 @@ export default function ContactDetailScreen() {
     };
   }, [contactId, services, apRecords]);
 
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: allCallLogs } = useMatchedCallLogs({
-    enabled: !!user && callLogsSupported,
-  });
-
   const contact = contacts.find((c) => c.id === contactId);
   const avatarUrl = resolvePartyPhotoUrl(contact, businesses);
-
-  const contactCalls = useMemo(
-    () =>
-      allCallLogs.filter(
-        (log) => log.partyKind === "contact" && log.partyId === contactId,
-      ),
-    [allCallLogs, contactId],
-  );
 
   function startEdit() {
     if (!contact) return;
@@ -582,47 +566,6 @@ export default function ContactDetailScreen() {
             >
               {contact.notes}
             </Text>
-          </FormSection>
-        ) : null}
-
-        {callLogsSupported ? (
-          <FormSection
-            title="Calls"
-            hint={
-              contactCalls.length
-                ? `${contactCalls.length} matched`
-                : undefined
-            }
-            padded={false}
-          >
-            {contactCalls.length ? (
-              contactCalls.slice(0, 20).map((log, index) => (
-                <CallLogRow
-                  key={log.id}
-                  log={log}
-                  compact
-                  isLast={index === Math.min(contactCalls.length, 20) - 1}
-                  onPress={() => {
-                    if (contact.phone) {
-                      void Linking.openURL(openPhone(contact.phone));
-                    }
-                  }}
-                />
-              ))
-            ) : (
-              <Text
-                style={[
-                  styles.emptyHistory,
-                  {
-                    color: colors.textMuted,
-                    paddingHorizontal: Spacing.containerMargin,
-                    paddingVertical: Spacing.md,
-                  },
-                ]}
-              >
-                No matched calls with this contact yet.
-              </Text>
-            )}
           </FormSection>
         ) : null}
 

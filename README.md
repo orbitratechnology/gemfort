@@ -72,7 +72,7 @@ Operational clarity for each business—role-gated modules.
 | **Cheques** | Post-dated cheques, maturity calendar, bounce and replacement |
 | **Money** | Income/expense, receivables/payables, commissions, sales, reports |
 | **Trips** | Sourcing/selling trips with purchases, expenses, and linked gems |
-| **Contacts** | Traders, cutters, buyers, suppliers, heaters, polishers; phone import; Android call-log matching |
+| **Contacts** | Traders, cutters, buyers, suppliers, heaters, polishers; phone import |
 | **Requests** | Outgoing service requests |
 
 ---
@@ -379,7 +379,6 @@ gemfort/
 |------------|-----|
 | Photos | Upload gem and business images |
 | Contacts | Import traders, cutters, buyers, suppliers, heaters, polishers, and other contacts |
-| Call log (Android, read-only) | Match recent calls to workspace contacts |
 
 ---
 

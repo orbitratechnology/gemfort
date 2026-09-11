@@ -143,14 +143,12 @@ export default function AddServiceScreen() {
 
     try {
       await withLoading(async () => {
-        let providerUid: string | null = null;
         if (provider.source === "business") {
           const [biz, senderBusiness] = await Promise.all([
             fetchBusiness(provider.businessId),
             fetchBusinessByOwnerUid(user.uid),
           ]);
-          providerUid = biz?.ownerUid ?? null;
-          if (!providerUid) {
+          if (!biz) {
             throw new Error("This lapidary profile is unavailable.");
           }
 
@@ -168,7 +166,6 @@ export default function AddServiceScreen() {
             traderBusinessName:
               senderBusiness?.businessName ?? user.displayName?.trim() ?? null,
             traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
-            lapidaryUid: providerUid,
             lapidaryBusinessId: provider.businessId,
             providerName: biz.businessName,
             providerBusinessName: biz.businessName,
@@ -194,7 +191,7 @@ export default function AddServiceScreen() {
             provider.source === "contact" ? provider.contactId : "",
           providerBusinessId:
             provider.source === "business" ? provider.businessId : null,
-          providerUid,
+          providerUid: null,
           providerName: provider.label,
           dateGiven: Timestamp.now(),
           expectedReturnDate: expectedReturn,

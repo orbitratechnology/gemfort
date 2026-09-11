@@ -54,10 +54,9 @@ async function seed() {
     province: 'Western',
     country: 'Sri Lanka',
     verificationStatus: 'verified',
-    verificationTier: 'full',
+    verificationTier: 'gem',
     badges: {
       isVerified: true,
-      isBasicVerified: false,
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2010,
@@ -109,10 +108,9 @@ async function seed() {
     province: 'Western',
     country: 'Sri Lanka',
     verificationStatus: 'verified',
-    verificationTier: 'full',
+    verificationTier: 'gem',
     badges: {
       isVerified: true,
-      isBasicVerified: false,
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2008,

@@ -211,7 +211,7 @@ export default function BusinessProfileScreen() {
   });
 
   const isOwnBusinessPreview =
-    !!user && !!business && user.uid === business.ownerUid;
+    !!user && !!business && myBusiness?.id === business.id;
 
   const { data: liked = false } = useFirestoreLiveQuery({
     queryKey: ["has-liked", myBusiness?.id, business?.id],
@@ -285,7 +285,7 @@ export default function BusinessProfileScreen() {
     [business],
   );
 
-  const isOwnBusiness = !!user && user.uid === business?.ownerUid;
+  const isOwnBusiness = !!user && myBusiness?.id === business?.id;
   const isVerifiedMember = isVerifiedRole(profile);
   const isVerifiedTrader = isVerifiedRole(profile, "trader");
   const canLike =
@@ -981,7 +981,7 @@ export default function BusinessProfileScreen() {
           onClose={() => setReportOpen(false)}
           reporterUid={user.uid}
           reportedBusinessId={business.id}
-          reportedUserUid={business.ownerUid}
+          reportedUserUid={null}
           businessName={business.businessName}
         />
       ) : null}

@@ -38,7 +38,7 @@ import {
     subscribeProviderServices,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
-import { resolveBusinessPhotoByOwnerUid } from "@/features/workspace/party-photo";
+import { resolveBusinessPhotoById } from "@/features/workspace/party-photo";
 import { respondServiceCancellation } from "@/features/workspace/service-lifecycle-service";
 import { fetchProviderServices } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -169,15 +169,14 @@ export default function LapidaryJobsScreen() {
     () => (uid: string | null | undefined, snapshotName?: string | null) => {
       if (snapshotName?.trim()) return snapshotName.trim();
       if (!uid) return "Trader";
-      const business = businesses.find((b) => b.ownerUid === uid);
-      return business?.businessName?.trim() || `Trader · ${uid.slice(0, 8)}`;
+      return `Trader · ${uid.slice(0, 8)}`;
     },
-    [businesses],
+    [],
   );
 
   const traderPhoto = useMemo(
-    () => (uid: string | null | undefined) =>
-      resolveBusinessPhotoByOwnerUid(uid, businesses),
+    () => (businessId: string | null | undefined) =>
+      resolveBusinessPhotoById(businessId, businesses),
     [businesses],
   );
 
@@ -526,7 +525,7 @@ export default function LapidaryJobsScreen() {
         renderItem={({ item: j }) => {
           const tone = statusTone(j.status, colors);
           const traderName = traderLabel(j.traderUid, j.traderBusinessName);
-          const traderAvatar = traderPhoto(j.traderUid);
+          const traderAvatar = traderPhoto(j.traderBusinessId);
           const types = j.serviceTypes
             .map((t) => t.replace(/_/g, " "))
             .join(", ");

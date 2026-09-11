@@ -685,7 +685,7 @@ export function subscribeVerifiedBusinesses(
 ): Unsub {
   return listenCollection(
     query(
-      collection(getFirebaseDb(), 'businesses'),
+      collection(getFirebaseDb(), 'public_businesses'),
       where('verificationStatus', '==', 'verified'),
       where('isActive', '==', true),
       limit(MARKET_LIST_LIMIT),
@@ -702,7 +702,7 @@ export function subscribeBusiness(
   onError?: ErrCb,
 ): Unsub {
   return listenDoc(
-    doc(getFirebaseDb(), 'businesses', businessId),
+    doc(getFirebaseDb(), 'public_businesses', businessId),
     (id, data, exists) =>
       exists && data ? ({ id, ...data } as Business) : null,
     onData,

@@ -259,9 +259,14 @@ function BusinessProfileForm({
     !!business?.providerProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
-  const reputationBadge = profile?.memberBadge
-    ? "member"
-    : businessReputationBadgeForBusiness(business);
+  const businessReputationBadge = business
+    ? businessReputationBadgeForBusiness(business)
+    : "member";
+  const reputationBadge = profile?.recognizedBadge
+    ? "recognized"
+    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
+      ? "identity"
+      : businessReputationBadge;
   const displayName = businessName.trim() || "Your Business";
   const showAllSections = section === null;
   const showPhotos = showAllSections || section === "photos";

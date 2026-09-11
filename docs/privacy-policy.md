@@ -1,6 +1,6 @@
 # GemFort Privacy Policy
 
-> **DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code and cloud audit. Before publishing it, replace the square-bracket placeholders, obtain legal review for every country in which GemFort is offered, correct the public-business data exposure identified in the audit, verify the deletion workflow, and publish this document at a stable HTTPS URL.
+> **DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code and cloud audit. Before publishing it, replace the square-bracket placeholders, obtain legal review for every country in which GemFort is offered, verify the deployed public-business projection and deletion workflow, and publish this document at a stable HTTPS URL.
 
 **Effective date:** [insert publication date]  
 **Last updated:** [insert date]
@@ -46,7 +46,7 @@ Verified active business profiles and marketplace listings are designed to be vi
 
 For manual verification or fraud handling, we may collect your date of birth, business registration information, NGJA number, gem licence number, tax identifier, national identity document image, business-registration image, licence image, tax or address proof, business photos, other documents, submitted explanations, fraud reports, evidence files, review decisions, and administrative audit records.
 
-Verification documents are sensitive information. They are intended for restricted access by the applicant and authorised GemFort administrators, and for the verification, safety, fraud-prevention, and legal-compliance purposes described here. **Audit prerequisite:** the current Firestore public-business rule returns whole verified business documents, so it must be changed to a public projection before this restricted-data statement is relied on in production.
+Verification documents are sensitive information. They are intended for restricted access by the applicant and authorised GemFort administrators, and for the verification, safety, fraud-prevention, and legal-compliance purposes described here. Public directory/profile reads use a server-maintained allowlisted projection and do not include these private identifiers or documents.
 
 ### D. GemTrack workspace and transaction data
 
@@ -54,11 +54,9 @@ GemTrack may contain highly confidential business records, including gem and AP-
 
 These records are intended for your private workspace, except where you deliberately share a record with a counterparty or use a GemFort flow that gives another participant access. Counterparties may see the data needed for a shared AP, service, offer, or transaction record.
 
-### E. Contacts and call-log matching
+### E. Contacts
 
 If you choose to import phone contacts, GemFort can read selected contact names, company names, phone numbers, email addresses, contact photos, and device contact identifiers. Imported contact records and selected contact photos are stored in your GemTrack workspace and can be linked to a GemFort business.
-
-On supported Android devices, if you grant call-log permission, GemFort reads recent call-log fields such as phone number, date, duration, country, and call type to match calls against your private workspace contacts and verified business numbers. The current implementation is designed to use matched call-log data on the device and does not upload the raw call-log history to GemFort. This must be confirmed with device testing before publication.
 
 Only import contacts when you have the authority to do so. The people in your address book may not use GemFort and may not know that you stored their information in your workspace. You are responsible for using imported contact information lawfully, fairly, and only for your business purposes.
 
@@ -101,9 +99,9 @@ We do not identify a dedicated advertising, analytics, or crash-reporting SDK in
 
 Where privacy law requires a legal basis, the basis may include performing a contract or providing a requested service, your consent, our legitimate interests in security and platform operation, compliance with law, and establishment or defence of legal claims. The appropriate basis depends on the data and purpose.
 
-Device permissions are optional unless a feature requires them. You can refuse or later withdraw access to contacts, location, photos/files, notifications, call logs, biometrics, or other device capabilities in system settings, but the related feature may stop working. We will not treat a permission refusal as permission to access the underlying data.
+Device permissions are optional unless a feature requires them. You can refuse or later withdraw access to contacts, location, photos/files, notifications, biometrics, or other device capabilities in system settings, but the related feature may stop working. We will not treat a permission refusal as permission to access the underlying data.
 
-The generated Android manifest currently contains permissions including call logs, contacts, location, external storage, microphone, overlay, and contact-writing permissions. The audit did not find GemFort logic using microphone, overlay, or contact-writing functionality. Those permissions must be verified and removed if unnecessary before store submission and before making a complete permission disclosure.
+The generated Android manifest currently contains permissions including contacts, location, external storage, microphone, overlay, and contact-writing permissions. The audit did not find GemFort logic using microphone, overlay, or contact-writing functionality. Those permissions must be verified and removed if unnecessary before store submission and before making a complete permission disclosure.
 
 ## 6. When we share personal data
 
@@ -155,7 +153,7 @@ If Sri Lanka’s Personal Data Protection Act applies to the processing, you may
 
 GemFort uses Firebase Authentication, Firestore and Storage security rules, App Check, authenticated API requests, HTTPS/TLS, role checks, and restricted administrative access. No online service is completely secure. You are responsible for protecting your device, authentication factors, and any information you choose to publish or share.
 
-The audit identified security and privacy work that must be completed: separate public business data from private verification/business records; add strict schema, type, size, and content-type validation to owner-controlled documents; verify all deletion prefixes; review generated Android permissions; and remove or disable stale cloud scheduler jobs that still target retired functions.
+The source now separates public business data from private verification/business records through a server-maintained allowlisted projection. Before relying on this in production, deploy the projection trigger and rules, run the one-time public-business backfill, add strict schema, type, size, and content-type validation to owner-controlled documents, verify all deletion prefixes, review generated Android permissions, and remove or disable stale cloud scheduler jobs that still target retired functions.
 
 ## 11. Children
 
@@ -174,4 +172,3 @@ We may update this policy when the service, law, or data practices change. We wi
 Privacy requests: **[privacy email]**  
 General support: **[confirmed support email]**  
 Controller: **[exact legal entity and registered address]**
-

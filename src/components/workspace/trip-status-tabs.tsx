@@ -24,7 +24,7 @@ const TABS: {
   { id: "completed", label: "Completed", icon: "check-circle" },
 ];
 
-/** Active ↔ Completed switcher — matches ApSideTabs / ContactsHubTabs. */
+/** Active ↔ Completed switcher — matches the other workspace segments. */
 export function TripStatusTabs({
   tab,
   onChange,
