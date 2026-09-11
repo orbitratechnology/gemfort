@@ -3,6 +3,7 @@ import { FlashList } from "@/components/ui/gesture-lists";
 import { Image } from "expo-image";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
@@ -190,6 +191,7 @@ export default function ChequesScreen() {
   const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [side, setSide] = useState<ApSide>("given");
 
   const {
     data: cheques = [],
@@ -227,9 +229,18 @@ export default function ChequesScreen() {
     () => buildContactPhotoMap(contacts, businesses),
     [contacts, businesses],
   );
-  const summary = getChequeSummary(cheques);
-  const upcoming = getUpcomingCheques(cheques);
-  const bounced = cheques.filter((c) => c.status === "bounced");
+  const sideCheques = useMemo(
+    () =>
+      cheques.filter((cheque) =>
+        side === "given"
+          ? cheque.direction === "given"
+          : cheque.direction === "received",
+      ),
+    [cheques, side],
+  );
+  const summary = getChequeSummary(sideCheques);
+  const upcoming = getUpcomingCheques(sideCheques);
+  const bounced = sideCheques.filter((c) => c.status === "bounced");
 
   async function handleDelete(chequeId: string) {
     if (!user) return;
@@ -267,6 +278,7 @@ export default function ChequesScreen() {
           </Pressable>
         }
       />
+      <ApSideTabs side={side} onChange={setSide} />
 
       <FlashList
         data={upcoming}

@@ -19,7 +19,6 @@ import { BusinessGalleryCarousel } from "@/components/marketplace/business-galle
 import { BusinessSocialLinksRow } from "@/components/marketplace/business-social-links";
 import { FraudReportSheet } from "@/components/marketplace/fraud-report-sheet";
 import { ListingCard } from "@/components/marketplace/listing-card";
-import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { FormSectionLabel } from "@/components/ui/form-section";
@@ -27,6 +26,8 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     BrandPalette,
     Radius,
@@ -42,7 +43,6 @@ import {
     type LapidaryServiceId,
 } from "@/constants/roles";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
-import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     demoBusinesses,
     demoListings,
@@ -804,9 +804,6 @@ export default function BusinessProfileScreen() {
                 <Text style={[styles.servicesKicker, { color: colors.primary }]}>
                   SERVICES
                 </Text>
-                <Text style={[styles.servicesTitle, { color: colors.onSurface }]}>
-                  Workshop services
-                </Text>
               </View>
               <View
                 style={[
@@ -889,41 +886,7 @@ export default function BusinessProfileScreen() {
           </View>
         ) : null}
 
-        {/* Trader profiles retain their public Gems grid. Lapidaries do not have Gems. */}
-        {!isProvider ? (
-          <>
-            <View
-              style={[styles.tabBar, { borderBottomColor: colors.outlineVariant }]}
-            >
-              <View
-                style={[styles.tabActive, { borderBottomColor: colors.onSurface }]}
-              >
-                <Icon name="grid-view" size={22} color={colors.onSurface} />
-              </View>
-            </View>
-
-            {gems.length > 0 ? (
-              <ProductGrid style={styles.gemsGrid}>
-                {gems.map((listing) => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    href={`/listing/${listing.shareableSlug}`}
-                  />
-                ))}
-              </ProductGrid>
-            ) : (
-              <View style={styles.emptyGems}>
-                <Icon name="diamond" size={36} color={colors.outlineVariant} />
-                <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
-                  No public gems yet
-                </Text>
-              </View>
-            )}
-          </>
-        ) : null}
-
-        {/* Suggested profiles is intentionally the final profile section. */}
+        {/* Suggested profiles */}
         {suggested.length > 0 ? (
           <View style={styles.discoverSection}>
             <View style={styles.discoverHeader}>
@@ -960,6 +923,34 @@ export default function BusinessProfileScreen() {
               ))}
             </ScrollView>
           </View>
+        ) : null}
+
+        {/* Trader profiles retain their public Gems grid. Lapidaries do not have Gems. */}
+        {!isProvider ? (
+          <>
+            <View style={styles.gemsHeader}>
+              <Text style={[styles.gemsTitle, { color: colors.onSurface }]}>Gems</Text>
+            </View>
+
+            {gems.length > 0 ? (
+              <ProductGrid style={styles.gemsGrid}>
+                {gems.map((listing) => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    href={`/listing/${listing.shareableSlug}`}
+                  />
+                ))}
+              </ProductGrid>
+            ) : (
+              <View style={styles.emptyGems}>
+                <Icon name="diamond" size={36} color={colors.outlineVariant} />
+                <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
+                  No public gems yet
+                </Text>
+              </View>
+            )}
+          </>
         ) : null}
       </ThemedScrollView>
 
@@ -1440,16 +1431,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  tabBar: {
-    flexDirection: "row",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: Spacing.gutterMd,
+  gemsHeader: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.gutterMd,
   },
-  tabActive: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1.5,
+  gemsTitle: {
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
   },
   gemsGrid: {
     paddingTop: Spacing.stackMd,

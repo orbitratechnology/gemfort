@@ -51,11 +51,27 @@ type Tab = "gems" | "traders" | "lapidaries";
 type BusinessSortBy = "featured" | "rating" | "name";
 const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries"];
 
-const QUICK_TYPES: { id: string; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "blue_sapphire", label: "Sapphires" },
-  { id: "ruby", label: "Rubies" },
-  { id: "emerald", label: "Emeralds" },
+const QUICK_TYPES = [
+  {
+    id: "all",
+    label: "All",
+    image: GEM_TYPES.find((type) => type.value === "diamond")!.image,
+  },
+  {
+    id: "blue_sapphire",
+    label: "Sapphires",
+    image: GEM_TYPES.find((type) => type.value === "blue_sapphire")!.image,
+  },
+  {
+    id: "ruby",
+    label: "Rubies",
+    image: GEM_TYPES.find((type) => type.value === "ruby")!.image,
+  },
+  {
+    id: "emerald",
+    label: "Emeralds",
+    image: GEM_TYPES.find((type) => type.value === "emerald")!.image,
+  },
 ];
 
 const GEM_SORT_OPTIONS: {
@@ -373,6 +389,11 @@ export default function MarketScreen() {
                             },
                       ]}
                     >
+                      <Image
+                        source={t.image}
+                        style={styles.quickTypeImage}
+                        contentFit="cover"
+                      />
                       <Text
                         style={[
                           styles.filterText,
@@ -716,6 +737,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 10,
     elevation: 1,
+  },
+  quickTypeImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderCurve: "continuous",
   },
   filterText: { ...Typography.labelMd },
   cell: {

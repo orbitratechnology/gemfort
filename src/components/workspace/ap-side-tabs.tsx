@@ -6,7 +6,7 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
 
-type ApSide = "given" | "taken";
+export type ApSide = "given" | "taken";
 
 type ApSideTabsProps = {
   side: ApSide;

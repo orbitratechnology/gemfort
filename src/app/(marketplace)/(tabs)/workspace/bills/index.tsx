@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
@@ -46,7 +47,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Bill } from "@/types";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 function billRemainingStored(bill: Bill) {
   const remaining = remainingAmount(bill);
@@ -172,6 +173,7 @@ function BillRow({
               </View>
             </View>
           </View>
+          <Icon name="chevron-right" size={20} color={colors.outline} />
         </View>
       )}
     </ContextActionsLink>
@@ -184,6 +186,7 @@ export default function BillsIndexScreen() {
   const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [side, setSide] = useState<ApSide>("given");
 
   const {
     data: bills = [],
@@ -221,8 +224,17 @@ export default function BillsIndexScreen() {
     [contacts, businesses],
   );
   const summary = getBillSummary(bills);
-  const open = bills.filter(isOpenBill);
-  const closed = bills.filter((b) => !isOpenBill(b));
+  const sideBills = useMemo(
+    () =>
+      bills.filter((bill) =>
+        side === "given"
+          ? bill.direction === "payable"
+          : bill.direction === "receivable",
+      ),
+    [bills, side],
+  );
+  const open = sideBills.filter(isOpenBill);
+  const closed = sideBills.filter((b) => !isOpenBill(b));
 
   async function handleDelete(billId: string) {
     if (!user) return;
@@ -242,6 +254,7 @@ export default function BillsIndexScreen() {
     >
       <WorkspaceScreenBackdrop kind="bills" />
       <StackHeader title="Bills" />
+      <ApSideTabs side={side} onChange={setSide} />
 
       <ScrollView
         contentContainerStyle={styles.content}
