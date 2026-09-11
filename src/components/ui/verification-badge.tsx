@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Palette, Typography } from "@/constants/design-tokens";
 import type {
-  BusinessReputationBadge as BusinessReputationBadgeType,
+    BusinessReputationBadge as BusinessReputationBadgeType,
 } from "@/types";
 
 type BadgeType = "verified" | "basic" | "pending" | "revoked";
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   reputationBadge: {
-    alignSelf: "flex-start",
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,

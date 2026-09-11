@@ -31,14 +31,35 @@ import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
-const STEPS = ['Documents', 'Review'];
-
 function parseIsoDate(value: string | null | undefined): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [y, m, d] = value.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+
+const VERIFICATION_TIERS = [
+  {
+    number: '1',
+    title: 'Member',
+    description: 'Every registered account starts here.',
+  },
+  {
+    number: '2',
+    title: 'Identity Verified',
+    description: 'Submit a NIC photo for identity verification.',
+  },
+  {
+    number: '3',
+    title: 'Business Verified',
+    description: 'Add your TIN and business registration details.',
+  },
+  {
+    number: '4',
+    title: 'Gem Verified',
+    description: 'Add a verified Gem Licence.',
+  },
+] as const;
 
 export default function VerifyApplicationScreen() {
   const { user, profile, refreshProfile } = useAuth();
@@ -55,6 +76,7 @@ export default function VerifyApplicationScreen() {
     () => profile?.dateOfBirth ?? '',
   );
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [tiersExpanded, setTiersExpanded] = useState(false);
   const [applicantErrors, setApplicantErrors] = useState<Record<string, string>>(
     {},
   );
@@ -165,7 +187,7 @@ export default function VerifyApplicationScreen() {
           },
         });
         await refreshProfile();
-        toast.success('Verification submitted. Pending review.');
+        toast.success('Verification application submitted.');
         router.back();
       }, 'Submitting…');
     } catch (e) {
@@ -183,37 +205,124 @@ export default function VerifyApplicationScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         <ScreenInset style={styles.intro}>
+          <View
+            style={[
+              styles.verificationMark,
+              {
+                backgroundColor: colors.primaryMuted,
+                borderColor: colors.primary,
+              },
+            ]}>
+            <Icon name="verified" size={64} color={colors.primary} />
+          </View>
           <Text style={[styles.title, { color: colors.primary }]}>Apply for verification</Text>
-
-          <View style={styles.steps}>
-            {STEPS.map((label, i) => (
-              <View
-                key={label}
-                style={[styles.step, i === 0 && { backgroundColor: colors.primaryMuted }]}>
-                <Text
-                  style={[styles.stepText, { color: i === 0 ? colors.primary : colors.textMuted }]}>
-                  {label}
-                </Text>
-              </View>
-            ))}
+          <View
+            style={[
+              styles.roleCard,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant,
+              },
+            ]}>
+            <View style={[styles.roleIcon, { backgroundColor: colors.primaryMuted }]}>
+              <Icon
+                name={isLapidary ? 'diamond' : 'business'}
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.roleCopy}>
+              <Text style={[styles.roleEyebrow, { color: colors.textMuted }]}>ACCOUNT TYPE</Text>
+              <Text style={[styles.roleValue, { color: colors.onSurface }]}>
+                {ROLE_LABELS[role]}
+              </Text>
+            </View>
+            <View style={[styles.roleCheck, { backgroundColor: colors.primaryMuted }]}>
+              <Icon name="check-circle" size={22} color={colors.primary} />
+            </View>
           </View>
         </ScreenInset>
 
-        <FormSectionLabel title="ACCOUNT TYPE" />
+        <FormSectionLabel title="VERIFICATION TIERS" />
         <FormSection>
-          <View style={styles.roleRow}>
-            <Icon name="verified-user" size={20} color={colors.primary} />
-            <Text style={[styles.roleBannerText, { color: colors.onSurface }]}>
-              {ROLE_LABELS[role]}
-            </Text>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Verification tiers information"
+            accessibilityState={{ expanded: tiersExpanded }}
+            onPress={() => setTiersExpanded((expanded) => !expanded)}
+            style={[
+              styles.tiersInfo,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant,
+              },
+            ]}>
+            <View style={[styles.tiersInfoIcon, { backgroundColor: colors.primaryMuted }]}>
+              <Icon name="info-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.tiersInfoText}>
+              <Text style={[styles.tiersInfoTitle, { color: colors.onSurface }]}>
+                How verification works
+              </Text>
+              <Text style={[styles.tiersInfoSummary, { color: colors.textMuted }]}>
+                Tap to view the requirements for each tier.
+              </Text>
+            </View>
+            <Icon
+              name={tiersExpanded ? 'expand-less' : 'expand-more'}
+              size={22}
+              color={colors.textMuted}
+            />
+          </Pressable>
+
+          {tiersExpanded ? (
+            <View
+              style={[
+                styles.tiersInfoPanel,
+                {
+                  backgroundColor: colors.surfaceContainerLowest,
+                  borderColor: colors.outlineVariant,
+                },
+              ]}>
+              {VERIFICATION_TIERS.map((tier) => (
+                <View key={tier.title} style={styles.tierRow}>
+                  <View style={[styles.tierMarker, { backgroundColor: colors.primaryMuted }]}>
+                    <Text style={[styles.tierMarkerText, { color: colors.primary }]}>
+                      {tier.number}
+                    </Text>
+                  </View>
+                  <View style={styles.tierCopy}>
+                    <Text style={[styles.tierTitle, { color: colors.onSurface }]}>
+                      {tier.title}
+                    </Text>
+                    <Text style={[styles.tierDescription, { color: colors.textMuted }]}>
+                      {tier.description}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              <View
+                style={[
+                  styles.tierNote,
+                  { borderTopColor: colors.outlineVariant },
+                ]}>
+                <Icon name="verified" size={18} color={colors.primary} />
+                <Text style={[styles.tierNoteText, { color: colors.textMuted }]}>
+                  Recognized is a manual GemFort approval for established partners,
+                  sponsors, associations, institutions, labs, or notable industry
+                  organizations.
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </FormSection>
 
         <FormSectionLabel title="APPLICANT DETAILS" />
         <FormSection>
           <View style={styles.fields}>
             <Input
-              label="Business / company name"
+              label="Business / company name (required)"
               value={businessName}
               onChangeText={(v) => {
                 setBusinessName(v);
@@ -227,7 +336,7 @@ export default function VerifyApplicationScreen() {
 
             <View style={styles.dobBlock}>
               <Text style={[styles.dobLabel, { color: colors.textSecondary }]}>
-                Date of birth
+                Date of birth (required)
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -289,7 +398,7 @@ export default function VerifyApplicationScreen() {
 
         {isLapidary ? (
           <>
-            <FormSectionLabel title="SERVICES" />
+            <FormSectionLabel title="SERVICES (REQUIRED)" />
             <FormSection>
               <View style={styles.serviceWrap}>
                 {LAPIDARY_SERVICE_OPTIONS.map((s) => {
@@ -324,15 +433,7 @@ export default function VerifyApplicationScreen() {
           </>
         ) : null}
 
-        <FormSectionLabel title="VERIFICATION TIERS" />
         <FormSection>
-          <Text style={[styles.reputationHint, { color: colors.textMuted }]}>
-            Member is every registered account. NIC verification earns Identity Verified;
-            NIC, TIN, and BR earn Business Verified; adding a verified Gem Licence earns
-            Gem Verified. The Recognized tier is manually approved by GemFort for an
-            established partner, sponsor, association, institution, lab, or notable
-            industry organization.
-          </Text>
           <MediaField
             label="NIC photo (required)"
             value={idPhoto}
@@ -341,32 +442,32 @@ export default function VerifyApplicationScreen() {
             variant="row"
           />
           <Input
-            label="TIN (optional)"
+            label="TIN"
             value={tinNumber}
             onChangeText={setTinNumber}
             leftIcon="receipt"
           />
           <Input
-            label="Business Registration (BR) number (optional)"
+            label="Business Registration (BR) number"
             value={brNumber}
             onChangeText={setBrNumber}
             leftIcon="badge"
           />
           <MediaField
-            label="BR certificate photo (optional)"
+            label="BR certificate photo"
             value={brPhoto}
             onChange={setBrPhoto}
             allows="images"
             variant="row"
           />
           <Input
-            label="Gem Licence number (optional)"
+            label="Gem Licence number"
             value={gemLicenseNumber}
             onChangeText={setGemLicenseNumber}
             leftIcon="workspace-premium"
           />
           <MediaField
-            label="Gem Licence photo (optional)"
+            label="Gem Licence photo"
             value={licensePhoto}
             onChange={setLicensePhoto}
             allows="images"
@@ -375,7 +476,7 @@ export default function VerifyApplicationScreen() {
         </FormSection>
 
         <ScreenInset style={styles.actions}>
-          <Button title="Submit for review" icon="send" onPress={handleSubmit} />
+          <Button title="Submit application" icon="send" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
@@ -391,16 +492,57 @@ const styles = StyleSheet.create({
   intro: {
     gap: Spacing.md,
   },
-  title: { ...Typography.headlineSm, fontWeight: '700' },
-  steps: { flexDirection: 'row', gap: 8 },
-  step: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full },
-  stepText: { ...Typography.labelMd, fontWeight: '600' },
-  roleRow: {
+  verificationMark: {
+    alignSelf: 'center',
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    ...Typography.headlineSm,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    padding: Spacing.md,
+    minHeight: 76,
   },
-  roleBannerText: { ...Typography.labelMd, fontWeight: '600' },
+  roleIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  roleEyebrow: {
+    ...Typography.labelMd,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+  },
+  roleValue: {
+    ...Typography.headlineSm,
+    fontWeight: '700',
+  },
+  roleCheck: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   fields: { gap: Spacing.lg },
   dobBlock: { gap: 6 },
   dobLabel: { ...Typography.labelMd },
@@ -416,7 +558,64 @@ const styles = StyleSheet.create({
   },
   dobValue: { ...Typography.bodyLg, flex: 1 },
   dobError: { ...Typography.labelMd },
-  reputationHint: { ...Typography.bodySm, lineHeight: 20 },
+  tiersInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    padding: Spacing.md,
+    minHeight: 68,
+  },
+  tiersInfoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tiersInfoText: {
+    flex: 1,
+    gap: 2,
+  },
+  tiersInfoTitle: { ...Typography.labelMd, fontWeight: '700' },
+  tiersInfoSummary: { ...Typography.bodySm, lineHeight: 19 },
+  tiersInfoPanel: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  tierRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  tierMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tierMarkerText: { ...Typography.labelMd, fontWeight: '700' },
+  tierCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  tierTitle: { ...Typography.labelMd, fontWeight: '700' },
+  tierDescription: { ...Typography.bodySm, lineHeight: 19 },
+  tierNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  tierNoteText: { ...Typography.bodySm, flex: 1, lineHeight: 19 },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,

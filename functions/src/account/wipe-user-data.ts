@@ -68,6 +68,7 @@ const STORAGE_PREFIXES = [
   'businesses',
   'gemtrack_gems',
   'cheques',
+  'receipts',
   'trips',
   'listings',
 ] as const;
