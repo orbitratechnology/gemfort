@@ -373,8 +373,8 @@ export const GEM_STATUS_GROUPS: readonly GemStatusGroup[] = [
       { value: 'with_cutter', label: 'Cutter', icon: 'content-cut' },
       { value: 'with_heater', label: 'Heater', icon: 'local-fire-department' },
       { value: 'with_polisher', label: 'Polisher', icon: 'auto-awesome' },
-      { value: 'on_ap', label: 'On AP', icon: 'handshake' },
-      { value: 'on_trip', label: 'Trip', icon: 'flight' },
+      { value: 'on_ap', label: 'On AP', icon: 'ap' },
+      { value: 'on_trip', label: 'Trip', icon: 'trip' },
     ],
   },
   {

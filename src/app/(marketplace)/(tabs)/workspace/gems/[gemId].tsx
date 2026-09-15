@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button";
 import { CountryLabel } from "@/components/ui/country-flag";
 import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import {
+  GemCertificateBadge,
+  GemCertificateCard,
+} from "@/components/workspace/gem-certificate";
+import {
     CurrencyAmountField,
     type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
@@ -114,8 +118,8 @@ const STATUS_ICONS: Partial<Record<GemStatus, IconName>> = {
   with_polisher: "auto-awesome",
   polished: "auto-awesome",
   ready_for_sale: "sell",
-  on_ap: "handshake",
-  on_trip: "flight",
+  on_ap: "ap",
+  on_trip: "trip",
   listed: "storefront",
   sold: "check-circle",
   returned: "undo",
@@ -126,10 +130,10 @@ function eventIcon(eventType: string): IconName {
   if (t.includes("cut")) return "content-cut";
   if (t.includes("heat")) return "local-fire-department";
   if (t.includes("polish")) return "auto-awesome";
-  if (t.includes("ap") || t.includes("consign")) return "handshake";
+  if (t.includes("ap") || t.includes("consign")) return "ap";
   if (t.includes("sale") || t.includes("sold")) return "sell";
   if (t.includes("list") || t.includes("market")) return "storefront";
-  if (t.includes("service")) return "build";
+  if (t.includes("service")) return "service";
   if (t.includes("status")) return "swap-horiz";
   if (t.includes("cost") || t.includes("purchase")) return "payments";
   return "history";
@@ -489,6 +493,7 @@ export default function GemDetailScreen() {
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
   const photo = photos[0] ?? null;
+  const certificate = gem.certificate?.url ? gem.certificate : null;
   const gemTitle = gem.title?.trim() || formatGemType(gem.gemType);
   const gemDisplayId = shortGemId(gem.id);
   const gemSummary = `${gemTitle} · ${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
@@ -554,7 +559,7 @@ export default function GemDetailScreen() {
     ...(actionAvailability.send_for_cutting ? [{ title: cuttingServiceType === "recutting" ? "Recut" : "Cut", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}` }] : []),
     ...(actionAvailability.send_for_heating ? [{ title: heatingServiceType === "reheating" ? "Reheat" : "Heat", icon: "local-fire-department" as IconName, image: require("@/assets/images/lapidary-icon.png"), href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}` }] : []),
     ...(actionAvailability.send_for_polishing ? [{ title: polishingServiceType === "repolishing" ? "Repolish" : "Polish", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}` }] : []),
-    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "handshake" as IconName, image: require("@/assets/images/ap-icon.png"), href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
+    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "ap" as IconName, image: require("@/assets/images/ap-icon.png"), href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
     ...(actionAvailability.list_on_market ? [{ title: "Sell on Market", icon: "storefront" as IconName, href: `/listings/create?workspaceGemId=${gem.id}` }] : []),
     ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "remove-shopping-cart" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
   ];
@@ -627,6 +632,7 @@ export default function GemDetailScreen() {
               {gem.variety ? ` · ${gem.variety}` : ""}
               {gemDisplayId ? ` · ${gemDisplayId}` : ""}
             </Text>
+            {certificate ? <GemCertificateBadge /> : null}
           </View>
 
           <View style={styles.priceRow}>
@@ -831,6 +837,18 @@ export default function GemDetailScreen() {
               </View>
             </View>
           </View>
+
+          {certificate ? (
+            <View style={styles.section}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.textMuted }]}
+                accessibilityRole="header"
+              >
+                CERTIFICATE
+              </Text>
+              <GemCertificateCard certificate={certificate} />
+            </View>
+          ) : null}
 
           {gem.notes ? (
             <View style={styles.section}>

@@ -456,9 +456,9 @@ export default function ApSellScreen() {
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   center: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,

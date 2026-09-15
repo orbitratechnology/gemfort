@@ -510,7 +510,7 @@ export default function ServicesListScreen() {
                     </View>
                     <View style={styles.partyRow}>
                       <Icon
-                        name="call-made"
+                        name="service"
                         size={14}
                         color={colors.onSurfaceVariant}
                       />

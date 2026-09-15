@@ -3,6 +3,7 @@ import { logger } from 'firebase-functions/logger';
 import { db, messaging } from '../admin';
 import { resolvePushMedia } from './resolve-media';
 import {
+  directionalNotificationTitle,
   PUSH_MANDATORY_TYPES,
   pushCategoryForType,
   pushChannelForType,
@@ -47,6 +48,7 @@ export async function sendPushForNotification(
     | 'type'
     | 'title'
     | 'message'
+    | 'direction'
     | 'referenceType'
     | 'referenceId'
     | 'priority'
@@ -89,12 +91,14 @@ export async function sendPushForNotification(
   const threadId = notificationThreadIdForType(notification.type);
   const richImage = pickFcmRichImage(media.actorPhotoUrl, media.imageUrl);
   const subtitle = media.actorName || undefined;
+  const nativeTitle = directionalNotificationTitle(notification.title, notification.direction);
 
   // All data values must be strings for FCM.
   const data: Record<string, string> = {
     notificationId: notification.notificationId ?? '',
-    title: notification.title,
+    title: nativeTitle,
     body: notification.message,
+    direction: notification.direction ?? '',
     type: String(notification.type),
     referenceType: notification.referenceType ?? '',
     referenceId: notification.referenceId ?? '',
@@ -126,7 +130,7 @@ export async function sendPushForNotification(
             'thread-id': threadId,
             ...(richImage ? { 'mutable-content': 1 } : {}),
             alert: {
-              title: notification.title,
+              title: nativeTitle,
               ...(subtitle ? { subtitle } : {}),
               body: notification.message,
             },

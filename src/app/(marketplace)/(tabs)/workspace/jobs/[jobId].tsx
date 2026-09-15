@@ -16,6 +16,7 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { formatGemType } from "@/constants/gem-options";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
@@ -64,7 +65,7 @@ function serviceIcon(type: string): IconName {
   if (normalized.includes("heat")) return "local-fire-department";
   if (normalized.includes("polish")) return "auto-fix-high";
   if (normalized.includes("cut")) return "content-cut";
-  return "handyman";
+  return "service";
 }
 
 function statusMeta(status: ServiceRecord["status"]): {
@@ -184,7 +185,7 @@ export default function LapidaryJobDetailScreen() {
           : null)
       );
     },
-    [businesses, service?.ownerUid, service?.traderBusinessId],
+    [businesses, service],
   );
   const senderBusinessId = senderBusiness?.id ?? service?.traderBusinessId ?? null;
   const senderName =
@@ -324,6 +325,7 @@ export default function LapidaryJobDetailScreen() {
         ) : (
           <EmptyState
             icon="construction"
+            image={WORKSPACE_ENTITY_IMAGES.service}
             title="Job unavailable"
             subtitle="This workshop job was removed or is no longer available to your account."
           />
@@ -343,6 +345,7 @@ export default function LapidaryJobDetailScreen() {
         <StackHeader title="Job details" />
         <EmptyState
           icon="construction"
+          image={WORKSPACE_ENTITY_IMAGES.service}
           title="Job unavailable"
           subtitle="This workshop job is no longer available in your account."
         />
@@ -642,7 +645,7 @@ export default function LapidaryJobDetailScreen() {
             </View>
             <Button
               title="Add as receive bill"
-              icon="receipt-long"
+              icon="bill"
               variant="secondary"
               onPress={openReceiveBill}
             />

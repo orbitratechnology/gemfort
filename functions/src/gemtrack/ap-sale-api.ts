@@ -91,6 +91,7 @@ async function ensureSaleNotification(input: {
     type: 'ap_gem_sold',
     title: 'AP gem sold',
     message: `${input.receiverName} sold ${input.gemLabel}. You are owed ${formatCurrency(input.ownerReceives, input.currency)}.`,
+    direction: 'given',
     referenceType: 'ap',
     referenceId: input.apId,
   });

@@ -582,7 +582,7 @@ export default function ContactDetailScreen() {
                   },
                 ]}
               >
-                <Icon name="handyman" size={18} color={colors.primary} />
+                <Icon name="service" size={18} color={colors.primary} />
                 <View style={styles.historyBody}>
                   <Text
                     style={[styles.historyTitle, { color: colors.onSurface }]}

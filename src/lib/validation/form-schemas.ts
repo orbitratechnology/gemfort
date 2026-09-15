@@ -387,6 +387,11 @@ export const registerSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary"]),
+  acceptedLegal: z.literal(true, {
+    errorMap: () => ({
+      message: "Agree to the Terms and Conditions and Privacy Policy",
+    }),
+  }),
 });
 
 export type RegisterForm = z.infer<typeof registerSchema>;

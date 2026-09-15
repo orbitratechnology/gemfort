@@ -3,6 +3,7 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Radius } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type WorkspaceBackdropKind =
@@ -18,13 +19,13 @@ export type WorkspaceBackdropKind =
   | "money";
 
 const KIND_IMAGE: Partial<Record<WorkspaceBackdropKind, ImageSource>> = {
-  cheques: require("@/assets/images/cheque-icon.png"),
-  bills: require("@/assets/images/bill-icon.png"),
+  cheques: WORKSPACE_ENTITY_IMAGES.cheque,
+  bills: WORKSPACE_ENTITY_IMAGES.bill,
   gems: require("@/assets/images/mygems-icon.png"),
-  trips: require("@/assets/images/trips-icon.png"),
-  services: require("@/assets/images/lapidary-icon.png"),
-  jobs: require("@/assets/images/lapidary-icon.png"),
-  ap: require("@/assets/images/ap-icon.png"),
+  trips: WORKSPACE_ENTITY_IMAGES.trip,
+  services: WORKSPACE_ENTITY_IMAGES.service,
+  jobs: WORKSPACE_ENTITY_IMAGES.service,
+  ap: WORKSPACE_ENTITY_IMAGES.ap,
 };
 
 const KIND_FALLBACK: Record<
@@ -32,18 +33,18 @@ const KIND_FALLBACK: Record<
   { icon: IconName; satellites: IconName[] }
 > = {
   cheques: {
-    icon: "money-check-dollar",
-    satellites: ["money-check-dollar", "money-check-dollar"],
+    icon: "cheque",
+    satellites: ["cheque", "cheque"],
   },
   bills: {
-    icon: "receipt-long",
-    satellites: ["payments", "receipt-long"],
+    icon: "bill",
+    satellites: ["payments", "bill"],
   },
   gems: { icon: "diamond", satellites: ["diamond", "auto-awesome"] },
-  trips: { icon: "flight", satellites: ["public", "luggage"] },
-  services: { icon: "handyman", satellites: ["build", "schedule"] },
+  trips: { icon: "trip", satellites: ["public", "luggage"] },
+  services: { icon: "service", satellites: ["service", "schedule"] },
   jobs: { icon: "construction", satellites: ["build", "handyman"] },
-  ap: { icon: "handshake", satellites: ["hourglass-empty", "handshake"] },
+  ap: { icon: "ap", satellites: ["hourglass-empty", "ap"] },
   contacts: { icon: "contacts", satellites: ["group", "person"] },
   requests: { icon: "outgoing-mail", satellites: ["inbox", "send"] },
   money: {

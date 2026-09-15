@@ -19,6 +19,10 @@ import {
     Typography,
     type ThemeColors,
 } from "@/constants/design-tokens";
+import {
+  PRIVACY_URL,
+  TERMS_URL,
+} from "@/constants/legal";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -30,8 +34,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { useBiometricLock } from "@/providers/biometric-lock-provider";
 import { useToast } from "@/providers/toast-provider";
 
-const TERMS_URL = "https://orbitratech.net";
-const PRIVACY_URL = "https://oebitratech.net/privacy-policy";
 const SUPPORT_EMAIL = "mailto:orbitra.technology@gmail.com";
 
 function Divider({ colors }: { colors: ThemeColors }) {

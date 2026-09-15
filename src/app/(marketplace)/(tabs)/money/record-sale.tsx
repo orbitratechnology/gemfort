@@ -1,8 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ChipSelect } from "@/components/ui/chip-select";
 import {
@@ -37,7 +36,7 @@ type PaymentMethod = "transfer" | "cash" | "cheque";
 const METHODS: { value: PaymentMethod; label: string; icon: IconName }[] = [
   { value: "transfer", label: "Transfer", icon: "account-balance" },
   { value: "cash", label: "Cash", icon: "payments" },
-  { value: "cheque", label: "Cheque", icon: "money-check-dollar" },
+  { value: "cheque", label: "Cheque", icon: "cheque" },
 ];
 
 export default function RecordSaleScreen() {
@@ -48,6 +47,7 @@ export default function RecordSaleScreen() {
   const { formatBase, formatFace, rates } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const { height: windowHeight } = useWindowDimensions();
 
   const [selectedGemId, setSelectedGemId] = useState<string | null>(
     gemIdParam ?? null,
@@ -164,15 +164,14 @@ export default function RecordSaleScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Request gem sale" />
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader title="Request gem sale" closeIcon />
 
       <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <ScreenInset style={styles.stack}>
           <GemSelectField
@@ -305,12 +304,13 @@ export default function RecordSaleScreen() {
         icon="send"
         onPress={handleConfirm}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: {
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.xxl,

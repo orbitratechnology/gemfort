@@ -1,3 +1,4 @@
+import { Image, type ImageSource } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -9,6 +10,7 @@ export type ChoiceTileOption<T extends string = string> = {
   value: T;
   label: string;
   icon?: IconName;
+  image?: ImageSource;
   /** Column span in `grid` layout. Default 1. */
   span?: 1 | 2;
 };
@@ -67,7 +69,7 @@ export function ChoiceTileGrid<T extends string>({
                 pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
               ]}
             >
-              {opt.icon ? (
+              {opt.icon || opt.image ? (
                 <View
                   style={[
                     styles.iconWrap,
@@ -78,13 +80,22 @@ export function ChoiceTileGrid<T extends string>({
                     },
                   ]}
                 >
-                  <Icon
-                    name={opt.icon}
-                    size={28}
-                    color={
-                      active ? colors.onPrimary : colors.onSurfaceVariant
-                    }
-                  />
+                  {opt.image ? (
+                    <Image
+                      source={opt.image}
+                      style={styles.optionImage}
+                      contentFit="contain"
+                      accessibilityIgnoresInvertColors
+                    />
+                  ) : (
+                    <Icon
+                      name={opt.icon!}
+                      size={28}
+                      color={
+                        active ? colors.onPrimary : colors.onSurfaceVariant
+                      }
+                    />
+                  )}
                 </View>
               ) : null}
               <Text
@@ -116,24 +127,35 @@ export function ChoiceTileGrid<T extends string>({
 export function ChoicePreviewCard({
   label,
   icon,
+  image,
   onPress,
 }: {
   label: string;
   icon?: IconName;
+  image?: ImageSource;
   /** Optional — e.g. tap to change selection. */
   onPress?: () => void;
 }) {
   const { colors } = useAppTheme();
   const body = (
     <>
-      {icon ? (
+      {icon || image ? (
         <View
           style={[
             styles.previewIcon,
             { backgroundColor: colors.primaryContainer },
           ]}
         >
-          <Icon name={icon} size={26} color={colors.onPrimaryContainer} />
+          {image ? (
+            <Image
+              source={image}
+              style={styles.previewImage}
+              contentFit="contain"
+              accessibilityIgnoresInvertColors
+            />
+          ) : (
+            <Icon name={icon!} size={26} color={colors.onPrimaryContainer} />
+          )}
         </View>
       ) : null}
       <Text
@@ -228,6 +250,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  optionImage: { width: 36, height: 36 },
   tileLabel: {
     ...Typography.labelMd,
     fontWeight: "700",
@@ -256,6 +279,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  previewImage: { width: 40, height: 40 },
   previewLabel: {
     ...Typography.labelMd,
     fontWeight: "700",

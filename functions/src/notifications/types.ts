@@ -55,6 +55,33 @@ export type NotificationType = GemTrackNotificationType | GemNetNotificationType
 
 export type NotificationPriority = 'high' | 'medium' | 'low';
 
+export type NotificationDirection = 'given' | 'taken' | 'to_pay' | 'to_receive';
+
+export function notificationDirectionLabel(
+  direction: NotificationDirection | null | undefined,
+): string | null {
+  switch (direction) {
+    case 'given':
+      return 'Given';
+    case 'taken':
+      return 'Taken';
+    case 'to_pay':
+      return 'To pay';
+    case 'to_receive':
+      return 'To receive';
+    default:
+      return null;
+  }
+}
+
+export function directionalNotificationTitle(
+  title: string,
+  direction: NotificationDirection | null | undefined,
+): string {
+  const label = notificationDirectionLabel(direction);
+  return label ? `${title} · ${label}` : title;
+}
+
 /** Stable category for collapsed mobile inboxes and native notification threads. */
 export function notificationGroupKeyForType(type: string): string {
   if (type.startsWith('cheque_') || type.startsWith('bill_') || type.startsWith('payment_')) {
@@ -80,6 +107,7 @@ export type NotificationInput = {
   type: NotificationType;
   title: string;
   message: string;
+  direction?: NotificationDirection | null;
   referenceType?: string | null;
   referenceId?: string | null;
   priority?: NotificationPriority;

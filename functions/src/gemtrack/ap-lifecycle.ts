@@ -216,6 +216,7 @@ export const createApRequest = onCall(
       type: 'ap_request_received',
       title: 'New AP request',
       message: `${senderName} offered ${lines.length} gem${lines.length === 1 ? '' : 's'} on AP.`,
+      direction: 'taken',
       referenceType: 'ap',
       referenceId: apRef.id,
       actorName: senderName,
@@ -277,6 +278,7 @@ export const respondApRequest = onCall(
         type: 'ap_request_rejected',
         title: 'AP request declined',
         message: `${ap.receiverName} declined your AP request.`,
+        direction: 'given',
         referenceType: 'ap',
         referenceId: apId,
         actorName: ap.receiverName,
@@ -295,6 +297,7 @@ export const respondApRequest = onCall(
       type: 'ap_request_accepted',
       title: 'AP request accepted',
       message: `${ap.receiverName} accepted your AP (${(ap.items ?? []).length} gems).`,
+      direction: 'given',
       referenceType: 'ap',
       referenceId: apId,
       actorName: ap.receiverName,
@@ -343,6 +346,7 @@ export const cancelApRequest = onCall(
       type: 'ap_request_cancelled',
       title: 'AP request cancelled',
       message: `${ap.senderName} cancelled an AP request.`,
+      direction: 'taken',
       referenceType: 'ap',
       referenceId: apId,
     });
@@ -467,6 +471,7 @@ export const recordApGemSale = onCall(
       title: 'AP gem sold',
       // Never reveal holder's full sale or commission to the sender.
       message: `${ap.receiverName} sold ${line.gemLabel}. You are owed ${formatCurrency(ownerReceives, line.currency)}.`,
+      direction: 'given',
       referenceType: 'ap',
       referenceId: data.apId,
     });
@@ -592,6 +597,7 @@ export const apPaymentSent = onCall(
       type: 'ap_payment_sent',
       title: 'AP payment sent',
       message: `${ap.receiverName} sent ${formatCurrency(amount)} via ${data.method}. Confirm when received.`,
+      direction: 'given',
       referenceType: 'ap',
       referenceId: data.apId,
     });
@@ -699,6 +705,7 @@ export const apPaymentReceived = onCall(
       type: 'ap_payment_received',
       title: 'AP payment confirmed',
       message: `${ap.senderName} confirmed receipt of ${formatCurrency(amount, currency)}. AP complete (sold ${formatCurrency(soldTotal, currency)}).`,
+      direction: 'taken',
       referenceType: 'ap',
       referenceId: apId,
     });
@@ -747,6 +754,7 @@ export const requestApCancellation = onCall(
       type: 'ap_cancellation_requested',
       title: 'AP cancellation requested',
       message: `${ap.senderName} asked to cancel an AP. Accept to unlock the stones.`,
+      direction: 'taken',
       referenceType: 'ap',
       referenceId: apId,
       actorName: ap.senderName,
@@ -792,6 +800,7 @@ export const respondApCancellation = onCall(
         type: 'ap_cancellation_rejected',
         title: 'AP cancellation declined',
         message: `${ap.receiverName} kept the AP active.`,
+        direction: 'given',
         referenceType: 'ap',
         referenceId: apId,
       });
@@ -819,6 +828,7 @@ export const respondApCancellation = onCall(
       type: 'ap_cancellation_accepted',
       title: 'AP cancelled',
       message: `${ap.receiverName} accepted your cancellation request.`,
+      direction: 'given',
       referenceType: 'ap',
       referenceId: apId,
     });

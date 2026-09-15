@@ -126,9 +126,16 @@ function quickActionsForRole(
       {
         id: "bill",
         label: "Bill",
-        icon: "receipt-long",
+        icon: "bill",
         image: require("@/assets/images/bill-icon.png"),
         href: "/(marketplace)/bills/add",
+      },
+      {
+        id: "cheque",
+        label: "Cheque",
+        icon: "cheque",
+        image: require("@/assets/images/cheque-icon.png"),
+        href: "/(marketplace)/cheques/add",
       },
     ];
   }
@@ -146,14 +153,14 @@ function quickActionsForRole(
     {
       id: "ap",
       label: "Give AP",
-      icon: "handshake",
+      icon: "ap",
       image: require("@/assets/images/ap-icon.png"),
       href: "/(marketplace)/ap/add",
     },
     {
       id: "service",
       label: "Service",
-      icon: "handyman",
+      icon: "service",
       image: require("@/assets/images/lapidary-icon.png"),
       href: "/(marketplace)/services/add",
     },

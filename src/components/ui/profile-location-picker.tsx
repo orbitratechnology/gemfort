@@ -100,17 +100,20 @@ export function ProfileLocationPicker({
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapRevision, setMapRevision] = useState(0);
+  const [wasVisible, setWasVisible] = useState(visible);
 
-  useEffect(() => {
-    if (!visible) return;
-    setDraft(value);
-    setRegion(regionFor(value));
-    setError(null);
-    setLocating(false);
-    setResolving(false);
-    setMapLoading(false);
-    setMapError(null);
-  }, [visible, value]);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setDraft(value);
+      setRegion(regionFor(value));
+      setError(null);
+      setLocating(false);
+      setResolving(false);
+      setMapLoading(false);
+      setMapError(null);
+    }
+  }
 
   useEffect(() => {
     if (!visible) return;
@@ -118,9 +121,9 @@ export function ProfileLocationPicker({
       center: [region.longitude, region.latitude],
       zoom: zoomForRegion(region),
     });
-  }, [visible, region.latitude, region.longitude, region.longitudeDelta]);
+  }, [visible, region]);
 
-  async function useCurrentLocation() {
+  async function handleUseCurrentLocation() {
     setLocating(true);
     setError(null);
     try {
@@ -187,7 +190,7 @@ export function ProfileLocationPicker({
             accessibilityRole="button"
             accessibilityLabel="Use current location"
             disabled={locating}
-            onPress={() => void useCurrentLocation()}
+            onPress={() => void handleUseCurrentLocation()}
             style={({ pressed }) => [
               styles.locateButton,
               { borderColor: colors.outlineVariant, opacity: pressed || locating ? 0.65 : 1 },

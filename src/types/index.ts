@@ -54,6 +54,12 @@ export type UserProfile = {
   recognizedBadge?: boolean;
   recognizedBadgeAssignedAt?: Timestamp | null;
   recognizedBadgeAssignedByAdminUid?: string | null;
+  /** Policy versions accepted during account creation. */
+  legalConsent?: {
+    termsVersion: string;
+    privacyVersion: string;
+    acceptedAt: Timestamp;
+  };
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
@@ -211,6 +217,14 @@ export type GemPaymentMethod =
   | "bill"
   | "other";
 
+/** A single certificate image or document attached to a gemstone. */
+export type GemCertificate = {
+  url: string;
+  kind: "image" | "file";
+  fileName: string | null;
+  mimeType: string | null;
+};
+
 /** Legacy flat status union — prefer stoneStage / custody / outcome. */
 export type GemStatus =
   | GemStoneStage
@@ -290,6 +304,7 @@ export type WorkspaceGem = {
   lastSoldPriceCurrency?: string | null;
   lastSalePaymentMethod?: GemPaymentMethod | null;
   photoUrls: string[];
+  certificate?: GemCertificate | null;
   isListedOnMarketplace: boolean;
   marketplaceListingId: string | null;
   notes: string | null;
@@ -793,6 +808,7 @@ export type MarketplaceListing = {
   /** LKR equivalent of priceMax. */
   priceMaxBase?: number | null;
   photoUrls: string[];
+  certificate?: GemCertificate | null;
   status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;
   shareableUrl: string;
@@ -837,6 +853,7 @@ export type AppNotification = {
   type: string;
   title: string;
   message: string;
+  direction?: "given" | "taken" | "to_pay" | "to_receive" | null;
   referenceType: string | null;
   referenceId: string | null;
   /** Display name of the person/business that triggered the event. */

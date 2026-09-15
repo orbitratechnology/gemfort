@@ -1,5 +1,4 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Image } from "expo-image";
 import { router } from "expo-router";
 import {
     Pressable,

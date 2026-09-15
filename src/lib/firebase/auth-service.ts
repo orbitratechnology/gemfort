@@ -1,4 +1,5 @@
 import { isRegisterableRole } from "@/constants/roles";
+import type { LegalAcceptance } from "@/constants/legal";
 import { callApi } from "@/lib/api/api-client";
 import {
     createUserWithEmailAndPassword,
@@ -31,9 +32,13 @@ export async function registerUser(input: {
   password: string;
   displayName: string;
   role: UserRole;
+  legalAcceptance: LegalAcceptance;
 }) {
   if (!isRegisterableRole(input.role)) {
     throw new Error("Select Trader or Lapidary to continue.");
+  }
+  if (!input.legalAcceptance?.termsVersion || !input.legalAcceptance?.privacyVersion) {
+    throw new Error("Accept the Terms and Conditions and Privacy Policy to continue.");
   }
 
   const auth = getFirebaseAuth();
@@ -50,11 +55,14 @@ export async function registerUser(input: {
   // which races updateProfile and causes auth/no-current-user.
   const profile: Omit<
     UserProfile,
-    "createdAt" | "lastActiveAt" | "updatedAt"
+    "createdAt" | "lastActiveAt" | "updatedAt" | "legalConsent"
   > & {
     createdAt: ReturnType<typeof serverTimestamp>;
     lastActiveAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
+    legalConsent: LegalAcceptance & {
+      acceptedAt: ReturnType<typeof serverTimestamp>;
+    };
   } = {
     uid,
     email: input.email.trim().toLowerCase(),
@@ -72,6 +80,10 @@ export async function registerUser(input: {
     companyId: null,
     fcmToken: null,
     phoneVerified: false,
+    legalConsent: {
+      ...input.legalAcceptance,
+      acceptedAt: serverTimestamp(),
+    },
     createdAt: serverTimestamp(),
     lastActiveAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

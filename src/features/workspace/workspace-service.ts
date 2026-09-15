@@ -55,6 +55,7 @@ import type {
     ChequeDirection,
     ChequeStatus,
     Contact,
+    GemCertificate,
     GemCost,
     GemEvent,
     GemStatus,
@@ -200,6 +201,7 @@ export async function createGem(
     lastSoldPriceCurrency: null,
     lastSalePaymentMethod: null,
     photoUrls: input.photoUrls ?? [],
+    certificate: input.certificate ?? null,
     isListedOnMarketplace: false,
     marketplaceListingId: null,
     notes: input.notes ?? null,
@@ -253,12 +255,24 @@ export type UpdateGemDetailsInput = {
   isNatural: boolean;
   treatmentStatus: string;
   photoUrls: string[];
+  certificate: GemCertificate | null;
 };
 
 /** Persist photo URLs after a late/background upload finishes. */
 export function queueGemPhotoUrls(gemId: string, photoUrls: string[]): void {
   queueDocUpdate("gemtrack_gems", gemId, {
     photoUrls,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Persist a certificate after a deferred Storage upload completes. */
+export function queueGemCertificate(
+  gemId: string,
+  certificate: GemCertificate | null,
+): void {
+  queueDocUpdate("gemtrack_gems", gemId, {
+    certificate,
     updatedAt: serverTimestamp(),
   });
 }
@@ -311,6 +325,7 @@ export async function updateGemDetails(
     isNatural: treatment.isNatural,
     treatmentStatus: treatment.treatmentStatus,
     photoUrls: input.photoUrls,
+    certificate: input.certificate,
     updatedAt: serverTimestamp(),
   });
 
@@ -320,6 +335,7 @@ export async function updateGemDetails(
   ) {
     queueDocUpdate("gems", gem.marketplaceListingId, {
       photoUrls: input.photoUrls,
+      certificate: input.certificate,
       updatedAt: serverTimestamp(),
     });
   }
@@ -2344,6 +2360,8 @@ export async function createListing(
   let photoUrls = Array.isArray(input.photoUrls)
     ? (input.photoUrls as string[])
     : [];
+  let certificate =
+    (input.certificate as GemCertificate | null | undefined) ?? null;
   const workspaceGemId =
     typeof input.workspaceGemId === "string" ? input.workspaceGemId : null;
 
@@ -2376,6 +2394,7 @@ export async function createListing(
           (u): u is string => typeof u === "string" && u.length > 0,
         );
       }
+      certificate = gemData.certificate ?? certificate;
     }
   }
 
@@ -2425,6 +2444,7 @@ export async function createListing(
     title: listingTitle || input.title,
     workspaceGemId,
     photoUrls,
+    certificate,
     currency,
     priceMin,
     priceMax,

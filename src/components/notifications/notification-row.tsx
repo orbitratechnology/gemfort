@@ -242,7 +242,7 @@ function NotificationRowInner({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${n.title}. ${n.message}`}
+        accessibilityLabel={`${n.title}${visual.directionLabel ? `, ${visual.directionLabel}` : ""}. ${n.message}`}
         accessibilityState={{ selected: unread }}
         style={({ pressed }) => ({
           flexDirection: "row",
@@ -352,6 +352,26 @@ function NotificationRowInner({
                 {presentation.categoryLabel}
               </Text>
             </View>
+            {visual.directionLabel ? (
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: Radius.full,
+                  backgroundColor: colors.surfaceContainerHighest,
+                }}
+              >
+                <Text
+                  style={{
+                    ...Typography.caption,
+                    fontWeight: "700",
+                    color: colors.onSurfaceVariant,
+                  }}
+                >
+                  {visual.directionLabel}
+                </Text>
+              </View>
+            ) : null}
             <Text
               style={{
                 ...Typography.caption,

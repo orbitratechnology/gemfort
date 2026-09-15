@@ -403,7 +403,7 @@ export default function AddChequeScreen() {
                   clearField("chequeNumber");
                 }}
                 placeholder="e.g. 001234"
-                leftIcon="money-check-dollar"
+                leftIcon="cheque"
                 error={errors.chequeNumber}
               />
               <BankSelectField

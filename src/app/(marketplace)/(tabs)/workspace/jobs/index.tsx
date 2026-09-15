@@ -25,6 +25,7 @@ import {
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
@@ -513,6 +514,7 @@ export default function LapidaryJobsScreen() {
           isLoading || pending.length > 0 ? null : (
             <EmptyState
               icon="construction"
+              image={WORKSPACE_ENTITY_IMAGES.service}
               title="No jobs"
               subtitle={
                 debouncedSearch.trim() || filter !== "all"

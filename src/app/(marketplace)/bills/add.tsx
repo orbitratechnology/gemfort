@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Pressable,
     StyleSheet,
@@ -91,6 +91,12 @@ function firstParam(v: string | string[] | undefined): string {
   return v ?? "";
 }
 
+function dueDaysFromParam(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "7";
+  return String(Math.max(0, Math.ceil((timestamp - Date.now()) / 86_400_000)));
+}
+
 export default function AddBillScreen() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -119,12 +125,6 @@ export default function AddBillScreen() {
   const paramCurrency = resolveCurrencyCode(firstParam(raw.currency), preferred);
   const paramCounterpartyBusinessId = firstParam(raw.counterpartyBusinessId);
 
-  const initialDueDays = useMemo(() => {
-    const timestamp = Date.parse(paramDueDate);
-    if (!Number.isFinite(timestamp)) return "7";
-    return String(Math.max(0, Math.ceil((timestamp - Date.now()) / 86_400_000)));
-  }, [paramDueDate]);
-
   const presetDirection: BillDirection | null = isLapidary
     ? "receivable"
     : paramDirection === "payable" || paramDirection === "receivable"
@@ -140,7 +140,7 @@ export default function AddBillScreen() {
     currency: paramCurrency,
   });
   const [contactId, setContactId] = useState("");
-  const [dueDays, setDueDays] = useState(initialDueDays);
+  const [dueDays, setDueDays] = useState(() => dueDaysFromParam(paramDueDate));
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
@@ -168,13 +168,12 @@ export default function AddBillScreen() {
     enabled: !!user,
   });
 
-  useEffect(() => {
-    if (contactId || !paramCounterpartyBusinessId) return;
-    const linkedContact = contacts.find(
-      (contact) => contact.linkedBusinessId === paramCounterpartyBusinessId,
-    );
-    if (linkedContact) setContactId(linkedContact.id);
-  }, [contactId, contacts, paramCounterpartyBusinessId]);
+  const linkedContactId = paramCounterpartyBusinessId
+    ? contacts.find(
+        (contact) => contact.linkedBusinessId === paramCounterpartyBusinessId,
+      )?.id ?? ""
+    : "";
+  const selectedContactId = contactId || linkedContactId;
 
   const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
@@ -271,7 +270,7 @@ export default function AddBillScreen() {
       direction,
       amount: money.amount,
       dueDays,
-      contactId,
+      contactId: selectedContactId,
       commissionPercent: isLapidary ? "" : commissionPercent,
       notes: notes || undefined,
     });
@@ -315,7 +314,7 @@ export default function AddBillScreen() {
   }
 
   const contactName =
-    contacts.find((c) => c.id === contactId)?.displayName ?? "them";
+    contacts.find((c) => c.id === selectedContactId)?.displayName ?? "them";
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -386,11 +385,7 @@ export default function AddBillScreen() {
                     <View style={styles.gemHeader}>
                       <GemThumb
                         uri={gemPrimaryPhotoUrl(gem)}
-                        label={
-                          gem.variety?.trim() ||
-                          formatGemType(gem.gemType) ||
-                          "Gem"
-                        }
+                        label={gem.title?.trim() || gem.variety?.trim() || "Gem"}
                         size={52}
                         radius={12}
                       />
@@ -399,15 +394,13 @@ export default function AddBillScreen() {
                           style={[styles.gemTitle, { color: colors.onSurface }]}
                           numberOfLines={1}
                         >
-                          {gem.variety?.trim() ||
-                            formatGemType(gem.gemType) ||
-                            gem.sku}
+                          {gem.title?.trim() || gem.variety?.trim() || "Gem"}
                         </Text>
                         <Text
                           style={[styles.gemSub, { color: colors.textMuted }]}
                           numberOfLines={1}
                         >
-                          {gem.sku} · {gem.currentWeight} ct
+                          {formatGemType(gem.gemType)} · {gem.currentWeight} ct
                         </Text>
                       </View>
                       <Pressable
@@ -528,7 +521,7 @@ export default function AddBillScreen() {
 
               <ContactPicker
                 label={direction === "payable" ? "To" : "From"}
-                value={contactId}
+                value={selectedContactId}
                 onChange={(id) => {
                   setContactId(id);
                   clearField("contactId");

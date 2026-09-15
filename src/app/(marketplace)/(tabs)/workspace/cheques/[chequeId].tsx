@@ -82,7 +82,7 @@ function chequeStatusMeta(
     case "cancelled":
       return { label: "Cancelled", icon: "cancel", tone: "neutral" };
     default:
-      return { label: CHEQUE_STATUS_LABELS[status], icon: "money-check-dollar", tone: "neutral" };
+      return { label: CHEQUE_STATUS_LABELS[status], icon: "cheque", tone: "neutral" };
   }
 }
 
@@ -363,10 +363,17 @@ export default function ChequeDetailScreen() {
       tone: "danger",
     },
   ];
-  const statusActions = allStatusActions.filter((a) =>
-    cheque.status === "holding"
-      ? ["deposited", "cleared", "bounced", "cancelled"].includes(a.status)
-      : ["cleared", "bounced", "cancelled"].includes(a.status),
+  const directionalStatus = isReceived
+    ? isPending
+      ? "cleared"
+      : null
+    : cheque.status === "holding"
+      ? "deposited"
+      : null;
+  const statusActions = allStatusActions.filter(
+    (a) =>
+      a.status === directionalStatus ||
+      (isPending && (a.status === "bounced" || a.status === "cancelled")),
   );
 
   return (
@@ -404,85 +411,88 @@ export default function ChequeDetailScreen() {
           </Animated.View>
         </ScreenInset>
 
-        {/* Party ↔ bank visual */}
+        {/* Bank ↔ Party (left-to-right relation) */}
         <ScreenInset>
           <Animated.View
             entering={FadeInDown.delay(60).duration(320)}
             style={styles.relation}
           >
-            <Pressable
-              style={({ pressed }) => [
-                styles.partyBlock,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                if (cheque.counterpartyContactId) {
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/contacts/${cheque.counterpartyContactId}` as never,
-                  );
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open contact ${contactName}`}
-            >
-              <ContactAvatar
-                name={contactName}
-                photoUrl={contactPhoto}
-                size={88}
-              />
-              <Text
-                style={[styles.partyName, { color: colors.onSurface }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
+            <View style={styles.partySide}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.partyBlock,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  if (cheque.counterpartyContactId) {
+                    router.push(
+                      `/(marketplace)/(tabs)/workspace/contacts/${cheque.counterpartyContactId}` as never,
+                    );
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open contact ${contactName}`}
               >
-                {contactName}
-              </Text>
-              <Text style={[styles.partyRole, { color: colors.textMuted }]}>
-                {isReceived ? "Cheque from them" : "Cheque you gave"}
-              </Text>
-            </Pressable>
+                <ContactAvatar
+                  name={contactName}
+                  photoUrl={contactPhoto}
+                  size={88}
+                />
+                <Text
+                  style={[styles.partyName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {contactName}
+                </Text>
+                <Text style={[styles.partyRole, { color: colors.textMuted }]}>
+                  {isReceived ? "Cheque from them" : "Cheque you gave"}
+                </Text>
+              </Pressable>
 
-            {phone || whatsapp ? (
-              <View style={styles.partyActions}>
-                {phone ? (
-                  <Pressable
-                    onPress={() => void Linking.openURL(openPhone(phone))}
-                    style={[
-                      styles.roundBtn,
-                      { backgroundColor: colors.primary },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Call contact"
-                  >
-                    <Icon name="call" size={18} color={colors.onPrimary} />
-                  </Pressable>
-                ) : null}
-                {whatsapp ? (
-                  <Pressable
-                    onPress={() =>
-                      void Linking.openURL(openWhatsApp(whatsapp))
-                    }
-                    style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
-                    accessibilityRole="button"
-                    accessibilityLabel="WhatsApp contact"
-                  >
-                    <Icon name="whatsapp" size={18} color="#FFFFFF" />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
+              {phone || whatsapp ? (
+                <View style={styles.partyActions}>
+                  {phone ? (
+                    <Pressable
+                      onPress={() => void Linking.openURL(openPhone(phone))}
+                      style={[
+                        styles.roundBtn,
+                        { backgroundColor: colors.primary },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Call contact"
+                    >
+                      <Icon name="call" size={18} color={colors.onPrimary} />
+                    </Pressable>
+                  ) : null}
+                  {whatsapp ? (
+                    <Pressable
+                      onPress={() =>
+                        void Linking.openURL(openWhatsApp(whatsapp))
+                      }
+                      style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
+                      accessibilityRole="button"
+                      accessibilityLabel="WhatsApp contact"
+                    >
+                      <Icon name="whatsapp" size={18} color="#FFFFFF" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
 
-            <View style={styles.relationMid} pointerEvents="none">
+            <View
+              style={[
+                styles.relationMid,
+                isReceived && styles.relationMidReverse,
+              ]}
+              pointerEvents="none"
+            >
               <View
                 style={[
                   styles.relationLine,
                   { backgroundColor: colors.outlineVariant },
                 ]}
-              />
-              <Icon
-                name={isReceived ? "keyboard-arrow-down" : "keyboard-arrow-up"}
-                size={22}
-                color={colors.outline}
               />
               <View
                 style={[
@@ -515,6 +525,11 @@ export default function ChequeDetailScreen() {
                   {directionLabel}
                 </Text>
               </View>
+              <Icon
+                name={isReceived ? "keyboard-arrow-left" : "keyboard-arrow-right"}
+                size={22}
+                color={colors.outline}
+              />
             </View>
 
             <View style={styles.bankBlock}>
@@ -1017,13 +1032,20 @@ const styles = StyleSheet.create({
 
   relation: {
     width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+  },
+  partySide: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 10,
   },
   partyBlock: {
+    width: "100%",
     alignItems: "center",
     gap: 8,
-    maxWidth: "80%",
   },
   partyName: {
     ...Typography.headlineSm,
@@ -1048,18 +1070,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   relationMid: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    minHeight: 72,
+    height: 48,
     width: 140,
   },
+  relationMidReverse: { flexDirection: "row-reverse" },
   relationLine: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    top: 23,
+    height: 2,
   },
   directionBadge: {
     flexDirection: "row",
@@ -1076,9 +1100,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   bankBlock: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 8,
-    maxWidth: "80%",
   },
   bankPlaceholder: {
     width: 64,

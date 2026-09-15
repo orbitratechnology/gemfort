@@ -7,6 +7,7 @@ import {
   recordPayablePayment,
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
+import { getDoc } from '@/lib/firebase/db';
 
 const mockQueueDocCreate = jest.fn();
 const mockQueueDocUpdate = jest.fn();
@@ -93,13 +94,11 @@ jest.mock('@/lib/utils', () => ({
   generateSkuFromDocId: jest.fn(() => 'SKU-1'),
 }));
 
-import { getDoc } from '@/lib/firebase/db';
-
 function mockSnap(data: Record<string, unknown>) {
   return { exists: () => true, data: () => data };
 }
 
-function txns(): Array<{ collection: string; data: Record<string, unknown> }> {
+function txns(): { collection: string; data: Record<string, unknown> }[] {
   const transactionWrites = mockTransactionSet.mock.calls.map(([ref, data]) => ({
     collection: ref.collection,
     data,

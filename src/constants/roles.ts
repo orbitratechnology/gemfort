@@ -46,8 +46,8 @@ export type WorkspaceModule =
 
 const MODULES_BY_ROLE: Record<Exclude<UserRole, 'admin'>, WorkspaceModule[]> = {
   trader: ['gems', 'trips', 'ap', 'services', 'money', 'cheques', 'bills', 'contacts'],
-  // Lapidaries run jobs (the main workspace entry) and need contacts + bills — not AP or inventory trips.
-  lapidary: ['jobs', 'money', 'bills', 'contacts'],
+  // Lapidaries run jobs (the main workspace entry) and need contacts + bills + cheques — not AP or inventory trips.
+  lapidary: ['jobs', 'money', 'cheques', 'bills', 'contacts'],
 };
 
 export function isRegisterableRole(role: string | null | undefined): role is UserRole {

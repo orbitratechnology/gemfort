@@ -679,7 +679,7 @@ export default function BusinessProfileScreen() {
               <Icon
                 name={
                   primaryKind === "request"
-                    ? "handyman"
+                    ? "service"
                     : liked
                       ? "favorite"
                       : "favorite-border"

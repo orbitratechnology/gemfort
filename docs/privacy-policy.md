@@ -1,6 +1,6 @@
 # GemFort Privacy Policy
 
-> **DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code and cloud audit. Before publishing it, replace the square-bracket placeholders, obtain legal review for every country in which GemFort is offered, verify the deployed public-business projection and deletion workflow, and publish this document at a stable HTTPS URL.
+> **AUDIT-REVIEWED DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code, security, and cloud audit. Before publishing it, replace the square-bracket placeholders, obtain legal review for every country in which GemFort is offered, complete the security fixes identified in the audit, verify the release manifest, and publish this document at a stable HTTPS URL.
 
 **Effective date:** [insert publication date]  
 **Last updated:** [insert date]
@@ -18,7 +18,7 @@ This policy explains what personal data GemFort collects, how it is used, when i
 Depending on your role and choices, GemFort lets you:
 
 - browse public business profiles, gem listings, announcements, and external certificate-verification portals without an account;
-- create a trader or lapidary account using email/password, Google, Apple, or phone verification;
+- create a trader or lapidary account using email/password, Google, Apple, or phone verification where offered;
 - apply for manual identity or business verification using business and identity documents;
 - publish a business profile, contact channels, location, services, photos, and gem listings;
 - manage private gem inventory, stones, costs, services, accounts payable/receivable, payments, cheques, bills, trips, receipts, and contacts;
@@ -40,7 +40,7 @@ When you use Google, Apple, or phone sign-in, we receive the account information
 
 If you create or manage a business profile, we may collect the business name, owner name, business type, registration or licence identifiers, NGJA-related information, tax identifier, year established, description, address, city, district, province, country, map coordinates, public contact channels, social links, services, specialisations, price ranges, logos, cover images, gallery images, verification badges, and profile/listing engagement counters.
 
-Verified active business profiles and marketplace listings are designed to be visible to other users or visitors. If you publish a phone number, WhatsApp number, email address, website, social link, address, or exact map pin, it may be copied, indexed, shared, or contacted by people outside GemFort. Use the visibility controls and do not publish information that must remain confidential.
+Verified active business profiles and marketplace listings are designed to be visible to other users or visitors. The business directory uses a server-maintained allowlist for its public profile projection. Marketplace listing documents currently expose additional listing metadata and media references under the public-listing read rule; this is an identified security remediation item, not a promise that every listing field is private. If you publish a phone number, WhatsApp number, email address, website, social link, address, or exact map pin, it may be copied, indexed, shared, or contacted by people outside GemFort. Use the visibility controls and do not publish information that must remain confidential. Legacy active listings marked `private` or `members_only` may also remain readable by link until the corresponding rules and existing records are corrected.
 
 ### C. Verification and fraud-prevention data
 
@@ -101,7 +101,7 @@ Where privacy law requires a legal basis, the basis may include performing a con
 
 Device permissions are optional unless a feature requires them. You can refuse or later withdraw access to contacts, location, photos/files, notifications, biometrics, or other device capabilities in system settings, but the related feature may stop working. We will not treat a permission refusal as permission to access the underlying data.
 
-The generated Android manifest currently contains permissions including contacts, location, external storage, microphone, overlay, and contact-writing permissions. The audit did not find GemFort logic using microphone, overlay, or contact-writing functionality. Those permissions must be verified and removed if unnecessary before store submission and before making a complete permission disclosure.
+The static source and Expo configuration audit found use of contacts, foreground location, photos/files, notifications, biometric authentication, and secure local storage. It found no GemFort application logic for microphone recording, overlay, contact-writing, or call-log access. A generated release manifest and device review are still required before final Google Play permission disclosures; this policy must be updated if the release build contains any additional permission.
 
 ## 6. When we share personal data
 
@@ -123,21 +123,21 @@ GemFort’s Firebase project uses the `asia-south1` Firestore and storage region
 
 ## 8. Retention and deletion
 
-We keep personal data only for as long as reasonably necessary for the purposes in this policy, including account operation, security, fraud prevention, verification, dispute handling, legal compliance, accounting, and backup recovery. The final retention schedule must be approved and inserted here:
+We keep personal data only for as long as reasonably necessary for the purposes in this policy, including account operation, security, fraud prevention, verification, dispute handling, legal compliance, accounting, and backup recovery. The application retention schedule and legal bases must be approved by the operator and counsel before publication. The following provider settings were verified during the audit and are not a substitute for that schedule:
 
-| Data category | Retention rule to confirm before publication |
+| Data category | Current audited position; final rule to confirm before publication |
 | --- | --- |
-| Account and profile data | [insert period after account deletion or legal reason] |
-| Verification and identity documents | [insert period and legal basis] |
-| Public listings and business content | [insert rule, including copies or caches] |
-| GemTrack records and financial/cheque records | [insert period and legal/accounting basis] |
-| Contact imports and contact photos | [insert period; provide a per-contact deletion path] |
-| Notifications, push tokens, and operational logs | [insert provider/log retention periods] |
-| Backups and disaster-recovery copies | [insert deletion cycle] |
+| Account and profile data | Live account records are targeted by the verified deletion workflow; insert the operator’s completion target and exceptions. |
+| Verification and identity documents | Live records and managed files are targeted for deletion; insert the lawful retention period for fraud, regulatory, or dispute evidence. |
+| Public listings and business content | Deletion targets owned records, but public copies, shared records, caches, and provider copies may persist; fix and verify public projection/listing rules. |
+| GemTrack records and financial/cheque records | Owned live records are targeted for deletion; insert any legally required accounting or dispute-retention period. |
+| Contact imports and contact photos | Owned records and managed files are targeted for deletion; insert the per-contact correction/deletion process. |
+| Notifications, push tokens, and operational logs | Cloud Logging currently retains `_Default` logs for 30 days and locked `_Required` logs for 400 days; push-provider retention must be confirmed. |
+| Backups and disaster-recovery copies | Firestore point-in-time recovery is enabled and Firebase Storage soft-delete is configured for 7 days; insert the full backup/restore expiry schedule. |
 
-You can initiate account deletion from the in-app account settings. GemFort’s deletion workflow is intended to remove the account and associated records and files, while shared records may be retained in de-identified form where necessary. **Audit prerequisite:** the current deletion code covers several Storage prefixes but does not include the `receipts/{userId}` prefix even though the app uploads receipt files there. That gap must be fixed or conclusively shown to be unused before we promise complete deletion.
+You can initiate account deletion from the in-app account settings. GemFort’s deletion workflow is intended to remove the account and associated records and files, while shared records may be retained in de-identified form where necessary. The audited deletion code includes the `receipts` Storage prefix as well as account, verification, business, gem, cheque, trip, and listing prefixes. Cleanup of the server-maintained public-business projection depends on its source-deletion trigger and must be monitored and verified. Shared company audit records, fraud/report records, legal evidence, and administrator audit records may be retained or anonymised where necessary and permitted by law.
 
-For a request outside the in-app flow, use **[live external account-deletion URL]** or contact **[privacy email]**. The external deletion URL must be live, clearly identify GemFort, and be entered in Google Play Console before release.
+For a request outside the in-app flow, use **https://gemfort.web.app/delete-account** or contact **[privacy email]**. This Firebase Hosting URL was verified as live during the audit. The custom `gemfort.app` domain was not DNS-resolvable from the audit environment, so it must not be used as the legal or Play deletion URL until its DNS and hosting configuration are verified.
 
 Deletion does not automatically remove information another user lawfully copied from a public profile, listing, message, report, or shared record, nor does it control retention by independent third parties.
 
@@ -153,7 +153,7 @@ If Sri Lanka’s Personal Data Protection Act applies to the processing, you may
 
 GemFort uses Firebase Authentication, Firestore and Storage security rules, App Check, authenticated API requests, HTTPS/TLS, role checks, and restricted administrative access. No online service is completely secure. You are responsible for protecting your device, authentication factors, and any information you choose to publish or share.
 
-The source now separates public business data from private verification/business records through a server-maintained allowlisted projection. Before relying on this in production, deploy the projection trigger and rules, run the one-time public-business backfill, add strict schema, type, size, and content-type validation to owner-controlled documents, verify all deletion prefixes, review generated Android permissions, and remove or disable stale cloud scheduler jobs that still target retired functions.
+The source separates public business data from private verification/business records through a server-maintained allowlisted projection, and the live project contains the projection function. GemFort continues to improve validation, access-control tests, deletion monitoring, and release-manifest review. No online service is completely secure, and the security audit linked from the repository identifies controls that must be completed before treating the Service as production-ready.
 
 ## 11. Children
 

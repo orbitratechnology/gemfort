@@ -1,10 +1,10 @@
 import type { IconName } from "@/components/ui/icon";
 
 export function fallbackIconForType(type: string): IconName {
-  if (type.startsWith("cheque_")) return "money-check-dollar";
-  if (type.startsWith("bill_")) return "receipt-long";
-  if (type.startsWith("ap_")) return "handshake";
-  if (type.startsWith("service_")) return "handyman";
+  if (type.startsWith("cheque_")) return "cheque";
+  if (type.startsWith("bill_")) return "bill";
+  if (type.startsWith("ap_")) return "ap";
+  if (type.startsWith("service_")) return "service";
   if (type.startsWith("payment_")) return "payments";
   if (type.startsWith("verification_")) return "verified-user";
   if (type.startsWith("announcement_")) return "campaign";

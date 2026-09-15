@@ -1,6 +1,6 @@
 # GemFort Terms and Conditions
 
-> **DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code and cloud audit. It is not a substitute for advice from Sri Lankan counsel and counsel in any other market where GemFort is offered. Replace the square-bracket placeholders, confirm the legal entity, governing law, fees, age rule, dispute process, and support details before release.
+> **AUDIT-REVIEWED DRAFT — NOT READY FOR PUBLICATION.** This draft is based on a September 2026 code, security, and cloud audit. It is not a substitute for advice from Sri Lankan counsel and counsel in any other market where GemFort is offered. Replace the square-bracket placeholders, confirm the legal entity, governing law, fees, age rule, dispute process, and support details, and complete the security fixes identified in the audit before release.
 
 **Effective date:** [insert publication date]  
 **Last updated:** [insert date]
@@ -113,9 +113,9 @@ Nothing in these Terms excludes a warranty, right, remedy, or liability that can
 
 ## 16. Limitation of liability
 
-To the maximum extent permitted by law, GemFort and its officers, employees, contractors, licensors, and service providers will not be liable for indirect, incidental, special, consequential, exemplary, punitive, or loss-of-profit, loss-of-data, loss-of-goodwill, loss-of-business, loss-of-opportunity, or transaction losses arising from or related to the Service, user content, user dealings, verification, public disclosure, third-party services, travel, device permissions, account compromise, suspension, or deletion.
+To the maximum extent permitted by applicable law, Orbitra Tech (Pvt) Ltd and GemFort are not responsible for any damage, injury, financial loss, or misconduct resulting from an interaction, user dealing, travel, transaction, or arrangement initiated or facilitated through GemFort. GemFort does not provide, supervise, guarantee, or contract for services, purchases, sales, payments, or settlements between users.
 
-To the maximum extent permitted by law, GemFort’s total aggregate liability for claims arising from the Service will be limited to **[insert legally reviewed cap; do not publish an unreviewed amount]**. This section does not limit liability that cannot be limited by applicable law.
+Any disputes regarding quality, pricing, safety, performance, or professionalism must be resolved directly between the parties involved. Nothing in these Terms excludes or limits liability, rights, or remedies that applicable law does not permit to be excluded or limited.
 
 ## 17. Indemnity
 
@@ -123,7 +123,7 @@ To the maximum extent permitted by law, you agree to defend, indemnify, and hold
 
 ## 18. Suspension, termination, and account deletion
 
-You may stop using GemFort and request account deletion through in-app account settings or **[live external deletion URL]**. Deletion is intended to remove your account and associated data, subject to legal retention, shared records, fraud/security evidence, backups, and third-party copies. Review the Privacy Policy for the current retention and deletion rules.
+You may stop using GemFort and request account deletion through in-app account settings or **https://gemfort.web.app/delete-account**. Deletion is intended to remove your account and associated data, subject to legal retention, shared records, fraud/security evidence, backups, and third-party copies. Review the Privacy Policy for the current retention and deletion rules. The custom `gemfort.app` domain must not be treated as the deletion URL until its DNS and hosting configuration are verified.
 
 We may suspend or terminate access as described in Section 11. Sections concerning user content, intellectual property, privacy, disclaimers, liability, indemnity, disputes, and any rights that by their nature should survive will continue after termination.
 

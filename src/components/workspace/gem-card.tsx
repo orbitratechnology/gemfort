@@ -14,6 +14,7 @@ import {
   ContextActionsLink,
   type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
+import { GemCertificateBadge } from "@/components/workspace/gem-certificate";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
   formatGemType,
@@ -92,6 +93,12 @@ export function GemCard({
     <>
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
+
+        {gem.certificate?.url ? (
+          <View style={styles.certificateBadge}>
+            <GemCertificateBadge compact />
+          </View>
+        ) : null}
 
         {hasOriginFlag ? (
           <CountryFlag
@@ -176,7 +183,7 @@ export function GemCard({
     style,
   ]);
 
-  const label = `${gemTitle}, ${caratLabel}, ${price}`;
+  const label = `${gemTitle}, ${caratLabel}, ${price}${gem.certificate?.url ? ", certified" : ""}`;
 
   const actions: ContextMenuAction[] = [];
   if (onEdit) {
@@ -263,6 +270,11 @@ const styles = StyleSheet.create({
   originFlag: {
     position: "absolute",
     bottom: Spacing.sm,
+    left: Spacing.sm,
+  },
+  certificateBadge: {
+    position: "absolute",
+    top: Spacing.sm,
     left: Spacing.sm,
   },
   caratChip: {

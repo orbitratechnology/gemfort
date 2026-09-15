@@ -147,6 +147,8 @@ export function ContactPicker({
         label={label}
         valueLabel={displayName}
         subtitle={subtitle}
+        avatarName={selected?.displayName}
+        avatarPhotoUrl={selected?.photoUrl}
         placeholder={
           usePartySheet
             ? 'Search GemFort profiles or contacts…'

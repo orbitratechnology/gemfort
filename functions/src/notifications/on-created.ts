@@ -23,6 +23,7 @@ export const onNotificationCreated = onDocumentCreated(
       type: data.type as NotificationType,
       title: data.title,
       message: data.message,
+      direction: data.direction ?? null,
       referenceType: data.referenceType ?? null,
       referenceId: data.referenceId ?? null,
       priority: data.priority ?? 'medium',

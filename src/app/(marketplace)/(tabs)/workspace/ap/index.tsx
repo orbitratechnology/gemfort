@@ -167,7 +167,7 @@ function statusTone(
     bg: colors.primaryContainer,
     fg: colors.onPrimaryContainer,
     accent: colors.primary,
-    icon: "handshake",
+    icon: "ap",
   };
 }
 
@@ -763,7 +763,7 @@ export default function ApListScreen() {
 
         {records.length === 0 ? (
           <EmptyState
-            icon="handshake"
+            icon={side === "given" ? "call-made" : "call-received"}
             title={side === "given" ? "No AP given" : "No AP taken"}
             subtitle={
               side === "given"

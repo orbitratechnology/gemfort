@@ -46,6 +46,7 @@ export type BusinessSelection = {
   businessId: string;
   label: string;
   businessType: string;
+  logoUrl?: string | null;
   linkedContactId?: string | null;
 };
 
@@ -643,6 +644,7 @@ export function PartyPickerSheet({
                     businessId: item.id,
                     label: item.businessName,
                     businessType: item.businessType,
+                    logoUrl: item.logoUrl,
                     linkedContactId: linked?.id ?? null,
                   });
                   closeSheet();
@@ -710,6 +712,8 @@ type SelectFieldProps = {
   subtitle?: string | null;
   placeholder?: string;
   icon?: IconName;
+  avatarName?: string | null;
+  avatarPhotoUrl?: string | null;
   onPress: () => void;
   error?: string;
 };
@@ -721,6 +725,8 @@ export function PickerSelectField({
   subtitle,
   placeholder = 'Search and select',
   icon = 'search',
+  avatarName,
+  avatarPhotoUrl,
   onPress,
   error,
 }: SelectFieldProps) {
@@ -740,9 +746,13 @@ export function PickerSelectField({
             opacity: pressed ? 0.92 : 1,
           },
         ]}>
-        <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
-          <Icon name={icon} size={18} color={valueLabel ? colors.primary : colors.outline} />
-        </View>
+        {avatarName ? (
+          <ContactAvatar name={avatarName} photoUrl={avatarPhotoUrl} size={44} />
+        ) : (
+          <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
+            <Icon name={icon} size={18} color={valueLabel ? colors.primary : colors.outline} />
+          </View>
+        )}
         <View style={styles.fieldBody}>
           {valueLabel ? (
             <>

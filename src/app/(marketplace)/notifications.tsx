@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
       notifications
         .map(
           (n) =>
-            `${n.id}:${n.referenceType}:${n.referenceId}:${n.actorPhotoUrl ?? ""}:${n.imageUrl ?? ""}`,
+            `${n.id}:${n.referenceType}:${n.referenceId}:${n.direction ?? ""}:${n.actorPhotoUrl ?? ""}:${n.imageUrl ?? ""}`,
         )
         .join("|"),
     ],

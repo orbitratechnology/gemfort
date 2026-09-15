@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { SignInPrompt } from '@/components/auth/sign-in-prompt';
@@ -33,6 +33,7 @@ import { useToast } from '@/providers/toast-provider';
 export default function AddReceivableScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -114,8 +115,10 @@ export default function AddReceivableScreen() {
         image={require('@/assets/images/shortcuts/shortcut_money_light.png')}
       />
       <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <ContactPicker
           label="From contact (optional)"
@@ -155,7 +158,8 @@ export default function AddReceivableScreen() {
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: {
     padding: Spacing.containerMargin,
     gap: Spacing.md,

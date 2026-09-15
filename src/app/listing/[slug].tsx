@@ -27,6 +27,10 @@ import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+  GemCertificateBadge,
+  GemCertificateCard,
+} from "@/components/workspace/gem-certificate";
 import { resolveCurrencyCode, type CurrencyCode } from "@/constants/currencies";
 import {
     FontFamily,
@@ -237,6 +241,9 @@ export default function PublicListingScreen() {
   const photos = (activeListing.photoUrls ?? []).filter(
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
+  const certificate = activeListing.certificate?.url
+    ? activeListing.certificate
+    : null;
   const shareUrl =
     activeListing.shareableUrl ||
     listingShareUrl(activeListing.shareableSlug || slug!);
@@ -520,6 +527,7 @@ export default function PublicListingScreen() {
                 ? ` · ${activeListing.caratWeight} ct`
                 : ""}
             </Text>
+            {certificate ? <GemCertificateBadge /> : null}
           </View>
 
           <View style={styles.priceRow}>
@@ -694,6 +702,18 @@ export default function PublicListingScreen() {
               );
             })}
           </View>
+
+          {certificate ? (
+            <View style={styles.certificateSection}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.textMuted }]}
+                accessibilityRole="header"
+              >
+                CERTIFICATE
+              </Text>
+              <GemCertificateCard certificate={certificate} />
+            </View>
+          ) : null}
 
           {activeListing.description ? (
             <View style={styles.descBlock}>
@@ -1244,6 +1264,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.md,
+  },
+  certificateSection: { gap: Spacing.sm },
+  sectionLabel: {
+    ...Typography.caption,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   specCell: {
     width: "47%",

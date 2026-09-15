@@ -246,7 +246,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
         </Text>
         <Icon
           name={item.icon}
-          size={compact ? 14 : 16}
+          size={thumbSize}
           color={colors.textMuted}
         />
       </View>

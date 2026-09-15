@@ -1,5 +1,5 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { Image } from "expo-image";
+import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -20,6 +20,7 @@ import {
 } from "@/components/workspace/workspace-modules";
 import type { ThemeColors } from "@/constants/design-tokens";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { formatGemType } from "@/constants/gem-options";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -93,6 +94,7 @@ type AlertItem = {
   title: string;
   subtitle: string;
   icon: IconName;
+  image?: ImageSource;
   tone: "critical" | "warning" | "info" | "success";
   route: string;
 };
@@ -381,7 +383,7 @@ export default function WorkspaceHub() {
     {
       label: "Services",
       value: ongoingServices,
-      icon: "handyman",
+      icon: "service",
       image: require("@/assets/images/lapidary-icon.png"),
       route: `${WORKSPACE}/services`,
       group: "inventory",
@@ -389,7 +391,7 @@ export default function WorkspaceHub() {
     {
       label: "Trips",
       value: activeTrips.length,
-      icon: "flight",
+      icon: "trip",
       image: require("@/assets/images/trips-icon.png"),
       route: `${WORKSPACE}/trips`,
       group: "inventory",
@@ -397,7 +399,7 @@ export default function WorkspaceHub() {
     {
       label: "AP",
       value: ongoingAp,
-      icon: "hourglass-empty",
+      icon: "ap",
       image: require("@/assets/images/ap-icon.png"),
       route: `${WORKSPACE}/ap`,
       group: "inventory",
@@ -405,7 +407,7 @@ export default function WorkspaceHub() {
     {
       label: "Cheques",
       value: chequeSummary.pendingCount,
-      icon: "money-check-dollar",
+      icon: "cheque",
       image: require("@/assets/images/cheque-icon.png"),
       route: `${WORKSPACE}/cheques`,
       group: "money",
@@ -413,7 +415,7 @@ export default function WorkspaceHub() {
     {
       label: "Bills",
       value: billSummary.openCount,
-      icon: "receipt-long",
+      icon: "bill",
       image: require("@/assets/images/bill-icon.png"),
       route: `${WORKSPACE}/bills`,
       group: "money",
@@ -463,9 +465,15 @@ export default function WorkspaceHub() {
             },
             {
               label: "Bill",
-              icon: "receipt-long",
+              icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
               route: "/(marketplace)/bills/add",
+            },
+            {
+              label: "Cheque",
+              icon: "cheque",
+              image: require("@/assets/images/cheque-icon.png"),
+              route: "/(marketplace)/cheques/add",
             },
             {
               label: "Contacts",
@@ -483,19 +491,19 @@ export default function WorkspaceHub() {
             },
             {
               label: "Plan trip",
-              icon: "flight-takeoff",
+              icon: "trip",
               image: require("@/assets/images/trips-icon.png"),
               route: "/(marketplace)/trips/add",
             },
             {
               label: "Cheque",
-              icon: "money-check-dollar",
+              icon: "cheque",
               image: require("@/assets/images/cheque-icon.png"),
               route: "/(marketplace)/cheques/add",
             },
             {
               label: "Bill",
-              icon: "receipt-long",
+              icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
               route: "/(marketplace)/bills/add",
             },
@@ -512,6 +520,7 @@ export default function WorkspaceHub() {
       title: "AP request to accept",
       subtitle: `From ${a.senderName} · ${a.items?.length || 1} gem(s)`,
       icon: "hourglass-empty" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "warning" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -520,6 +529,7 @@ export default function WorkspaceHub() {
       title: "Confirm AP payment",
       subtitle: `From ${a.receiverName} · #${a.id.slice(0, 6)}`,
       icon: "payments" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "info" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -528,6 +538,7 @@ export default function WorkspaceHub() {
       title: "AP stone overdue",
       subtitle: `Past expected return · #${a.id.slice(0, 6)}`,
       icon: "hourglass-empty" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "critical" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -535,7 +546,8 @@ export default function WorkspaceHub() {
       id: `svc-${s.id}`,
       title: "Service overdue",
       subtitle: `With provider · #${s.id.slice(0, 6)}`,
-      icon: "handyman" as const,
+      icon: "service" as const,
+      image: WORKSPACE_ENTITY_IMAGES.service,
       tone: "warning" as const,
       route: `${WORKSPACE}/services/${s.id}`,
     })),
@@ -547,7 +559,8 @@ export default function WorkspaceHub() {
         currency: c.currency,
         amountBase: c.amountBase,
       })}`,
-      icon: "money-check-dollar" as const,
+      icon: "cheque" as const,
+      image: WORKSPACE_ENTITY_IMAGES.cheque,
       tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
     })),
@@ -564,7 +577,8 @@ export default function WorkspaceHub() {
           b.currency,
         ),
       })}`,
-      icon: "receipt-long" as const,
+      icon: "bill" as const,
+      image: WORKSPACE_ENTITY_IMAGES.bill,
       tone: "warning" as const,
       route: `${WORKSPACE}/bills/${b.id}`,
     })),
@@ -863,7 +877,16 @@ export default function WorkspaceHub() {
                     <View
                       style={[styles.alertIcon, { backgroundColor: tone.bg }]}
                     >
-                      <Icon name={alert.icon} size={18} color={tone.fg} />
+                      {alert.image ? (
+                        <Image
+                          source={alert.image}
+                          style={styles.alertImage}
+                          contentFit="contain"
+                          accessibilityIgnoresInvertColors
+                        />
+                      ) : (
+                        <Icon name={alert.icon} size={18} color={tone.fg} />
+                      )}
                     </View>
                     <View style={styles.alertText}>
                       <Text
@@ -1122,6 +1145,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  alertImage: { width: 32, height: 32 },
   alertText: { flex: 1, gap: 2, minWidth: 0 },
   alertTitle: { ...Typography.bodyLg, fontWeight: "600" },
   alertSub: { ...Typography.bodyMd },

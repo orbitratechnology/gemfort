@@ -162,12 +162,14 @@ async function ensurePaymentNotification(input: {
   type: 'ap_payment_sent' | 'ap_payment_received';
   title: string;
   message: string;
+  direction: 'given' | 'taken';
 }) {
   await ensureDeterministicNotificationDoc({
     recipientUid: input.recipientUid,
     type: input.type,
     title: input.title,
     message: input.message,
+    direction: input.direction,
     referenceType: 'ap',
     referenceId: input.apId,
   });
@@ -218,6 +220,7 @@ export async function apPaymentSentForApi(
       type: 'ap_payment_sent' as const,
       title: 'AP payment sent',
       message: `${ap.receiverName || 'Trader'} sent ${formatCurrency(amount, currency)} via ${input.method}. Confirm when received.`,
+      direction: 'given' as const,
     };
 
     if (ap.status === 'payment_sent') {
@@ -327,6 +330,7 @@ export async function apPaymentReceivedForApi(
       type: 'ap_payment_received' as const,
       title: 'AP payment confirmed',
       message: `${ap.senderName || 'Trader'} confirmed receipt of ${formatCurrency(amount, currency)}. AP complete (sold ${formatCurrency(soldAmount(ap, rates, currency), currency)}).`,
+      direction: 'taken' as const,
     };
 
     if (ap.status === 'done') {

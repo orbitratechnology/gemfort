@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  directionalNotificationTitle,
   notificationGroupKeyForType,
+  notificationDirectionLabel,
   notificationThreadIdForType,
   priorityForType,
   pushCategoryForType,
@@ -39,6 +41,28 @@ describe('notification grouping', () => {
     assert.equal(notificationGroupKeyForType('service_job_updated'), 'services');
     assert.equal(notificationGroupKeyForType('bill_due_today'), 'finance');
     assert.equal(notificationThreadIdForType('service_job_updated'), 'gemfort.services');
+  });
+});
+
+describe('notification direction', () => {
+  it('uses the existing workspace direction labels', () => {
+    assert.equal(notificationDirectionLabel('given'), 'Given');
+    assert.equal(notificationDirectionLabel('taken'), 'Taken');
+    assert.equal(notificationDirectionLabel('to_pay'), 'To pay');
+    assert.equal(notificationDirectionLabel('to_receive'), 'To receive');
+    assert.equal(notificationDirectionLabel(null), null);
+  });
+
+  it('keeps the direction visible in native notification titles', () => {
+    assert.equal(
+      directionalNotificationTitle('Bill due today', 'to_pay'),
+      'Bill due today · To pay',
+    );
+    assert.equal(
+      directionalNotificationTitle('AP payment sent', 'given'),
+      'AP payment sent · Given',
+    );
+    assert.equal(directionalNotificationTitle('Announcement', null), 'Announcement');
   });
 });
 

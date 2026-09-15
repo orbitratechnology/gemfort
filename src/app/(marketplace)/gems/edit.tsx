@@ -24,6 +24,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
+import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -57,6 +58,7 @@ import {
 } from "@/features/workspace/gem-lifecycle";
 import {
   fetchGem,
+  queueGemCertificate,
   queueGemPhotoUrls,
   updateGemDetails,
 } from "@/features/workspace/workspace-service";
@@ -72,7 +74,7 @@ import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { WorkspaceGem } from "@/types";
+import type { GemCertificate, WorkspaceGem } from "@/types";
 
 const MAX_GEM_PHOTOS = 10;
 
@@ -92,6 +94,18 @@ function mediaFromPhotoUrls(urls: string[]): LocalMedia[] {
       mimeType: "image/jpeg",
       fileName: `gem-${index + 1}.jpg`,
     }));
+}
+
+function mediaFromCertificate(
+  certificate: GemCertificate | null | undefined,
+): LocalMedia | null {
+  if (!certificate?.url) return null;
+  return {
+    uri: certificate.url,
+    kind: certificate.kind,
+    mimeType: certificate.mimeType,
+    fileName: certificate.fileName,
+  };
 }
 
 export default function EditGemScreen() {
@@ -180,6 +194,9 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
   );
   const [photos, setPhotos] = useState<LocalMedia[]>(() =>
     mediaFromPhotoUrls(gem.photoUrls ?? []),
+  );
+  const [certificate, setCertificate] = useState<LocalMedia | null>(() =>
+    mediaFromCertificate(gem.certificate),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
@@ -276,6 +293,18 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         const hasLocalPhotos = photos.some((p) => !isRemoteUri(p.uri));
         let photoUrls = remoteUrls;
         let photosDeferred = false;
+        let certificateData: GemCertificate | null = certificate
+          ? isRemoteUri(certificate.uri)
+            ? {
+                url: certificate.uri,
+                kind: certificate.kind === "image" ? "image" : "file",
+                fileName: certificate.fileName ?? null,
+                mimeType: certificate.mimeType ?? null,
+              }
+            : null
+          : null;
+        let certificateDeferred = false;
+        let certificateUploadTask: Promise<string> | null = null;
 
         if (photos.length > 0 && hasLocalPhotos) {
           const uploadTask = Promise.all(
@@ -326,6 +355,34 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
           photoUrls = [];
         }
 
+        if (certificate && !isRemoteUri(certificate.uri)) {
+          certificateUploadTask = uploadLocalMedia(
+            certificate,
+            `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
+          );
+          try {
+            const certificateUrl = await Promise.race([
+              certificateUploadTask,
+              new Promise<never>((_, reject) => {
+                setTimeout(
+                  () => reject(new Error("certificate-upload-timeout")),
+                  45_000,
+                );
+              }),
+            ]);
+            certificateData = {
+              url: certificateUrl,
+              kind: certificate.kind === "image" ? "image" : "file",
+              fileName: certificate.fileName ?? null,
+              mimeType: certificate.mimeType ?? null,
+            };
+          } catch {
+            certificateDeferred = true;
+            // Keep the existing certificate visible until its replacement uploads.
+            certificateData = gem.certificate ?? null;
+          }
+        }
+
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
@@ -347,14 +404,40 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
           isNatural: !data.treatment || data.treatment === "natural",
           treatmentStatus: data.treatment ?? "natural",
           photoUrls,
+          certificate: certificateData,
         });
+
+        if (certificateDeferred && certificateUploadTask && certificate) {
+          void certificateUploadTask
+            .then((url) => {
+              const uploadedCertificate: GemCertificate = {
+                url,
+                kind: certificate.kind === "image" ? "image" : "file",
+                fileName: certificate.fileName ?? null,
+                mimeType: certificate.mimeType ?? null,
+              };
+              queueGemCertificate(gem.id, uploadedCertificate);
+              queryClient.setQueryData(
+                ["gem", gem.id],
+                (prev: WorkspaceGem | null | undefined) =>
+                  prev ? { ...prev, certificate: uploadedCertificate } : prev,
+              );
+              void queryClient.invalidateQueries({ queryKey: ["gems"] });
+              void queryClient.invalidateQueries({
+                queryKey: ["gem", gem.id],
+              });
+            })
+            .catch(() => {
+              // Offline / hard failure — keep the prior certificate.
+            });
+        }
 
         void queryClient.invalidateQueries({ queryKey: ["gems"] });
         void queryClient.invalidateQueries({ queryKey: ["gem", gem.id] });
 
         toast.success(
-          photosDeferred
-            ? "Gem updated — photos still uploading in the background"
+          photosDeferred || certificateDeferred
+            ? "Gem updated — attachments still uploading in the background"
             : "Gem updated",
         );
         if (router.canGoBack()) router.back();
@@ -587,6 +670,19 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
             error={errors.photos}
             emptyTitle="Add photos"
             emptySubtitle="Optional — needs network to upload"
+          />
+        </FormSection>
+
+        <FormSection title="Gem certificate">
+          <MediaField
+            label="Certificate"
+            hint="Optional · choose a certificate photo or PDF"
+            value={certificate}
+            onChange={setCertificate}
+            allows="imagesOrDocuments"
+            emptyTitle="Add certificate"
+            emptySubtitle="Photo or PDF"
+            sourcePickerTitle="Add gem certificate"
           />
         </FormSection>
       </ThemedScrollView>

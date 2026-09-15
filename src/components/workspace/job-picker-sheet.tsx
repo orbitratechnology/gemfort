@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { LapidaryJob } from "@/types";
@@ -98,7 +99,8 @@ export function JobPickerSheet({
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon="handyman"
+          icon="service"
+          image={WORKSPACE_ENTITY_IMAGES.service}
           title="No jobs"
           subtitle={emptyHint}
         />

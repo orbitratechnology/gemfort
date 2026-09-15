@@ -27,6 +27,7 @@ export type RichPushData = {
   title?: string;
   body?: string;
   type?: string;
+  direction?: "given" | "taken" | "to_pay" | "to_receive";
   referenceType?: string;
   referenceId?: string;
   priority?: string;
@@ -61,11 +62,18 @@ export function parseRichPushData(
   raw: Record<string, unknown> | null | undefined,
 ): RichPushData {
   if (!raw) return {};
+  const rawDirection = asString(raw.direction);
+  const direction = ["given", "taken", "to_pay", "to_receive"].includes(
+    rawDirection,
+  )
+    ? (rawDirection as RichPushData["direction"])
+    : undefined;
   return {
     notificationId: asString(raw.notificationId) || undefined,
     title: asString(raw.title) || undefined,
     body: asString(raw.body) || asString(raw.message) || undefined,
     type: asString(raw.type) || undefined,
+    direction,
     referenceType: asString(raw.referenceType) || undefined,
     referenceId: asString(raw.referenceId) || undefined,
     priority: asString(raw.priority) || undefined,
@@ -255,6 +263,7 @@ export async function displayRichNotification(data: RichPushData) {
       data: {
         notificationId: data.notificationId ?? '',
         type: data.type ?? '',
+        direction: data.direction ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',
         categoryId: data.categoryId ?? '',
@@ -335,6 +344,7 @@ export async function displayRichNotification(data: RichPushData) {
       data: {
         notificationId: data.notificationId ?? '',
         type: data.type ?? '',
+        direction: data.direction ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',
         actorPhotoUrl: profileUrl ?? '',

@@ -45,6 +45,10 @@ function isOnSaleGem(gem: WorkspaceGem): boolean {
   );
 }
 
+function gemDisplayName(gem: WorkspaceGem): string {
+  return gem.title?.trim() || gem.variety?.trim() || "Gem";
+}
+
 function matchesQuery(gem: WorkspaceGem, q: string) {
   if (!q) return true;
   const hay = [
@@ -66,7 +70,7 @@ function matchesQuery(gem: WorkspaceGem, q: string) {
   return hay.includes(q);
 }
 
-/** Universal searchable gem picker — photo + SKU, type, weight. Tabs: On sale | Private. */
+/** Universal searchable gem picker — photo + name, type, weight. Tabs: On sale | Private. */
 export function GemPickerSheet({
   visible,
   onClose,
@@ -177,7 +181,7 @@ export function GemPickerSheet({
         <Icon name="search" size={20} color={colors.outline} />
         <TextInput
           style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search SKU, type, weight…"
+          placeholder="Search name, type, weight…"
           placeholderTextColor={colors.outline}
           value={query}
           onChangeText={setQuery}
@@ -274,10 +278,10 @@ export function GemPickerSheet({
               </View>
               <View style={styles.rowBody}>
                 <Text
-                  style={[styles.sku, { color: colors.onSurface }]}
+                  style={[styles.gemTitle, { color: colors.onSurface }]}
                   numberOfLines={1}
                 >
-                  {item.title?.trim() || formatGemType(item.gemType)}
+                  {gemDisplayName(item)}
                 </Text>
                 <Text
                   style={[styles.type, { color: colors.onSurfaceVariant }]}
@@ -357,7 +361,11 @@ export function GemSelectField({
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={gem ? `Selected gem ${gem.sku}` : placeholder}
+        accessibilityLabel={
+          gem
+            ? `Selected gem ${gemDisplayName(gem)}, ${formatGemType(gem.gemType)}, ${gem.currentWeight} ct`
+            : placeholder
+        }
         onPress={onPress}
         style={({ pressed }) => [
           styles.field,
@@ -393,17 +401,16 @@ export function GemSelectField({
             </View>
             <View style={styles.fieldBody}>
               <Text
-                style={[styles.sku, { color: colors.onSurface }]}
+                style={[styles.gemTitle, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {gem.sku}
+                {gemDisplayName(gem)}
               </Text>
               <Text
                 style={[styles.meta, { color: colors.textMuted }]}
                 numberOfLines={1}
               >
                 {formatGemType(gem.gemType)} · {gem.currentWeight} ct
-                {isOnSaleGem(gem) ? " · On sale" : " · Private"}
               </Text>
             </View>
           </>
@@ -490,7 +497,7 @@ const styles = StyleSheet.create({
   },
   thumbImg: { width: "100%", height: "100%" },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
-  sku: { ...Typography.labelMd, fontWeight: "700" },
+  gemTitle: { ...Typography.labelMd, fontWeight: "700" },
   type: { ...Typography.bodySmall },
   meta: { ...Typography.caption, textTransform: "capitalize" },
   metaRow: {

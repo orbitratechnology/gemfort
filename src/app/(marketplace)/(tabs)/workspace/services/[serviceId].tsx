@@ -17,6 +17,7 @@ import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { formatGemType } from "@/constants/gem-options";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -82,7 +83,7 @@ function serviceTypeIcon(type: string): IconName {
   if (t.includes("recut") || t.includes("cut")) return "content-cut";
   if (t.includes("shap")) return "category";
   if (t.includes("chem") || t.includes("treat")) return "science";
-  return "handyman";
+  return "service";
 }
 
 function statusMeta(status: ServiceRecord["status"]): {
@@ -286,7 +287,8 @@ export default function ServiceDetailScreen() {
           <Text style={[styles.loading, { color: colors.textMuted }]}>Loading…</Text>
         ) : (
           <EmptyState
-            icon="handyman"
+            icon="service"
+            image={WORKSPACE_ENTITY_IMAGES.service}
             title="Service unavailable"
             subtitle="This service record was removed or is no longer available to your account."
           />

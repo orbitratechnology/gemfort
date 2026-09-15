@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useEffectEvent,
   useRef,
   useState,
   type ComponentProps,
@@ -110,7 +109,7 @@ export function BottomSheet({
     setPresented(false);
   }, []);
 
-  const runEnter = useEffectEvent(() => {
+  const runEnter = useCallback(() => {
     exitingRef.current = false;
     if (reduceMotion) {
       translateY.set(0);
@@ -135,7 +134,7 @@ export function BottomSheet({
         easing: Easing.bezier(0.23, 1, 0.32, 1),
       }),
     );
-  });
+  }, [reduceMotion, translateY, backdrop]);
 
   const runExit = useCallback(
     (after?: () => void) => {
@@ -183,7 +182,7 @@ export function BottomSheet({
       const id = requestAnimationFrame(runEnter);
       return () => cancelAnimationFrame(id);
     }
-  }, [visible]);
+  }, [visible, runEnter]);
 
   useEffect(() => {
     if (!visible && presented && !exitingRef.current) {

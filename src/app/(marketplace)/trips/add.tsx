@@ -172,7 +172,7 @@ export default function AddTripScreen() {
                   clearField('tripName');
                 }}
                 placeholder="e.g. China, Bangkok, Madagascar..."
-                leftIcon="flight"
+                leftIcon="trip"
                 error={errors.tripName}
               />
               <CountryField

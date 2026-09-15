@@ -5,6 +5,23 @@ const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 // All EAS environments use the same native app and Firebase configuration.
 const bundleId = "app.gemfort";
 
+// Shared image artwork used by both iOS and Android system shortcuts.
+const SHORTCUT_IMAGES = {
+  shortcut_app: "./assets/images/gemfort-icon.png",
+  shortcut_add: "./assets/images/mygems-icon.png",
+  shortcut_ap: "./assets/images/ap-icon.png",
+  shortcut_bill: "./assets/images/bill-icon.png",
+  shortcut_cheque: "./assets/images/cheque-icon.png",
+  shortcut_contacts: "./assets/images/ap-icon.png",
+  shortcut_gem: "./assets/images/mygems-icon.png",
+  shortcut_jobs: "./assets/images/lapidary-icon.png",
+  shortcut_market: "./assets/images/mygems-icon.png",
+  shortcut_money: "./assets/images/bill-icon.png",
+  shortcut_search: "./assets/images/gemfort-icon.png",
+  shortcut_service: "./assets/images/lapidary-icon.png",
+  shortcut_trip: "./assets/images/trips-icon.png",
+} as const;
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "GemFort",
@@ -182,72 +199,30 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-quick-actions",
       {
-        // String icons = non-adaptive (transparent, no colored plate).
-        // *_light = black glyph, *_dark = white glyph; JS picks via useColorScheme.
-        // Regenerate: python scripts/generate-shortcut-icons.py
-        androidIcons: {
-          shortcut_gem_light:
-            "./assets/images/shortcuts/shortcut_gem_light.png",
-          shortcut_gem_dark: "./assets/images/shortcuts/shortcut_gem_dark.png",
-          shortcut_add_light:
-            "./assets/images/shortcuts/shortcut_add_light.png",
-          shortcut_add_dark: "./assets/images/shortcuts/shortcut_add_dark.png",
-          shortcut_ap_light: "./assets/images/shortcuts/shortcut_ap_light.png",
-          shortcut_ap_dark: "./assets/images/shortcuts/shortcut_ap_dark.png",
-          shortcut_cheque_light:
-            "./assets/images/shortcuts/shortcut_cheque_light.png",
-          shortcut_cheque_dark:
-            "./assets/images/shortcuts/shortcut_cheque_dark.png",
-          shortcut_service_light:
-            "./assets/images/shortcuts/shortcut_service_light.png",
-          shortcut_service_dark:
-            "./assets/images/shortcuts/shortcut_service_dark.png",
-          shortcut_jobs_light:
-            "./assets/images/shortcuts/shortcut_jobs_light.png",
-          shortcut_jobs_dark:
-            "./assets/images/shortcuts/shortcut_jobs_dark.png",
-          shortcut_contacts_light:
-            "./assets/images/shortcuts/shortcut_contacts_light.png",
-          shortcut_contacts_dark:
-            "./assets/images/shortcuts/shortcut_contacts_dark.png",
-          shortcut_bill_light:
-            "./assets/images/shortcuts/shortcut_bill_light.png",
-          shortcut_bill_dark:
-            "./assets/images/shortcuts/shortcut_bill_dark.png",
-          shortcut_money_light:
-            "./assets/images/shortcuts/shortcut_money_light.png",
-          shortcut_money_dark:
-            "./assets/images/shortcuts/shortcut_money_dark.png",
-          shortcut_market_light:
-            "./assets/images/shortcuts/shortcut_market_light.png",
-          shortcut_market_dark:
-            "./assets/images/shortcuts/shortcut_market_dark.png",
-          shortcut_search_light:
-            "./assets/images/shortcuts/shortcut_search_light.png",
-          shortcut_search_dark:
-            "./assets/images/shortcuts/shortcut_search_dark.png",
-        },
+        // Use the same image in light and dark system menus.
+        androidIcons: SHORTCUT_IMAGES,
+        iosIcons: SHORTCUT_IMAGES,
         // Static iOS actions available before JS loads; replaced dynamically by role.
-        // Prefer outline SF Symbols / built-ins so they match system menu icons.
+        // Use the same bundled template images as the dynamic actions.
         iosActions: [
           {
             id: "certificate-portals",
             title: "Certificate portals",
             subtitle: "Open external verification pages",
-            icon: "symbol:link",
+            icon: "asset:shortcut_app",
             params: { href: "/verify-certificate-portals" },
           },
           {
             id: "market",
             title: "Market",
             subtitle: "Find traders and lapidaries",
-            icon: "symbol:person.2",
+            icon: "asset:shortcut_market",
             params: { href: "/(marketplace)/(tabs)/market" },
           },
           {
             id: "search",
             title: "Search",
-            icon: "search",
+            icon: "asset:shortcut_search",
             params: { href: "/(marketplace)/(tabs)/search" },
           },
         ],

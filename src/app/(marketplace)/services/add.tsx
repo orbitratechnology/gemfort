@@ -1,7 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -59,6 +64,7 @@ const SERVICE_TYPES = [
 export default function AddServiceScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const toast = useToast();
   const router = useRouter();
   const { gemId: preselectedGemId, serviceType: serviceTypeParam } = useLocalSearchParams<{
@@ -93,6 +99,11 @@ export default function AddServiceScreen() {
       subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
+
+  const selectedProviderContact =
+    provider?.source === "contact"
+      ? contacts.find((contact) => contact.id === provider.contactId) ?? null
+      : null;
 
   const selectedGem = useMemo(
     () => gems.find((g) => g.id === gemId) ?? null,
@@ -211,18 +222,17 @@ export default function AddServiceScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
       <StackHeader
         title="Add Service"
         closeIcon
         image={require("@/assets/images/lapidary-icon.png")}
       />
       <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <ScreenInset>
           <GemSelectField
@@ -313,6 +323,16 @@ export default function AddServiceScreen() {
           <PickerSelectField
             label="Provider"
             valueLabel={provider?.label ?? null}
+            avatarName={
+              provider?.source === "business"
+                ? provider.label
+                : selectedProviderContact?.displayName
+            }
+            avatarPhotoUrl={
+              provider?.source === "business"
+                ? provider.logoUrl
+                : selectedProviderContact?.photoUrl
+            }
             subtitle={
               provider?.source === "business"
                 ? provider.businessType.replace(/_/g, " ")
@@ -321,14 +341,14 @@ export default function AddServiceScreen() {
                   : null
             }
             placeholder="Search lapidaries or contacts…"
-            icon="handyman"
+            icon="service"
             onPress={() => setProviderSheetOpen(true)}
             error={errors.provider}
           />
 
           <Button
             title={provider?.source === "business" ? "Send Request" : "Add Service"}
-            icon="handyman"
+            icon="service"
             onPress={handleSubmit}
           />
         </ScreenInset>
@@ -366,12 +386,13 @@ export default function AddServiceScreen() {
           });
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   chips: {
     flexDirection: "row",

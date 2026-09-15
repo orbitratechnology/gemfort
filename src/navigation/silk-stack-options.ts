@@ -23,7 +23,7 @@ export const silkStackScreenOptions = {
 export const formSheetScreenOptions = {
   presentation: "formSheet" as const,
   headerShown: false,
-  sheetAllowedDetents: [0.55, 1] as number[],
+  sheetAllowedDetents: [0.55, 0.9] as number[],
   sheetInitialDetentIndex: "last" as const,
   sheetGrabberVisible: true,
   sheetCornerRadius: 24,

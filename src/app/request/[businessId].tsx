@@ -137,13 +137,10 @@ export default function RequestServiceScreen() {
     );
     return LAPIDARY_SERVICE_OPTIONS.filter((option) => offered.has(option.id));
   }, [business?.providerProfile?.services, business?.providerProfile?.servicesOffered]);
-  const selectedServiceTypeSet = new Set(serviceTypes);
-
-  useEffect(() => {
-    setServiceTypes((previous) =>
-      previous.filter((id) => serviceOptions.some((option) => option.id === id)),
-    );
-  }, [serviceOptions]);
+  const selectedServiceTypes = serviceTypes.filter((id) =>
+    serviceOptions.some((option) => option.id === id),
+  );
+  const selectedServiceTypeSet = new Set(selectedServiceTypes);
 
   useEffect(() => {
     if (
@@ -192,11 +189,14 @@ export default function RequestServiceScreen() {
   }
 
   function toggleService(serviceId: LapidaryServiceId) {
-    setServiceTypes((prev) =>
-      prev.includes(serviceId)
-        ? prev.filter((x) => x !== serviceId)
-        : [...prev, serviceId],
-    );
+    setServiceTypes((prev) => {
+      const available = prev.filter((id) =>
+        serviceOptions.some((option) => option.id === id),
+      );
+      return available.includes(serviceId)
+        ? available.filter((x) => x !== serviceId)
+        : [...available, serviceId];
+    });
     clearField("serviceTypes");
   }
 
@@ -235,7 +235,7 @@ export default function RequestServiceScreen() {
   }
 
   function continueServices() {
-    if (serviceTypes.length === 0) {
+    if (selectedServiceTypes.length === 0) {
       setErrors({ serviceTypes: "Select at least one service" });
       toast.error("Select at least one service");
       return;
@@ -249,7 +249,7 @@ export default function RequestServiceScreen() {
     const nextErrors: Record<string, string> = {};
     const gem = gems.find((g) => g.id === gemId);
     if (!gem) nextErrors.gemId = "Select a gem from your inventory";
-    if (serviceTypes.length === 0)
+    if (selectedServiceTypes.length === 0)
       nextErrors.serviceTypes = "Select at least one service";
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -273,7 +273,7 @@ export default function RequestServiceScreen() {
           gemId: gem!.id,
           gemName,
           gemPhotoUrl: gemPrimaryPhotoUrl(gem),
-          serviceTypes,
+          serviceTypes: selectedServiceTypes,
           notes,
           expectedReturnDays: 14,
           weightBefore: gem!.currentWeight,
@@ -305,7 +305,7 @@ export default function RequestServiceScreen() {
           <Button
             title={serviceOptions.length ? "Continue" : "No services available"}
             onPress={continueServices}
-            disabled={serviceTypes.length === 0 || serviceOptions.length === 0}
+            disabled={selectedServiceTypes.length === 0 || serviceOptions.length === 0}
           />
         }
       >
@@ -376,7 +376,7 @@ export default function RequestServiceScreen() {
           </View>
         ) : (
           <View style={styles.emptyServices}>
-            <Icon name="handyman" size={30} color={colors.outlineVariant} />
+            <Icon name="service" size={30} color={colors.outlineVariant} />
             <Text style={[styles.emptyServicesTitle, { color: colors.onSurface }]}>
               No services published
             </Text>
@@ -412,7 +412,7 @@ export default function RequestServiceScreen() {
             icon="send"
             onPress={submit}
             loading={submitting}
-            disabled={!selectedGem || serviceTypes.length === 0}
+            disabled={!selectedGem || selectedServiceTypes.length === 0}
           />
         }
       >
@@ -427,7 +427,7 @@ export default function RequestServiceScreen() {
               },
             ]}
           >
-            <Icon name="handyman" size={22} color={colors.primary} />
+            <Icon name="service" size={22} color={colors.primary} />
             <View style={styles.previewBody}>
               <Text style={[styles.workshopName, { color: colors.onSurface }]}>
                 {business?.businessName ?? "Lapidary"}
@@ -453,7 +453,7 @@ export default function RequestServiceScreen() {
             </Pressable>
           </View>
           <View style={styles.chipRow}>
-            {serviceTypes.map((id) => (
+            {selectedServiceTypes.map((id) => (
               <View
                 key={id}
                 style={[styles.summaryChip, { backgroundColor: colors.primaryContainer }]}

@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Image, type ImageSource } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useIncomingShare } from 'expo-sharing';
 import {
@@ -21,6 +21,7 @@ import {
   Typography,
   type ThemeColors,
 } from '@/constants/design-tokens';
+import { WORKSPACE_ENTITY_IMAGES } from '@/constants/workspace-entity-images';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
 import { friendlyError } from '@/lib/errors';
@@ -38,9 +39,12 @@ type Destination = {
   title: string;
   subtitle: string;
   icon: IconName;
+  image?: ImageSource;
   enabled: boolean;
   onPress: () => void;
 };
+
+const GEM_IMAGE = require('@/assets/images/mygems-icon.png');
 
 function ShareDestinationList({
   colors,
@@ -76,11 +80,20 @@ function ShareDestinationList({
               { backgroundColor: colors.primaryContainer },
             ]}
           >
-            <Icon
-              name={dest.icon}
-              size={22}
-              color={colors.onPrimaryContainer}
-            />
+            {dest.image ? (
+              <Image
+                source={dest.image}
+                style={styles.destImage}
+                contentFit="contain"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <Icon
+                name={dest.icon}
+                size={22}
+                color={colors.onPrimaryContainer}
+              />
+            )}
           </View>
           <View style={styles.destBody}>
             <Text style={[styles.destTitle, { color: colors.onSurface }]}>
@@ -188,6 +201,7 @@ export default function HandleShareScreen() {
         ? `Use ${imageUris.length} photo${imageUris.length > 1 ? 's' : ''} in the album`
         : 'Needs a shared photo',
       icon: 'diamond',
+      image: GEM_IMAGE,
       enabled: !!user && hasImages,
       onPress: () =>
         go({
@@ -205,7 +219,8 @@ export default function HandleShareScreen() {
           : hasText
             ? 'Pre-fill notes from shared text'
             : 'Share a cheque photo or amount',
-      icon: 'money-check-dollar',
+      icon: 'cheque',
+      image: WORKSPACE_ENTITY_IMAGES.cheque,
       enabled: !!user && (hasImages || hasText),
       onPress: () =>
         go({
@@ -221,7 +236,8 @@ export default function HandleShareScreen() {
         : hasText || hasImages || hasFiles
           ? 'Pre-fill notes from shared content'
           : 'Share text with an amount or invoice details',
-      icon: 'receipt-long',
+      icon: 'bill',
+      image: WORKSPACE_ENTITY_IMAGES.bill,
       enabled: !!user && (hasText || hasImages || hasFiles),
       onPress: () =>
         go({
@@ -442,6 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  destImage: { width: 34, height: 34 },
   destBody: { flex: 1, gap: 2, minWidth: 0 },
   destTitle: { ...Typography.bodyMd, fontWeight: '600' },
   destSub: { ...Typography.bodySmall },

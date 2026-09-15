@@ -280,8 +280,12 @@ function BusinessProfileForm({
   useEffect(() => {
     if (!showLocation || business?.location) return;
     let active = true;
-    setLocationDetecting(true);
-    void detectProfileLocation()
+    void Promise.resolve()
+      .then(() => {
+        if (!active) return null;
+        setLocationDetecting(true);
+        return detectProfileLocation();
+      })
       .then((detected) => {
         if (!active || !detected) return;
         setLocation(detected);

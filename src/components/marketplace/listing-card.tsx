@@ -12,6 +12,7 @@ import { CountryFlag } from "@/components/ui/country-flag";
 import { ElevatedCard } from "@/components/ui/elevated-card";
 import { Icon } from "@/components/ui/icon";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemCertificateBadge } from "@/components/workspace/gem-certificate";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -73,11 +74,17 @@ export function ListingCard({
     <ElevatedCard
       href={href}
       onPress={onPress}
-      accessibilityLabel={`${listing.title}, ${caratLabel}, ${price}, ${ownerName}`}
+      accessibilityLabel={`${listing.title}, ${caratLabel}, ${price}, ${ownerName}${listing.certificate?.url ? ", certified" : ""}`}
       style={[styles.card, style]}
     >
       <View style={styles.media}>
         {href ? <Link.AppleZoom>{media}</Link.AppleZoom> : media}
+
+        {listing.certificate?.url ? (
+          <View style={styles.certificateBadge}>
+            <GemCertificateBadge compact />
+          </View>
+        ) : null}
 
         {hasOriginFlag ? (
           <CountryFlag
@@ -171,6 +178,11 @@ const styles = StyleSheet.create({
   originFlag: {
     position: "absolute",
     bottom: Spacing.sm,
+    left: Spacing.sm,
+  },
+  certificateBadge: {
+    position: "absolute",
+    top: Spacing.sm,
     left: Spacing.sm,
   },
   caratChip: {

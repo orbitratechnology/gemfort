@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
     Pressable,
     StyleSheet,
@@ -10,6 +10,7 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { CountryField } from "@/components/ui/country-field";
@@ -24,6 +25,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
+import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
@@ -39,7 +41,7 @@ import {
     TripPickerSheet,
     TripSelectField,
 } from "@/components/workspace/trip-picker-sheet";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
     findColorShade,
     formatColorLabel,
@@ -62,6 +64,7 @@ import {
     createGemOnSourcingTrip,
     fetchTrip,
     fetchTrips,
+    queueGemCertificate,
     queueGemPhotoUrls,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -79,9 +82,9 @@ import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { GemStoneStage, Trip } from "@/types";
+import type { GemCertificate, GemStoneStage, Trip } from "@/types";
 
-const STEPS = ["Details", "Photos", "Review"] as const;
+const STEPS = ["Details", "Photos", "Certificate", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
 
 type SheetKey =
@@ -132,12 +135,15 @@ export default function AddGemScreen() {
   const [stoneStage, setStoneStage] = useState<GemStoneStage>("rough");
   /** Index 0 is the primary album image. */
   const [photos, setPhotos] = useState<LocalMedia[]>([]);
+  const [certificate, setCertificate] = useState<LocalMedia | null>(null);
   const [selectedTripId, setSelectedTripId] = useState(tripIdParam ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [didApplyShared, setDidApplyShared] = useState(false);
   const [didApplyTripParam, setDidApplyTripParam] = useState(false);
   const [showOptional, setShowOptional] = useState(Boolean(tripIdParam));
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const revealDetailsOnLayout = useRef(false);
 
   const { data: trips = [] } = useFirestoreLiveQuery({
     queryKey: ["trips", user?.uid],
@@ -291,6 +297,10 @@ export default function AddGemScreen() {
       setStep(2);
       return;
     }
+    if (step === 2) {
+      setStep(3);
+      return;
+    }
     void handleSubmit();
   }
 
@@ -298,7 +308,11 @@ export default function AddGemScreen() {
     if (process.env.EXPO_OS === "ios") {
       await Haptics.selectionAsync();
     }
-    setShowOptional((prev) => !prev);
+    setShowOptional((prev) => {
+      const next = !prev;
+      revealDetailsOnLayout.current = next;
+      return next;
+    });
   }
 
   async function handleSubmit() {
@@ -314,6 +328,9 @@ export default function AddGemScreen() {
         let photoUrls: string[] = [];
         let photosDeferred = false;
         let uploadTask: Promise<string[]> | null = null;
+        let certificateData: GemCertificate | null = null;
+        let certificateDeferred = false;
+        let certificateUploadTask: Promise<string> | null = null;
 
         if (photos.length > 0) {
           uploadTask = Promise.all(
@@ -341,6 +358,32 @@ export default function AddGemScreen() {
             photoUrls = [];
           }
         }
+        if (certificate) {
+          certificateUploadTask = uploadLocalMedia(
+            certificate,
+            `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
+          );
+          try {
+            const certificateUrl = await Promise.race([
+              certificateUploadTask,
+              new Promise<never>((_, reject) => {
+                setTimeout(
+                  () => reject(new Error("certificate-upload-timeout")),
+                  45_000,
+                );
+              }),
+            ]);
+            certificateData = {
+              url: certificateUrl,
+              kind: certificate.kind === "image" ? "image" : "file",
+              fileName: certificate.fileName ?? null,
+              mimeType: certificate.mimeType ?? null,
+            };
+          } catch {
+            // Save the gem now; attach the certificate when Storage is available.
+            certificateDeferred = true;
+          }
+        }
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
@@ -364,6 +407,7 @@ export default function AddGemScreen() {
           stoneStage: data.stoneStage,
           status: selectedTripId ? "on_trip" : data.stoneStage,
           photoUrls,
+          certificate: certificateData,
         };
 
         const gem = selectedTripId
@@ -387,6 +431,30 @@ export default function AddGemScreen() {
               // Still offline — gem row exists without photos.
             });
         }
+        if (certificateDeferred && certificateUploadTask && certificate) {
+          void certificateUploadTask
+            .then((url) => {
+              const uploadedCertificate: GemCertificate = {
+                url,
+                kind: certificate.kind === "image" ? "image" : "file",
+                fileName: certificate.fileName ?? null,
+                mimeType: certificate.mimeType ?? null,
+              };
+              queueGemCertificate(gem.id, uploadedCertificate);
+              queryClient.setQueryData(
+                ["gem", gem.id],
+                (prev: typeof gem | null | undefined) =>
+                  prev ? { ...prev, certificate: uploadedCertificate } : prev,
+              );
+              void queryClient.invalidateQueries({ queryKey: ["gems"] });
+              void queryClient.invalidateQueries({
+                queryKey: ["gem", gem.id],
+              });
+            })
+            .catch(() => {
+              // Still offline — the gem remains available without a certificate.
+            });
+        }
 
         // Seed detail cache so navigation skips the Loading flash.
         queryClient.setQueryData(["gem", gem.id], gem);
@@ -402,8 +470,8 @@ export default function AddGemScreen() {
         }
 
         toast.success(
-          photosDeferred
-            ? "Gem saved — photos still uploading in the background"
+          photosDeferred || certificateDeferred
+            ? "Gem saved — attachments still uploading in the background"
             : photos.length === 0
               ? "Gem added — photos optional, add anytime"
               : selectedTripId
@@ -426,6 +494,7 @@ export default function AddGemScreen() {
       />
 
       <ThemedScrollView
+        ref={scrollRef}
         style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -535,6 +604,46 @@ export default function AddGemScreen() {
               error={errors.acquisitionCost}
             />
 
+            <View style={styles.stageField}>
+              <Text style={[styles.stageLabel, { color: colors.onSurface }]}>Gem state *</Text>
+              <Text style={[styles.stageHint, { color: colors.textMuted }]}>Required physical state at purchase.</Text>
+              <View style={styles.stageOptions}>
+                {([
+                  ["rough", "Rough", "spa"],
+                  ["cut", "Cut", "content-cut"],
+                  ["heated", "Heat-treated", "local-fire-department"],
+                  ["polished", "Polished", "auto-awesome"],
+                ] as const).map(([value, label, icon]) => {
+                  const active = stoneStage === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => {
+                        setStoneStage(value);
+                        if (value === "heated") {
+                          setTreatment("heated");
+                          clearField("treatment");
+                        }
+                        clearField("stoneStage");
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      style={[
+                        styles.stageOption,
+                        {
+                          backgroundColor: active ? colors.primary : colors.surfaceContainerLow,
+                        },
+                      ]}
+                    >
+                      <Icon name={icon} size={18} color={active ? colors.onPrimary : colors.onSurfaceVariant} />
+                      <Text style={[styles.stageOptionText, { color: active ? colors.onPrimary : colors.onSurface }]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {errors.stoneStage ? <Text style={[styles.stageError, { color: colors.error }]}>{errors.stoneStage}</Text> : null}
+            </View>
+
             <Pressable
               onPress={() => void toggleOptional()}
               accessibilityRole="button"
@@ -566,6 +675,15 @@ export default function AddGemScreen() {
                 entering={FadeIn.duration(180)}
                 exiting={FadeOut.duration(120)}
                 style={styles.optionalBlock}
+                onLayout={(event) => {
+                  if (!revealDetailsOnLayout.current) return;
+                  revealDetailsOnLayout.current = false;
+                  scrollRef.current?.scrollTo({
+                    x: 0,
+                    y: Math.max(0, event.nativeEvent.layout.y - Spacing.sm),
+                    animated: true,
+                  });
+                }}
               >
                 <View style={styles.row}>
                   <View style={styles.flex}>
@@ -708,46 +826,6 @@ export default function AddGemScreen() {
               </Animated.View>
             ) : null}
 
-            <View style={styles.stageField}>
-              <Text style={[styles.stageLabel, { color: colors.onSurface }]}>Gem state *</Text>
-              <Text style={[styles.stageHint, { color: colors.textMuted }]}>Required physical state at purchase.</Text>
-              <View style={styles.stageOptions}>
-                {([
-                  ["rough", "Rough", "spa"],
-                  ["cut", "Cut", "content-cut"],
-                  ["heated", "Heat-treated", "local-fire-department"],
-                  ["polished", "Polished", "auto-awesome"],
-                ] as const).map(([value, label, icon]) => {
-                  const active = stoneStage === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => {
-                        setStoneStage(value);
-                        if (value === "heated") {
-                          setTreatment("heated");
-                          clearField("treatment");
-                        }
-                        clearField("stoneStage");
-                      }}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: active }}
-                      style={[
-                        styles.stageOption,
-                        {
-                          backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow,
-                          borderColor: active ? colors.primary : colors.outlineVariant,
-                        },
-                      ]}
-                    >
-                      <Icon name={icon} size={18} color={active ? colors.primary : colors.onSurfaceVariant} />
-                      <Text style={[styles.stageOptionText, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {errors.stoneStage ? <Text style={[styles.stageError, { color: colors.error }]}>{errors.stoneStage}</Text> : null}
-            </View>
           </FormSection>
         ) : null}
 
@@ -767,6 +845,21 @@ export default function AddGemScreen() {
         ) : null}
 
         {step === 2 ? (
+          <FormSection title="Gem certificate">
+            <MediaField
+              label="Certificate"
+              hint="Optional · choose a certificate photo or PDF"
+              value={certificate}
+              onChange={setCertificate}
+              allows="imagesOrDocuments"
+              emptyTitle="Add certificate"
+              emptySubtitle="Photo or PDF"
+              sourcePickerTitle="Add gem certificate"
+            />
+          </FormSection>
+        ) : null}
+
+        {step === 3 ? (
           <FormSection title="Review">
             <View style={styles.reviewList}>
               <ReviewRow label="Title" value={title.trim() || "—"} />
@@ -825,6 +918,10 @@ export default function AddGemScreen() {
                     : `${photos.length} · primary set`
                 }
               />
+              <ReviewRow
+                label="Certificate"
+                value={certificate?.fileName || (certificate ? "Ready to upload" : "None")}
+              />
             </View>
           </FormSection>
         ) : null}
@@ -832,13 +929,13 @@ export default function AddGemScreen() {
 
       <FormFooter
         title={
-          step === 2
+          step === 3
             ? "Add Gem"
             : step === 1 && photos.length === 0
               ? "Continue"
               : "Continue"
         }
-        icon={step === 2 ? "shield" : "arrow-forward"}
+        icon={step === 3 ? "shield" : "arrow-forward"}
         onPress={handleNext}
         secondaryTitle={step > 0 ? "Back" : undefined}
         onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}
@@ -989,13 +1086,12 @@ const styles = StyleSheet.create({
   moreHint: { ...Typography.caption },
   optionalBlock: { gap: Spacing.md },
   stageField: { gap: 6 },
-  stageLabel: { ...Typography.bodyLg, fontWeight: "600" },
-  stageHint: { ...Typography.caption },
+  stageLabel: { ...Typography.labelMd },
+  stageHint: { ...Typography.bodySmall },
   stageOptions: { gap: 8 },
   stageOption: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 52,
+    borderRadius: Radius.lg,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",

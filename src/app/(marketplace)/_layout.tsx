@@ -5,7 +5,6 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { needsPhoneVerification } from "@/lib/firebase/auth-service";
 import {
     formSheetFitContentOptions,
-    formSheetScreenOptions,
     silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
 import { useAuth } from "@/providers/auth-provider";
@@ -100,14 +99,14 @@ export default function MarketplaceLayout() {
       <Stack.Screen
         name="money/payables/add"
         options={{
-          ...formSheetScreenOptions,
+          ...formSheetFitContentOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />
       <Stack.Screen
         name="money/receivables/add"
         options={{
-          ...formSheetScreenOptions,
+          ...formSheetFitContentOptions,
           contentStyle: { backgroundColor: colors.background },
         }}
       />
@@ -115,7 +114,10 @@ export default function MarketplaceLayout() {
         <Stack.Screen
           key={name}
           name={name}
-          options={{ presentation: "formSheet" }}
+          options={{
+            ...formSheetFitContentOptions,
+            contentStyle: { backgroundColor: colors.background },
+          }}
         />
       ))}
     </Stack>

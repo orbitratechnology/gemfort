@@ -20,7 +20,7 @@ export type OnboardingRoleCue = {
   id: "trader" | "lapidary";
   label: string;
   subtitle: string;
-  icon: "storefront" | "handyman" | "workspace-premium";
+  icon: "storefront" | "service" | "workspace-premium";
 };
 
 export type OnboardingChapter = {
@@ -70,7 +70,7 @@ export const OnboardingChapters: readonly OnboardingChapter[] = [
         id: "lapidary",
         label: "Lapidary",
         subtitle: "Jobs, cutting & polish",
-        icon: "handyman",
+        icon: "service",
       },
     ],
   },

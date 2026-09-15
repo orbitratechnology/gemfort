@@ -1,6 +1,5 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
-import { Image } from "expo-image";
 import { Icon } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
@@ -36,7 +35,7 @@ import { useToast } from "@/providers/toast-provider";
 import type { Cheque } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     Pressable,
     RefreshControl,
@@ -115,7 +114,7 @@ function ChequeRow({
               ]}
             >
               <Icon
-                name="money-check-dollar"
+                name={isReceived ? "call-received" : "call-made"}
                 size={20}
                 color={
                   isBounced

@@ -1,7 +1,12 @@
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -36,6 +41,7 @@ function firstParam(v: string | string[] | undefined): string {
 export default function AddContactScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const toast = useToast();
   const raw = useLocalSearchParams<{
     displayName?: string;
@@ -174,16 +180,17 @@ export default function AddContactScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
       <StackHeader
         title="Add Contact"
         closeIcon
         image={require("@/assets/images/shortcuts/shortcut_contacts_light.png")}
       />
-      <ThemedScrollView contentContainerStyle={styles.content}>
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <ScreenInset style={styles.lead}>
           <Pressable
             accessibilityRole="button"
@@ -345,12 +352,13 @@ export default function AddContactScreen() {
           />
         </ScreenInset>
       </ThemedScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   lead: { gap: Spacing.lg },
   phoneCard: {

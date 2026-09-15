@@ -1,3 +1,4 @@
+import { Image, type ImageSource } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 
@@ -11,11 +12,13 @@ export function EmptyState({
   subtitle,
   action,
   icon = 'inbox',
+  image,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
   icon?: IconName;
+  image?: ImageSource;
 }) {
   const { colors } = useAppTheme();
   const reduceMotion = useReduceMotion();
@@ -89,7 +92,16 @@ export function EmptyState({
             transform: [{ scale: iconScale }],
           },
         ]}>
-        <Icon name={icon} size={28} color={colors.primary} />
+        {image ? (
+          <Image
+            source={image}
+            style={styles.image}
+            contentFit="contain"
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <Icon name={icon} size={28} color={colors.primary} />
+        )}
       </Animated.View>
       <Animated.View style={{ opacity: copyOpacity, alignItems: 'center', gap: Spacing.sm }}>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
@@ -117,6 +129,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.sm,
   },
+  image: { width: 38, height: 38 },
   title: {
     ...Typography.h3,
     textAlign: 'center',

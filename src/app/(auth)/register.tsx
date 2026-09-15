@@ -1,6 +1,13 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Keyboard,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
     FadeInLeft,
     FadeInRight,
@@ -29,6 +36,12 @@ import {
     TouchTarget,
     Typography,
 } from "@/constants/design-tokens";
+import {
+  CURRENT_LEGAL_ACCEPTANCE,
+  PRIVACY_URL,
+  TERMS_URL,
+} from "@/constants/legal";
+import type { LegalAcceptance } from "@/constants/legal";
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
@@ -48,6 +61,69 @@ import type { UserRole } from "@/types";
 
 type Step = "role" | "form";
 
+type LegalConsentProps = {
+  checked: boolean;
+  error?: string;
+  onToggle: () => void;
+};
+
+function LegalConsent({ checked, error, onToggle }: LegalConsentProps) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={styles.legalSection}>
+      <View style={styles.legalRow}>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityLabel="Agree to the Terms and Conditions and Privacy Policy"
+          accessibilityState={{ checked }}
+          onPress={onToggle}
+          style={({ pressed }) => [
+            styles.checkbox,
+            {
+              backgroundColor: checked
+                ? colors.primaryContainer
+                : colors.surfaceContainerLowest,
+              borderColor: error
+                ? colors.error
+                : checked
+                  ? colors.primary
+                  : colors.outlineVariant,
+            },
+            pressed && styles.legalPressed,
+          ]}
+        >
+          {checked ? <Icon name="check" size={18} color={colors.primary} /> : null}
+        </Pressable>
+        <Text style={[styles.legalText, { color: colors.textMuted }]}>
+          I agree to the GemFort{" "}
+          <Text
+            accessibilityRole="link"
+            accessibilityLabel="Terms and Conditions"
+            onPress={() => void Linking.openURL(TERMS_URL)}
+            style={[styles.legalLink, { color: colors.primary }]}
+          >
+            Terms and Conditions
+          </Text>{" "}
+          and{" "}
+          <Text
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+            onPress={() => void Linking.openURL(PRIVACY_URL)}
+            style={[styles.legalLink, { color: colors.primary }]}
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
+      </View>
+      {error ? (
+        <Text style={[styles.legalError, { color: colors.error }]}>{error}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function RegisterScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -58,6 +134,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const pendingSocialProvider =
     getPendingSocialRegistration()?.provider ?? null;
@@ -80,6 +157,7 @@ export default function RegisterScreen() {
     clearField("role");
     haptics.selection();
     if (pendingSocialProvider) {
+      if (!requireLegalAcceptance()) return;
       await finishPendingSocial();
       return;
     }
@@ -92,9 +170,13 @@ export default function RegisterScreen() {
   }
 
   async function finishPendingSocial() {
+    if (!requireLegalAcceptance()) return;
     try {
       await withLoading(async () => {
-        await completePendingSocialRegistration(role!);
+        await completePendingSocialRegistration(
+          role!,
+          CURRENT_LEGAL_ACCEPTANCE,
+        );
         router.replace({
           pathname: "/(auth)/complete-phone",
           params: { afterRegistration: "1" },
@@ -131,6 +213,7 @@ export default function RegisterScreen() {
       email,
       password,
       role,
+      acceptedLegal,
     });
     if (!result.success) {
       setErrors(result.errors);
@@ -149,6 +232,7 @@ export default function RegisterScreen() {
           password: data.password,
           displayName: data.displayName,
           role: data.role,
+          legalAcceptance: CURRENT_LEGAL_ACCEPTANCE,
         });
         if (user) {
           router.replace({
@@ -165,6 +249,7 @@ export default function RegisterScreen() {
   async function handleSocialRegister(
     signIn: (
       selectedRole: UserRole,
+      legalAcceptance: LegalAcceptance,
     ) => Promise<Awaited<ReturnType<typeof signInWithApple>>>,
   ) {
     if (!role) {
@@ -172,9 +257,10 @@ export default function RegisterScreen() {
       toast.error("Choose a role to continue.");
       return;
     }
+    if (!requireLegalAcceptance()) return;
     try {
       await withLoading(async () => {
-        await signIn(role);
+        await signIn(role, CURRENT_LEGAL_ACCEPTANCE);
         router.replace({
           pathname: "/(auth)/complete-phone",
           params: { afterRegistration: "1" },
@@ -183,6 +269,17 @@ export default function RegisterScreen() {
     } catch (error) {
       toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));
     }
+  }
+
+  function requireLegalAcceptance() {
+    if (acceptedLegal) return true;
+    setErrors((prev) => ({
+      ...prev,
+      acceptedLegal:
+        "Agree to the Terms and Conditions and Privacy Policy to continue.",
+    }));
+    toast.error("Agree to the Terms and Conditions and Privacy Policy.");
+    return false;
   }
 
   const enterMs = reduceMotion ? Motion.fast : Motion.normal;
@@ -212,6 +309,16 @@ export default function RegisterScreen() {
               }}
               error={errors.role}
             />
+            {pendingSocialProvider ? (
+              <LegalConsent
+                checked={acceptedLegal}
+                error={errors.acceptedLegal}
+                onToggle={() => {
+                  setAcceptedLegal((value) => !value);
+                  clearField("acceptedLegal");
+                }}
+              />
+            ) : null}
             <Button
               title={continueTitle}
               icon="arrow-forward"
@@ -322,6 +429,15 @@ export default function RegisterScreen() {
               }
             />
 
+            <LegalConsent
+              checked={acceptedLegal}
+              error={errors.acceptedLegal}
+              onToggle={() => {
+                setAcceptedLegal((value) => !value);
+                clearField("acceptedLegal");
+              }}
+            />
+
             <Button
               title="Sign Up"
               onPress={handleRegister}
@@ -358,6 +474,40 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 400,
     gap: Spacing.md,
+  },
+  legalSection: {
+    width: "100%",
+    gap: Spacing.xs,
+  },
+  legalRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    marginTop: 1,
+    borderWidth: 1.5,
+    borderRadius: Radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  legalPressed: {
+    opacity: 0.8,
+  },
+  legalText: {
+    ...Typography.bodyMd,
+    flex: 1,
+    lineHeight: 21,
+  },
+  legalLink: {
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  legalError: {
+    ...Typography.labelMd,
+    marginLeft: 32,
   },
   roleChip: {
     flexDirection: "row",

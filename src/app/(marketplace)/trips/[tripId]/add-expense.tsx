@@ -1,8 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { ChipSelect } from '@/components/ui/chip-select';
@@ -40,6 +45,7 @@ export default function AddTripExpenseScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -101,14 +107,18 @@ export default function AddTripExpenseScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
       <StackHeader
         title="Add Expense"
         closeIcon
         image={require("@/assets/images/shortcuts/shortcut_money_light.png")}
       />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <FormSection title="Category" padded={false}>
           <View style={styles.categoryGrid}>
             {TRIP_EXPENSE_CATEGORIES.map((c) => {
@@ -191,12 +201,13 @@ export default function AddTripExpenseScreen() {
         <Button title="Save expense" icon="shield" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: {
     paddingBottom: Spacing.section,
     gap: Spacing.lg,

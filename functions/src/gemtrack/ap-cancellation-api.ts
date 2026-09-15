@@ -60,6 +60,7 @@ async function ensureApNotification(input: {
     | 'ap_cancellation_rejected';
   title: string;
   message: string;
+  direction: 'given' | 'taken';
   apId: string;
 }) {
   await ensureDeterministicNotificationDoc({
@@ -67,6 +68,7 @@ async function ensureApNotification(input: {
     type: input.type,
     title: input.title,
     message: input.message,
+    direction: input.direction,
     referenceType: 'ap',
     referenceId: input.apId,
   });
@@ -96,6 +98,7 @@ export async function requestApCancellationForApi(
       type: 'ap_cancellation_requested' as const,
       title: 'AP cancellation requested',
       message: `${ap.senderName || 'Trader'} asked to cancel an AP. Accept to unlock the stones.`,
+      direction: 'taken',
     };
 
     if (decision.kind === 'transition') {
@@ -148,6 +151,7 @@ export async function respondApCancellationForApi(
         action === 'accepted'
           ? `${ap.receiverName || 'Trader'} accepted your cancellation request.`
           : `${ap.receiverName || 'Trader'} kept the AP active.`,
+      direction: 'given',
     };
 
     const heldItems = (ap.items ?? []).filter((item) => item.lineStatus === 'held');

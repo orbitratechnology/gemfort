@@ -91,9 +91,9 @@ function TripRow({
                   : colors.surfaceContainerHigh,
               },
             ]}
-          >
+            >
             <Icon
-              name={typeMeta.icon}
+              name="trip"
               size={22}
               color={
                 isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant
@@ -219,7 +219,7 @@ export default function TripsScreen() {
             ]}
           >
             <View style={[styles.rowIcon, { backgroundColor: colors.primary }]}>
-              <Icon name="flight" size={22} color={colors.onPrimary} />
+              <Icon name="explore" size={22} color={colors.onPrimary} />
             </View>
             <View style={styles.createText}>
               <Text style={[styles.createTitle, { color: colors.onPrimaryContainer }]}>
@@ -232,39 +232,10 @@ export default function TripsScreen() {
             <Icon name="chevron-right" size={22} color={colors.onPrimaryContainer} />
           </Pressable>
         ) : null}
-        {tab === "active" ? (
-          <Pressable
-            onPress={haptics.wrap("light", () =>
-              router.push("/(marketplace)/trips/add" as never),
-            )}
-            style={({ pressed }) => [
-              styles.createCard,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.92 },
-            ]}
-          >
-            <Icon name="flight-takeoff" size={24} color={colors.onPrimary} />
-            <View style={styles.createText}>
-              <Text style={[styles.createTitle, { color: colors.onPrimary }]}>
-                Plan a new trip
-              </Text>
-              <Text
-                style={[styles.createSub, { color: colors.onPrimary + "AA" }]}
-              >
-                Ratnapura, Bangkok, or anywhere you trade
-              </Text>
-            </View>
-            <Icon
-              name="chevron-right"
-              size={22}
-              color={colors.onPrimary + "99"}
-            />
-          </Pressable>
-        ) : null}
 
         {visible.length === 0 ? (
           <EmptyState
-            icon={tab === "active" ? "flight" : "check-circle"}
+            icon={tab === "active" ? "flight-takeoff" : "check-circle"}
             title={tab === "active" ? "No active trips" : "No completed trips"}
             subtitle={
               tab === "active"
@@ -312,14 +283,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  createCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
   flightsCard: {
     flexDirection: "row",
     alignItems: "center",
