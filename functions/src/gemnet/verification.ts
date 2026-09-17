@@ -255,7 +255,7 @@ export const onVerificationStatusChanged = onDocumentUpdated(
       type: mapping.type as 'verification_approved',
       title: mapping.title,
       message: mapping.message,
-      referenceType: 'verification',
+      referenceType: after.status === 'approved' ? 'account' : 'verification',
       referenceId: event.params.applicationId,
     });
 

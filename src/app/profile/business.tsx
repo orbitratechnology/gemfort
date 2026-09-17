@@ -1074,7 +1074,8 @@ const styles = StyleSheet.create({
   avatarRing: {
     width: AVATAR,
     height: AVATAR,
-    borderRadius: AVATAR / 2,
+    borderRadius: 24,
+    borderCurve: "continuous",
     borderWidth: 3,
     overflow: "hidden",
     alignItems: "center",

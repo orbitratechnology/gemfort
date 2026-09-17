@@ -244,9 +244,9 @@ export default function PublicListingScreen() {
   const certificate = activeListing.certificate?.url
     ? activeListing.certificate
     : null;
-  const shareUrl =
-    activeListing.shareableUrl ||
-    listingShareUrl(activeListing.shareableSlug || slug!);
+  // Always build the canonical URL so older Firestore documents that still
+  // contain a retired host cannot produce broken shares.
+  const shareUrl = listingShareUrl(activeListing.shareableSlug || slug!);
   const listingTitle =
     activeListing.title || formatGemType(activeListing.gemType);
   const sellerWhatsapp =
@@ -1235,7 +1235,8 @@ const styles = StyleSheet.create({
   ownerAvatar: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -1243,7 +1244,8 @@ const styles = StyleSheet.create({
   ownerAvatarImg: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
   ownerText: { flex: 1, gap: 4, minWidth: 0 },

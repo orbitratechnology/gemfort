@@ -1,0 +1,15 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.gemfort",
+      "sha256_cert_fingerprints": [
+        "FC:A1:FC:84:10:06:40:61:EF:20:7C:B6:34:CE:ED:DA:CD:6C:21:C7:64:0A:1B:73:5C:1C:0E:D9:91:5A:DD:E8",
+        "47:2D:D2:E0:BB:3B:FE:83:84:5E:CC:9C:0F:66:55:9B:1A:F2:14:BD:7C:AB:FE:91:84:EF:50:AE:AB:B9:48:87",
+        "17:65:F9:EE:86:DE:2F:DE:2C:D9:55:9C:B8:05:8E:A3:6F:D1:56:5A:39:5C:2D:8E:9E:B4:B6:B2:23:77:30:62",
+        "96:67:C8:31:45:E5:E5:6F:B5:AF:9D:06:DC:CF:E5:11:B1:5D:23:DA:9D:F5:BA:EA:6E:D7:A4:15:80:93:33:27"
+      ]
+    }
+  }
+]

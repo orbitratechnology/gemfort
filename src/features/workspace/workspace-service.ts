@@ -21,6 +21,7 @@ import {
 import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
+import { listingShareUrl } from "@/lib/public-links";
 import {
     collection,
     deleteDoc,
@@ -2459,7 +2460,7 @@ export async function createListing(
     sellerCountry,
     sellerIsVerified,
     shareableSlug: slug,
-    shareableUrl: `https://gemfort.app/l/${slug}`,
+    shareableUrl: listingShareUrl(slug),
     status: "active",
     soldAt: null,
     soldPrice: null,
@@ -2620,6 +2621,8 @@ export type SubmitVerificationInput = {
     addressProofUrl: string | null;
     otherDocUrls: string[];
   };
+  /** Keep an existing verified tier active while a promotion is reviewed. */
+  preserveVerifiedStatus?: boolean;
 };
 
 export async function submitVerificationApplication(
@@ -2646,17 +2649,20 @@ export async function submitVerificationApplication(
       businessName,
       servicesOffered: input.servicesOffered,
       documents: input.documents,
+      isPromotion: input.preserveVerifiedStatus === true,
       status: "pending",
       adminUid: null,
       adminNotes: "",
       submittedAt: now,
     },
   );
-  queueDocUpdate("users", applicantUid, {
-      verificationStatus: "pending",
-      dateOfBirth,
-      updatedAt: serverTimestamp(),
-    });
+  if (!input.preserveVerifiedStatus) {
+    queueDocUpdate("users", applicantUid, {
+        verificationStatus: "pending",
+        dateOfBirth,
+        updatedAt: serverTimestamp(),
+      });
+  }
 
   return applicationId;
 }

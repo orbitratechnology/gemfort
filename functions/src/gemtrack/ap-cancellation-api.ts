@@ -98,7 +98,7 @@ export async function requestApCancellationForApi(
       type: 'ap_cancellation_requested' as const,
       title: 'AP cancellation requested',
       message: `${ap.senderName || 'Trader'} asked to cancel an AP. Accept to unlock the stones.`,
-      direction: 'taken',
+      direction: 'taken' as const,
     };
 
     if (decision.kind === 'transition') {
@@ -151,7 +151,7 @@ export async function respondApCancellationForApi(
         action === 'accepted'
           ? `${ap.receiverName || 'Trader'} accepted your cancellation request.`
           : `${ap.receiverName || 'Trader'} kept the AP active.`,
-      direction: 'given',
+      direction: 'given' as const,
     };
 
     const heldItems = (ap.items ?? []).filter((item) => item.lineStatus === 'held');

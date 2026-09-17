@@ -1092,23 +1092,25 @@ function SuggestedCard({
 
       <Link href={`/business/${business.id}`} asChild>
         <Pressable style={styles.suggestBody}>
-          <View
-            style={[
-              styles.suggestAvatar,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-          >
-            {business.logoUrl ? (
-              <Image
-                source={{ uri: business.logoUrl }}
-                style={styles.suggestAvatarImg}
-                contentFit="cover"
-              />
-            ) : (
-              <Text style={[styles.suggestInitials, { color: colors.primary }]}>
-                {initials(business.businessName)}
-              </Text>
-            )}
+          <View style={styles.suggestAvatarWrap}>
+            <View
+              style={[
+                styles.suggestAvatar,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              {business.logoUrl ? (
+                <Image
+                  source={{ uri: business.logoUrl }}
+                  style={styles.suggestAvatarImg}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={[styles.suggestInitials, { color: colors.primary }]}>
+                  {initials(business.businessName)}
+                </Text>
+              )}
+            </View>
             <AvatarVerificationBadge
               type={reputationBadge}
               borderColor={colors.surfaceContainerLowest}
@@ -1194,7 +1196,8 @@ const styles = StyleSheet.create({
   avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
+    borderRadius: 24,
+    borderCurve: "continuous",
     borderWidth: 3,
     overflow: "hidden",
     alignItems: "center",
@@ -1373,6 +1376,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   suggestCard: {
+    height: 190,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
@@ -1398,11 +1402,16 @@ const styles = StyleSheet.create({
   suggestAvatar: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    position: "relative",
+    borderRadius: 14,
+    borderCurve: "continuous",
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+  },
+  suggestAvatarWrap: {
+    width: 56,
+    height: 56,
+    position: "relative",
   },
   suggestAvatarImg: { width: "100%", height: "100%" },
   suggestInitials: { fontSize: 18, fontWeight: "700" },

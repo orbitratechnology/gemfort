@@ -338,7 +338,7 @@ export async function respondApRequestForApi(
           message: action === 'accepted'
             ? `${ap.receiverName || 'Trader'} accepted your AP (${(ap.items ?? []).length} gems).`
             : `${ap.receiverName || 'Trader'} declined your AP request.`,
-          direction: 'given',
+          direction: 'given' as const,
           actorName: ap.receiverName || 'Trader',
         },
       };
@@ -377,7 +377,7 @@ export async function respondApRequestForApi(
         message: action === 'accepted'
           ? `${ap.receiverName || 'Trader'} accepted your AP (${(ap.items ?? []).length} gems).`
           : `${ap.receiverName || 'Trader'} declined your AP request.`,
-        direction: 'given',
+        direction: 'given' as const,
         actorName: ap.receiverName || 'Trader',
       },
     };
@@ -412,7 +412,7 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
           type: 'ap_request_cancelled' as const,
           title: 'AP request cancelled',
           message: `${ap.senderName || 'Trader'} cancelled an AP request.`,
-          direction: 'taken',
+          direction: 'taken' as const,
         },
       };
     }
@@ -441,7 +441,7 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
         type: 'ap_request_cancelled' as const,
         title: 'AP request cancelled',
         message: `${ap.senderName || 'Trader'} cancelled an AP request.`,
-        direction: 'taken',
+        direction: 'taken' as const,
       },
     };
   });

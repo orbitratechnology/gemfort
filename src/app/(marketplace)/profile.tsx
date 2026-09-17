@@ -3,27 +3,27 @@ import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useRef, useState } from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
-import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyFlag } from "@/components/ui/country-flag";
+import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { StackHeader } from "@/components/ui/stack-header";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     getCurrencyLabel,
     type CurrencyCode,
 } from "@/constants/currencies";
-import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     Radius,
     Spacing,
@@ -39,13 +39,13 @@ import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subs
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import { friendlyError } from "@/lib/errors";
 import {
     logoutUser,
     updatePreferredCurrency,
 } from "@/lib/firebase/auth-service";
-import { friendlyError } from "@/lib/errors";
-import type { ThemePreference } from "@/lib/theme-preference";
 import { runWithCleanup } from "@/lib/run-with-cleanup";
+import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
@@ -231,7 +231,7 @@ export default function ProfileScreen() {
               <AvatarVerificationBadge
                 type={reputationBadge}
                 borderColor={colors.background}
-                size="md"
+                size="lg"
               />
             </View>
             <Text style={[styles.name, { color: colors.primary }]}>
@@ -251,7 +251,23 @@ export default function ProfileScreen() {
         <View style={styles.body}>
           <FormSectionLabel title="BUSINESS PROFILE" />
           <FormSection padded={false}>
-            {!isVerified ? (
+            {isVerified ? (
+              <>
+                <Row
+                  colors={colors}
+                  icon="verified-user"
+                  label="Promote Verification"
+                  subtitle="Submit additional documents for a higher tier"
+                  onPress={() => router.push("/profile/verify")}
+                  trailing={
+                    <Text style={[styles.trailingValue, { color: colors.primary }]}>
+                      Promote
+                    </Text>
+                  }
+                />
+                <Divider colors={colors} />
+              </>
+            ) : (
               <>
                 <Row
                   colors={colors}
@@ -272,7 +288,7 @@ export default function ProfileScreen() {
                 />
                 <Divider colors={colors} />
               </>
-            ) : null}
+            )}
             <Row
               colors={colors}
               icon="storefront"
@@ -458,7 +474,8 @@ const styles = StyleSheet.create({
   avatar: {
     width: 96,
     height: 96,
-    borderRadius: 48,
+    borderRadius: 24,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,

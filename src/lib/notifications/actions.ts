@@ -14,6 +14,7 @@ export async function handleNotificationAction(
   referenceType: string | null,
   referenceId: string | null,
   notificationId?: string,
+  notificationType?: string | null,
 ) {
   try {
     if (
@@ -82,5 +83,5 @@ export async function handleNotificationAction(
     }
   } catch {}
 
-  navigateFromNotificationRef(referenceType, referenceId);
+  navigateFromNotificationRef(referenceType, referenceId, undefined, notificationType);
 }

@@ -4,6 +4,7 @@ const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 
 // All EAS environments use the same native app and Firebase configuration.
 const bundleId = "app.gemfort";
+const appLinkHost = "gemfort.web.app";
 
 // Shared image artwork used by both iOS and Android system shortcuts.
 const SHORTCUT_IMAGES = {
@@ -50,7 +51,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
     },
     associatedDomains:
-      env === "production" || env === "preview" ? ["applinks:gemfort.app"] : [],
+      env === "production" || env === "preview"
+        ? [`applinks:${appLinkHost}`]
+        : [],
     googleServicesFile:
       process.env.GOOGLE_SERVICES_PLIST ?? "GoogleService-Info.plist",
   },
@@ -78,8 +81,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
               data: [
                 {
                   scheme: "https",
-                  host: "gemfort.app",
+                  host: appLinkHost,
                   pathPrefix: "/l",
+                },
+              ],
+              category: ["BROWSABLE", "DEFAULT"],
+            },
+            {
+              action: "VIEW",
+              autoVerify: true,
+              data: [
+                {
+                  scheme: "https",
+                  host: appLinkHost,
+                  pathPrefix: "/business",
                 },
               ],
               category: ["BROWSABLE", "DEFAULT"],

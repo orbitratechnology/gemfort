@@ -103,14 +103,7 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const result = await LocalAuthentication.authenticateAsync({
-          biometricsSecurityLevel: "strong",
-          promptMessage: "Unlock GemFort",
-          promptDescription: "Verify your identity to continue.",
-          promptSubtitle: "Your account stays protected on this device.",
-          cancelLabel: "Cancel",
-          requireConfirmation: true,
-        });
+        const result = await LocalAuthentication.authenticateAsync();
         if (!result.success) return false;
         await persistUnlock(user.uid);
         if (mountedRef.current) setLocked(false);

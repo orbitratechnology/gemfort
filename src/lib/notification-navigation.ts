@@ -25,6 +25,7 @@ export function navigateFromNotificationRef(
   refType: string | null | undefined,
   refId: string | null | undefined,
   options?: NavigateOptions,
+  notificationType?: string | null,
 ) {
   const type = String(refType ?? '');
   const id = String(refId ?? '');
@@ -57,7 +58,12 @@ export function navigateFromNotificationRef(
     return;
   }
   if (type === 'verification') {
-    go('/profile/verify' as Href, options);
+    go(
+      notificationType === 'verification_approved'
+        ? '/(marketplace)/profile'
+        : '/profile/verify',
+      options,
+    );
     return;
   }
   if (type === 'announcement') {

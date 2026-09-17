@@ -28,14 +28,21 @@ function handleNotificationResponse(
     data?.referenceType != null ? String(data.referenceType) : null;
   const referenceId =
     data?.referenceId != null ? String(data.referenceId) : null;
+  const notificationType = data?.type != null ? String(data.type) : null;
   const actionId = response.actionIdentifier;
 
   if (actionId && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
-    void handleNotificationAction(actionId, referenceType, referenceId);
+    void handleNotificationAction(
+      actionId,
+      referenceType,
+      referenceId,
+      undefined,
+      notificationType,
+    );
     return;
   }
 
-  navigateFromNotificationRef(referenceType, referenceId);
+  navigateFromNotificationRef(referenceType, referenceId, undefined, notificationType);
 }
 
 export function PushNotificationRegistrar() {

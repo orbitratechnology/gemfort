@@ -85,7 +85,7 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
-import { shareFile, shareLink } from "@/lib/share";
+import { listingShareUrl, shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
@@ -577,7 +577,9 @@ export default function GemDetailScreen() {
     }
     await shareLink({
       message: `GemFort gem: ${gemSummary}`,
-      url: `gemfort://workspace/gems/${gemIdForShare}`,
+      url: gem.marketplaceListingId
+        ? listingShareUrl(gem.marketplaceListingId)
+        : `gemfort://workspace/gems/${gemIdForShare}`,
       title: gemTitle,
     });
   }
@@ -1421,7 +1423,8 @@ const styles = StyleSheet.create({
   ownerAvatar: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -1429,7 +1432,8 @@ const styles = StyleSheet.create({
   ownerAvatarImg: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
   ownerText: { flex: 1, gap: 4, minWidth: 0 },

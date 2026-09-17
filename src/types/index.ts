@@ -908,6 +908,7 @@ export type VerificationApplication = {
   id: string;
   applicantUid: string;
   businessId: string;
+  isPromotion?: boolean;
   applicationType: "trader" | "lapidary" | string;
   status: string;
   /** ISO date `YYYY-MM-DD` — required for KYC. */

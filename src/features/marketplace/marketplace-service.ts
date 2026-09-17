@@ -41,6 +41,7 @@ import type {
   ProfileLocation,
   UserRole,
 } from "@/types";
+import { listingShareUrl } from "@/lib/public-links";
 
 export type MarketBusinessFilter =
   | "trader"
@@ -674,7 +675,7 @@ export function demoListings(): MarketplaceListing[] {
         "https://lh3.googleusercontent.com/aida-public/AB6AXuC_7OK_3UypEsNQwZgFXed6mI302725BO5QYFtofpbY8PzSm0dEMgGn54C6ym8vcSee6QXTw0g8Z6QU8_OBltA7gLcCeJ4kKFCFOupuVgLA93mmVDwqpxn7RHgD51EFt_nfNONxJ8W0mD2MXxTTSfbepmKUi2HN1p34G4HIfEVddJGuuYIVj0dS-jRlotHtTEWA3B8HbOXVkWB3z1_VpTgc_qNslfs4GY3HmzQHKipxkV3v8LwmE2pD-1wjEXnKy-yn5iw",
       ],
       shareableSlug: "GF-L-00001",
-      shareableUrl: "https://gemfort.app/l/GF-L-00001",
+      shareableUrl: listingShareUrl("GF-L-00001"),
     },
     {
       ...base,
@@ -691,7 +692,7 @@ export function demoListings(): MarketplaceListing[] {
         "https://lh3.googleusercontent.com/aida-public/AB6AXuAnxTKk7Lh3v8VRIiVT16UI-WibWqYAYWYptNYrqza3yY8wTHL_v-2aw6XRG4BZHj3R-uVySUjExAGUwSOcA7QO1tFoxcJToAb-1tZh-DxfSuLUud96jxa3xaKZnzxWGxox981P5jRQ6kUIr7f10n7mpdN3aPRZ1WGiM9W6b8gxlblPu9qP5lkdoTlhcI-Yr6M7HR-QCb8-58Fs9emGEYkKhvx0oSDCOppcYSq_yRMooh1CXQ45fIUC8g",
       ],
       shareableSlug: "GF-L-00002",
-      shareableUrl: "https://gemfort.app/l/GF-L-00002",
+      shareableUrl: listingShareUrl("GF-L-00002"),
     },
   ];
 }

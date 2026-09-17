@@ -4,6 +4,7 @@ import { Share } from 'react-native';
 import { toast } from 'sonner-native';
 
 import { haptics } from '@/lib/haptics';
+export { businessShareUrl, listingShareUrl } from '@/lib/public-links';
 
 export type ShareLinkOptions = {
   /** Canonical URL (listing, deep link, etc.). */
@@ -55,7 +56,6 @@ export async function shareLink(options: ShareLinkOptions): Promise<ShareResult>
     return 'unavailable';
   }
 }
-
 /**
  * Share a local file via expo-sharing (PDF, image, etc.).
  */
@@ -101,12 +101,3 @@ export async function copyLink(
   toast.success('Link copied');
 }
 
-/** Public listing URL for a slug. */
-export function listingShareUrl(slug: string): string {
-  return `https://gemfort.app/l/${slug}`;
-}
-
-/** App deep link for a business profile (universal links cover /l only today). */
-export function businessShareUrl(businessId: string): string {
-  return `https://gemfort.app/business/${businessId}`;
-}

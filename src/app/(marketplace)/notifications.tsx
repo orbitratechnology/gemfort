@@ -198,9 +198,12 @@ export default function NotificationsScreen() {
     async (n: AppNotification) => {
       try {
         await markRead(n);
-        navigateFromNotificationRef(n.referenceType, n.referenceId, {
-          fromInbox: true,
-        });
+        navigateFromNotificationRef(
+          n.referenceType,
+          n.referenceId,
+          { fromInbox: true },
+          n.type,
+        );
       } catch (e) {
         toast.error(friendlyError(e, "Could not open notification."));
       }
@@ -300,9 +303,12 @@ export default function NotificationsScreen() {
           return;
         }
         if (actionId === "view_verify") {
-          navigateFromNotificationRef("verification", null, {
-            fromInbox: true,
-          });
+          navigateFromNotificationRef(
+            "verification",
+            null,
+            { fromInbox: true },
+            n.type,
+          );
           return;
         }
         if (actionId === "view_account") {
@@ -310,9 +316,12 @@ export default function NotificationsScreen() {
           return;
         }
 
-        navigateFromNotificationRef(n.referenceType, n.referenceId, {
-          fromInbox: true,
-        });
+        navigateFromNotificationRef(
+          n.referenceType,
+          n.referenceId,
+          { fromInbox: true },
+          n.type,
+        );
       } catch (e) {
         toast.error(friendlyError(e, "Could not complete that action."));
       } finally {

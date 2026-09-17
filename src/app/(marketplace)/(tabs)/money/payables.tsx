@@ -1,6 +1,6 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -8,35 +8,35 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
-import { EmptyState } from '@/components/ui/empty-state';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
 import { subscribePayables } from '@/features/workspace/firestore-subscriptions';
+import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
 import {
-  fetchPayables,
-  recordPayablePayment,
+    fetchPayables,
+    recordPayablePayment,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
+import { friendlyError } from '@/lib/errors';
+import { uploadReceipt } from '@/lib/firebase/receipt-service';
+import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
 import { parseForm, recordPaymentSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
-import { friendlyError } from '@/lib/errors';
-import { uploadReceipt } from '@/lib/firebase/receipt-service';
-import type { LocalMedia } from '@/lib/firebase/storage-service';
 import type { Payable } from '@/types';
 
 export default function PayablesScreen() {
@@ -190,7 +190,7 @@ export default function PayablesScreen() {
           ) : (
             <View style={styles.payActions}>
               <Button
-                title="Record Full Payment"
+                title="Full Payment"
                 variant="secondary"
                 style={styles.flex1}
                 onPress={() => {

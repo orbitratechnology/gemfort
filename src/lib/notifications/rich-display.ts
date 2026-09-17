@@ -420,6 +420,7 @@ export type NotifeeActionHandler = (
   referenceType: string | null,
   referenceId: string | null,
   notificationId?: string,
+  notificationType?: string | null,
 ) => void | Promise<void>;
 
 export function wireNotifeePressEvents(onAction?: NotifeeActionHandler) {
@@ -428,13 +429,22 @@ export function wireNotifeePressEvents(onAction?: NotifeeActionHandler) {
     const data = detail.notification?.data ?? {};
     const referenceType = data.referenceType != null ? String(data.referenceType) : null;
     const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    const notificationType = data.type != null ? String(data.type) : null;
     if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
-      void onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      void onAction(
+        detail.pressAction.id,
+        referenceType,
+        referenceId,
+        detail.notification?.id,
+        notificationType,
+      );
       return;
     }
     navigateFromNotificationRef(
       referenceType,
       referenceId,
+      undefined,
+      notificationType,
     );
   });
 }
@@ -445,13 +455,22 @@ export async function wireNotifeeBackgroundPress(onAction?: NotifeeActionHandler
     const data = detail.notification?.data ?? {};
     const referenceType = data.referenceType != null ? String(data.referenceType) : null;
     const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    const notificationType = data.type != null ? String(data.type) : null;
     if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
-      await onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      await onAction(
+        detail.pressAction.id,
+        referenceType,
+        referenceId,
+        detail.notification?.id,
+        notificationType,
+      );
       return;
     }
     navigateFromNotificationRef(
       referenceType,
       referenceId,
+      undefined,
+      notificationType,
     );
   });
 }

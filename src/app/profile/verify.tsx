@@ -15,16 +15,16 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
 import {
-  fetchBusinessByOwnerUid,
-  updateBusinessProfile,
+    fetchBusinessByOwnerUid,
+    updateBusinessProfile,
 } from '@/features/marketplace/marketplace-service';
 import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import {
-  extensionForMedia,
-  uploadLocalMedia,
-  type LocalMedia,
+    extensionForMedia,
+    uploadLocalMedia,
+    type LocalMedia,
 } from '@/lib/firebase/storage-service';
 import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
@@ -67,6 +67,7 @@ export default function VerifyApplicationScreen() {
   const toast = useToast();
   const role = resolveProfileRole(profile);
   const isLapidary = role === 'lapidary';
+  const isPromotion = profile?.verificationStatus === 'verified';
 
   const maxDob = useMemo(() => new Date(), []);
   const minDob = useMemo(() => subYears(new Date(), 120), []);
@@ -185,6 +186,7 @@ export default function VerifyApplicationScreen() {
             addressProofUrl: null,
             otherDocUrls: [],
           },
+          preserveVerifiedStatus: isPromotion,
         });
         await refreshProfile();
         toast.success('Verification application submitted.');
@@ -215,7 +217,14 @@ export default function VerifyApplicationScreen() {
             ]}>
             <Icon name="verified" size={64} color={colors.primary} />
           </View>
-          <Text style={[styles.title, { color: colors.primary }]}>Apply for verification</Text>
+          <Text style={[styles.title, { color: colors.primary }]}>
+            {isPromotion ? 'Promote your verification' : 'Apply for verification'}
+          </Text>
+          {isPromotion ? (
+            <Text style={[styles.tierNoteText, { color: colors.textMuted }]}>
+              Your current verification remains active while GemFort reviews the additional documents.
+            </Text>
+          ) : null}
           <View
             style={[
               styles.roleCard,
@@ -476,7 +485,11 @@ export default function VerifyApplicationScreen() {
         </FormSection>
 
         <ScreenInset style={styles.actions}>
-          <Button title="Submit application" icon="send" onPress={handleSubmit} />
+          <Button
+            title={isPromotion ? 'Promote' : 'Submit'}
+            icon="send"
+            onPress={handleSubmit}
+          />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>

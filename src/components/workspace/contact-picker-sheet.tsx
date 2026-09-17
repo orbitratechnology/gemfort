@@ -262,16 +262,18 @@ function BusinessRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <View
-        style={[
-          styles.avatar,
-          { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' },
-        ]}>
-        {business.logoUrl ? (
-          <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
-        ) : (
-          <Icon name={marketIcon(business)} size={20} color={colors.primary} />
-        )}
+      <View style={styles.contactAvatarWrap}>
+        <View
+          style={[
+            styles.avatar,
+            { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' },
+          ]}>
+          {business.logoUrl ? (
+            <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
+          ) : (
+            <Icon name={marketIcon(business)} size={20} color={colors.primary} />
+          )}
+        </View>
         <AvatarVerificationBadge
           type={reputationBadge}
           borderColor={selected ? colors.primaryContainer : colors.surfaceContainerLow}
@@ -850,7 +852,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },

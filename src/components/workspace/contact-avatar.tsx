@@ -25,7 +25,7 @@ function initials(name: string) {
 
 export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps) {
   const { colors } = useAppTheme();
-  const radius = size / 2;
+  const radius = Math.min(14, Math.round(size * 0.28));
   // Track which URL failed so a new photoUrl retries without an effect reset.
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const showImage = !!photoUrl && failedUrl !== photoUrl;
@@ -34,7 +34,7 @@ export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps)
     return (
       <Image
         source={{ uri: photoUrl }}
-        style={{ width: size, height: size, borderRadius: radius }}
+        style={{ width: size, height: size, borderRadius: radius, borderCurve: 'continuous' }}
         contentFit="cover"
         accessibilityLabel={`${name} photo`}
         onError={() => setFailedUrl(photoUrl)}
@@ -50,6 +50,7 @@ export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps)
           width: size,
           height: size,
           borderRadius: radius,
+          borderCurve: 'continuous',
           backgroundColor: colors.primaryMuted,
         },
       ])}

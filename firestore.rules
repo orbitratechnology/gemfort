@@ -396,7 +396,8 @@ service cloud.firestore {
         && request.resource.data.businessName.size() <= 80
         && request.resource.data.documents is map
         && request.resource.data.documents.nicPhotoUrl is string
-        && request.resource.data.documents.nicPhotoUrl.size() > 0;
+        && request.resource.data.documents.nicPhotoUrl.size() > 0
+        && request.resource.data.get('isPromotion', false) is bool;
 
       // Applicant can resubmit when info requested
       allow update: if isOwner(resource.data.applicantUid)
