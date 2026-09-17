@@ -8,12 +8,13 @@ import {
     Text,
     View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PlaceLabel } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import {
@@ -23,19 +24,19 @@ import {
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
-import { subscribeTrips } from "@/features/workspace/firestore-subscriptions";
 import {
     formatTripDates,
     getTripsByStatus,
 } from "@/features/workspace/trip-utils";
-import { deleteTrip, fetchTrips } from "@/features/workspace/workspace-service";
+import { deleteTrip } from "@/features/workspace/workspace-service";
+import { fetchTripsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useAuth } from "@/providers/auth-provider";
-import { confirmDelete } from "@/providers/confirm-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Trip } from "@/types";
 
@@ -91,9 +92,9 @@ function TripRow({
                   : colors.surfaceContainerHigh,
               },
             ]}
-          >
+            >
             <Icon
-              name={typeMeta.icon}
+              name="trip"
               size={22}
               color={
                 isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant
@@ -161,13 +162,17 @@ export default function TripsScreen() {
   const [tab, setTab] = useState<TripListTab>("active");
 
   const {
-    data: trips = [],
+    items: trips,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["trips", user?.uid],
-    queryFn: () => fetchTrips(user!.uid),
-    subscribe: (onData, onError) => subscribeTrips(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["trips", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchTripsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -200,14 +205,19 @@ export default function TripsScreen() {
         completedCount={completed.length}
       />
 
-      <ScrollView
+      <FlashList
+        data={visible}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-      >
-        {tab === "active" ? (
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={tab === "active" ? (
           <Pressable
             onPress={haptics.wrap("light", () =>
               router.push("/(marketplace)/(tabs)/workspace/flights" as never),
@@ -219,7 +229,7 @@ export default function TripsScreen() {
             ]}
           >
             <View style={[styles.rowIcon, { backgroundColor: colors.primary }]}>
-              <Icon name="flight" size={22} color={colors.onPrimary} />
+              <Icon name="explore" size={22} color={colors.onPrimary} />
             </View>
             <View style={styles.createText}>
               <Text style={[styles.createTitle, { color: colors.onPrimaryContainer }]}>
@@ -232,39 +242,9 @@ export default function TripsScreen() {
             <Icon name="chevron-right" size={22} color={colors.onPrimaryContainer} />
           </Pressable>
         ) : null}
-        {tab === "active" ? (
-          <Pressable
-            onPress={haptics.wrap("light", () =>
-              router.push("/(marketplace)/trips/add" as never),
-            )}
-            style={({ pressed }) => [
-              styles.createCard,
-              { backgroundColor: colors.primary },
-              pressed && { opacity: 0.92 },
-            ]}
-          >
-            <Icon name="flight-takeoff" size={24} color={colors.onPrimary} />
-            <View style={styles.createText}>
-              <Text style={[styles.createTitle, { color: colors.onPrimary }]}>
-                Plan a new trip
-              </Text>
-              <Text
-                style={[styles.createSub, { color: colors.onPrimary + "AA" }]}
-              >
-                Ratnapura, Bangkok, or anywhere you trade
-              </Text>
-            </View>
-            <Icon
-              name="chevron-right"
-              size={22}
-              color={colors.onPrimary + "99"}
-            />
-          </Pressable>
-        ) : null}
-
-        {visible.length === 0 ? (
+        ListEmptyComponent={
           <EmptyState
-            icon={tab === "active" ? "flight" : "check-circle"}
+            icon={tab === "active" ? "flight-takeoff" : "check-circle"}
             title={tab === "active" ? "No active trips" : "No completed trips"}
             subtitle={
               tab === "active"
@@ -272,19 +252,23 @@ export default function TripsScreen() {
                 : "Completed trips will show up here."
             }
           />
-        ) : (
-          <View style={styles.list}>
-            {visible.map((t) => (
-              <TripRow
-                key={t.id}
-                trip={t}
-                colors={colors}
-                onDelete={() => handleDelete(t.id)}
-              />
-            ))}
-          </View>
+        }
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
+        renderItem={({ item }) => (
+          <TripRow
+            trip={item}
+            colors={colors}
+            onDelete={() => handleDelete(item.id)}
+          />
         )}
-      </ScrollView>
+      />
 
       <Pressable
         accessibilityRole="button"
@@ -312,14 +296,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  createCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
   flightsCard: {
     flexDirection: "row",
     alignItems: "center",

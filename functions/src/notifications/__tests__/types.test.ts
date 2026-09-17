@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  directionalNotificationTitle,
   notificationGroupKeyForType,
+  notificationDirectionLabel,
   notificationThreadIdForType,
   priorityForType,
   pushCategoryForType,
@@ -24,6 +26,11 @@ describe('priorityForType', () => {
     assert.equal(priorityForType('bill_due_today'), 'medium');
   });
 
+  it('keeps incoming service requests individually visible', () => {
+    assert.equal(priorityForType('service_request_received'), 'high');
+    assert.equal(priorityForType('service_job_completed'), 'medium');
+  });
+
   it('defaults remaining types to low', () => {
     assert.equal(priorityForType('announcement_platform'), 'low');
   });
@@ -37,11 +44,34 @@ describe('notification grouping', () => {
   });
 });
 
+describe('notification direction', () => {
+  it('uses the existing workspace direction labels', () => {
+    assert.equal(notificationDirectionLabel('given'), 'Given');
+    assert.equal(notificationDirectionLabel('taken'), 'Taken');
+    assert.equal(notificationDirectionLabel('to_pay'), 'To pay');
+    assert.equal(notificationDirectionLabel('to_receive'), 'To receive');
+    assert.equal(notificationDirectionLabel(null), null);
+  });
+
+  it('keeps the direction visible in native notification titles', () => {
+    assert.equal(
+      directionalNotificationTitle('Bill due today', 'to_pay'),
+      'Bill due today · To pay',
+    );
+    assert.equal(
+      directionalNotificationTitle('AP payment sent', 'given'),
+      'AP payment sent · Given',
+    );
+    assert.equal(directionalNotificationTitle('Announcement', null), 'Announcement');
+  });
+});
+
 describe('pushCategoryForType', () => {
   it('maps interactive categories', () => {
     assert.equal(pushCategoryForType('ap_request_received'), 'ap_request');
     assert.equal(pushCategoryForType('ap_cancellation_requested'), 'ap_cancel');
     assert.equal(pushCategoryForType('listing_offer_received'), 'listing_offer');
+    assert.equal(pushCategoryForType('service_job_completed'), 'service_completed');
     assert.equal(pushCategoryForType('cheque_maturing_tomorrow'), 'open_ref');
   });
 });

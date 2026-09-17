@@ -15,6 +15,7 @@ import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { GemCard } from '@/components/workspace/gem-card';
@@ -22,10 +23,10 @@ import { GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
-import { subscribeGems } from '@/features/workspace/firestore-subscriptions';
-import { deleteGem, fetchGems } from '@/features/workspace/workspace-service';
+import { deleteGem } from '@/features/workspace/workspace-service';
+import { fetchGemsPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useUnreadOffersByListingId } from '@/hooks/use-unread-listing-offers';
 import { friendlyError } from '@/lib/errors';
@@ -47,10 +48,17 @@ export default function GemsListScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftType, setDraftType] = useState('all');
 
-  const { data: gems = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ['gems', user?.uid],
-    queryFn: () => fetchGems(user!.uid),
-    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
+  const {
+    items: gems,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ['gems', user?.uid, 'infinite'],
+    fetchPage: (cursor, pageSize) => fetchGemsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -173,6 +181,18 @@ export default function GemsListScreen() {
         masonry
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
         ListEmptyComponent={
           <EmptyState
             icon="diamond"

@@ -1,7 +1,12 @@
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -11,7 +16,7 @@ import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import { CONTACT_TYPES } from "@/constants/contact-types";
+import { CONTACT_TYPE_OPTIONS } from "@/constants/contact-types";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
 import {
@@ -25,7 +30,7 @@ import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
@@ -36,6 +41,7 @@ function firstParam(v: string | string[] | undefined): string {
 export default function AddContactScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const toast = useToast();
   const raw = useLocalSearchParams<{
     displayName?: string;
@@ -45,15 +51,15 @@ export default function AddContactScreen() {
     sharedPhotoUri?: string;
   }>();
 
-  const [displayName, setDisplayName] = useState(
+  const [displayName, setDisplayName] = useState(() =>
     decodeShareParam(raw.displayName),
   );
   const [companyName, setCompanyName] = useState("");
-  const [phone, setPhone] = useState(firstParam(raw.phone));
-  const [whatsapp, setWhatsapp] = useState(firstParam(raw.phone));
-  const [email, setEmail] = useState(decodeShareParam(raw.email));
-  const [contactTypes, setContactTypes] = useState<string[]>(["broker"]);
-  const [notes, setNotes] = useState(decodeShareParam(raw.notes));
+  const [phone, setPhone] = useState(() => firstParam(raw.phone));
+  const [whatsapp, setWhatsapp] = useState(() => firstParam(raw.phone));
+  const [email, setEmail] = useState(() => decodeShareParam(raw.email));
+  const [contactTypes, setContactTypes] = useState<string[]>(["trader"]);
+  const [notes, setNotes] = useState(() => decodeShareParam(raw.notes));
   const [deviceContactId, setDeviceContactId] = useState<string | null>(null);
   const sharedPhotoUri = firstParam(raw.sharedPhotoUri);
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(
@@ -127,7 +133,7 @@ export default function AddContactScreen() {
             },
             { contactTypes },
           );
-          // Apply edited fields that import may not have overridden (whatsapp/notes/types)
+          // Apply edited fields that import may not have overridden (whatsapp/notes/roles)
           await updateContact(id, {
             whatsapp: whatsapp || phone || null,
             notes: notes || null,
@@ -174,12 +180,17 @@ export default function AddContactScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Add Contact" closeIcon />
-      <ThemedScrollView contentContainerStyle={styles.content}>
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title="Add Contact"
+        closeIcon
+        image={require("@/assets/images/shortcuts/shortcut_contacts_light.png")}
+      />
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <ScreenInset style={styles.lead}>
           <Pressable
             accessibilityRole="button"
@@ -278,14 +289,14 @@ export default function AddContactScreen() {
           />
         </FormSection>
 
-        <FormSection title="Contact types" padded={false}>
+        <FormSection title="Contact roles" padded={false}>
           <View style={styles.types}>
-            {CONTACT_TYPES.map((t) => {
-              const active = contactTypes.includes(t);
+            {CONTACT_TYPE_OPTIONS.map(({ value, label, icon }) => {
+              const active = contactTypes.includes(value);
               return (
                 <Pressable
-                  key={t}
-                  onPress={() => toggleType(t)}
+                  key={value}
+                  onPress={() => toggleType(value)}
                   style={[
                     styles.chip,
                     active
@@ -299,6 +310,11 @@ export default function AddContactScreen() {
                         },
                   ]}
                 >
+                  <Icon
+                    name={icon}
+                    size={18}
+                    color={active ? colors.onPrimary : colors.onSurfaceVariant}
+                  />
                   <Text
                     style={[
                       styles.chipText,
@@ -309,7 +325,7 @@ export default function AddContactScreen() {
                       },
                     ]}
                   >
-                    {t}
+                    {label}
                   </Text>
                 </Pressable>
               );
@@ -336,12 +352,13 @@ export default function AddContactScreen() {
           />
         </ScreenInset>
       </ThemedScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   lead: { gap: Spacing.lg },
   phoneCard: {
@@ -378,6 +395,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Radius.full,

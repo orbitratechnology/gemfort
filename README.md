@@ -72,7 +72,7 @@ Operational clarity for each business—role-gated modules.
 | **Cheques** | Post-dated cheques, maturity calendar, bounce and replacement |
 | **Money** | Income/expense, receivables/payables, commissions, sales, reports |
 | **Trips** | Sourcing/selling trips with purchases, expenses, and linked gems |
-| **Contacts** | Brokers, buyers, partners; phone import; Android call-log matching |
+| **Contacts** | Traders, cutters, buyers, suppliers, heaters, polishers; phone import |
 | **Requests** | Outgoing service requests |
 
 ---
@@ -274,6 +274,9 @@ bun run build:dev:ios
 |---------|----------------------|-----------|-------------|--------------|
 | development | `development` | `app.gemfort` | `development` | Dev client, internal |
 | preview | `preview` | `app.gemfort` | `preview` | Internal |
+| internal | `preview` | `app.gemfort` | `internal` | Play Internal testing, AAB |
+| beta | `preview` | `app.gemfort` | `beta` | Play Beta/Open testing, AAB |
+| closed | `preview` | `app.gemfort` | `closed` | Play Closed testing, AAB |
 | production | `production` | `app.gemfort` | `production` | Store |
 
 OTA updates:
@@ -281,7 +284,12 @@ OTA updates:
 ```bash
 bun run update:dev
 bun run update:preview
+bun run update:play:internal
+bun run update:play:beta
+bun run update:play:closed
 ```
+
+Play Store testing release commands and Play Console setup are documented in [`PLAY_STORE_TRACKS.md`](PLAY_STORE_TRACKS.md).
 
 Runtime version follows app version (`app.config.ts`).
 
@@ -297,7 +305,10 @@ Runtime version follows app version (`app.config.ts`).
 | `bun run prebuild` | Generate native projects |
 | `bun run build:dev:android` / `:ios` | EAS development builds |
 | `bun run build:preview:android` / `:ios` | EAS preview builds |
+| `bun run build:play:internal` / `:beta` / `:closed` | Android AAB for the matching Play testing track |
+| `bun run release:play:internal` / `:beta` / `:closed` | Build and submit the latest Android AAB to Play |
 | `bun run update:dev` / `update:preview` | Publish EAS Update |
+| `bun run update:play:internal` / `:beta` / `:closed` | Publish an EAS Update to the matching Play channel |
 | `bun run lint` | ESLint |
 | `bun run typecheck` | TypeScript (`tsc --noEmit`) |
 | `bun run test` | Jest unit tests |
@@ -378,8 +389,7 @@ gemfort/
 | Permission | Why |
 |------------|-----|
 | Photos | Upload gem and business images |
-| Contacts | Import brokers, buyers, and partners |
-| Call log (Android, read-only) | Match recent calls to workspace contacts |
+| Contacts | Import traders, cutters, buyers, suppliers, heaters, polishers, and other contacts |
 
 ---
 

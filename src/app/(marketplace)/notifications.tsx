@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
@@ -13,6 +13,7 @@ import {
 import { NotificationRow } from "@/components/notifications/notification-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
   notificationVisualFromNotification,
@@ -24,20 +25,21 @@ import {
   respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
 import { respondGemTransferRequest } from "@/features/workspace/gem-transfer-api";
-import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
-  fetchNotifications,
+  fetchService,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { fetchNotificationsPage } from "@/features/workspace/workspace-pagination";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { friendlyError } from "@/lib/errors";
 import { navigateFromNotificationRef } from "@/lib/notification-navigation";
 import {
   notificationGroupForType,
   type NotificationGroup,
 } from "@/lib/notifications/grouping";
+import { pushWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { AppNotification } from "@/types";
@@ -113,15 +115,18 @@ export default function NotificationsScreen() {
   );
 
   const {
-    data: notifications = [],
+    items: notifications,
     refetch,
     isRefetching,
     isLoading,
-  } = useFirestoreLiveQuery({
-    queryKey: ["notifications", user?.uid],
-    queryFn: () => fetchNotifications(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeNotifications(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["notifications", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchNotificationsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -132,7 +137,7 @@ export default function NotificationsScreen() {
       notifications
         .map(
           (n) =>
-            `${n.id}:${n.referenceType}:${n.referenceId}:${n.actorPhotoUrl ?? ""}:${n.imageUrl ?? ""}`,
+            `${n.id}:${n.referenceType}:${n.referenceId}:${n.direction ?? ""}:${n.actorPhotoUrl ?? ""}:${n.imageUrl ?? ""}`,
         )
         .join("|"),
     ],
@@ -196,9 +201,12 @@ export default function NotificationsScreen() {
     async (n: AppNotification) => {
       try {
         await markRead(n);
-        navigateFromNotificationRef(n.referenceType, n.referenceId, {
-          fromInbox: true,
-        });
+        navigateFromNotificationRef(
+          n.referenceType,
+          n.referenceId,
+          { fromInbox: true },
+          n.type,
+        );
       } catch (e) {
         toast.error(friendlyError(e, "Could not open notification."));
       }
@@ -213,7 +221,7 @@ export default function NotificationsScreen() {
         setBusyKey(key);
 
         if (actionId === "accept_ap" || actionId === "decline_ap") {
-          if (!n.referenceId) throw new Error("Missing AP reference.");
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
           await respondApRequest(
             n.referenceId,
             actionId === "accept_ap" ? "accepted" : "rejected",
@@ -230,7 +238,7 @@ export default function NotificationsScreen() {
           actionId === "accept_ap_cancel" ||
           actionId === "decline_ap_cancel"
         ) {
-          if (!n.referenceId) throw new Error("Missing AP reference.");
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
           await respondApCancellation(
             n.referenceId,
             actionId === "accept_ap_cancel" ? "accepted" : "rejected",
@@ -264,6 +272,31 @@ export default function NotificationsScreen() {
           return;
         }
 
+        if (actionId === "add_service_bill") {
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
+          const service = await fetchService(n.referenceId);
+          if (!service?.finalCost || !service.paymentDueDate) {
+            throw new Error("Completion details are not available yet.");
+          }
+          await markRead(n);
+          if (router.canDismiss()) router.dismiss();
+          requestAnimationFrame(() => {
+            pushWithAnchor({
+              pathname: "/(marketplace)/bills/add",
+              params: {
+                direction: "payable",
+                amount: String(service.finalCost),
+                currency: service.finalCostCurrency ?? "LKR",
+                dueDate: service.paymentDueDate!.toDate().toISOString(),
+                jobId: service.id,
+                gemId: service.gemId,
+                counterpartyBusinessId: service.providerBusinessId ?? "",
+              },
+            } as never);
+          });
+          return;
+        }
+
         await markRead(n);
 
         if (actionId === "view_listing") {
@@ -273,9 +306,12 @@ export default function NotificationsScreen() {
           return;
         }
         if (actionId === "view_verify") {
-          navigateFromNotificationRef("verification", null, {
-            fromInbox: true,
-          });
+          navigateFromNotificationRef(
+            "verification",
+            null,
+            { fromInbox: true },
+            n.type,
+          );
           return;
         }
         if (actionId === "view_account") {
@@ -283,9 +319,12 @@ export default function NotificationsScreen() {
           return;
         }
 
-        navigateFromNotificationRef(n.referenceType, n.referenceId, {
-          fromInbox: true,
-        });
+        navigateFromNotificationRef(
+          n.referenceType,
+          n.referenceId,
+          { fromInbox: true },
+          n.type,
+        );
       } catch (e) {
         toast.error(friendlyError(e, "Could not complete that action."));
       } finally {
@@ -418,6 +457,18 @@ export default function NotificationsScreen() {
         )}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
         }
         ListEmptyComponent={
           isLoading ? (

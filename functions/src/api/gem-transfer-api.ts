@@ -29,12 +29,24 @@ export type CreateGemTransferInput = {
   sourceTripGemId?: string | null;
 };
 
+export type RecordGemSaleInput = {
+  recipientContactId: string;
+  recipientName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: GemTransferPaymentMethod;
+  sourceTripId?: string | null;
+  sourceTripGemId?: string | null;
+};
+
 type TransferDoc = {
   gemId: string;
   sellerUid: string;
   sellerName: string;
   recipientUid: string;
   recipientBusinessId: string;
+  recipientBusinessName?: string | null;
+  recipientBusinessLogoUrl?: string | null;
   recipientContactId: string | null;
   recipientName: string;
   amount: number;
@@ -112,15 +124,26 @@ export function parseCreateGemTransferInput(value: unknown): CreateGemTransferIn
   };
 }
 
+export function parseRecordGemSaleInput(value: unknown): RecordGemSaleInput {
+  const input = objectOf(value);
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000_000) {
+    throw new ApiError('invalid-argument', 'Enter a valid sale amount.');
+  }
+  return {
+    recipientContactId: idOf(input.recipientContactId, 'recipientContactId'),
+    recipientName: stringOf(input.recipientName, 'recipientName', 200),
+    amount,
+    currency: currencyOf(input.currency),
+    paymentMethod: paymentMethodOf(input.paymentMethod),
+    sourceTripId: optionalIdOf(input.sourceTripId, 'sourceTripId'),
+    sourceTripGemId: optionalIdOf(input.sourceTripGemId, 'sourceTripGemId'),
+  };
+}
+
 function gemStage(data: Record<string, unknown>): string {
   const value = typeof data.stoneStage === 'string' ? data.stoneStage : data.status;
   return typeof value === 'string' && STAGES.has(value) ? value : 'rough';
-}
-
-function ownerName(data: Record<string, unknown>, fallback: string): string {
-  return typeof data.displayName === 'string' && data.displayName.trim()
-    ? data.displayName.trim()
-    : fallback;
 }
 
 function saleNotification(
@@ -151,7 +174,13 @@ export async function createGemTransferForApi(
   input: CreateGemTransferInput,
 ): Promise<{ requestId: string; status: 'pending' }> {
   const gemId = idOf(gemIdInput, 'gemId');
-  const rates = await loadServerRates();
+  const [rates, sellerBusinessSnap] = await Promise.all([
+    loadServerRates(),
+    db.collection('businesses').where('ownerUid', '==', sellerUid).limit(1).get(),
+  ]);
+  const sellerBusinessName =
+    (sellerBusinessSnap.docs[0]?.data()?.businessName as string | undefined)?.trim() ||
+    'A GemFort trader';
   const amountBase = convertToBaseServer(input.amount, input.currency, rates);
   const gemRef = db.collection('gemtrack_gems').doc(gemId);
   const requestRef = db.collection('gem_transfer_requests').doc();
@@ -163,21 +192,20 @@ export async function createGemTransferForApi(
   }
 
   const result = await db.runTransaction(async (transaction) => {
-    // Firestore transactions require all reads to happen before writes. Keep
-    // these reads explicit and sequential so the Admin SDK can track them
-    // consistently across deployed runtimes.
-    const gemSnap = await transaction.get(gemRef);
-    const businessSnap = await transaction.get(
-      db.collection('businesses').doc(input.recipientBusinessId),
-    );
-    const contactSnap = input.recipientContactId
-      ? await transaction.get(db.collection('gemtrack_contacts').doc(input.recipientContactId))
+    const businessRef = db.collection('businesses').doc(input.recipientBusinessId);
+    const contactRef = input.recipientContactId
+      ? db.collection('gemtrack_contacts').doc(input.recipientContactId)
       : null;
-    const sellerSnap = await transaction.get(db.collection('users').doc(sellerUid));
     const tripGemRef = sourceTripGemId
       ? db.collection('gemtrack_trip_gems').doc(sourceTripGemId)
       : null;
-    const tripGemSnap = tripGemRef ? await transaction.get(tripGemRef) : null;
+    const initialRefs = [gemRef, businessRef];
+    if (contactRef) initialRefs.push(contactRef);
+    const initialSnaps = await transaction.getAll(...initialRefs);
+    let snapIndex = 0;
+    const gemSnap = initialSnaps[snapIndex++]!;
+    const businessSnap = initialSnaps[snapIndex++]!;
+    const contactSnap = contactRef ? initialSnaps[snapIndex++]! : null;
     if (!gemSnap.exists) throw new ApiError('not-found', 'Gem not found.');
     const gem = gemSnap.data() as Record<string, unknown>;
     if (gem.ownerUid !== sellerUid) throw new ApiError('permission-denied', 'You do not own this gem.');
@@ -185,6 +213,9 @@ export async function createGemTransferForApi(
     if (isOnTrip && (!sourceTripId || !sourceTripGemId)) {
       throw new ApiError('failed-precondition', 'Choose the sale action from the active trip.');
     }
+    const tripGemSnap = tripGemRef
+      ? (await transaction.getAll(tripGemRef))[0]!
+      : null;
     if (sourceTripId && sourceTripGemId) {
       if (!tripGemSnap?.exists) throw new ApiError('not-found', 'Trip gem record not found.');
       const tripGem = tripGemSnap.data() as Record<string, unknown>;
@@ -237,8 +268,7 @@ export async function createGemTransferForApi(
       throw new ApiError('invalid-argument', 'The selected contact is not linked to that trader.');
     }
 
-    const seller = sellerSnap.data() as Record<string, unknown> | undefined;
-    const sellerDisplayName = ownerName(seller ?? {}, 'A GemFort trader');
+    const sellerDisplayName = sellerBusinessName;
     const businessDisplayName =
       typeof business.businessName === 'string' && business.businessName.trim()
         ? business.businessName.trim()
@@ -261,6 +291,11 @@ export async function createGemTransferForApi(
       sellerName: sellerDisplayName,
       recipientUid,
       recipientBusinessId: input.recipientBusinessId,
+      recipientBusinessName: businessDisplayName,
+      recipientBusinessLogoUrl:
+        typeof business.logoUrl === 'string' && business.logoUrl.trim()
+          ? business.logoUrl.trim()
+          : null,
       recipientContactId: input.recipientContactId ?? null,
       recipientName: recipientDisplayName,
       amount: input.amount,
@@ -287,6 +322,11 @@ export async function createGemTransferForApi(
       soldDate: now,
       soldToUid: recipientUid,
       soldToBusinessId: input.recipientBusinessId,
+      soldToBusinessName: businessDisplayName,
+      soldToBusinessLogoUrl:
+        typeof business.logoUrl === 'string' && business.logoUrl.trim()
+          ? business.logoUrl.trim()
+          : null,
       soldToContactId: input.recipientContactId ?? null,
       soldToName: recipientDisplayName,
       salePaymentMethod: input.paymentMethod,
@@ -328,6 +368,159 @@ export async function createGemTransferForApi(
   return { requestId: result.requestId, status: 'pending' };
 }
 
+/** Record a completed sale to a contact without moving the gem to another account. */
+export async function recordGemSaleForApi(
+  gemIdInput: string,
+  sellerUid: string,
+  input: RecordGemSaleInput,
+): Promise<{ saleId: string; status: 'recorded' }> {
+  const gemId = idOf(gemIdInput, 'gemId');
+  const rates = await loadServerRates();
+  const amountBase = convertToBaseServer(input.amount, input.currency, rates);
+  const gemRef = db.collection('gemtrack_gems').doc(gemId);
+  const contactRef = db.collection('gemtrack_contacts').doc(input.recipientContactId);
+  const transactionRef = db.collection('gemtrack_transactions').doc();
+  const eventRef = db.collection('gemtrack_gem_events').doc();
+  const now = Timestamp.now();
+  const sourceTripId = input.sourceTripId ?? null;
+  const sourceTripGemId = input.sourceTripGemId ?? null;
+  if ((sourceTripId == null) !== (sourceTripGemId == null)) {
+    throw new ApiError('invalid-argument', 'Trip sale context is incomplete.');
+  }
+
+  await db.runTransaction(async (transaction) => {
+    const [gemSnap, contactSnap] = await transaction.getAll(gemRef, contactRef);
+    if (!gemSnap.exists) throw new ApiError('not-found', 'Gem not found.');
+    if (!contactSnap.exists || contactSnap.data()?.ownerUid !== sellerUid) {
+      throw new ApiError('permission-denied', 'The selected contact is not yours.');
+    }
+    const gem = gemSnap.data() as Record<string, unknown>;
+    if (gem.ownerUid !== sellerUid) {
+      throw new ApiError('permission-denied', 'You do not own this gem.');
+    }
+    const listingId =
+      typeof gem.marketplaceListingId === 'string' ? gem.marketplaceListingId : null;
+    const listingRef = listingId ? db.collection('gems').doc(listingId) : null;
+    const listingSnap = listingRef ? await transaction.get(listingRef) : null;
+    const isOnTrip = gem.custody === 'on_trip' || gem.status === 'on_trip';
+    if (isOnTrip && (!sourceTripId || !sourceTripGemId)) {
+      throw new ApiError('failed-precondition', 'Choose the sale action from the active trip.');
+    }
+    if (sourceTripId && sourceTripGemId) {
+      const tripGemSnap = await transaction.get(
+        db.collection('gemtrack_trip_gems').doc(sourceTripGemId),
+      );
+      if (!tripGemSnap.exists) {
+        throw new ApiError('not-found', 'Trip gem record not found.');
+      }
+      const tripGem = tripGemSnap.data() as Record<string, unknown>;
+      if (
+        tripGem.ownerUid !== sellerUid ||
+        tripGem.tripId !== sourceTripId ||
+        tripGem.gemId !== gemId ||
+        tripGem.status !== 'on_trip'
+      ) {
+        throw new ApiError('failed-precondition', 'This gem is no longer active on that trip.');
+      }
+      transaction.update(db.collection('gemtrack_trip_gems').doc(sourceTripGemId), {
+        status: 'sold',
+        salePrice: input.amount,
+        saleDate: now,
+        updatedAt: now,
+      });
+    }
+    const lockedStatuses = new Set([
+      'with_cutter',
+      'with_heater',
+      'with_polisher',
+      'on_ap',
+    ]);
+    if (
+      gem.currentApId ||
+      (gem.custody && gem.custody !== 'on_trip') ||
+      lockedStatuses.has(String(gem.status))
+    ) {
+      throw new ApiError(
+        'failed-precondition',
+        'Complete or return the active AP, trip, or service before selling this gem.',
+      );
+    }
+    if (gem.saleTransferRequestId || gem.saleStatus === 'pending') {
+      throw new ApiError('already-exists', 'This gem already has a pending sale request.');
+    }
+    if (gem.saleStatus === 'sold' || gem.outcome === 'sold') {
+      throw new ApiError('failed-precondition', 'This gem has already been sold.');
+    }
+    if (gem.outcome === 'returned') {
+      throw new ApiError('failed-precondition', 'This returned gem must be restored before it can be sold.');
+    }
+
+    const contact = contactSnap.data() as Record<string, unknown>;
+    const recipientName =
+      typeof contact.displayName === 'string' && contact.displayName.trim()
+        ? contact.displayName.trim()
+        : input.recipientName;
+    transaction.update(gemRef, {
+      saleTransferRequestId: null,
+      saleStatus: 'sold',
+      outcome: 'sold',
+      status: 'sold',
+      soldPrice: input.amount,
+      soldPriceCurrency: input.currency,
+      soldPriceBase: amountBase,
+      soldDate: now,
+      soldToUid: null,
+      soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
+      soldToContactId: input.recipientContactId,
+      soldToName: recipientName,
+      salePaymentMethod: input.paymentMethod,
+      isListedOnMarketplace: false,
+      updatedAt: now,
+    });
+    if (listingRef && listingSnap?.exists) {
+      transaction.update(listingRef, {
+        status: 'sold',
+        updatedAt: now,
+      });
+    }
+    transaction.create(transactionRef, {
+      ownerUid: sellerUid,
+      type: 'income',
+      amount: input.amount,
+      currency: input.currency,
+      amountBase,
+      category: 'gem_sale',
+      description: `Sale of ${String(gem.sku ?? gemId)}`,
+      gemId,
+      contactId: input.recipientContactId,
+      date: now,
+      sourceType: 'gem_sale',
+      sourceId: transactionRef.id,
+      createdAt: now,
+    });
+    transaction.create(eventRef, {
+      gemId,
+      ownerUid: sellerUid,
+      eventType: 'sale_recorded',
+      fromStatus: gem.status ?? null,
+      toStatus: 'sold',
+      description: `Sale recorded to ${recipientName}`,
+      weightAtEvent: gem.currentWeight ?? null,
+      photoUrl: null,
+      costAdded: null,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: sellerUid,
+      createdAt: now,
+    });
+
+  });
+
+  return { saleId: transactionRef.id, status: 'recorded' };
+}
+
 function restoredStatus(gem: Record<string, unknown>, previouslyListed: boolean): string {
   if (previouslyListed) return 'listed';
   return gemStage(gem);
@@ -340,6 +533,7 @@ export async function respondGemTransferForApi(
 ): Promise<{ ok: true; status: 'accepted' | 'rejected'; gemId: string }> {
   const requestId = idOf(requestIdInput, 'requestId');
   const requestRef = db.collection('gem_transfer_requests').doc(requestId);
+  const sellerArchiveGemRef = db.collection('gemtrack_gems').doc();
   const rates = action === 'accepted' ? await loadServerRates() : null;
   const result = await db.runTransaction(async (transaction) => {
     const requestSnap = await transaction.get(requestRef);
@@ -378,7 +572,7 @@ export async function respondGemTransferForApi(
         throw new ApiError('failed-precondition', 'The trip sale context is no longer active.');
       }
     }
-    const actorName = request.recipientName || ownerName(recipientUser ?? {}, 'Trader');
+    const actorName = request.recipientName || 'Trader';
     if (action === 'rejected') {
       transaction.update(requestRef, { status: 'rejected', respondedByUid: recipientUid, respondedAt: now, updatedAt: now });
       transaction.update(gemRef, {
@@ -392,6 +586,8 @@ export async function respondGemTransferForApi(
         soldDate: null,
         soldToUid: null,
         soldToBusinessId: null,
+        soldToBusinessName: null,
+        soldToBusinessLogoUrl: null,
         soldToContactId: null,
         soldToName: null,
         salePaymentMethod: null,
@@ -405,6 +601,36 @@ export async function respondGemTransferForApi(
     }
 
     const amountBase = convertToBaseServer(request.amount, request.currency, rates!);
+    transaction.create(sellerArchiveGemRef, {
+      ...gem,
+      ownerUid: request.sellerUid,
+      status: 'sold',
+      custody: null,
+      currentLocation: null,
+      currentHolderContactId: null,
+      currentApId: null,
+      outcome: 'sold',
+      saleStatus: 'sold',
+      saleTransferRequestId: null,
+      soldPrice: request.amount,
+      soldPriceCurrency: request.currency,
+      soldPriceBase: amountBase,
+      soldDate: now,
+      soldToUid: recipientUid,
+      soldToBusinessId: request.recipientBusinessId,
+      soldToBusinessName: request.recipientBusinessName ?? request.recipientName,
+      soldToBusinessLogoUrl: request.recipientBusinessLogoUrl ?? null,
+      soldToContactId: request.recipientContactId ?? null,
+      soldToName: request.recipientName,
+      salePaymentMethod: request.paymentMethod,
+      isListedOnMarketplace: false,
+      marketplaceListingId: null,
+      archiveSnapshot: true,
+      sourceGemId: request.gemId,
+      sourceSaleRequestId: requestId,
+      createdAt: gem.createdAt ?? now,
+      updatedAt: now,
+    });
     transaction.update(requestRef, { status: 'accepted', respondedByUid: recipientUid, respondedAt: now, updatedAt: now });
     transaction.update(gemRef, {
       ownerUid: recipientUid,
@@ -433,6 +659,8 @@ export async function respondGemTransferForApi(
       soldDate: null,
       soldToUid: null,
       soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
       soldToContactId: null,
       soldToName: null,
       salePaymentMethod: null,
@@ -482,6 +710,23 @@ export async function respondGemTransferForApi(
       relatedServiceId: null,
       relatedApId: null,
       createdByUid: recipientUid,
+      createdAt: now,
+    });
+    transaction.create(db.collection('gemtrack_gem_events').doc(), {
+      gemId: sellerArchiveGemRef.id,
+      ownerUid: request.sellerUid,
+      eventType: 'sale_completed',
+      fromStatus: gem.status ?? null,
+      toStatus: 'sold',
+      description: `Sold to ${request.recipientName}`,
+      weightAtEvent: gem.currentWeight ?? null,
+      photoUrl: Array.isArray(gem.photoUrls) && typeof gem.photoUrls[0] === 'string'
+        ? gem.photoUrls[0]
+        : null,
+      costAdded: null,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: request.sellerUid,
       createdAt: now,
     });
     return { status: 'accepted' as const, gemId: request.gemId, sellerUid: request.sellerUid, actorName, replay: false as const };
@@ -542,6 +787,8 @@ export async function cancelGemTransferForApi(
       soldDate: null,
       soldToUid: null,
       soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
       soldToContactId: null,
       soldToName: null,
       salePaymentMethod: null,

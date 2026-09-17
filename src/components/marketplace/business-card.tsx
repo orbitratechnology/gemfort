@@ -10,7 +10,8 @@ import {
 
 import { CountryFlag } from "@/components/ui/country-flag";
 import { ElevatedCard } from "@/components/ui/elevated-card";
-import { Icon } from "@/components/ui/icon";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { Radius, Typography } from "@/constants/design-tokens";
 import { formatGemType, resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -61,13 +62,29 @@ export function BusinessCard({
     }
     return [];
   })();
-  const verified = business.badges.isVerified;
+  const reputationBadge = businessReputationBadgeForBusiness(business);
   const inferredRole =
     roleLabel ??
     (business.businessType === "lapidary" || business.providerProfile
         ? "Lapidary"
         : "Trader");
   const countryCode = resolveCountryCode(business.country);
+  const professionalDetails = [
+    [business.city, business.province].filter(Boolean).join(", "),
+    business.yearEstablished
+      ? `Est. ${business.yearEstablished}`
+      : business.badges.yearsActive > 0
+        ? `${business.badges.yearsActive} yrs active`
+        : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const focusLabel =
+    specs.length > 0
+      ? specs.join(" · ")
+      : business.providerProfile?.services.length
+        ? `${business.providerProfile.services.length} services`
+        : null;
 
   const bannerInner = business.coverPhotoUrl ? (
     <Image
@@ -110,26 +127,22 @@ export function BusinessCard({
         <View style={styles.banner}>
           {href ? <Link.AppleZoom>{banner}</Link.AppleZoom> : banner}
         </View>
-        {verified ? (
+        <View style={styles.logoWrap}>
           <View
             style={[
-              styles.verified,
-              { backgroundColor: colors.primaryContainer },
+              styles.logo,
+              {
+                backgroundColor: colors.surfaceContainerLowest,
+                borderColor: colors.surfaceContainerLowest,
+              },
             ]}
           >
-            <Icon name="verified" size={14} color={colors.onPrimaryContainer} />
+            {logoInner}
           </View>
-        ) : null}
-        <View
-          style={[
-            styles.logo,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              borderColor: colors.surfaceContainerLowest,
-            },
-          ]}
-        >
-          {logoInner}
+          <AvatarVerificationBadge
+            type={reputationBadge}
+            borderColor={colors.surfaceContainerLowest}
+          />
         </View>
       </View>
 
@@ -151,43 +164,31 @@ export function BusinessCard({
           ) : null}
         </View>
 
+        {professionalDetails ? (
+          <Text
+            style={[styles.professionalDetails, { color: colors.onSurfaceVariant }]}
+            numberOfLines={1}
+          >
+            {professionalDetails}
+          </Text>
+        ) : null}
+
         {business.shortDescription ? (
           <Text
             style={[styles.description, { color: colors.onSurfaceVariant }]}
-            numberOfLines={2}
+            numberOfLines={1}
           >
             {business.shortDescription}
           </Text>
         ) : null}
 
-        {business.province ? (
+        {focusLabel ? (
           <Text
-            style={[styles.province, { color: colors.textMuted }]}
+            style={[styles.focus, { color: colors.textMuted }]}
             numberOfLines={1}
           >
-            {business.province}
+            {focusLabel}
           </Text>
-        ) : null}
-
-        {specs.length > 0 ? (
-          <View style={styles.tags}>
-            {specs.map((s) => (
-              <View
-                key={s}
-                style={[
-                  styles.tag,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Text
-                  style={[styles.tagText, { color: colors.onSurfaceVariant }]}
-                  numberOfLines={1}
-                >
-                  {s}
-                </Text>
-              </View>
-            ))}
-          </View>
         ) : null}
       </View>
     </ElevatedCard>
@@ -197,6 +198,7 @@ export function BusinessCard({
 const styles = StyleSheet.create({
   card: {
     width: "100%",
+    minHeight: 270,
   },
   media: {
     position: "relative",
@@ -212,10 +214,14 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  logo: {
+  logoWrap: {
     position: "absolute",
     left: 12,
     bottom: -22,
+    width: 48,
+    height: 48,
+  },
+  logo: {
     width: 48,
     height: 48,
     borderRadius: 14,
@@ -227,21 +233,11 @@ const styles = StyleSheet.create({
   },
   logoImg: { width: "100%", height: "100%" },
   logoInitials: { fontSize: 15, fontWeight: "700", letterSpacing: 0.3 },
-  verified: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   body: {
     paddingHorizontal: 12,
-    paddingTop: 28,
-    paddingBottom: 12,
-    gap: 8,
+    paddingTop: 24,
+    paddingBottom: 10,
+    gap: 6,
   },
   titleRow: {
     flexDirection: "row",
@@ -261,29 +257,18 @@ const styles = StyleSheet.create({
   name: {
     ...Typography.bodyLg,
     fontWeight: "700",
-    lineHeight: 22,
+    lineHeight: 20,
   },
-  province: {
+  professionalDetails: {
     ...Typography.caption,
     fontWeight: "600",
   },
   description: {
     ...Typography.caption,
-    lineHeight: 16,
+    lineHeight: 15,
   },
-  tags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    maxWidth: "100%",
-  },
-  tagText: {
-    fontSize: 11,
+  focus: {
+    ...Typography.caption,
     fontWeight: "600",
   },
 });

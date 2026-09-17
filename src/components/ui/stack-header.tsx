@@ -1,9 +1,10 @@
+import { Image } from "expo-image";
 import { router, useNavigation, usePathname } from "expo-router";
 import { type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { nestedTabHubForPathname } from "@/navigation/tab-stack-nav";
 
@@ -11,12 +12,15 @@ type StackHeaderProps = {
   title: string;
   onBack?: () => void;
   right?: ReactNode;
+  left?: ReactNode;
   /** Use 'close' (x) instead of back arrow. */
   closeIcon?: boolean;
   /** Hide the back/close button (for top-level tab roots). Defaults to true. */
   showBack?: boolean;
   /** Override icon/title color (e.g. white over an edge-to-edge cover). */
   tintColor?: string;
+  /** Optional borderless visual for form-sheet actions. */
+  image?: number;
 };
 
 function goBackInCurrentStack(
@@ -35,9 +39,11 @@ export function StackHeader({
   title,
   onBack,
   right,
+  left,
   closeIcon,
   showBack = true,
   tintColor,
+  image,
 }: StackHeaderProps) {
   const { colors } = useAppTheme();
   const navigation = useNavigation();
@@ -75,11 +81,11 @@ export function StackHeader({
     <View style={styles.header}>
       {showBack ? (
         <Pressable
-          onPress={handleBack}
-          style={chipStyle}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={closeIcon ? "Close" : "Go back"}
+        onPress={handleBack}
+        style={chipStyle}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={closeIcon ? "Close" : "Go back"}
         >
           <Icon
             name={closeIcon ? "close" : "arrow-back"}
@@ -87,12 +93,29 @@ export function StackHeader({
             color={fg}
           />
         </Pressable>
+      ) : left ? (
+        <View style={[styles.side, styles.left]}>{left}</View>
+
       ) : (
         <View style={styles.side} />
       )}
-      <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>
-        {title}
-      </Text>
+      <View style={styles.titleWrap}>
+        {image ? (
+          <Image
+          source={image}
+          style={styles.titleImage}
+          contentFit="contain"
+          accessibilityIgnoresInvertColors
+          />
+        ) : null}
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: titleColor }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+      </View>
       <View style={[styles.side, styles.right]}>{right}</View>
     </View>
   );
@@ -107,18 +130,31 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.stackMd,
   },
   side: {
-    minWidth: 40,
-    minHeight: 40,
+    minWidth: TouchTarget.minWidth,
+    minHeight: TouchTarget.minWidth,
     alignItems: "center",
     justifyContent: "center",
   },
   sideChip: {
     borderRadius: 20,
+    borderCurve: "continuous",
     backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
   right: {
     flexDirection: "row",
     justifyContent: "flex-end",
   },
-  title: { ...Typography.headlineMdMobile, flex: 1, textAlign: "center" },
+  left: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  titleWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.stackSm,
+  },
+  titleImage: { width: 32, height: 32 },
+  title: { ...Typography.headlineMdMobile, flexShrink: 1 },
 });

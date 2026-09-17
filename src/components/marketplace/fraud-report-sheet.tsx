@@ -8,7 +8,7 @@ import { Spacing, Typography } from '@/constants/design-tokens';
 import { submitFraudReport } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import type { FraudReportType } from '@/types';
 

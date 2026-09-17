@@ -110,7 +110,6 @@ function businessBase(uid, p) {
   return {
     ownerUid: uid,
     businessName: p.businessName,
-    ownerName: p.displayName,
     brNumber: `BR-QA-${p.role}`,
     ngjaNumber: `NGJA-QA-${p.role}`,
     gemLicenseNumber: `GL-QA-${p.role}`,
@@ -123,10 +122,9 @@ function businessBase(uid, p) {
     province: 'Western',
     country: 'Sri Lanka',
     verificationStatus: 'verified',
-    verificationTier: 'full',
+    verificationTier: 'gem',
     badges: {
       isVerified: true,
-      isBasicVerified: false,
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2015,
@@ -294,12 +292,12 @@ async function main() {
   await db.collection('gemtrack_contacts').doc('qa-trader-contact-1').set(
     {
       ownerUid: uids.trader,
-      displayName: 'QA Broker Ravi',
+      displayName: 'QA Trader Ravi',
       companyName: 'Ravi Gems',
       phone: '+94771112233',
       whatsapp: '+94771112233',
       email: null,
-      contactTypes: ['broker', 'ap_holder', 'cutter'],
+      contactTypes: ['trader', 'other', 'cutter'],
       notes: 'Seeded contact for cheque/AP/cutting',
       isFavourite: true,
       createdAt: now,
@@ -320,7 +318,7 @@ async function main() {
       currency: 'LKR',
       amountBase: 25000,
       counterpartyContactId: 'qa-trader-contact-1',
-      issuedBy: 'QA Broker Ravi',
+      issuedBy: 'QA Trader Ravi',
       issueDate: now,
       maturityDate: maturity,
       depositedDate: null,

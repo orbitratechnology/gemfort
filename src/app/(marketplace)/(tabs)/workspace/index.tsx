@@ -1,5 +1,5 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { Image } from "expo-image";
+import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,7 +13,6 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
-import { CallLogRow } from "@/components/workspace/call-log-row";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     WorkspaceModules,
@@ -21,6 +20,7 @@ import {
 } from "@/components/workspace/workspace-modules";
 import type { ThemeColors } from "@/constants/design-tokens";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { formatGemType } from "@/constants/gem-options";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -50,7 +50,6 @@ import {
     detectBillsDueToday,
     getBillSummary,
 } from "@/features/workspace/bill-utils";
-import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import {
     detectChequesMaturingTomorrow,
     getChequeSummary,
@@ -74,7 +73,6 @@ import {
     fetchTrips,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { outstandingBase } from "@/lib/money";
 import { useAuth } from "@/providers/auth-provider";
@@ -96,6 +94,7 @@ type AlertItem = {
   title: string;
   subtitle: string;
   icon: IconName;
+  image?: ImageSource;
   tone: "critical" | "warning" | "info" | "success";
   route: string;
 };
@@ -156,6 +155,21 @@ function jobStatusTone(
   }
 }
 
+function WorkspaceLoading({ colors }: { colors: ThemeColors }) {
+  return (
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+      >
+        <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export default function WorkspaceHub() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -165,21 +179,21 @@ export default function WorkspaceHub() {
   const userId = user?.uid;
   const role = resolveProfileRole(profile);
 
-  const { data: gems = [] } = useFirestoreLiveQuery({
+  const { data: gems = [], isLoading: gemsLoading } = useFirestoreLiveQuery({
     queryKey: ["gems", userId],
     queryFn: () => fetchGems(userId!),
     subscribe: (onData, onError) => subscribeGems(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "gems"),
   });
 
-  const { data: services = [] } = useFirestoreLiveQuery({
+  const { data: services = [], isLoading: servicesLoading } = useFirestoreLiveQuery({
     queryKey: ["services", userId],
     queryFn: () => fetchServices(userId!),
     subscribe: (onData, onError) => subscribeServices(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "services"),
   });
 
-  const { data: apRecords = [] } = useFirestoreLiveQuery({
+  const { data: apRecords = [], isLoading: apRecordsLoading } = useFirestoreLiveQuery({
     queryKey: ["ap", userId],
     queryFn: () => fetchApRecords(userId!),
     subscribe: (onData, onError) =>
@@ -187,14 +201,14 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "ap"),
   });
 
-  const { data: contacts = [] } = useFirestoreLiveQuery({
+  const { data: contacts = [], isLoading: contactsLoading } = useFirestoreLiveQuery({
     queryKey: ["contacts", userId],
     queryFn: () => fetchContacts(userId!),
     subscribe: (onData, onError) => subscribeContacts(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "contacts"),
   });
 
-  const { data: businesses = [] } = useFirestoreLiveQuery({
+  const { data: businesses = [], isLoading: businessesLoading } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
     subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
@@ -239,7 +253,7 @@ export default function WorkspaceHub() {
     [userId, contactPhoto, businessPhoto, ownerBusinessPhoto],
   );
 
-  const { data: transactions = [] } = useFirestoreLiveQuery({
+  const { data: transactions = [], isLoading: transactionsLoading } = useFirestoreLiveQuery({
     queryKey: ["transactions", userId],
     queryFn: () => fetchTransactions(userId!),
     subscribe: (onData, onError) =>
@@ -247,28 +261,28 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "money"),
   });
 
-  const { data: cheques = [] } = useFirestoreLiveQuery({
+  const { data: cheques = [], isLoading: chequesLoading } = useFirestoreLiveQuery({
     queryKey: ["cheques", userId],
     queryFn: () => fetchCheques(userId!),
     subscribe: (onData, onError) => subscribeCheques(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "cheques"),
   });
 
-  const { data: bills = [] } = useFirestoreLiveQuery({
+  const { data: bills = [], isLoading: billsLoading } = useFirestoreLiveQuery({
     queryKey: ["bills", userId],
     queryFn: () => fetchBills(userId!),
     subscribe: (onData, onError) => subscribeBills(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "bills"),
   });
 
-  const { data: trips = [] } = useFirestoreLiveQuery({
+  const { data: trips = [], isLoading: tripsLoading } = useFirestoreLiveQuery({
     queryKey: ["trips", userId],
     queryFn: () => fetchTrips(userId!),
     subscribe: (onData, onError) => subscribeTrips(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "trips"),
   });
 
-  const { data: jobs = [] } = useFirestoreLiveQuery({
+  const { data: jobs = [], isLoading: jobsLoading } = useFirestoreLiveQuery({
     queryKey: ["lapidary-jobs", userId],
     queryFn: () => fetchLapidaryJobs(userId!),
     subscribe: (onData, onError) =>
@@ -276,7 +290,10 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "jobs"),
   });
 
-  const { data: incomingServiceRequests = [] } = useFirestoreLiveQuery({
+  const {
+    data: incomingServiceRequests = [],
+    isLoading: incomingServiceRequestsLoading,
+  } = useFirestoreLiveQuery({
     queryKey: ["incoming-service-requests", userId],
     queryFn: () => fetchIncomingServiceRequests(userId!),
     subscribe: (onData, onError) =>
@@ -284,12 +301,19 @@ export default function WorkspaceHub() {
     enabled: !!userId && role === "lapidary",
   });
 
-  const showContacts = canAccessModule(role, "contacts");
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: recentCalls } = useMatchedCallLogs({
-    enabled: !!userId && showContacts && callLogsSupported,
-  });
-  const recentCallPreview = recentCalls.slice(0, 5);
+  const workspaceDataLoading =
+    !!userId &&
+    ((canAccessModule(role, "gems") && gemsLoading) ||
+      (canAccessModule(role, "services") && servicesLoading) ||
+      (canAccessModule(role, "ap") && apRecordsLoading) ||
+      (canAccessModule(role, "contacts") && contactsLoading) ||
+      businessesLoading ||
+      (canAccessModule(role, "money") && transactionsLoading) ||
+      (canAccessModule(role, "cheques") && chequesLoading) ||
+      (canAccessModule(role, "bills") && billsLoading) ||
+      (canAccessModule(role, "trips") && tripsLoading) ||
+      (canAccessModule(role, "jobs") && jobsLoading) ||
+      (role === "lapidary" && incomingServiceRequestsLoading));
 
   if (!user) {
     return (
@@ -302,18 +326,11 @@ export default function WorkspaceHub() {
 
   // Avoid flashing trader inventory while the Firestore profile is still loading.
   if (!profile) {
-    return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
-      >
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <WorkspaceLoading colors={colors} />;
+  }
+
+  if (workspaceDataLoading) {
+    return <WorkspaceLoading colors={colors} />;
   }
 
   const overdueServices = detectOverdueServices(services);
@@ -391,7 +408,7 @@ export default function WorkspaceHub() {
     {
       label: "Services",
       value: ongoingServices,
-      icon: "handyman",
+      icon: "service",
       image: require("@/assets/images/lapidary-icon.png"),
       route: `${WORKSPACE}/services`,
       group: "inventory",
@@ -399,7 +416,7 @@ export default function WorkspaceHub() {
     {
       label: "Trips",
       value: activeTrips.length,
-      icon: "flight",
+      icon: "trip",
       image: require("@/assets/images/trips-icon.png"),
       route: `${WORKSPACE}/trips`,
       group: "inventory",
@@ -407,7 +424,7 @@ export default function WorkspaceHub() {
     {
       label: "AP",
       value: ongoingAp,
-      icon: "hourglass-empty",
+      icon: "ap",
       image: require("@/assets/images/ap-icon.png"),
       route: `${WORKSPACE}/ap`,
       group: "inventory",
@@ -415,7 +432,7 @@ export default function WorkspaceHub() {
     {
       label: "Cheques",
       value: chequeSummary.pendingCount,
-      icon: "money-check-dollar",
+      icon: "cheque",
       image: require("@/assets/images/cheque-icon.png"),
       route: `${WORKSPACE}/cheques`,
       group: "money",
@@ -423,7 +440,7 @@ export default function WorkspaceHub() {
     {
       label: "Bills",
       value: billSummary.openCount,
-      icon: "receipt-long",
+      icon: "bill",
       image: require("@/assets/images/bill-icon.png"),
       route: `${WORKSPACE}/bills`,
       group: "money",
@@ -473,9 +490,15 @@ export default function WorkspaceHub() {
             },
             {
               label: "Bill",
-              icon: "receipt-long",
+              icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
               route: "/(marketplace)/bills/add",
+            },
+            {
+              label: "Cheque",
+              icon: "cheque",
+              image: require("@/assets/images/cheque-icon.png"),
+              route: "/(marketplace)/cheques/add",
             },
             {
               label: "Contacts",
@@ -493,26 +516,26 @@ export default function WorkspaceHub() {
             },
             {
               label: "Plan trip",
-              icon: "flight-takeoff",
+              icon: "trip",
               image: require("@/assets/images/trips-icon.png"),
               route: "/(marketplace)/trips/add",
             },
             {
               label: "Cheque",
-              icon: "money-check-dollar",
+              icon: "cheque",
               image: require("@/assets/images/cheque-icon.png"),
               route: "/(marketplace)/cheques/add",
             },
             {
               label: "Bill",
-              icon: "receipt-long",
+              icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
               route: "/(marketplace)/bills/add",
             },
             {
               label: "Sale",
               icon: "sell",
-              route: `${MONEY}/record-sale`,
+              route: "/(marketplace)/money/record-sale",
             },
           ];
 
@@ -522,6 +545,7 @@ export default function WorkspaceHub() {
       title: "AP request to accept",
       subtitle: `From ${a.senderName} · ${a.items?.length || 1} gem(s)`,
       icon: "hourglass-empty" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "warning" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -530,6 +554,7 @@ export default function WorkspaceHub() {
       title: "Confirm AP payment",
       subtitle: `From ${a.receiverName} · #${a.id.slice(0, 6)}`,
       icon: "payments" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "info" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -538,6 +563,7 @@ export default function WorkspaceHub() {
       title: "AP stone overdue",
       subtitle: `Past expected return · #${a.id.slice(0, 6)}`,
       icon: "hourglass-empty" as const,
+      image: WORKSPACE_ENTITY_IMAGES.ap,
       tone: "critical" as const,
       route: `${WORKSPACE}/ap/${a.id}`,
     })),
@@ -545,7 +571,8 @@ export default function WorkspaceHub() {
       id: `svc-${s.id}`,
       title: "Service overdue",
       subtitle: `With provider · #${s.id.slice(0, 6)}`,
-      icon: "handyman" as const,
+      icon: "service" as const,
+      image: WORKSPACE_ENTITY_IMAGES.service,
       tone: "warning" as const,
       route: `${WORKSPACE}/services/${s.id}`,
     })),
@@ -557,7 +584,8 @@ export default function WorkspaceHub() {
         currency: c.currency,
         amountBase: c.amountBase,
       })}`,
-      icon: "money-check-dollar" as const,
+      icon: "cheque" as const,
+      image: WORKSPACE_ENTITY_IMAGES.cheque,
       tone: "info" as const,
       route: `${WORKSPACE}/cheques/${c.id}`,
     })),
@@ -574,7 +602,8 @@ export default function WorkspaceHub() {
           b.currency,
         ),
       })}`,
-      icon: "receipt-long" as const,
+      icon: "bill" as const,
+      image: WORKSPACE_ENTITY_IMAGES.bill,
       tone: "warning" as const,
       route: `${WORKSPACE}/bills/${b.id}`,
     })),
@@ -873,7 +902,16 @@ export default function WorkspaceHub() {
                     <View
                       style={[styles.alertIcon, { backgroundColor: tone.bg }]}
                     >
-                      <Icon name={alert.icon} size={18} color={tone.fg} />
+                      {alert.image ? (
+                        <Image
+                          source={alert.image}
+                          style={styles.alertImage}
+                          contentFit="contain"
+                          accessibilityIgnoresInvertColors
+                        />
+                      ) : (
+                        <Icon name={alert.icon} size={18} color={tone.fg} />
+                      )}
                     </View>
                     <View style={styles.alertText}>
                       <Text
@@ -985,48 +1023,6 @@ export default function WorkspaceHub() {
           </View>
         ) : null}
 
-        {/* Recent calls — Android only (matched to contacts / businesses) */}
-        {showContacts && callLogsSupported && recentCallPreview.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text
-                style={[
-                  styles.sectionTitle,
-                  { color: colors.onSurface, marginBottom: 0 },
-                ]}
-              >
-                Recent calls
-              </Text>
-              <Pressable
-                onPress={() =>
-                  router.push(`${WORKSPACE}/contacts/calls` as never)
-                }
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="See all calls"
-              >
-                <Text style={[styles.seeAll, { color: colors.primary }]}>
-                  See all
-                </Text>
-              </Pressable>
-            </View>
-            <View
-              style={[
-                styles.recentCallsList,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}
-            >
-              {recentCallPreview.map((log, index) => (
-                <CallLogRow
-                  key={log.id}
-                  log={log}
-                  isLast={index === recentCallPreview.length - 1}
-                  onPress={() => router.push(log.href as never)}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
       </ThemedScrollView>
 
       <View
@@ -1116,10 +1112,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...Typography.headlineSmMobile },
   seeAll: { ...Typography.labelMd, fontWeight: "600" },
-  recentCallsList: {
-    marginHorizontal: -Spacing.containerMargin,
-    overflow: "hidden",
-  },
   countPill: {
     minWidth: 24,
     height: 24,
@@ -1178,6 +1170,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  alertImage: { width: 32, height: 32 },
   alertText: { flex: 1, gap: 2, minWidth: 0 },
   alertTitle: { ...Typography.bodyLg, fontWeight: "600" },
   alertSub: { ...Typography.bodyMd },

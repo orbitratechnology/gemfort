@@ -1,8 +1,8 @@
 import { FontAwesome6 } from "@react-native-vector-icons/fontawesome6/static";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
     Linking,
@@ -26,6 +26,8 @@ import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     BrandPalette,
     Radius,
@@ -34,11 +36,11 @@ import {
 } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import {
-  LAPIDARY_SERVICE_OPTIONS,
-  isVerifiedRole,
-  marketTabFromBusinessType,
-  normalizeLapidaryServiceId,
-  type LapidaryServiceId,
+    isVerifiedRole,
+    LAPIDARY_SERVICE_OPTIONS,
+    marketTabFromBusinessType,
+    normalizeLapidaryServiceId,
+    type LapidaryServiceId,
 } from "@/constants/roles";
 import { hasAnySocialLink } from "@/features/marketplace/business-links";
 import {
@@ -65,15 +67,14 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import {
-  openProfileLocation,
-  profileLocationLabel,
+    openProfileLocation,
+    profileLocationLabel,
 } from "@/lib/location/profile-location";
 import { businessShareUrl, copyLink, shareLink } from "@/lib/share";
 import { openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
-import type { Business, BusinessType, MarketplaceListing } from "@/types";
-import type { LapidaryServiceOffering } from "@/types";
+import type { Business, BusinessType, LapidaryServiceOffering, MarketplaceListing } from "@/types";
 
 function initials(name: string) {
   return name
@@ -210,7 +211,7 @@ export default function BusinessProfileScreen() {
   });
 
   const isOwnBusinessPreview =
-    !!user && !!business && user.uid === business.ownerUid;
+    !!user && !!business && myBusiness?.id === business.id;
 
   const { data: liked = false } = useFirestoreLiveQuery({
     queryKey: ["has-liked", myBusiness?.id, business?.id],
@@ -284,7 +285,7 @@ export default function BusinessProfileScreen() {
     [business],
   );
 
-  const isOwnBusiness = !!user && user.uid === business?.ownerUid;
+  const isOwnBusiness = !!user && myBusiness?.id === business?.id;
   const isVerifiedMember = isVerifiedRole(profile);
   const isVerifiedTrader = isVerifiedRole(profile, "trader");
   const canLike =
@@ -304,25 +305,29 @@ export default function BusinessProfileScreen() {
 
   const suggested = useMemo(() => {
     if (!business) return [] as Business[];
+    const dismissedIdSet = new Set(dismissedIds);
     const sameType = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
-        !dismissedIds.includes(b.id) &&
+        b.id !== myBusiness?.id &&
+        !dismissedIdSet.has(b.id) &&
         b.businessType === business.businessType,
     );
     const others = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
-        !dismissedIds.includes(b.id) &&
+        b.id !== myBusiness?.id &&
+        !dismissedIdSet.has(b.id) &&
         b.businessType !== business.businessType,
     );
     return [...sameType, ...others].slice(0, SUGGEST_LIMIT);
-  }, [allBusinesses, business, dismissedIds]);
+  }, [allBusinesses, business, dismissedIds, myBusiness?.id]);
 
   const yearsValue = business
     ? String(business.badges.yearsActive || business.yearEstablished || "—")
     : "—";
   const likesValue = String(business?.badges?.likeCount ?? 0);
+  const reputationBadge = businessReputationBadgeForBusiness(business);
 
   async function handleLike() {
     if (!user || !myBusiness || !business || liked || liking) return;
@@ -515,21 +520,11 @@ export default function BusinessProfileScreen() {
                 )}
               </View>
             </Link.AppleZoomTarget>
-            {business.badges.isVerified ||
-            business.verificationStatus === "verified" ? (
-              <View
-                style={[
-                  styles.verifiedBadge,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.background,
-                  },
-                ]}
-                accessibilityLabel="Verified business"
-              >
-                <Icon name="verified" size={14} color={colors.onSecondary} />
-              </View>
-            ) : null}
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.background}
+              size="md"
+            />
           </View>
 
           <View style={styles.statsRow}>
@@ -579,7 +574,6 @@ export default function BusinessProfileScreen() {
           </Text>
           <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
             {role}
-            {business.ownerName ? ` · ${business.ownerName}` : ""}
           </Text>
           {business.shortDescription?.trim() ? (
             <Text style={[styles.bio, { color: colors.onSurface }]}>
@@ -686,7 +680,7 @@ export default function BusinessProfileScreen() {
               <Icon
                 name={
                   primaryKind === "request"
-                    ? "handyman"
+                    ? "service"
                     : liked
                       ? "favorite"
                       : "favorite-border"
@@ -811,9 +805,6 @@ export default function BusinessProfileScreen() {
                 <Text style={[styles.servicesKicker, { color: colors.primary }]}>
                   SERVICES
                 </Text>
-                <Text style={[styles.servicesTitle, { color: colors.onSurface }]}>
-                  Workshop services
-                </Text>
               </View>
               <View
                 style={[
@@ -869,7 +860,8 @@ export default function BusinessProfileScreen() {
                         style={[styles.serviceName, { color: colors.onSurface }]}
                         numberOfLines={1}
                       >
-                        {LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === serviceId)!.label}
+                        {LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === serviceId)?.label ??
+                          serviceId}
                       </Text>
                       <Text
                         style={[styles.serviceDesc, { color: colors.textMuted }]}
@@ -895,41 +887,7 @@ export default function BusinessProfileScreen() {
           </View>
         ) : null}
 
-        {/* Trader profiles retain their public Gems grid. Lapidaries do not have Gems. */}
-        {!isProvider ? (
-          <>
-            <View
-              style={[styles.tabBar, { borderBottomColor: colors.outlineVariant }]}
-            >
-              <View
-                style={[styles.tabActive, { borderBottomColor: colors.onSurface }]}
-              >
-                <Icon name="grid-view" size={22} color={colors.onSurface} />
-              </View>
-            </View>
-
-            {gems.length > 0 ? (
-              <ProductGrid style={styles.gemsGrid}>
-                {gems.map((listing) => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    href={`/listing/${listing.shareableSlug}`}
-                  />
-                ))}
-              </ProductGrid>
-            ) : (
-              <View style={styles.emptyGems}>
-                <Icon name="diamond" size={36} color={colors.outlineVariant} />
-                <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
-                  No public gems yet
-                </Text>
-              </View>
-            )}
-          </>
-        ) : null}
-
-        {/* Suggested profiles is intentionally the final profile section. */}
+        {/* Suggested profiles */}
         {suggested.length > 0 ? (
           <View style={styles.discoverSection}>
             <View style={styles.discoverHeader}>
@@ -967,6 +925,35 @@ export default function BusinessProfileScreen() {
             </ScrollView>
           </View>
         ) : null}
+
+        {/* Trader profiles retain their public Gems grid. Lapidaries do not have Gems. */}
+        {!isProvider ? (
+          <>
+            <View style={styles.gemsHeader}>
+              <Text style={[styles.gemsTitle, { color: colors.onSurface }]}>Gems</Text>
+            </View>
+
+            {gems.length > 0 ? (
+              <ProductGrid style={styles.gemsGrid}>
+                {gems.map((listing) => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    ownerPhotoUrl={business?.logoUrl}
+                    href={`/listing/${listing.shareableSlug}`}
+                  />
+                ))}
+              </ProductGrid>
+            ) : (
+              <View style={styles.emptyGems}>
+                <Icon name="diamond" size={36} color={colors.outlineVariant} />
+                <Text style={[styles.emptyGemsText, { color: colors.textMuted }]}>
+                  No public gems yet
+                </Text>
+              </View>
+            )}
+          </>
+        ) : null}
       </ThemedScrollView>
 
       {user && business ? (
@@ -975,7 +962,7 @@ export default function BusinessProfileScreen() {
           onClose={() => setReportOpen(false)}
           reporterUid={user.uid}
           reportedBusinessId={business.id}
-          reportedUserUid={business.ownerUid}
+          reportedUserUid={null}
           businessName={business.businessName}
         />
       ) : null}
@@ -1082,6 +1069,7 @@ function SuggestedCard({
   const role = roleLabel(business.businessType, !!business.providerProfile);
   const verified =
     business.badges.isVerified || business.verificationStatus === "verified";
+  const reputationBadge = businessReputationBadgeForBusiness(business);
 
   return (
     <View
@@ -1106,23 +1094,29 @@ function SuggestedCard({
 
       <Link href={`/business/${business.id}`} asChild>
         <Pressable style={styles.suggestBody}>
-          <View
-            style={[
-              styles.suggestAvatar,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-          >
-            {business.logoUrl ? (
-              <Image
-                source={{ uri: business.logoUrl }}
-                style={styles.suggestAvatarImg}
-                contentFit="cover"
-              />
-            ) : (
-              <Text style={[styles.suggestInitials, { color: colors.primary }]}>
-                {initials(business.businessName)}
-              </Text>
-            )}
+          <View style={styles.suggestAvatarWrap}>
+            <View
+              style={[
+                styles.suggestAvatar,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              {business.logoUrl ? (
+                <Image
+                  source={{ uri: business.logoUrl }}
+                  style={styles.suggestAvatarImg}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={[styles.suggestInitials, { color: colors.primary }]}>
+                  {initials(business.businessName)}
+                </Text>
+              )}
+            </View>
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.surfaceContainerLowest}
+            />
           </View>
           <Text
             style={[styles.suggestName, { color: colors.onSurface }]}
@@ -1130,12 +1124,14 @@ function SuggestedCard({
           >
             {business.businessName}
           </Text>
-          <Text
-            style={[styles.suggestMeta, { color: colors.textMuted }]}
-            numberOfLines={1}
-          >
-            {verified ? "Verified" : "Suggested for you"} · {role}
-          </Text>
+          {reputationBadge === "none" ? (
+            <Text
+              style={[styles.suggestMeta, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {verified ? "Verified" : "Suggested for you"} · {role}
+            </Text>
+          ) : null}
         </Pressable>
       </Link>
 
@@ -1202,7 +1198,8 @@ const styles = StyleSheet.create({
   avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
+    borderRadius: 24,
+    borderCurve: "continuous",
     borderWidth: 3,
     overflow: "hidden",
     alignItems: "center",
@@ -1210,17 +1207,6 @@ const styles = StyleSheet.create({
   },
   avatarImg: { width: "100%", height: "100%" },
   avatarInitials: { fontSize: 26, fontWeight: "700" },
-  verifiedBadge: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   statsRow: {
     flex: 1,
     flexDirection: "row",
@@ -1392,6 +1378,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   suggestCard: {
+    height: 190,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
@@ -1417,10 +1404,16 @@ const styles = StyleSheet.create({
   suggestAvatar: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 14,
+    borderCurve: "continuous",
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+  },
+  suggestAvatarWrap: {
+    width: 56,
+    height: 56,
+    position: "relative",
   },
   suggestAvatarImg: { width: "100%", height: "100%" },
   suggestInitials: { fontSize: 18, fontWeight: "700" },
@@ -1449,16 +1442,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  tabBar: {
-    flexDirection: "row",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: Spacing.gutterMd,
+  gemsHeader: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.gutterMd,
   },
-  tabActive: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1.5,
+  gemsTitle: {
+    ...Typography.headlineMdMobile,
+    fontWeight: "700",
   },
   gemsGrid: {
     paddingTop: Spacing.stackMd,

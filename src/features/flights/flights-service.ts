@@ -34,6 +34,14 @@ export type FlightCalendarDay = { date: string; price: number; stops: number; ac
 export type FlightSearchResult = { currency: string; offers: FlightOffer[] };
 export type FlightCalendarResult = { currency: string; days: FlightCalendarDay[] };
 
+const flightDateTimeFormatter = new Intl.DateTimeFormat('en', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 type AutocompleteResponse = {
   type?: FlightPlace['type']; code?: string; name?: string; country_code?: string; country_name?: string;
   city_code?: string | null; city_name?: string | null; main_airport_name?: string | null;
@@ -48,15 +56,15 @@ export async function autocompletePlaces(term: string): Promise<FlightPlace[]> {
   url.searchParams.append('types[]', 'city');
   url.searchParams.append('types[]', 'airport');
   const response = await fetch(url);
-  if (!response.ok) throw new Error('Could not load airports.');
+  if (!response.ok) throw new Error('Airport search is temporarily unavailable.');
   const text = await response.text();
   let data: AutocompleteResponse;
   try {
     data = JSON.parse(text) as AutocompleteResponse;
   } catch {
-    throw new Error('Airport search returned an unexpected response. Please try again.');
+    throw new Error('Airport search is temporarily unavailable.');
   }
-  if (!Array.isArray(data)) throw new Error('Airport search returned an unexpected response. Please try again.');
+  if (!Array.isArray(data)) throw new Error('Airport search is temporarily unavailable.');
   return data
     .filter((place) => place.code && place.name && (place.type === 'city' || place.type === 'airport'))
     .slice(0, 8)
@@ -103,5 +111,5 @@ export function formatFlightDuration(minutes: number | null) {
 export function formatFlightDateTime(value: string | null) {
   if (!value) return 'Time unavailable';
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat('en', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(date);
+  return Number.isNaN(date.valueOf()) ? value : flightDateTimeFormatter.format(date);
 }

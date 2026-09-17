@@ -120,7 +120,7 @@ These are canonical route proposals mapped to the 18 current callable/API functi
 | `DELETE /v1/ap/records/:apId` | `deleteApRecord` | Authenticated; sender or receiver; terminal AP only | Required; safe repeat should return the same terminal outcome |
 | `POST /v1/services/:serviceId/cancellation` | `requestServiceCancellation` | Authenticated; service owner | Required; direct cancellation or provider request |
 | `POST /v1/services/:serviceId/cancellation/respond` | `respondServiceCancellation` | Authenticated; service provider | Required; accepted/rejected state transition |
-| `POST /v1/auth/phone/link` | `linkVerifiedPhone` | Authenticated; FPNV token independently verified against FPNV JWKS | Required; use recent token/unique phone conflict handling |
+| `POST /v1/auth/phone/sync` | `syncPhoneProfile` | Authenticated; server reads the linked phone number from Firebase Auth for the verified UID | Required; client sends no phone number |
 | `DELETE /v1/account` | `deleteMyAccount` | Authenticated; recent Firebase Auth required | Required; destructive operation; consider limited-use App Check replay protection after client support |
 | `POST /v1/flights/search` | `searchFlights` | Authenticated; no Firestore ownership role | Request hash/cache; upstream rate limit and timeout |
 | `POST /v1/flights/calendar` | `getFlightPriceCalendar` | Authenticated; no Firestore ownership role | Request hash/cache; upstream rate limit and timeout |
@@ -146,7 +146,7 @@ The following current payload fields are confirmed from the source and become th
 | `deleteApRecord` | `apId` |
 | `requestServiceCancellation` | `serviceId` |
 | `respondServiceCancellation` | `serviceId`, `action: accepted \| rejected` |
-| `linkVerifiedPhone` | `token` containing the device verification JWT; server validates signature, issuer, audience, algorithm, subject format, and Auth uniqueness |
+| `syncPhoneProfile` | No business payload; server reads and validates the linked Firebase Auth phone number |
 | `deleteMyAccount` | No business payload; server derives UID from Auth token and validates recent `auth_time` |
 | `searchFlights` | `origin`, `destination`, `departureAt`, optional `returnAt`, `oneWay`, `direct`, `currency`, optional bounded `limit` and `page` |
 | `getFlightPriceCalendar` | Same normalized flight criteria used by the calendar provider |
@@ -185,7 +185,7 @@ Cloud Run user-authentication guidance also describes Firebase Auth ID tokens as
 ### Authorization
 
 - AP and service routes must re-run resource ownership/state checks inside the API process immediately before mutation.
-- Phone linking must bind the FPNV-verified phone to the Firebase Auth UID from the verified ID token.
+- Phone profile synchronization must derive the phone number from the Firebase Auth user identified by the verified ID token; never trust a phone number from the client.
 - Account deletion must wipe the same Firestore and Storage scope as the current function before the client deletes Auth.
 - A successful Auth check alone is never sufficient for a mutation involving another user’s resource.
 

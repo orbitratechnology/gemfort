@@ -27,6 +27,7 @@ export const GEMTRACK_NOTIFICATION_TYPES = [
   'service_request_accepted',
   'service_request_rejected',
   'service_job_updated',
+  'service_job_completed',
   'gem_transfer_requested',
   'gem_transfer_accepted',
   'gem_transfer_rejected',
@@ -54,6 +55,33 @@ export type NotificationType = GemTrackNotificationType | GemNetNotificationType
 
 export type NotificationPriority = 'high' | 'medium' | 'low';
 
+export type NotificationDirection = 'given' | 'taken' | 'to_pay' | 'to_receive';
+
+export function notificationDirectionLabel(
+  direction: NotificationDirection | null | undefined,
+): string | null {
+  switch (direction) {
+    case 'given':
+      return 'Given';
+    case 'taken':
+      return 'Taken';
+    case 'to_pay':
+      return 'To pay';
+    case 'to_receive':
+      return 'To receive';
+    default:
+      return null;
+  }
+}
+
+export function directionalNotificationTitle(
+  title: string,
+  direction: NotificationDirection | null | undefined,
+): string {
+  const label = notificationDirectionLabel(direction);
+  return label ? `${title} · ${label}` : title;
+}
+
 /** Stable category for collapsed mobile inboxes and native notification threads. */
 export function notificationGroupKeyForType(type: string): string {
   if (type.startsWith('cheque_') || type.startsWith('bill_') || type.startsWith('payment_')) {
@@ -79,6 +107,7 @@ export type NotificationInput = {
   type: NotificationType;
   title: string;
   message: string;
+  direction?: NotificationDirection | null;
   referenceType?: string | null;
   referenceId?: string | null;
   priority?: NotificationPriority;
@@ -111,17 +140,18 @@ export function priorityForType(type: NotificationType): NotificationPriority {
   if (
     type === 'ap_request_received' ||
     type === 'gem_transfer_requested' ||
-    type === 'service_request_received' ||
     type === 'ap_cancellation_requested' ||
     type === 'service_cancellation_requested' ||
     type === 'ap_overdue' ||
     type === 'cheque_maturing_tomorrow' ||
     type === 'bill_due_today' ||
     type === 'payment_overdue' ||
-    type === 'service_overdue'
+    type === 'service_overdue' ||
+    type === 'service_job_completed'
   ) {
     return 'medium';
   }
+  if (type === 'service_request_received') return 'high';
   return 'low';
 }
 
@@ -146,6 +176,7 @@ export function pushCategoryForType(type: NotificationType): string {
   if (type === 'ap_cancellation_requested') return 'ap_cancel';
   if (type === 'gem_transfer_requested') return 'gem_transfer';
   if (type === 'listing_offer_received') return 'listing_offer';
+  if (type === 'service_job_completed') return 'service_completed';
   return 'open_ref';
 }
 

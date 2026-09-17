@@ -39,6 +39,7 @@ import {
 } from "@/components/workspace/job-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { resolveCurrencyCode } from "@/constants/currencies";
 import { resolveProfileRole } from "@/constants/roles";
 import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
@@ -68,7 +69,7 @@ import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { BillDirection, LapidaryJob, WorkspaceGem } from "@/types";
 
@@ -90,6 +91,12 @@ function firstParam(v: string | string[] | undefined): string {
   return v ?? "";
 }
 
+function dueDaysFromParam(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "7";
+  return String(Math.max(0, Math.ceil((timestamp - Date.now()) / 86_400_000)));
+}
+
 export default function AddBillScreen() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -104,15 +111,25 @@ export default function AddBillScreen() {
     notes?: string;
     jobId?: string;
     gemId?: string;
+    direction?: string;
+    dueDate?: string;
+    currency?: string;
+    counterpartyBusinessId?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
   const paramNotes = decodeShareParam(raw.notes);
   const paramJobId = firstParam(raw.jobId);
   const paramGemId = firstParam(raw.gemId);
+  const paramDirection = firstParam(raw.direction);
+  const paramDueDate = firstParam(raw.dueDate);
+  const paramCurrency = resolveCurrencyCode(firstParam(raw.currency), preferred);
+  const paramCounterpartyBusinessId = firstParam(raw.counterpartyBusinessId);
 
   const presetDirection: BillDirection | null = isLapidary
     ? "receivable"
-    : null;
+    : paramDirection === "payable" || paramDirection === "receivable"
+      ? paramDirection
+      : null;
 
   const [step, setStep] = useState(presetDirection ? 1 : 0);
   const [direction, setDirection] = useState<BillDirection | null>(
@@ -120,10 +137,10 @@ export default function AddBillScreen() {
   );
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
-    currency: preferred,
+    currency: paramCurrency,
   });
   const [contactId, setContactId] = useState("");
-  const [dueDays, setDueDays] = useState("7");
+  const [dueDays, setDueDays] = useState(() => dueDaysFromParam(paramDueDate));
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
@@ -151,6 +168,13 @@ export default function AddBillScreen() {
     enabled: !!user,
   });
 
+  const linkedContactId = paramCounterpartyBusinessId
+    ? contacts.find(
+        (contact) => contact.linkedBusinessId === paramCounterpartyBusinessId,
+      )?.id ?? ""
+    : "";
+  const selectedContactId = contactId || linkedContactId;
+
   const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
     queryFn: () => fetchGems(user!.uid),
@@ -167,7 +191,10 @@ export default function AddBillScreen() {
   });
 
   const availableGems = useMemo(
-    () => gems.filter((g) => !gemIds.includes(g.id)),
+    () => {
+      const gemIdSet = new Set(gemIds);
+      return gems.filter((g) => !gemIdSet.has(g.id));
+    },
     [gems, gemIds],
   );
 
@@ -243,7 +270,7 @@ export default function AddBillScreen() {
       direction,
       amount: money.amount,
       dueDays,
-      contactId,
+      contactId: selectedContactId,
       commissionPercent: isLapidary ? "" : commissionPercent,
       notes: notes || undefined,
     });
@@ -268,8 +295,8 @@ export default function AddBillScreen() {
           commissionPercent: isLapidary ? null : result.data.commissionPercent,
           notes: result.data.notes,
           gemIds: isLapidary ? [] : gemIds,
-          jobId: isLapidary ? jobId || null : null,
-          status: isLapidary ? "ongoing" : "open",
+          jobId: jobId || null,
+          status: jobId ? "ongoing" : "open",
         });
         void queryClient.invalidateQueries({ queryKey: ["bills"] });
         toast.success(
@@ -287,11 +314,15 @@ export default function AddBillScreen() {
   }
 
   const contactName =
-    contacts.find((c) => c.id === contactId)?.displayName ?? "them";
+    contacts.find((c) => c.id === selectedContactId)?.displayName ?? "them";
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={step === 0 ? "Direction" : "Add Bill"} closeIcon />
+      <StackHeader
+        title={step === 0 ? "Direction" : "Add Bill"}
+        closeIcon
+        image={require("@/assets/images/bill-icon.png")}
+      />
 
       {step === 0 ? (
         <View
@@ -354,11 +385,7 @@ export default function AddBillScreen() {
                     <View style={styles.gemHeader}>
                       <GemThumb
                         uri={gemPrimaryPhotoUrl(gem)}
-                        label={
-                          gem.variety?.trim() ||
-                          formatGemType(gem.gemType) ||
-                          "Gem"
-                        }
+                        label={gem.title?.trim() || gem.variety?.trim() || "Gem"}
                         size={52}
                         radius={12}
                       />
@@ -367,15 +394,13 @@ export default function AddBillScreen() {
                           style={[styles.gemTitle, { color: colors.onSurface }]}
                           numberOfLines={1}
                         >
-                          {gem.variety?.trim() ||
-                            formatGemType(gem.gemType) ||
-                            gem.sku}
+                          {gem.title?.trim() || gem.variety?.trim() || "Gem"}
                         </Text>
                         <Text
                           style={[styles.gemSub, { color: colors.textMuted }]}
                           numberOfLines={1}
                         >
-                          {gem.sku} · {gem.currentWeight} ct
+                          {formatGemType(gem.gemType)} · {gem.currentWeight} ct
                         </Text>
                       </View>
                       <Pressable
@@ -496,7 +521,7 @@ export default function AddBillScreen() {
 
               <ContactPicker
                 label={direction === "payable" ? "To" : "From"}
-                value={contactId}
+                value={selectedContactId}
                 onChange={(id) => {
                   setContactId(id);
                   clearField("contactId");

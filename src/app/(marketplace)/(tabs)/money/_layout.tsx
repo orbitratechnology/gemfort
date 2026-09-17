@@ -38,6 +38,7 @@ export default function MoneyLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: colors.background },
       }}
-    />
+    >
+    </Stack>
   );
 }

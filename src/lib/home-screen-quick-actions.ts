@@ -1,11 +1,12 @@
 import type { RouterAction } from "expo-quick-actions/router";
-import { Platform, type ColorSchemeName } from "react-native";
+import { Platform } from "react-native";
 
 import { resolveProfileRole } from "@/constants/roles";
 import type { UserProfile, UserRole } from "@/types";
 
-/** Base keys registered as `shortcut_<key>_light` / `_dark` in the config plugin. */
-const AndroidIconKey = {
+/** Base keys registered as `shortcut_<key>` in the config plugin. */
+const ShortcutKey = {
+  app: "app",
   gem: "gem",
   add: "add",
   ap: "ap",
@@ -13,24 +14,31 @@ const AndroidIconKey = {
   jobs: "jobs",
   contacts: "contacts",
   bill: "bill",
+  cheque: "cheque",
   money: "money",
   market: "market",
   search: "search",
+  certificates: "certificates",
 } as const;
 
-type AndroidIconKeyName = (typeof AndroidIconKey)[keyof typeof AndroidIconKey];
+type ShortcutKeyName = (typeof ShortcutKey)[keyof typeof ShortcutKey];
 
 /**
- * iOS: outline SF Symbols / built-ins (already theme-adaptive).
- * Android: transparent mipmaps — black in light theme, white in dark.
+ * Prefer native iOS icons for the guest shortcuts. This gives iOS the same
+ * familiar visual language as its system actions while Android uses the
+ * matching bundled resource registered by the config plugin.
  */
-function icon(
-  ios: string,
-  androidKey: AndroidIconKeyName,
-  scheme: "light" | "dark",
-): string {
-  if (Platform.OS === "ios") return ios;
-  return `shortcut_${androidKey}_${scheme}`;
+function icon(shortcutKey: ShortcutKeyName): string {
+  const assetName = `shortcut_${shortcutKey}`;
+  if (Platform.OS === "ios") {
+    if (shortcutKey === ShortcutKey.certificates) {
+      return "symbol:checkmark.seal";
+    }
+    if (shortcutKey === ShortcutKey.market) return "symbol:storefront";
+    if (shortcutKey === ShortcutKey.search) return "search";
+    return `asset:${assetName}`;
+  }
+  return assetName;
 }
 
 function action(
@@ -49,103 +57,103 @@ function action(
   };
 }
 
-function resolveScheme(colorScheme: ColorSchemeName): "light" | "dark" {
-  return colorScheme === "dark" ? "dark" : "light";
-}
-
 /** Guest / signed-out: public GemNet entry points. Search last (iOS convention). */
-function guestActions(scheme: "light" | "dark"): RouterAction[] {
+function guestActions(): RouterAction[] {
   return [
     action(
-      "certificate-portals",
-      "Certificate portals",
+      "certificates",
+      "Certificates",
       "/verify-certificate-portals",
-      icon("symbol:link", AndroidIconKey.market, scheme),
-      "Open external verification pages",
+      icon(ShortcutKey.certificates),
+      "Verify gemstone certificates",
     ),
     action(
       "market",
       "Market",
       "/(marketplace)/(tabs)/market",
-      icon("symbol:person.2", AndroidIconKey.market, scheme),
+      icon(ShortcutKey.market),
       "Find traders and lapidaries",
     ),
     action(
       "search",
       "Search",
       "/(marketplace)/(tabs)/search",
-      icon("search", AndroidIconKey.search, scheme),
+      icon(ShortcutKey.search),
     ),
   ];
 }
 
-function traderActions(scheme: "light" | "dark"): RouterAction[] {
+function traderActions(): RouterAction[] {
   return [
     action(
       "add-gem",
       "Gem",
       "/(marketplace)/gems/add",
-      icon("symbol:diamond", AndroidIconKey.gem, scheme),
+      icon(ShortcutKey.gem),
       "Log a stone in GemTrack",
     ),
     action(
       "ap",
       "Give AP",
       "/(marketplace)/ap/add",
-      icon("symbol:handshake", AndroidIconKey.ap, scheme),
+      icon(ShortcutKey.ap),
       "Hand over on approval",
     ),
     action(
       "service",
       "Request service",
       "/(marketplace)/services/add",
-      icon("symbol:wrench.and.screwdriver", AndroidIconKey.service, scheme),
+      icon(ShortcutKey.service),
       "Cutting, heating & more",
     ),
   ];
 }
 
-function lapidaryActions(scheme: "light" | "dark"): RouterAction[] {
+function lapidaryActions(): RouterAction[] {
   return [
     action(
       "jobs",
       "Jobs",
       "/(marketplace)/(tabs)/workspace/jobs",
-      icon("symbol:wrench.and.screwdriver", AndroidIconKey.jobs, scheme),
+      icon(ShortcutKey.jobs),
       "Inbound cutting & treatment work",
     ),
     action(
       "contacts",
       "Contacts",
       "/(marketplace)/(tabs)/workspace/contacts",
-      icon("contact", AndroidIconKey.contacts, scheme),
-      "Brokers, buyers & partners",
+      icon(ShortcutKey.contacts),
+      "Traders, buyers & partners",
     ),
     action(
       "bill",
       "Add bill",
       "/(marketplace)/bills/add",
-      icon("symbol:doc.text", AndroidIconKey.bill, scheme),
+      icon(ShortcutKey.bill),
       "Record a workshop bill",
+    ),
+    action(
+      "cheque",
+      "Add cheque",
+      "/(marketplace)/cheques/add",
+      icon(ShortcutKey.cheque),
+      "Track a post-dated cheque",
     ),
   ];
 }
 
 function actionsForRole(
   role: UserRole,
-  scheme: "light" | "dark",
 ): RouterAction[] {
-  if (role === "lapidary") return lapidaryActions(scheme);
-  return traderActions(scheme);
+  if (role === "lapidary") return lapidaryActions();
+  return traderActions();
 }
 
 /** Build home-screen quick actions for the current auth state (max 4). */
 export function buildHomeScreenQuickActions(
   signedIn: boolean,
   profile: UserProfile | null,
-  colorScheme: ColorSchemeName = "light",
 ): RouterAction[] {
-  const scheme = resolveScheme(colorScheme);
-  if (!signedIn) return guestActions(scheme);
-  return actionsForRole(resolveProfileRole(profile), scheme);
+  if (!signedIn) return guestActions();
+  return actionsForRole(resolveProfileRole(profile));
 }

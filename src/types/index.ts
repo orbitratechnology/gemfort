@@ -11,6 +11,14 @@ export type VerificationStatus =
   | "rejected"
   | "revoked";
 
+export type BusinessReputationBadge =
+  | "none"
+  | "member"
+  | "identity"
+  | "business"
+  | "gem"
+  | "recognized";
+
 export type UserProfile = {
   uid: string;
   email: string;
@@ -40,6 +48,18 @@ export type UserProfile = {
   phoneVerified?: boolean;
   /** ISO date `YYYY-MM-DD` — collected during verification. */
   dateOfBirth?: string | null;
+  /** Set by the admin review flow after a NIC document is accepted. */
+  nicVerified?: boolean;
+  /** Admin-controlled Recognized tier for established industry accounts. */
+  recognizedBadge?: boolean;
+  recognizedBadgeAssignedAt?: Timestamp | null;
+  recognizedBadgeAssignedByAdminUid?: string | null;
+  /** Policy versions accepted during account creation. */
+  legalConsent?: {
+    termsVersion: string;
+    privacyVersion: string;
+    acceptedAt: Timestamp;
+  };
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
   updatedAt: Timestamp;
@@ -76,7 +96,6 @@ export type Business = {
   ownerUid: string;
   businessType: BusinessType;
   businessName: string;
-  ownerName: string;
   brNumber: string;
   ngjaNumber: string;
   gemLicenseNumber?: string;
@@ -90,10 +109,22 @@ export type Business = {
   country: string;
   location?: ProfileLocation | null;
   verificationStatus: VerificationStatus;
-  verificationTier: "none" | "basic" | "full";
+  /** Legacy values are retained for migration and map to the new tiers. */
+  verificationTier:
+    | "none"
+    | "member"
+    | "identity"
+    | "business"
+    | "gem"
+    | "basic"
+    | "pro"
+    | "ultra"
+    | "full";
+  recognizedBadgeAssignedAt?: Timestamp | null;
+  recognizedBadgeAssignedByAdminUid?: string | null;
   badges: {
     isVerified: boolean;
-    isBasicVerified: boolean;
+    businessReputation?: BusinessReputationBadge;
     isNgjaRegistered: boolean;
     isPremium: boolean;
     verifiedSinceYear: number | null;
@@ -185,6 +216,14 @@ export type GemPaymentMethod =
   | "bill"
   | "other";
 
+/** A single certificate image or document attached to a gemstone. */
+export type GemCertificate = {
+  url: string;
+  kind: "image" | "file";
+  fileName: string | null;
+  mimeType: string | null;
+};
+
 /** Legacy flat status union — prefer stoneStage / custody / outcome. */
 export type GemStatus =
   | GemStoneStage
@@ -252,9 +291,15 @@ export type WorkspaceGem = {
   saleStatus?: GemSaleStatus | null;
   soldToUid?: string | null;
   soldToBusinessId?: string | null;
+  soldToBusinessName?: string | null;
+  soldToBusinessLogoUrl?: string | null;
   soldToContactId?: string | null;
   soldToName?: string | null;
   salePaymentMethod?: GemPaymentMethod | null;
+  /** Seller-owned sold snapshot created when a trader accepts a transfer. */
+  archiveSnapshot?: boolean;
+  sourceGemId?: string | null;
+  sourceSaleRequestId?: string | null;
   /** Historical sale metadata retained after the gem moves to its buyer. */
   acquiredFromUid?: string | null;
   acquiredFromName?: string | null;
@@ -264,6 +309,7 @@ export type WorkspaceGem = {
   lastSoldPriceCurrency?: string | null;
   lastSalePaymentMethod?: GemPaymentMethod | null;
   photoUrls: string[];
+  certificate?: GemCertificate | null;
   isListedOnMarketplace: boolean;
   marketplaceListingId: string | null;
   notes: string | null;
@@ -306,18 +352,24 @@ export type GemCost = {
 };
 
 export type ServiceRecordStatus =
+  | "pending"
   | "given"
   | "in_progress"
+  | "ready"
   | "completed"
   | "received_back"
   | "overdue"
   | "cancellation_requested"
+  | "rejected"
   | "cancelled";
 
 export type ServiceRecord = {
   id: string;
   ownerUid: string;
   gemId: string;
+  /** Denormalized gem snapshot retained for shared service records. */
+  gemName?: string | null;
+  gemPhotoUrl?: string | null;
   serviceType: string;
   /** Local saved contact (Workspace → Contacts). Empty when provider is a GemFort business. */
   providerContactId: string;
@@ -327,6 +379,7 @@ export type ServiceRecord = {
   providerUid?: string | null;
   /** Denormalized display name for list/detail screens. */
   providerName?: string | null;
+  providerBusinessName?: string | null;
   dateGiven: Timestamp;
   expectedReturnDate: Timestamp;
   weightBefore: number;
@@ -345,9 +398,30 @@ export type ServiceRecord = {
   status: ServiceRecordStatus;
   finalCost: number | null;
   finalCostCurrency: string | null;
+  /** Expected date the sender should pay the completed service fee. */
+  paymentDueDate?: Timestamp | null;
   paymentStatus: "unpaid" | "partial" | "paid";
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Set for a business lapidary request; the workflow status remains in `status`. */
+  serviceKind?: "lapidary_request" | "record";
+  requestStatus?: RequestStatus;
+  serviceTypes?: string[];
+  traderUid?: string;
+  traderBusinessId?: string | null;
+  traderBusinessName?: string | null;
+  traderBusinessLogoUrl?: string | null;
+  lapidaryUid?: string | null;
+  lapidaryBusinessId?: string | null;
+  providerBusinessLogoUrl?: string | null;
+  jobId?: string | null;
+  rejectReason?: string | null;
+  /** Set when a lapidary removes a terminal job from its own workshop view. */
+  providerDeletedAt?: Timestamp | null;
+  providerDeletedByUid?: string | null;
+  previousStoneStage?: GemStoneStage | null;
+  previousGemStatus?: string | null;
+  previousOutcome?: GemOutcome | null;
 };
 
 export type ApLifecycleStatus =
@@ -739,6 +813,7 @@ export type MarketplaceListing = {
   /** LKR equivalent of priceMax. */
   priceMaxBase?: number | null;
   photoUrls: string[];
+  certificate?: GemCertificate | null;
   status: "active" | "reserved" | "sold" | "paused" | "draft";
   shareableSlug: string;
   shareableUrl: string;
@@ -783,6 +858,7 @@ export type AppNotification = {
   type: string;
   title: string;
   message: string;
+  direction?: "given" | "taken" | "to_pay" | "to_receive" | null;
   referenceType: string | null;
   referenceId: string | null;
   /** Display name of the person/business that triggered the event. */
@@ -837,6 +913,7 @@ export type VerificationApplication = {
   id: string;
   applicantUid: string;
   businessId: string;
+  isPromotion?: boolean;
   applicationType: "trader" | "lapidary" | string;
   status: string;
   /** ISO date `YYYY-MM-DD` — required for KYC. */
@@ -871,6 +948,7 @@ export type ServiceRequest = {
   id: string;
   traderUid: string;
   traderBusinessId: string | null;
+  traderBusinessName?: string | null;
   lapidaryUid: string;
   lapidaryBusinessId: string;
   gemId: string;
@@ -894,6 +972,8 @@ export type LapidaryJob = {
   lapidaryUid: string;
   lapidaryBusinessId: string;
   traderUid: string;
+  traderBusinessId: string | null;
+  traderBusinessName?: string | null;
   gemId: string;
   gemName: string;
   /** Primary gem photo carried forward from the service request. */

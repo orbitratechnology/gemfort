@@ -31,6 +31,7 @@ describe('registerSchema', () => {
     email: 'new@gemfort.test',
     password: 'SecurePass1',
     role: 'trader' as const,
+    acceptedLegal: true as const,
   };
 
   it('accepts trader registration', () => {
@@ -46,6 +47,14 @@ describe('registerSchema', () => {
   it('rejects invalid role', () => {
     const r = parseForm(registerSchema, { ...valid, role: 'admin' });
     expect(r.success).toBe(false);
+  });
+
+  it('requires legal acceptance', () => {
+    const r = parseForm(registerSchema, { ...valid, acceptedLegal: false });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.errors.acceptedLegal).toContain('Terms and Conditions');
+    }
   });
 });
 

@@ -2,8 +2,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
@@ -21,13 +26,14 @@ import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { formatCurrency } from '@/lib/utils';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddGemsToTripScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,10 +97,18 @@ export default function AddGemsToTripScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Add Gems to Parcel" closeIcon />
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title="Add Gems to Parcel"
+        closeIcon
+        image={require("@/assets/images/mygems-icon.png")}
+      />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         {available.length === 0 ? (
           <FormSection>
           <View style={styles.empty}>
@@ -174,12 +188,13 @@ export default function AddGemsToTripScreen() {
           </ScreenInset>
         ) : null}
       </ThemedScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { paddingBottom: Spacing.section, gap: Spacing.md },
   empty: {
     alignItems: 'center',

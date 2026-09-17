@@ -42,7 +42,10 @@ export function requireFirebaseAuth(
     }
 
     try {
-      const token = await verifyIdToken(match[1], false);
+      // Revocation checks reject disabled users and tokens invalidated by an
+      // admin suspension. Without this, an already-issued ID token remains
+      // usable until its normal expiry.
+      const token = await verifyIdToken(match[1], true);
       c.set('user', { uid: token.uid, token });
       return next();
     } catch {

@@ -1,0 +1,12 @@
+steps:
+  - launch: app.gemfort
+  - await:
+      visible:
+        text: Exchange rates
+  - tap:
+      text: Money
+  - await:
+      visible:
+        text: NET PROFIT
+  - await:
+      idle: true

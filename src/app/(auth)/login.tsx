@@ -1,10 +1,9 @@
 import { Link, router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
     Keyboard,
     Pressable,
     StyleSheet,
-    Switch,
     Text,
     View,
 } from "react-native";
@@ -15,17 +14,13 @@ import {
     AuthFooterLink,
     AuthHeading,
     AuthScreen,
-    authGreeting,
 } from "@/components/auth/auth-screen";
+import { authGreeting } from "@/components/auth/auth-screen-utils";
 import { PasswordVisibilityToggle } from "@/components/auth/password-visibility-toggle";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { Button } from "@/components/ui/button";
 import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import {
-    loadRememberedEmail,
-    saveRememberedEmail,
-} from "@/lib/auth/remember-email";
 import { friendlyError } from "@/lib/errors";
 import {
     getUserProfile,
@@ -37,10 +32,9 @@ import {
   signInWithApple,
   signInWithGoogle,
 } from "@/lib/firebase/social-auth";
-import { haptics } from "@/lib/haptics";
 import { markOnboardingComplete } from "@/lib/onboarding";
 import { loginSchema, parseForm } from "@/lib/validation/form-schemas";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function LoginScreen() {
@@ -49,17 +43,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    void loadRememberedEmail().then((saved) => {
-      if (saved) {
-        setEmail(saved);
-        setRememberMe(true);
-      }
-    });
-  }, []);
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -85,14 +69,13 @@ export default function LoginScreen() {
           result.data.email,
           result.data.password,
         );
-        await saveRememberedEmail(rememberMe ? result.data.email : null);
         await markOnboardingComplete();
         const profile = await getUserProfile(loggedInUser.uid);
         if (needsPhoneVerification(profile)) {
           router.replace(
             profile?.phone
               ? {
-                  pathname: "/(auth)/verify-otp",
+                  pathname: "/(auth)/complete-phone",
                   params: { phone: profile.phone },
                 }
               : "/(auth)/complete-phone",
@@ -201,25 +184,6 @@ export default function LoginScreen() {
           </Link>
         </View>
 
-        <View style={styles.rememberRow}>
-          <Text style={[styles.rememberLabel, { color: colors.textSecondary }]}>
-            Remember me next time
-          </Text>
-          <Switch
-            value={rememberMe}
-            onValueChange={(v) => {
-              haptics.selection();
-              setRememberMe(v);
-            }}
-            trackColor={{
-              false: colors.surfaceContainerHighest,
-              true: colors.primary,
-            }}
-            thumbColor={colors.background}
-            accessibilityLabel="Remember me next time"
-          />
-        </View>
-
         <Button title="Sign In" onPress={handleLogin} style={styles.cta} />
         <SocialAuthButtons
           appleButtonType="signIn"
@@ -255,17 +219,6 @@ const styles = StyleSheet.create({
   forgotText: {
     ...Typography.bodyMd,
     fontWeight: "600",
-  },
-  rememberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: TouchTarget.minHeight,
-    gap: Spacing.md,
-  },
-  rememberLabel: {
-    ...Typography.bodyMd,
-    flex: 1,
   },
   cta: {
     marginTop: Spacing.sm,

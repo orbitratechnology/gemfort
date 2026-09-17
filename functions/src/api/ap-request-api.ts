@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp, type DocumentSnapshot } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 
 import { ApiError } from './errors';
 import { db } from '../admin';
@@ -180,8 +180,15 @@ export async function createApRequestForApi(
   }
 
   const businessRef = db.collection('businesses').doc(linkedBusinessId);
-  const senderRef = db.collection('users').doc(uid);
   const gemRefs = input.items.map((item) => db.collection('gemtrack_gems').doc(item.gemId));
+  const senderBusinessSnap = await db
+    .collection('businesses')
+    .where('ownerUid', '==', uid)
+    .limit(1)
+    .get();
+  const senderBusinessName =
+    (senderBusinessSnap.docs[0]?.data()?.businessName as string | undefined)?.trim() ||
+    'Trader';
   const apRef = idempotencyKey
     ? db
         .collection('gemtrack_ap_records')
@@ -203,10 +210,9 @@ export async function createApRequestForApi(
       };
     }
 
-    const businessSnap = await transaction.get(businessRef);
-    const senderSnap = await transaction.get(senderRef);
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const transactionSnaps = await transaction.getAll(businessRef, ...gemRefs);
+    const businessSnap = transactionSnaps[0]!;
+    const gemSnaps = transactionSnaps.slice(1);
 
     if (!businessSnap.exists) throw new ApiError('not-found', 'Trader business profile not found.');
     const business = businessSnap.data()!;
@@ -215,10 +221,7 @@ export async function createApRequestForApi(
       throw new ApiError('failed-precondition', 'Invalid AP receiver.');
     }
 
-    const senderName =
-      (senderSnap.data()?.displayName as string | undefined)?.trim() ||
-      (business.ownerName as string | undefined)?.trim() ||
-      'Trader';
+    const senderName = senderBusinessName;
     const lines: ApGemLine[] = [];
     for (let index = 0; index < input.items.length; index += 1) {
       const item = input.items[index]!;
@@ -296,6 +299,7 @@ export async function createApRequestForApi(
     type: 'ap_request_received',
     title: 'New AP request',
     message: `${result.senderName} offered ${result.lineCount} gem${result.lineCount === 1 ? '' : 's'} on AP.`,
+    direction: 'taken',
     referenceType: 'ap',
     referenceId: result.apId,
     actorName: result.senderName,
@@ -333,6 +337,7 @@ export async function respondApRequestForApi(
           message: action === 'accepted'
             ? `${ap.receiverName || 'Trader'} accepted your AP (${(ap.items ?? []).length} gems).`
             : `${ap.receiverName || 'Trader'} declined your AP request.`,
+          direction: 'given' as const,
           actorName: ap.receiverName || 'Trader',
         },
       };
@@ -342,8 +347,7 @@ export async function respondApRequestForApi(
     const gemRefs = action === 'rejected'
       ? (ap.items ?? []).map((item) => db.collection('gemtrack_gems').doc(item.gemId))
       : [];
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
     transaction.update(ref, {
       status: decision.status,
       ...(action === 'rejected' ? { rejectionReason: rejectionReason?.trim() || null } : { dateGiven: now }),
@@ -372,6 +376,7 @@ export async function respondApRequestForApi(
         message: action === 'accepted'
           ? `${ap.receiverName || 'Trader'} accepted your AP (${(ap.items ?? []).length} gems).`
           : `${ap.receiverName || 'Trader'} declined your AP request.`,
+        direction: 'given' as const,
         actorName: ap.receiverName || 'Trader',
       },
     };
@@ -406,14 +411,14 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
           type: 'ap_request_cancelled' as const,
           title: 'AP request cancelled',
           message: `${ap.senderName || 'Trader'} cancelled an AP request.`,
+          direction: 'taken' as const,
         },
       };
     }
 
     const now = Timestamp.now();
     const gemRefs = (ap.items ?? []).map((item) => db.collection('gemtrack_gems').doc(item.gemId));
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) gemSnaps.push(await transaction.get(gemRef));
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
     transaction.update(ref, { status: decision.status, updatedAt: now });
     for (let index = 0; index < gemRefs.length; index += 1) {
       const gemSnap = gemSnaps[index]!;
@@ -435,6 +440,7 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
         type: 'ap_request_cancelled' as const,
         title: 'AP request cancelled',
         message: `${ap.senderName || 'Trader'} cancelled an AP request.`,
+        direction: 'taken' as const,
       },
     };
   });

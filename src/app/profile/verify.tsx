@@ -1,8 +1,15 @@
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { format, subYears } from 'date-fns';
+import { Image } from 'expo-image';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -12,26 +19,25 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
+import { verificationBadgeAssets } from '@/components/ui/verification-badge';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
+import { LAPIDARY_SERVICE_OPTIONS, resolveProfileRole } from '@/constants/roles';
 import {
-  fetchBusinessByOwnerUid,
-  updateBusinessProfile,
+    fetchBusinessByOwnerUid,
+    updateBusinessProfile,
 } from '@/features/marketplace/marketplace-service';
 import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import {
-  extensionForMedia,
-  uploadLocalMedia,
-  type LocalMedia,
+    extensionForMedia,
+    uploadLocalMedia,
+    type LocalMedia,
 } from '@/lib/firebase/storage-service';
 import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
-
-const STEPS = ['Documents', 'Review'];
 
 function parseIsoDate(value: string | null | undefined): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -40,13 +46,67 @@ function parseIsoDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+const VERIFICATION_TIERS = [
+  {
+    id: 'member',
+    number: '01',
+    title: 'Member',
+    shortDescription: 'Registered account',
+    description: 'Everyone starts here as soon as they join GemFort.',
+    label: 'STARTS HERE',
+    color: '#E3B33C',
+    image: verificationBadgeAssets.member,
+  },
+  {
+    id: 'identity',
+    number: '02',
+    title: 'Identity Verified',
+    shortDescription: 'NIC verified',
+    description: 'GemFort checks your NIC to confirm who you are.',
+    label: 'NIC CHECK',
+    color: '#26A96B',
+    image: verificationBadgeAssets.identity,
+  },
+  {
+    id: 'business',
+    number: '03',
+    title: 'Business Verified',
+    shortDescription: 'NIC + TIN + BR verified',
+    description: 'Add your tax number and business registration details.',
+    label: 'BUSINESS CHECK',
+    color: '#D65B9A',
+    image: verificationBadgeAssets.business,
+  },
+  {
+    id: 'gem',
+    number: '04',
+    title: 'Gem Verified',
+    shortDescription: 'All business documents + Gem Licence',
+    description: 'Add your Gem Licence for the highest document tier.',
+    label: 'GEM CHECK',
+    color: '#4D8CF4',
+    image: verificationBadgeAssets.gem,
+  },
+  {
+    id: 'recognized',
+    number: '05',
+    title: 'Recognized',
+    shortDescription: 'Approved by GemFort',
+    description:
+      'A manual badge for established partners, sponsors, associations, institutions, labs, and notable industry organizations.',
+    label: 'ADMIN ASSIGNED',
+    color: '#B13B52',
+    image: verificationBadgeAssets.recognized,
+  },
+] as const;
+
 export default function VerifyApplicationScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
   const role = resolveProfileRole(profile);
-  const needsTradeDocs = role === 'trader';
   const isLapidary = role === 'lapidary';
+  const isPromotion = profile?.verificationStatus === 'verified';
 
   const maxDob = useMemo(() => new Date(), []);
   const minDob = useMemo(() => subYears(new Date(), 120), []);
@@ -56,6 +116,7 @@ export default function VerifyApplicationScreen() {
     () => profile?.dateOfBirth ?? '',
   );
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [tiersExpanded, setTiersExpanded] = useState(false);
   const [applicantErrors, setApplicantErrors] = useState<Record<string, string>>(
     {},
   );
@@ -104,22 +165,12 @@ export default function VerifyApplicationScreen() {
     }
     setApplicantErrors({});
 
-    if (needsTradeDocs) {
-      if (!brNumber.trim() || !gemLicenseNumber.trim() || !tinNumber.trim()) {
-        toast.error('BR number, Gem License, and TIN are required.');
-        return;
-      }
-      if (!idPhoto || !brPhoto || !licensePhoto) {
-        toast.error('Upload NIC, BR, and Gem License photos.');
-        return;
-      }
+    if (!idPhoto) {
+      toast.error('Upload your NIC photo to continue.');
+      return;
     }
     if (isLapidary && servicesOffered.length === 0) {
       toast.error('Select at least one service you provide.');
-      return;
-    }
-    if (isLapidary && !idPhoto) {
-      toast.error('Upload your NIC photo.');
       return;
     }
 
@@ -174,9 +225,10 @@ export default function VerifyApplicationScreen() {
             addressProofUrl: null,
             otherDocUrls: [],
           },
+          preserveVerifiedStatus: isPromotion,
         });
         await refreshProfile();
-        toast.success('Verification submitted. Pending review.');
+        toast.success('Verification application submitted.');
         router.back();
       }, 'Submitting…');
     } catch (e) {
@@ -184,8 +236,22 @@ export default function VerifyApplicationScreen() {
     }
   }
 
+  const heroDecoration =
+    colors.onPrimary === '#0a0a0a'
+      ? 'rgba(0, 0, 0, 0.08)'
+      : 'rgba(255, 255, 255, 0.16)';
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View
+          style={[styles.backdropGlow, { backgroundColor: colors.primaryMuted }]}
+        />
+        <View
+          style={[styles.backdropRing, { borderColor: colors.primaryMuted }]}
+        />
+      </View>
+
       <StackHeader title="Verification" closeIcon />
 
       <ThemedScrollView
@@ -193,38 +259,151 @@ export default function VerifyApplicationScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <ScreenInset style={styles.intro}>
-          <Text style={[styles.title, { color: colors.primary }]}>Apply for verification</Text>
-
-          <View style={styles.steps}>
-            {STEPS.map((label, i) => (
-              <View
-                key={label}
-                style={[styles.step, i === 0 && { backgroundColor: colors.primaryMuted }]}>
-                <Text
-                  style={[styles.stepText, { color: i === 0 ? colors.primary : colors.textMuted }]}>
-                  {label}
-                </Text>
-              </View>
-            ))}
+        <ScreenInset style={styles.heroInset}>
+          <View
+            style={[
+              styles.hero,
+              {
+                backgroundColor: colors.primary,
+                boxShadow: `0 10px 28px ${colors.cardShadow}`,
+              },
+            ]}>
+            <View
+              pointerEvents="none"
+              style={[styles.heroRing, { borderColor: heroDecoration }]}
+            />
+            <View
+              pointerEvents="none"
+              style={[styles.heroRingSmall, { borderColor: heroDecoration }]}
+            />
+            <View style={styles.heroBadgeRail}>
+              {VERIFICATION_TIERS.map((tier, index) => (
+                <View
+                  key={tier.id}
+                  style={[
+                    styles.heroBadgePlate,
+                    {
+                      backgroundColor: heroDecoration,
+                      transform: [{ translateY: index % 2 === 0 ? 0 : 10 }],
+                    },
+                  ]}>
+                  <Image
+                    source={tier.image}
+                    style={styles.heroBadgeImage}
+                    contentFit="contain"
+                    accessibilityLabel={`${tier.title} badge`}
+                  />
+                </View>
+              ))}
+            </View>
+            <Text style={[styles.heroEyebrow, { color: colors.onPrimary }]}>GEMFORT TRUST</Text>
+            <Text style={[styles.heroTitle, { color: colors.onPrimary }]}>
+              {isPromotion ? 'Promote your verification' : 'Make trust easy to see'}
+            </Text>
+            <Text style={[styles.heroDescription, { color: colors.onPrimary }]}>
+              {isPromotion
+                ? 'Add stronger documents to move up while your current badge stays active during review.'
+                : 'Your badge tells people what GemFort has checked. Start with your identity, then add business proof.'}
+            </Text>
+            <View style={[styles.reviewPill, { backgroundColor: heroDecoration }]}>
+              <Icon name="verified" size={17} color={colors.onPrimary} />
+              <Text style={[styles.reviewPillText, { color: colors.onPrimary }]}>
+                Every badge is reviewed by a GemFort admin
+              </Text>
+            </View>
           </View>
         </ScreenInset>
 
-        <FormSectionLabel title="ACCOUNT TYPE" />
-        <FormSection>
-          <View style={styles.roleRow}>
-            <Icon name="verified-user" size={20} color={colors.primary} />
-            <Text style={[styles.roleBannerText, { color: colors.onSurface }]}>
-              {ROLE_LABELS[role]}
-            </Text>
-          </View>
-        </FormSection>
-
-        <FormSectionLabel title="APPLICANT DETAILS" />
+        <FormSectionLabel title="BADGES AT A GLANCE" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            Learn what each badge means and which documents help you move up.
+          </Text>
+        </ScreenInset>
+        <ScreenInset>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View verification badge requirements"
+            accessibilityState={{ expanded: tiersExpanded }}
+            onPress={() => setTiersExpanded((expanded) => !expanded)}
+            style={[
+              styles.badgesToggle,
+              {
+                backgroundColor: colors.surfaceContainerLow,
+                borderColor: colors.outlineVariant,
+              },
+            ]}>
+            <View style={[styles.badgesToggleIcon, { backgroundColor: colors.primaryMuted }]}>
+              <Icon name="badge" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.badgesToggleCopy}>
+              <Text style={[styles.badgesToggleTitle, { color: colors.onSurface }]}>
+                How badge levels work
+              </Text>
+              <Text style={[styles.badgesToggleSummary, { color: colors.textMuted }]}>
+                {tiersExpanded ? 'Hide badge details' : 'Tap to view all badge requirements'}
+              </Text>
+            </View>
+            <Icon
+              name={tiersExpanded ? 'expand-less' : 'expand-more'}
+              size={22}
+              color={colors.textMuted}
+            />
+          </Pressable>
+        </ScreenInset>
+        {tiersExpanded ? (
+          <ScreenInset style={styles.tierList}>
+            {VERIFICATION_TIERS.map((tier) => (
+              <View
+                key={tier.id}
+                style={[
+                  styles.tierCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                    boxShadow: `0 4px 14px ${colors.cardShadow}`,
+                  },
+                ]}>
+                <View style={styles.tierImageFrame}>
+                  <Image
+                    source={tier.image}
+                    style={styles.tierImage}
+                    contentFit="contain"
+                    accessibilityLabel={`${tier.title} badge`}
+                  />
+                </View>
+                <View style={styles.tierCardCopy}>
+                  <View style={styles.tierCardTopLine}>
+                    <Text style={[styles.tierTitle, { color: colors.onSurface }]}>
+                      {tier.title}
+                    </Text>
+                    <View style={[styles.tierTag, { backgroundColor: `${tier.color}1A` }]}>
+                      <Text style={[styles.tierTagText, { color: tier.color }]}>
+                        {tier.label}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.tierShortDescription, { color: tier.color }]}>
+                    {tier.shortDescription}
+                  </Text>
+                  <Text style={[styles.tierDescription, { color: colors.textMuted }]}>
+                    {tier.description}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScreenInset>
+        ) : null}
+        <FormSectionLabel title="YOUR DETAILS" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            These details help our review team match your documents to the right account.
+          </Text>
+        </ScreenInset>
         <FormSection>
           <View style={styles.fields}>
             <Input
-              label="Business / company name"
+              label="Business / company name (required)"
               value={businessName}
               onChangeText={(v) => {
                 setBusinessName(v);
@@ -238,7 +417,7 @@ export default function VerifyApplicationScreen() {
 
             <View style={styles.dobBlock}>
               <Text style={[styles.dobLabel, { color: colors.textSecondary }]}>
-                Date of birth
+                Date of birth (required)
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -300,7 +479,7 @@ export default function VerifyApplicationScreen() {
 
         {isLapidary ? (
           <>
-            <FormSectionLabel title="SERVICES" />
+            <FormSectionLabel title="SERVICES (REQUIRED)" />
             <FormSection>
               <View style={styles.serviceWrap}>
                 {LAPIDARY_SERVICE_OPTIONS.map((s) => {
@@ -331,72 +510,75 @@ export default function VerifyApplicationScreen() {
                   );
                 })}
               </View>
-              <MediaField
-                label="NIC photo"
-                value={idPhoto}
-                onChange={setIdPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="BR number (optional)"
-                value={brNumber}
-                onChangeText={setBrNumber}
-                leftIcon="badge"
-              />
             </FormSection>
           </>
         ) : null}
 
-        {needsTradeDocs ? (
-          <>
-            <FormSectionLabel title="REQUIRED DOCUMENTS" />
-            <FormSection>
-              <MediaField
-                label="NIC (front/back)"
-                value={idPhoto}
-                onChange={setIdPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="Business Registration (BR) number"
-                value={brNumber}
-                onChangeText={setBrNumber}
-                leftIcon="badge"
-              />
-              <MediaField
-                label="BR certificate photo"
-                value={brPhoto}
-                onChange={setBrPhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="Gem License number"
-                value={gemLicenseNumber}
-                onChangeText={setGemLicenseNumber}
-                leftIcon="workspace-premium"
-              />
-              <MediaField
-                label="Gem License photo"
-                value={licensePhoto}
-                onChange={setLicensePhoto}
-                allows="images"
-                variant="row"
-              />
-              <Input
-                label="TIN (Taxpayer Identification Number)"
-                value={tinNumber}
-                onChangeText={setTinNumber}
-                leftIcon="receipt"
-              />
-            </FormSection>
-          </>
-        ) : null}
+        <FormSectionLabel title="DOCUMENTS" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            NIC is required for everyone. The other documents are optional upgrades you can add now or later.
+          </Text>
+        </ScreenInset>
+        <FormSection>
+          <View style={styles.documentIntro}>
+            <View style={[styles.documentIntroIcon, { backgroundColor: `${VERIFICATION_TIERS[1].color}1A` }]}>
+              <Icon name="badge" size={20} color={VERIFICATION_TIERS[1].color} />
+            </View>
+            <View style={styles.documentIntroCopy}>
+              <Text style={[styles.documentIntroTitle, { color: colors.onSurface }]}>Start with your identity</Text>
+              <Text style={[styles.documentIntroText, { color: colors.textMuted }]}>
+                Add more proof below to be considered for Business or Gem Verified.
+              </Text>
+            </View>
+          </View>
+          <MediaField
+            label="NIC photo (required)"
+            value={idPhoto}
+            onChange={setIdPhoto}
+            allows="images"
+            variant="row"
+          />
+          <Input
+            label="TIN"
+            value={tinNumber}
+            onChangeText={setTinNumber}
+            leftIcon="receipt"
+          />
+          <Input
+            label="Business Registration (BR) number"
+            value={brNumber}
+            onChangeText={setBrNumber}
+            leftIcon="badge"
+          />
+          <MediaField
+            label="BR certificate photo"
+            value={brPhoto}
+            onChange={setBrPhoto}
+            allows="images"
+            variant="row"
+          />
+          <Input
+            label="Gem Licence number"
+            value={gemLicenseNumber}
+            onChangeText={setGemLicenseNumber}
+            leftIcon="workspace-premium"
+          />
+          <MediaField
+            label="Gem Licence photo"
+            value={licensePhoto}
+            onChange={setLicensePhoto}
+            allows="images"
+            variant="row"
+          />
+        </FormSection>
 
         <ScreenInset style={styles.actions}>
-          <Button title="Submit for review" icon="send" onPress={handleSubmit} />
+          <Button
+            title={isPromotion ? 'Promote' : 'Submit'}
+            icon="send"
+            onPress={handleSubmit}
+          />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
@@ -409,19 +591,179 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     gap: Spacing.md,
   },
-  intro: {
-    gap: Spacing.md,
+  backdropGlow: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: 92,
+    right: -150,
+    opacity: 0.35,
   },
-  title: { ...Typography.headlineSm, fontWeight: '700' },
-  steps: { flexDirection: 'row', gap: 8 },
-  step: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full },
-  stepText: { ...Typography.labelMd, fontWeight: '600' },
-  roleRow: {
+  backdropRing: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 1,
+    top: 126,
+    right: -130,
+    opacity: 0.55,
+  },
+  heroInset: { gap: 0 },
+  hero: {
+    minHeight: 300,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  heroRing: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1,
+    top: -112,
+    right: -92,
+  },
+  heroRingSmall: {
+    position: 'absolute',
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    borderWidth: 1,
+    bottom: -54,
+    left: -44,
+  },
+  heroBadgeRail: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    minHeight: 72,
+    marginBottom: Spacing.sm,
   },
-  roleBannerText: { ...Typography.labelMd, fontWeight: '600' },
+  heroBadgePlate: {
+    width: 54,
+    height: 54,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroBadgeImage: { width: 50, height: 50 },
+  heroEyebrow: {
+    ...Typography.labelMd,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+  },
+  heroTitle: {
+    ...Typography.headlineMd,
+    fontWeight: '700',
+    maxWidth: 310,
+  },
+  heroDescription: {
+    ...Typography.bodyMd,
+    lineHeight: 21,
+    maxWidth: 340,
+  },
+  reviewPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.sm,
+    minHeight: 42,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    marginTop: Spacing.xs,
+  },
+  reviewPillText: {
+    ...Typography.labelMd,
+    flexShrink: 1,
+  },
+  sectionIntro: {
+    gap: Spacing.xs,
+  },
+  sectionLead: {
+    ...Typography.bodyMd,
+    lineHeight: 21,
+  },
+  badgesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: Spacing.md,
+    minHeight: 72,
+  },
+  badgesToggleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgesToggleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  badgesToggleTitle: { ...Typography.labelMd, fontWeight: '700' },
+  badgesToggleSummary: { ...Typography.bodySm, lineHeight: 19 },
+  tierList: {
+    gap: Spacing.sm,
+  },
+  tierCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: Spacing.md,
+    minHeight: 104,
+  },
+  tierImageFrame: {
+    width: 68,
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tierImage: { width: 62, height: 62 },
+  tierCardCopy: { flex: 1, gap: 3, minWidth: 0 },
+  tierCardTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  tierTitle: {
+    ...Typography.headlineSmMobile,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  tierTag: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tierTagText: {
+    ...Typography.caption,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  tierShortDescription: {
+    ...Typography.labelMd,
+    fontWeight: '700',
+  },
+  tierDescription: {
+    ...Typography.bodySm,
+    lineHeight: 19,
+  },
   fields: { gap: Spacing.lg },
   dobBlock: { gap: 6 },
   dobLabel: { ...Typography.labelMd },
@@ -437,6 +779,23 @@ const styles = StyleSheet.create({
   },
   dobValue: { ...Typography.bodyLg, flex: 1 },
   dobError: { ...Typography.labelMd },
+  documentIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  documentIntroIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  documentIntroCopy: { flex: 1, gap: 2 },
+  documentIntroTitle: { ...Typography.labelMd, fontWeight: '700' },
+  documentIntroText: { ...Typography.bodySm, lineHeight: 19 },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,
@@ -446,7 +805,5 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
   },
-  actions: {
-    marginTop: Spacing.sm,
-  },
+  actions: { marginTop: Spacing.sm, gap: Spacing.sm },
 });

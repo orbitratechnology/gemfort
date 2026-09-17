@@ -17,11 +17,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactListRow } from "@/components/workspace/contact-list-row";
-import { ContactsHubTabs } from "@/components/workspace/contacts-hub-tabs";
-import { PhoneContactsImportSheet } from "@/components/workspace/phone-contacts-import-sheet";
-import { CONTACT_TYPES } from "@/constants/contact-types";
+import {
+  CONTACT_TYPES,
+  getContactTypeOption,
+} from "@/constants/contact-types";
 import {
   Radius,
   Spacing,
@@ -30,13 +32,9 @@ import {
 } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-  subscribeContacts,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
-import {
-  countMissedCalls,
-  isCallLogsSupported,
-} from "@/features/workspace/call-logs-service";
+import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
 import {
   filterContacts,
   groupContactsByLetter,
@@ -44,16 +42,19 @@ import {
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
   deleteContact,
-  fetchContacts,
+  importDeviceContactToWorkspace,
   syncContactBusinessLinks,
   updateContact,
 } from "@/features/workspace/workspace-service";
+import { fetchContactsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
+import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 
@@ -121,6 +122,7 @@ function ContactsListHeader({
         renderItem={({ item }) => {
           const isAll = item === "__all__";
           const active = isAll ? typeFilter === null : typeFilter === item;
+          const typeOption = getContactTypeOption(item);
           return (
             <Pressable
               onPress={() =>
@@ -133,6 +135,11 @@ function ContactsListHeader({
                   : { backgroundColor: colors.surfaceContainerHighest },
               ]}
             >
+              <Icon
+                name={isAll ? "contacts" : typeOption.icon}
+                size={16}
+                color={active ? colors.onPrimary : colors.onSurfaceVariant}
+              />
               <Text
                 style={[
                   styles.chipText,
@@ -143,7 +150,7 @@ function ContactsListHeader({
                   },
                 ]}
               >
-                {isAll ? "All" : item}
+                {isAll ? "All" : typeOption.label}
               </Text>
             </Pressable>
           );
@@ -161,31 +168,24 @@ export default function ContactsListScreen() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: callLogs } = useMatchedCallLogs({
-    enabled: !!user && callLogsSupported,
-  });
-  const missedCount = callLogsSupported ? countMissedCalls(callLogs) : 0;
+  const [picking, setPicking] = useState(false);
   const openSwipeRef = useRef<{
     id: string;
     methods: SwipeableMethods;
   } | null>(null);
 
   const {
-    data: contacts = [],
+    items: loadedContacts,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["contacts", user?.uid],
-    queryFn: async () => {
-      const [list, businesses] = await Promise.all([
-        fetchContacts(user!.uid),
-        fetchBusinesses(),
-      ]);
-      return syncContactBusinessLinks(list, businesses);
-    },
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["contacts", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchContactsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -196,6 +196,10 @@ export default function ContactsListScreen() {
     enabled: !!user,
   });
 
+  const contacts = useMemo(
+    () => syncContactBusinessLinks(loadedContacts, businesses),
+    [loadedContacts, businesses],
+  );
   const contactPhotoMap = buildContactPhotoMap(contacts, businesses);
   const filtered = filterContacts(contacts, debouncedQuery, typeFilter);
   const sections = groupContactsByLetter(filtered);
@@ -246,6 +250,34 @@ export default function ContactsListScreen() {
     }
   }
 
+  async function handleImportFromPhone() {
+    if (!user || picking) return;
+
+    setPicking(true);
+    try {
+      await runWithCleanup(async () => {
+        const deviceContact = await presentDeviceContactPicker();
+        if (!deviceContact) return;
+
+        await withLoading(async () => {
+          const { created } = await importDeviceContactToWorkspace(
+            user.uid,
+            deviceContact,
+            { existing: contacts },
+          );
+          await invalidateContacts();
+          toast.success(
+            created
+              ? "Contact imported from phone."
+              : "Contact is already in GemFort.",
+          );
+        }, "Importing contact…");
+      }, () => setPicking(false));
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not import phone contact."));
+    }
+  }
+
   function renderItem({
     item,
     index,
@@ -278,8 +310,9 @@ export default function ContactsListScreen() {
         title="Contacts"
         right={
           <Pressable
-            onPress={() => setImportOpen(true)}
-            style={styles.headerBtn}
+            onPress={() => void handleImportFromPhone()}
+            disabled={picking}
+            style={[styles.headerBtn, { opacity: picking ? 0.5 : 1 }]}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Import contacts from phone"
@@ -288,8 +321,6 @@ export default function ContactsListScreen() {
           </Pressable>
         }
       />
-      <ContactsHubTabs active="contacts" missedCount={missedCount} />
-
       <SectionList
         sections={sections}
         keyExtractor={(c) => c.id}
@@ -301,6 +332,18 @@ export default function ContactsListScreen() {
         renderScrollComponent={(props) => <ScrollView {...props} />}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
         }
         ListHeaderComponent={
           <ContactsListHeader
@@ -351,18 +394,6 @@ export default function ContactsListScreen() {
       >
         <Icon name="person-add" size={26} color={colors.onSecondary} />
       </Pressable>
-
-      {user ? (
-        <PhoneContactsImportSheet
-          visible={importOpen}
-          onClose={() => setImportOpen(false)}
-          ownerUid={user.uid}
-          existingContacts={contacts}
-          onImported={() => {
-            void queryClient.invalidateQueries({ queryKey: ["contacts"] });
-          }}
-        />
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -415,6 +446,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: Radius.full,

@@ -2,7 +2,7 @@ import { useContext } from 'react';
 
 import { getThemeColors, type ColorScheme, type ThemeColors } from '@/constants/design-tokens';
 import type { ThemePreference } from '@/lib/theme-preference';
-import { ThemeContext } from '@/providers/theme-provider';
+import { ThemeContext } from '@/providers/theme-context';
 
 export function useAppTheme(): {
   scheme: ColorScheme;

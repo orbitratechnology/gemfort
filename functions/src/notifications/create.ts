@@ -52,6 +52,7 @@ export async function createNotificationDoc(input: NotificationInput): Promise<s
     type: input.type,
     title: input.title,
     message: input.message,
+    direction: input.direction ?? null,
     referenceType,
     referenceId,
     actorName: input.actorName ?? null,
@@ -108,6 +109,7 @@ export async function ensureDeterministicNotificationDoc(
       type: input.type,
       title: input.title,
       message: input.message,
+      direction: input.direction ?? null,
       referenceType,
       referenceId,
       actorName: input.actorName ?? null,
@@ -132,12 +134,8 @@ export async function ensureDeterministicNotificationDoc(
 }
 
 export async function createNotificationsBatch(inputs: NotificationInput[]): Promise<number> {
-  let created = 0;
-  for (const input of inputs) {
-    const id = await createNotificationDoc(input);
-    if (id) created += 1;
-  }
-  return created;
+  const ids = await Promise.all(inputs.map((input) => createNotificationDoc(input)));
+  return ids.filter((id): id is string => id !== null).length;
 }
 
 export function formatCurrency(amount: number, currency = 'LKR'): string {

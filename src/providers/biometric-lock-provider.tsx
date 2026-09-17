@@ -72,7 +72,7 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [method, setMethod] = useState("Biometrics");
   const [externalActivityActive, setExternalActivityActive] = useState(
-    isExternalActivityActive(),
+    () => isExternalActivityActive(),
   );
   const appStateRef = useRef(AppState.currentState);
   const unlockedAtRef = useRef<number | null>(null);
@@ -101,15 +101,9 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
         setLocked(true);
         setIsAuthenticating(true);
       }
+
       try {
-        const result = await LocalAuthentication.authenticateAsync({
-          biometricsSecurityLevel: "strong",
-          promptMessage: "Unlock GemFort",
-          promptDescription: "Verify your identity to continue.",
-          promptSubtitle: "Your account stays protected on this device.",
-          cancelLabel: "Cancel",
-          requireConfirmation: true,
-        });
+        const result = await LocalAuthentication.authenticateAsync();
         if (!result.success) return false;
         await persistUnlock(user.uid);
         if (mountedRef.current) setLocked(false);
@@ -140,7 +134,6 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
     unlockedAtRef.current = null;
 
     async function loadPreference() {
-      setIsLoading(true);
       setLocked(false);
       setEnabledState(false);
       setAvailable(false);
@@ -148,6 +141,7 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         return;
       }
+      setIsLoading(true);
 
       try {
         const [capability, stored, storedUnlockedAt] = await Promise.all([

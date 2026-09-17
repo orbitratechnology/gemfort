@@ -66,19 +66,19 @@ import {
 } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ApPaymentMethod, Bill, BillStatus } from "@/types";
 
 const PAY_METHODS: {
   value: ApPaymentMethod;
   label: string;
-  icon: "payments" | "account-balance" | "money-check-dollar";
+  icon: "payments" | "account-balance" | "cheque";
 }[] = [
   { value: "cash", label: "Cash", icon: "payments" },
   { value: "transfer", label: "Transfer", icon: "account-balance" },
-  { value: "cheque", label: "Cheque", icon: "money-check-dollar" },
+  { value: "cheque", label: "Cheque", icon: "cheque" },
 ];
 
 type StepState = "done" | "active" | "pending" | "overdue";
@@ -97,7 +97,7 @@ function billStatusMeta(
     case "cancelled":
       return { label: "Cancelled", icon: "cancel", tone: "neutral" };
     default:
-      return { label: "Open", icon: "receipt-long", tone: "neutral" };
+      return { label: "Open", icon: "bill", tone: "neutral" };
   }
 }
 
@@ -428,85 +428,88 @@ export default function BillDetailScreen() {
           </Animated.View>
         </ScreenInset>
 
-        {/* Party ↔ gems / job */}
+        {/* Gems / job ↔ Party (left-to-right relation) */}
         <ScreenInset>
           <Animated.View
             entering={FadeInDown.delay(60).duration(320)}
             style={styles.relation}
           >
-            <Pressable
-              style={({ pressed }) => [
-                styles.partyBlock,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                if (bill.counterpartyContactId) {
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/contacts/${bill.counterpartyContactId}` as never,
-                  );
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open contact ${contactName}`}
-            >
-              <ContactAvatar
-                name={contactName}
-                photoUrl={contactPhoto}
-                size={88}
-              />
-              <Text
-                style={[styles.partyName, { color: colors.onSurface }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
+            <View style={styles.partySide}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.partyBlock,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  if (bill.counterpartyContactId) {
+                    router.push(
+                      `/(marketplace)/(tabs)/workspace/contacts/${bill.counterpartyContactId}` as never,
+                    );
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Open contact ${contactName}`}
               >
-                {contactName}
-              </Text>
-              <Text style={[styles.partyRole, { color: colors.textMuted }]}>
-                {isPayable ? "You owe them" : "They owe you"}
-              </Text>
-            </Pressable>
+                <ContactAvatar
+                  name={contactName}
+                  photoUrl={contactPhoto}
+                  size={88}
+                />
+                <Text
+                  style={[styles.partyName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {contactName}
+                </Text>
+                <Text style={[styles.partyRole, { color: colors.textMuted }]}>
+                  {isPayable ? "You owe them" : "They owe you"}
+                </Text>
+              </Pressable>
 
-            {phone || whatsapp ? (
-              <View style={styles.partyActions}>
-                {phone ? (
-                  <Pressable
-                    onPress={() => void Linking.openURL(openPhone(phone))}
-                    style={[
-                      styles.roundBtn,
-                      { backgroundColor: colors.primary },
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Call contact"
-                  >
-                    <Icon name="call" size={18} color={colors.onPrimary} />
-                  </Pressable>
-                ) : null}
-                {whatsapp ? (
-                  <Pressable
-                    onPress={() =>
-                      void Linking.openURL(openWhatsApp(whatsapp))
-                    }
-                    style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
-                    accessibilityRole="button"
-                    accessibilityLabel="WhatsApp contact"
-                  >
-                    <Icon name="whatsapp" size={18} color="#FFFFFF" />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
+              {phone || whatsapp ? (
+                <View style={styles.partyActions}>
+                  {phone ? (
+                    <Pressable
+                      onPress={() => void Linking.openURL(openPhone(phone))}
+                      style={[
+                        styles.roundBtn,
+                        { backgroundColor: colors.primary },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Call contact"
+                    >
+                      <Icon name="call" size={18} color={colors.onPrimary} />
+                    </Pressable>
+                  ) : null}
+                  {whatsapp ? (
+                    <Pressable
+                      onPress={() =>
+                        void Linking.openURL(openWhatsApp(whatsapp))
+                      }
+                      style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
+                      accessibilityRole="button"
+                      accessibilityLabel="WhatsApp contact"
+                    >
+                      <Icon name="whatsapp" size={18} color="#FFFFFF" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
 
-            <View style={styles.relationMid} pointerEvents="none">
+            <View
+              style={[
+                styles.relationMid,
+                !isPayable && styles.relationMidReverse,
+              ]}
+              pointerEvents="none"
+            >
               <View
                 style={[
                   styles.relationLine,
                   { backgroundColor: colors.outlineVariant },
                 ]}
-              />
-              <Icon
-                name={isPayable ? "keyboard-arrow-up" : "keyboard-arrow-down"}
-                size={22}
-                color={colors.outline}
               />
               <View
                 style={[
@@ -539,6 +542,11 @@ export default function BillDetailScreen() {
                   {directionLabel}
                 </Text>
               </View>
+              <Icon
+                name={isPayable ? "keyboard-arrow-right" : "keyboard-arrow-left"}
+                size={22}
+                color={colors.outline}
+              />
             </View>
 
             {bill.jobId ? (
@@ -618,7 +626,7 @@ export default function BillDetailScreen() {
                     { backgroundColor: colors.surfaceContainerHigh },
                   ]}
                 >
-                  <Icon name="receipt-long" size={28} color={colors.outline} />
+                  <Icon name="bill" size={28} color={colors.outline} />
                 </View>
                 <Text style={[styles.linkSub, { color: colors.textMuted }]}>
                   No linked gems
@@ -981,7 +989,7 @@ export default function BillDetailScreen() {
                   : "Received"
             }
             icon={
-              payMethod === "cheque" ? "money-check-dollar" : "check-circle"
+              payMethod === "cheque" ? "cheque" : "check-circle"
             }
             onPress={handleRecordPayment}
           />
@@ -1060,13 +1068,20 @@ const styles = StyleSheet.create({
 
   relation: {
     width: "100%",
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+  },
+  partySide: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 10,
   },
   partyBlock: {
+    width: "100%",
     alignItems: "center",
     gap: 8,
-    maxWidth: "80%",
   },
   partyName: {
     ...Typography.headlineSm,
@@ -1091,18 +1106,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   relationMid: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    minHeight: 72,
+    height: 48,
     width: 140,
   },
+  relationMidReverse: { flexDirection: "row-reverse" },
   relationLine: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    top: 23,
+    height: 2,
   },
   directionBadge: {
     flexDirection: "row",
@@ -1119,7 +1136,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   gemsBlock: {
-    width: "100%",
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 8,
   },
@@ -1142,9 +1160,10 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   linkBlock: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 8,
-    maxWidth: "80%",
   },
   jobThumb: {
     width: 56,

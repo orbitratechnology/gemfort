@@ -1,45 +1,21 @@
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import NativeBottomSheet from '@expo/ui/community/bottom-sheet';
 import {
-  useCallback,
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from 'react';
-import {
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
-  type LayoutChangeEvent,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import {
   KeyboardAwareScrollView,
-  KeyboardAvoidingView,
 } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icon } from '@/components/ui/icon';
-import { Motion, Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { haptics } from '@/lib/haptics';
 
-/** GH ScrollView — supported by Keyboard Controller; types expect Reanimated's ScrollView. */
-const GestureScrollView = ScrollView as NonNullable<
-  ComponentProps<typeof KeyboardAwareScrollView>['ScrollViewComponent']
->;
+const SHEET_SNAP_POINTS = ['55%', '85%'];
 
 type BottomSheetProps = {
   visible: boolean;
@@ -58,8 +34,7 @@ type BottomSheetProps = {
 };
 
 /**
- * Themed bottom sheet built on RN Modal + Reanimated.
- * Slides up from the bottom, dim backdrop tap-to-close, safe-area aware.
+ * Themed native bottom sheet with interactive detents and pan-down dismissal.
  */
 export function BottomSheet({
   visible,
@@ -71,191 +46,59 @@ export function BottomSheet({
   autoScrollToFocusedInput = true,
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
 
-  const { height: windowHeight } = useWindowDimensions();
-  const initialOffset = windowHeight;
-  const sheetOffsetRef = useRef(initialOffset);
-  const exitingRef = useRef(false);
-  const exitAfterRef = useRef<(() => void) | undefined>(undefined);
-  const [presented, setPresented] = useState(visible);
-  const [wasVisible, setWasVisible] = useState(visible);
-  const translateY = useSharedValue(initialOffset);
-  const backdrop = useSharedValue(0);
-  const sheetAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.get() }],
-  }));
-  const backdropAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: backdrop.get(),
-  }));
-
-  // Present Modal when `visible` rises; stay presented through exit animation.
-  if (visible !== wasVisible) {
-    setWasVisible(visible);
-    if (visible) setPresented(true);
-  }
-
-  const onSheetLayout = useCallback((e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height;
-    if (h > 0) sheetOffsetRef.current = h;
-  }, []);
-
-  const finishExit = useCallback(() => {
-    const after = exitAfterRef.current;
-    exitAfterRef.current = undefined;
-    exitingRef.current = false;
-    // Parent `visible` must clear before `presented` so we don't re-present.
-    after?.();
-    setPresented(false);
-  }, []);
-
-  const runEnter = useEffectEvent(() => {
-    exitingRef.current = false;
-    if (reduceMotion) {
-      translateY.set(0);
-      backdrop.set(
-        withTiming(1, {
-          duration: Motion.fast,
-          easing: Easing.bezier(0.23, 1, 0.32, 1),
-        }),
-      );
-      return;
-    }
-    translateY.set(sheetOffsetRef.current);
-    translateY.set(
-      withTiming(0, {
-        duration: Motion.normal,
-        easing: Easing.bezier(0.23, 1, 0.32, 1),
-      }),
-    );
-    backdrop.set(
-      withTiming(1, {
-        duration: Motion.normal,
-        easing: Easing.bezier(0.23, 1, 0.32, 1),
-      }),
-    );
-  });
-
-  const runExit = useCallback(
-    (after?: () => void) => {
-      if (exitingRef.current) return;
-      exitingRef.current = true;
-      exitAfterRef.current = after;
-      const duration = reduceMotion ? Motion.fast : Motion.normal;
-      const easing = Easing.bezier(0.23, 1, 0.32, 1);
-
-      if (reduceMotion) {
-        translateY.set(0);
-        backdrop.set(
-          withTiming(0, {
-            duration,
-            easing,
-          }, (finished) => {
-            if (finished) scheduleOnRN(finishExit);
-          }),
-        );
-        return;
-      }
-
-      translateY.set(
-        withTiming(sheetOffsetRef.current, {
-          duration,
-          easing,
-        }, (finished) => {
-          if (finished) scheduleOnRN(finishExit);
-        }),
-      );
-      backdrop.set(
-        withTiming(0, {
-          duration,
-          easing,
-        }),
-      );
-    },
-    [reduceMotion, translateY, backdrop, finishExit],
-  );
+  const visibleRef = useRef(visible);
 
   useEffect(() => {
+    visibleRef.current = visible;
     if (visible) {
-      exitingRef.current = false;
       haptics.sheetOpen();
-      const id = requestAnimationFrame(runEnter);
-      return () => cancelAnimationFrame(id);
     }
   }, [visible]);
 
-  useEffect(() => {
-    if (!visible && presented && !exitingRef.current) {
-      runExit();
-    }
-  }, [visible, presented, runExit]);
-
-  function handleClose() {
-    if (!presented || exitingRef.current) return;
+  const handleNativeClose = useCallback(() => {
+    if (!visibleRef.current) return;
     haptics.sheetClose();
-    runExit(onClose);
-  }
+    onClose();
+  }, [onClose]);
 
   return (
-    <Modal
-      visible={presented}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-      statusBarTranslucent>
-      <View style={styles.root}>
-        <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
-        </Animated.View>
-        <KeyboardAvoidingView
-          behavior="padding"
-          automaticOffset
-          style={styles.keyboardAvoiding}>
-          <Animated.View
-            onLayout={onSheetLayout}
-            style={[
-              styles.sheet,
-              !scrollable && styles.sheetFlex,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                paddingBottom: insets.bottom + Spacing.gutterMd,
-              },
-              sheetAnimatedStyle,
-            ]}>
-            <View style={[styles.grabber, { backgroundColor: colors.outlineVariant }]} />
-            {title ? (
-              <View style={styles.header}>
-                <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
-                <Pressable
-                  onPress={handleClose}
-                  style={styles.closeBtn}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close">
-                  <Icon name="close" size={22} color={colors.onSurfaceVariant} />
-                </Pressable>
-              </View>
-            ) : null}
-            {scrollable ? (
-              <KeyboardAwareScrollView
-                ScrollViewComponent={GestureScrollView}
-                style={styles.body}
-                contentContainerStyle={styles.bodyContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                enabled={autoScrollToFocusedInput}
-                bottomOffset={62}>
-                {children}
-              </KeyboardAwareScrollView>
-            ) : (
-              <View style={styles.bodyFlex}>{children}</View>
-            )}
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
-          </Animated.View>
-        </KeyboardAvoidingView>
+    <NativeBottomSheet
+      index={visible ? 0 : -1}
+      snapPoints={SHEET_SNAP_POINTS}
+      enablePanDownToClose
+      backgroundStyle={{ backgroundColor: colors.surfaceContainerLowest }}
+      onClose={handleNativeClose}>
+      <View style={styles.sheet}>
+        {title ? (
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
+            <Pressable
+              onPress={handleNativeClose}
+              style={styles.closeBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close">
+              <Icon name="close" size={22} color={colors.onSurfaceVariant} />
+            </Pressable>
+          </View>
+        ) : null}
+        {scrollable ? (
+          <KeyboardAwareScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            enabled={autoScrollToFocusedInput}
+            bottomOffset={62}>
+            {children}
+          </KeyboardAwareScrollView>
+        ) : (
+          <View style={styles.bodyFlex}>{children}</View>
+        )}
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </View>
-    </Modal>
+    </NativeBottomSheet>
   );
 }
 
@@ -270,11 +113,13 @@ export function FilterChipGroup<T extends string>({
   options,
   value,
   onChange,
+  renderLeading,
 }: {
   label: string;
   options: { id: T; label: string }[];
   value: T | null;
   onChange: (id: T) => void;
+  renderLeading?: (option: { id: T; label: string }) => ReactNode;
 }) {
   const { colors } = useAppTheme();
   return (
@@ -293,6 +138,7 @@ export function FilterChipGroup<T extends string>({
                   ? { backgroundColor: colors.primary, borderColor: colors.primary }
                   : { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant },
               ]}>
+              {renderLeading?.(opt)}
               <Text style={[styles.chipText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
                 {opt.label}
               </Text>
@@ -305,18 +151,11 @@ export function FilterChipGroup<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
-  keyboardAvoiding: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.containerMargin,
-    maxHeight: '85%',
+    paddingBottom: Spacing.gutterMd,
+    flex: 1,
   },
-  sheetFlex: { height: '85%' },
-  grabber: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   title: { ...Typography.headlineSm },
   closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -335,6 +174,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.xs,
   },
   chipText: { ...Typography.labelMd, lineHeight: 18, includeFontPadding: false },
 });

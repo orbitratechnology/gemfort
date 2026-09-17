@@ -1,5 +1,5 @@
 import { FlashList } from '@/components/ui/gesture-lists';
-import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,14 +7,14 @@ import { router } from 'expo-router';
 import { Icon } from '@/components/ui/icon';
 import { StackHeader } from '@/components/ui/stack-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
   getPaymentSourceMeta,
   paymentSourceHref,
   sourceOfPayment,
 } from '@/features/workspace/payment-source';
-import { subscribePayments } from '@/features/workspace/firestore-subscriptions';
-import { fetchPayments } from '@/features/workspace/workspace-service';
+import { fetchPaymentsPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { formatRelativeTime } from '@/lib/utils';
@@ -26,10 +26,18 @@ export default function PaymentsScreen() {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
 
-  const { data: payments = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ['payments', user?.uid],
-    queryFn: () => fetchPayments(user!.uid),
-    subscribe: (onData, onError) => subscribePayments(user!.uid, onData, onError),
+  const {
+    items: payments,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ['payments', user?.uid, 'infinite'],
+    fetchPage: (cursor, pageSize) =>
+      fetchPaymentsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -108,6 +116,18 @@ export default function PaymentsScreen() {
         onRefresh={refetch}
         refreshing={isRefetching}
         contentContainerStyle={styles.list}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
         ListEmptyComponent={
           <EmptyState
             icon="payments"

@@ -7,8 +7,8 @@ import { ChoicePreviewCard, ChoiceTileGrid } from '@/components/ui/choice-tile-g
 import { CityField } from '@/components/ui/city-field';
 import { CountryField } from '@/components/ui/country-field';
 import {
-  CurrencyAmountField,
-  type CurrencyAmountValue,
+    CurrencyAmountField,
+    type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
@@ -27,7 +27,7 @@ import { Timestamp } from '@/lib/firebase/db';
 import { addTripSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import type { TripType } from '@/types';
 
@@ -125,6 +125,7 @@ export default function AddTripScreen() {
       <StackHeader
         title={step === 0 ? 'Trip type' : 'Plan trip'}
         closeIcon
+        image={require('@/assets/images/trips-icon.png')}
       />
 
       {step === 0 ? (
@@ -170,8 +171,8 @@ export default function AddTripScreen() {
                   setTripName(v);
                   clearField('tripName');
                 }}
-                placeholder="e.g. Ratnapura March run"
-                leftIcon="flight"
+                placeholder="e.g. China, Bangkok, Madagascar..."
+                leftIcon="trip"
                 error={errors.tripName}
               />
               <CountryField

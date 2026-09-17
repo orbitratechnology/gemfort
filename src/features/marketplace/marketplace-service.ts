@@ -18,7 +18,9 @@ import {
     orderBy,
     query,
     serverTimestamp,
+    setDoc,
     Timestamp,
+    updateDoc,
     where,
 } from "@/lib/firebase/db";
 import {
@@ -39,6 +41,7 @@ import type {
   ProfileLocation,
   UserRole,
 } from "@/types";
+import { listingShareUrl } from "@/lib/public-links";
 
 export type MarketBusinessFilter =
   | "trader"
@@ -63,7 +66,7 @@ export async function fetchBusinesses(filters?: {
   verifiedOnly?: boolean;
 }): Promise<Business[]> {
   const q = query(
-    collection(getFirebaseDb(), "businesses"),
+    collection(getFirebaseDb(), "public_businesses"),
     where("verificationStatus", "==", "verified"),
     where("isActive", "==", true),
   );
@@ -123,7 +126,7 @@ export function filterBusinesses(
 export async function fetchBusiness(
   businessId: string,
 ): Promise<Business | null> {
-  const snap = await getDoc(doc(getFirebaseDb(), "businesses", businessId));
+  const snap = await getDoc(doc(getFirebaseDb(), "public_businesses", businessId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as Business;
 }
@@ -212,7 +215,6 @@ export function accountTypeLabelFromRegistration(
 
 export async function createBusinessProfile(
   ownerUid: string,
-  ownerName: string,
   input: {
     businessName: string;
     businessType: BusinessType;
@@ -261,11 +263,11 @@ export async function createBusinessProfile(
   const isLapidary = type === "lapidary";
   const wa = normalizePhoneForStorage(input.whatsapp) ?? "";
   const ph = normalizePhoneForStorage(input.phone) ?? "";
-  const id = queueDocCreate("businesses", {
+  const businessRef = doc(collection(getFirebaseDb(), "businesses"));
+  await setDoc(businessRef, {
     ownerUid,
     businessType: type,
     businessName: input.businessName.trim(),
-    ownerName: ownerName.trim(),
     brNumber: "",
     ngjaNumber: "",
     gemLicenseNumber: "",
@@ -279,10 +281,10 @@ export async function createBusinessProfile(
     country: input.country?.trim() || "Sri Lanka",
     location: input.location ?? null,
     verificationStatus: "none",
-    verificationTier: "none",
+    verificationTier: "member",
     badges: {
       isVerified: false,
-      isBasicVerified: false,
+      businessReputation: "member",
       isNgjaRegistered: false,
       isPremium: false,
       verifiedSinceYear: null,
@@ -335,7 +337,7 @@ export async function createBusinessProfile(
     createdAt: now,
     updatedAt: now,
   });
-  return id;
+  return businessRef.id;
 }
 
 /** Maximum number of business gallery photos (works / work samples / business photos). */
@@ -442,7 +444,7 @@ export async function updateBusinessProfile(
   if (data.galleryPhotos !== undefined) {
     updates.galleryPhotos = data.galleryPhotos.slice(0, MAX_GALLERY_PHOTOS);
   }
-  queueDocUpdate("businesses", businessId, updates);
+  await updateDoc(doc(getFirebaseDb(), "businesses", businessId), updates);
 }
 
 type BusinessAnalyticsField =
@@ -501,10 +503,10 @@ export function demoBusinesses(filters?: {
     province: "Western",
     country: "Sri Lanka",
     verificationStatus: "verified" as const,
-    verificationTier: "full" as const,
+    verificationTier: "gem" as const,
     badges: {
       isVerified: true,
-      isBasicVerified: false,
+      businessReputation: "gem",
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2010,
@@ -532,7 +534,6 @@ export function demoBusinesses(filters?: {
       id: "demo-trader-1",
       businessType: "trader",
       businessName: "Beruwala Sapphire House",
-      ownerName: "Demo Trader",
       shortDescription: "Ceylon sapphires",
       city: "Beruwala",
       sellerProfile: {
@@ -556,7 +557,6 @@ export function demoBusinesses(filters?: {
       id: "demo-lapidary-1",
       businessType: "lapidary",
       businessName: "Kamal Gem Cutting",
-      ownerName: "Demo Lapidary",
       shortDescription: "Precision cutting",
       city: "Beruwala",
       sellerProfile: null,
@@ -671,7 +671,7 @@ export function demoListings(): MarketplaceListing[] {
         "https://lh3.googleusercontent.com/aida-public/AB6AXuC_7OK_3UypEsNQwZgFXed6mI302725BO5QYFtofpbY8PzSm0dEMgGn54C6ym8vcSee6QXTw0g8Z6QU8_OBltA7gLcCeJ4kKFCFOupuVgLA93mmVDwqpxn7RHgD51EFt_nfNONxJ8W0mD2MXxTTSfbepmKUi2HN1p34G4HIfEVddJGuuYIVj0dS-jRlotHtTEWA3B8HbOXVkWB3z1_VpTgc_qNslfs4GY3HmzQHKipxkV3v8LwmE2pD-1wjEXnKy-yn5iw",
       ],
       shareableSlug: "GF-L-00001",
-      shareableUrl: "https://gemfort.app/l/GF-L-00001",
+      shareableUrl: listingShareUrl("GF-L-00001"),
     },
     {
       ...base,
@@ -688,7 +688,7 @@ export function demoListings(): MarketplaceListing[] {
         "https://lh3.googleusercontent.com/aida-public/AB6AXuAnxTKk7Lh3v8VRIiVT16UI-WibWqYAYWYptNYrqza3yY8wTHL_v-2aw6XRG4BZHj3R-uVySUjExAGUwSOcA7QO1tFoxcJToAb-1tZh-DxfSuLUud96jxa3xaKZnzxWGxox981P5jRQ6kUIr7f10n7mpdN3aPRZ1WGiM9W6b8gxlblPu9qP5lkdoTlhcI-Yr6M7HR-QCb8-58Fs9emGEYkKhvx0oSDCOppcYSq_yRMooh1CXQ45fIUC8g",
       ],
       shareableSlug: "GF-L-00002",
-      shareableUrl: "https://gemfort.app/l/GF-L-00002",
+      shareableUrl: listingShareUrl("GF-L-00002"),
     },
   ];
 }

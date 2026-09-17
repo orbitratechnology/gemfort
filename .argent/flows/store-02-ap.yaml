@@ -1,0 +1,12 @@
+steps:
+  - launch: app.gemfort
+  - await:
+      visible:
+        text: Exchange rates
+  - tap:
+      text: Give AP
+  - await:
+      visible:
+        text: Select a gem
+  - await:
+      idle: true

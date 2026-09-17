@@ -23,15 +23,16 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
   AttributePickerField,
-  LISTING_VISIBILITY_OPTIONS,
   ListingVisibilityPickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOptionLabel } from "@/constants/gem-options";
+import { LISTING_VISIBILITY_OPTIONS } from "@/constants/listing-visibility-options";
 import { fetchBusinessByOwnerUid } from "@/features/marketplace/marketplace-service";
 import {
   canListGem,
   isTerminalOutcome,
+  normalizeGemTreatment,
   resolveGemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
 import { subscribeGem } from "@/features/workspace/firestore-subscriptions";
@@ -49,8 +50,8 @@ import { openWhatsApp } from "@/lib/utils";
 import { parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm, showActions } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm, showActions } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import { z } from "zod";
 
@@ -292,7 +293,11 @@ export default function CreateListingScreen() {
           clarity: gem.clarity || null,
           shape: gem.shape || gem.cutType || null,
           origin: gem.originCountry || "Unknown",
-          treatmentStatus: gem.treatmentStatus || "natural",
+          treatmentStatus: normalizeGemTreatment(
+            gem.treatmentStatus,
+            life.stoneStage,
+            gem.isNatural,
+          ).treatmentStatus,
           showPrice: true,
           priceMin: parsed.data.price,
           priceMax: null,

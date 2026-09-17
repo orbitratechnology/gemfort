@@ -13,6 +13,7 @@ import {
   signInWithCredential,
   signOut,
 } from '@/lib/firebase/auth';
+import type { LegalAcceptance } from '@/constants/legal';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from '@/lib/firebase/db';
 import type { UserProfile, UserRole } from '@/types';
@@ -61,6 +62,7 @@ async function finishSocialSignIn(
   role: UserRole | undefined,
   identity: ProfileIdentity,
   provider: PendingSocialRegistration['provider'],
+  legalAcceptance?: LegalAcceptance,
 ): Promise<SocialSignInResult> {
   const auth = getFirebaseAuth();
   const result = await signInWithCredential(auth, credential);
@@ -86,17 +88,27 @@ async function finishSocialSignIn(
     await signOut(auth);
     throw new SocialRegistrationRequiredError();
   }
+  if (!legalAcceptance?.termsVersion || !legalAcceptance.privacyVersion) {
+    await signOut(auth);
+    throw new Error('Accept the Terms and Conditions and Privacy Policy to continue.');
+  }
 
   const email = identity.email?.trim().toLowerCase() || user.email?.trim().toLowerCase();
   if (!email) {
     await signOut(auth);
-    throw new Error('Your provider did not return an email address.');
+    throw new Error("We couldn't get an email address from that sign-in. Try again or use email sign-in.");
   }
 
-  const profile: Omit<UserProfile, 'createdAt' | 'lastActiveAt' | 'updatedAt'> & {
+  const profile: Omit<
+    UserProfile,
+    'createdAt' | 'lastActiveAt' | 'updatedAt' | 'legalConsent'
+  > & {
     createdAt: ReturnType<typeof serverTimestamp>;
     lastActiveAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
+    legalConsent: LegalAcceptance & {
+      acceptedAt: ReturnType<typeof serverTimestamp>;
+    };
   } = {
     uid: user.uid,
     email,
@@ -114,6 +126,10 @@ async function finishSocialSignIn(
     companyId: null,
     fcmToken: null,
     phoneVerified: false,
+    legalConsent: {
+      ...legalAcceptance,
+      acceptedAt: serverTimestamp(),
+    },
     createdAt: serverTimestamp(),
     lastActiveAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -125,7 +141,10 @@ async function finishSocialSignIn(
   return { user, profile: profile as unknown as UserProfile, isNewProfile: true };
 }
 
-export async function signInWithGoogle(role?: UserRole): Promise<SocialSignInResult> {
+export async function signInWithGoogle(
+  role?: UserRole,
+  legalAcceptance?: LegalAcceptance,
+): Promise<SocialSignInResult> {
   configureGoogle();
   await GoogleOneTapSignIn.checkPlayServices(true);
 
@@ -137,7 +156,7 @@ export async function signInWithGoogle(role?: UserRole): Promise<SocialSignInRes
     response = await GoogleOneTapSignIn.presentExplicitSignIn();
   }
   if (!isSuccessResponse(response) || !response.data?.idToken) {
-    throw new Error('Google Sign-In was cancelled or did not return an ID token.');
+    throw new Error('Google sign-in was cancelled. Try again or choose another sign-in method.');
   }
 
   return finishSocialSignIn(
@@ -148,10 +167,14 @@ export async function signInWithGoogle(role?: UserRole): Promise<SocialSignInRes
       displayName: response.data.user.name,
     },
     'google',
+    legalAcceptance,
   );
 }
 
-export async function signInWithApple(role?: UserRole): Promise<SocialSignInResult> {
+export async function signInWithApple(
+  role?: UserRole,
+  legalAcceptance?: LegalAcceptance,
+): Promise<SocialSignInResult> {
   const rawNonce = Crypto.randomUUID();
   const hashedNonce = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
@@ -166,7 +189,7 @@ export async function signInWithApple(role?: UserRole): Promise<SocialSignInResu
     nonce: hashedNonce,
   });
   if (!apple.identityToken) {
-    throw new Error('Apple Sign-In did not return an identity token.');
+    throw new Error('Apple sign-in was cancelled. Try again or choose another sign-in method.');
   }
 
   const displayName = AppleAuthentication.formatFullName(apple.fullName ?? {
@@ -182,6 +205,7 @@ export async function signInWithApple(role?: UserRole): Promise<SocialSignInResu
     role,
     { email: apple.email, displayName },
     'apple',
+    legalAcceptance,
   );
 }
 
@@ -193,7 +217,10 @@ export function getPendingSocialRegistration() {
   return pendingSocialRegistration;
 }
 
-export async function completePendingSocialRegistration(role: UserRole) {
+export async function completePendingSocialRegistration(
+  role: UserRole,
+  legalAcceptance: LegalAcceptance,
+) {
   const pending = pendingSocialRegistration;
   if (!pending) {
     throw new Error('The social registration session has expired. Please try again.');
@@ -204,6 +231,7 @@ export async function completePendingSocialRegistration(role: UserRole) {
     role,
     pending.identity,
     pending.provider,
+    legalAcceptance,
   );
   pendingSocialRegistration = null;
   return result;
@@ -216,7 +244,7 @@ export async function reauthenticateWithGoogle() {
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.presentExplicitSignIn();
   if (!isSuccessResponse(response) || !response.data?.idToken) {
-    throw new Error('Google Sign-In was cancelled or did not return an ID token.');
+    throw new Error('Google sign-in was cancelled. Try again or choose another sign-in method.');
   }
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error('You must be signed in to continue.');
@@ -231,7 +259,7 @@ export async function reauthenticateWithApple() {
     { encoding: Crypto.CryptoEncoding.HEX },
   );
   const apple = await AppleAuthentication.signInAsync({ nonce: hashedNonce });
-  if (!apple.identityToken) throw new Error('Apple Sign-In did not return an identity token.');
+  if (!apple.identityToken) throw new Error('Apple sign-in was cancelled. Try again or choose another sign-in method.');
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error('You must be signed in to continue.');
   await reauthenticateWithCredential(user, AppleAuthProvider.credential(apple.identityToken, rawNonce));

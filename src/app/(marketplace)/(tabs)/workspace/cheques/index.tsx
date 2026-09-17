@@ -1,7 +1,9 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
+import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
@@ -14,27 +16,27 @@ import {
     maturityLabel,
 } from "@/features/workspace/cheque-utils";
 import {
-    subscribeCheques,
     subscribeContacts,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
     deleteCheque,
-    fetchCheques,
     fetchContacts,
 } from "@/features/workspace/workspace-service";
+import { fetchChequesPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
-import { confirmDelete } from "@/providers/confirm-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     Pressable,
     RefreshControl,
@@ -113,7 +115,7 @@ function ChequeRow({
               ]}
             >
               <Icon
-                name="money-check-dollar"
+                name={isReceived ? "call-received" : "call-made"}
                 size={20}
                 color={
                   isBounced
@@ -189,16 +191,20 @@ export default function ChequesScreen() {
   const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [side, setSide] = useState<ApSide>("given");
 
   const {
-    data: cheques = [],
+    items: cheques,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["cheques", user?.uid],
-    queryFn: () => fetchCheques(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeCheques(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["cheques", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchChequesPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -226,9 +232,18 @@ export default function ChequesScreen() {
     () => buildContactPhotoMap(contacts, businesses),
     [contacts, businesses],
   );
-  const summary = getChequeSummary(cheques);
-  const upcoming = getUpcomingCheques(cheques);
-  const bounced = cheques.filter((c) => c.status === "bounced");
+  const sideCheques = useMemo(
+    () =>
+      cheques.filter((cheque) =>
+        side === "given"
+          ? cheque.direction === "given"
+          : cheque.direction === "received",
+      ),
+    [cheques, side],
+  );
+  const summary = getChequeSummary(sideCheques);
+  const upcoming = getUpcomingCheques(sideCheques);
+  const bounced = sideCheques.filter((c) => c.status === "bounced");
 
   async function handleDelete(chequeId: string) {
     if (!user) return;
@@ -266,6 +281,7 @@ export default function ChequesScreen() {
           </Pressable>
         }
       />
+      <ApSideTabs side={side} onChange={setSide} />
 
       <FlashList
         data={upcoming}
@@ -275,6 +291,10 @@ export default function ChequesScreen() {
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
@@ -359,6 +379,14 @@ export default function ChequesScreen() {
             icon="money-check-dollar"
             title="No pending cheques"
             subtitle="Add a post-dated cheque to track maturity and clearance."
+          />
+        }
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
           />
         }
         renderItem={({ item: c }) => (
@@ -489,10 +517,5 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
 });

@@ -4,6 +4,41 @@ const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 
 // All EAS environments use the same native app and Firebase configuration.
 const bundleId = "app.gemfort";
+const appLinkHost = "gemfort.web.app";
+
+// Shared image artwork used by signed-in system shortcuts.
+const SHORTCUT_IMAGES = {
+  shortcut_app: "./assets/images/gemfort-icon.png",
+  shortcut_add: "./assets/images/shortcuts/shortcut_add_light.png",
+  shortcut_ap: "./assets/images/shortcuts/shortcut_ap_light.png",
+  shortcut_bill: "./assets/images/shortcuts/shortcut_bill_light.png",
+  shortcut_cheque: "./assets/images/shortcuts/shortcut_cheque_light.png",
+  shortcut_contacts: "./assets/images/shortcuts/shortcut_contacts_light.png",
+  shortcut_gem: "./assets/images/shortcuts/shortcut_gem_light.png",
+  shortcut_jobs: "./assets/images/shortcuts/shortcut_jobs_light.png",
+  shortcut_market: "./assets/images/shortcuts/shortcut_market_light.png",
+  shortcut_money: "./assets/images/shortcuts/shortcut_money_light.png",
+  shortcut_search: "./assets/images/shortcuts/shortcut_search_light.png",
+  shortcut_service: "./assets/images/shortcuts/shortcut_service_light.png",
+  shortcut_trip: "./assets/images/trips-icon.png",
+  shortcut_certificates:
+    "./assets/images/shortcuts/shortcut_certificates_light.png",
+} as const;
+
+// Android resolves dynamic shortcut icons as drawable/mipmap resources. Use
+// the semantic shortcut artwork for public actions and adaptive layers where
+// the quick-actions config plugin supports them.
+const SHORTCUT_ANDROID_ICONS = {
+  ...SHORTCUT_IMAGES,
+  shortcut_market: {
+    foregroundImage: "./assets/images/shortcuts/shortcut_market_light.png",
+    backgroundColor: "#FFFFFF",
+  },
+  shortcut_search: {
+    foregroundImage: "./assets/images/shortcuts/shortcut_search_light.png",
+    backgroundColor: "#FFFFFF",
+  },
+} as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -33,7 +68,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ITSAppUsesNonExemptEncryption: false,
     },
     associatedDomains:
-      env === "production" || env === "preview" ? ["applinks:gemfort.app"] : [],
+      env === "production" || env === "preview"
+        ? [`applinks:${appLinkHost}`]
+        : [],
     googleServicesFile:
       process.env.GOOGLE_SERVICES_PLIST ?? "GoogleService-Info.plist",
   },
@@ -52,12 +89,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: "./assets/images/icon.png",
     googleServicesFile:
       process.env.GOOGLE_SERVICES_JSON ?? "google-services.json",
-    permissions: [
-      "android.permission.READ_CALL_LOG",
-      "android.permission.READ_PHONE_STATE",
-    ],
-    // Library manifests WRITE_CALL_LOG; we only read history.
-    blockedPermissions: ["android.permission.WRITE_CALL_LOG"],
     intentFilters:
       env === "production" || env === "preview"
         ? [
@@ -67,8 +98,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
               data: [
                 {
                   scheme: "https",
-                  host: "gemfort.app",
+                  host: appLinkHost,
                   pathPrefix: "/l",
+                },
+              ],
+              category: ["BROWSABLE", "DEFAULT"],
+            },
+            {
+              action: "VIEW",
+              autoVerify: true,
+              data: [
+                {
+                  scheme: "https",
+                  host: appLinkHost,
+                  pathPrefix: "/business",
                 },
               ],
               category: ["BROWSABLE", "DEFAULT"],
@@ -145,10 +188,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             "RNFBStorage",
           ],
         },
-        // android: {
-        //   enableProguardInReleaseBuilds: true,
-        //   enableShrinkResourcesInReleaseBuilds: true,
-        // },
+        android: {
+          compileSdkVersion: 36,
+          targetSdkVersion: 36,
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
       },
     ],
     [
@@ -186,66 +231,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-quick-actions",
       {
-        // String icons = non-adaptive (transparent, no colored plate).
-        // *_light = black glyph, *_dark = white glyph; JS picks via useColorScheme.
-        // Regenerate: python scripts/generate-shortcut-icons.py
-        androidIcons: {
-          shortcut_gem_light:
-            "./assets/images/shortcuts/shortcut_gem_light.png",
-          shortcut_gem_dark: "./assets/images/shortcuts/shortcut_gem_dark.png",
-          shortcut_add_light:
-            "./assets/images/shortcuts/shortcut_add_light.png",
-          shortcut_add_dark: "./assets/images/shortcuts/shortcut_add_dark.png",
-          shortcut_ap_light: "./assets/images/shortcuts/shortcut_ap_light.png",
-          shortcut_ap_dark: "./assets/images/shortcuts/shortcut_ap_dark.png",
-          shortcut_cheque_light:
-            "./assets/images/shortcuts/shortcut_cheque_light.png",
-          shortcut_cheque_dark:
-            "./assets/images/shortcuts/shortcut_cheque_dark.png",
-          shortcut_service_light:
-            "./assets/images/shortcuts/shortcut_service_light.png",
-          shortcut_service_dark:
-            "./assets/images/shortcuts/shortcut_service_dark.png",
-          shortcut_jobs_light:
-            "./assets/images/shortcuts/shortcut_jobs_light.png",
-          shortcut_jobs_dark:
-            "./assets/images/shortcuts/shortcut_jobs_dark.png",
-          shortcut_contacts_light:
-            "./assets/images/shortcuts/shortcut_contacts_light.png",
-          shortcut_contacts_dark:
-            "./assets/images/shortcuts/shortcut_contacts_dark.png",
-          shortcut_bill_light:
-            "./assets/images/shortcuts/shortcut_bill_light.png",
-          shortcut_bill_dark:
-            "./assets/images/shortcuts/shortcut_bill_dark.png",
-          shortcut_money_light:
-            "./assets/images/shortcuts/shortcut_money_light.png",
-          shortcut_money_dark:
-            "./assets/images/shortcuts/shortcut_money_dark.png",
-          shortcut_market_light:
-            "./assets/images/shortcuts/shortcut_market_light.png",
-          shortcut_market_dark:
-            "./assets/images/shortcuts/shortcut_market_dark.png",
-          shortcut_search_light:
-            "./assets/images/shortcuts/shortcut_search_light.png",
-          shortcut_search_dark:
-            "./assets/images/shortcuts/shortcut_search_dark.png",
-        },
+        androidIcons: SHORTCUT_ANDROID_ICONS,
+        iosIcons: SHORTCUT_IMAGES,
         // Static iOS actions available before JS loads; replaced dynamically by role.
-        // Prefer outline SF Symbols / built-ins so they match system menu icons.
+        // Use native system symbols for the public guest shortcuts.
         iosActions: [
           {
-            id: "certificate-portals",
-            title: "Certificate portals",
-            subtitle: "Open external verification pages",
-            icon: "symbol:link",
+            id: "certificates",
+            title: "Certificates",
+            subtitle: "Verify gemstone certificates",
+            icon: "symbol:checkmark.seal",
             params: { href: "/verify-certificate-portals" },
           },
           {
             id: "market",
             title: "Market",
             subtitle: "Find traders and lapidaries",
-            icon: "symbol:person.2",
+            icon: "symbol:storefront",
             params: { href: "/(marketplace)/(tabs)/market" },
           },
           {
@@ -267,7 +269,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-contacts",
       {
         contactsPermission:
-          "GemFort needs contacts access to import brokers, buyers, and partners from your phone.",
+          "GemFort needs contacts access to import contacts from your phone.",
       },
     ],
   ],

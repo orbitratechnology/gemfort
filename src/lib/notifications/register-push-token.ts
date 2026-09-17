@@ -62,7 +62,10 @@ async function fetchNativePushToken(attempt = 1): Promise<string | null> {
   }
 }
 
-export async function registerPushTokenForUser(uid: string): Promise<string | null> {
+export async function registerPushTokenForUser(
+  uid: string,
+  currentToken?: string | null,
+): Promise<string | null> {
   if (!canRegisterForPushNotifications()) return null;
 
   const granted = await requestPushPermission();
@@ -71,10 +74,8 @@ export async function registerPushTokenForUser(uid: string): Promise<string | nu
   const token = await fetchNativePushToken();
   if (!token) return null;
 
-  try {
+  if (token !== currentToken) {
     await updateFcmToken(uid, token);
-  } catch (error) {
-    throw error;
   }
 
   return token;

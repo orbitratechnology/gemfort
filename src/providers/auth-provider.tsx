@@ -10,7 +10,8 @@ import {
 } from 'react';
 import { onAuthStateChanged, signOut } from '@/lib/firebase/auth';
 import type { AuthUser } from '@/lib/firebase/auth-types';
-import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase/config';
+import { doc, onSnapshot } from '@/lib/firebase/db';
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from '@/lib/firebase/config';
 import { getUserProfile } from '@/lib/firebase/auth-service';
 import type { UserProfile } from '@/types';
 
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(isFirebaseConfigured);
   const profileRequestRef = useRef(0);
+  const suspensionSignOutRef = useRef<string | null>(null);
 
   const loadProfile = useCallback(async (uid: string) => {
     const requestId = ++profileRequestRef.current;
@@ -54,6 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (data.isSuspended === true) {
+        if (suspensionSignOutRef.current !== uid) {
+          suspensionSignOutRef.current = uid;
+          setProfile(null);
+          setUser(null);
+          await signOut(getFirebaseAuth());
+        }
+        return;
+      }
+
+      suspensionSignOutRef.current = null;
       setProfile(data);
     } catch {
       if (requestId === profileRequestRef.current) {
@@ -73,17 +86,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
 
+    let unsubscribeProfile: (() => void) | null = null;
+    const stopProfileListener = () => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = null;
+    };
+
     const unsub = onAuthStateChanged(getFirebaseAuth(), (nextUser) => {
+      stopProfileListener();
       setUser(nextUser as AuthUser | null);
       if (nextUser) {
         void loadProfile(nextUser.uid);
+        unsubscribeProfile = onSnapshot(
+          doc(getFirebaseDb(), 'users', nextUser.uid),
+          (snapshot) => {
+            const data = snapshot.data();
+            if (!data) return;
+
+            const nextProfile = { uid: nextUser.uid, ...data } as UserProfile;
+            if (nextProfile.isSuspended === true) {
+              if (suspensionSignOutRef.current === nextUser.uid) return;
+              suspensionSignOutRef.current = nextUser.uid;
+              profileRequestRef.current += 1;
+              setProfile(null);
+              setUser(null);
+              void signOut(getFirebaseAuth()).catch(() => undefined);
+              return;
+            }
+
+            suspensionSignOutRef.current = null;
+            setProfile(nextProfile);
+          },
+          () => undefined,
+        );
       } else {
         profileRequestRef.current += 1;
+        suspensionSignOutRef.current = null;
         setProfile(null);
       }
       setIsLoading(false);
     });
-    return unsub;
+    return () => {
+      stopProfileListener();
+      unsub();
+    };
   }, [loadProfile]);
 
   const value = useMemo(

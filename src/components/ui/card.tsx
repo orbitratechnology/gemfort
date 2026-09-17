@@ -18,7 +18,7 @@ export function Card({ featured, muted, style, children, ...props }: CardProps) 
         {
           backgroundColor: muted ? colors.surfaceMuted : colors.surface,
           borderColor: colors.border,
-          shadowColor: colors.cardShadow,
+          boxShadow: `0 1px 4px ${colors.cardShadow}`,
         },
         featured && {
           borderLeftWidth: 3,
@@ -36,11 +36,8 @@ export function Card({ featured, muted, style, children, ...props }: CardProps) 
 const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.md,
+    borderCurve: 'continuous',
     borderWidth: 1,
     padding: Spacing.lg,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 1,
   },
 });

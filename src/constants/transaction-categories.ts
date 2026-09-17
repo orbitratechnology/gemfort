@@ -11,9 +11,9 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
   // Income
   sale: { label: 'Gem Sales', icon: 'diamond' },
   gem_sale: { label: 'Gem Sales', icon: 'diamond' },
-  ap_income: { label: 'AP Income', icon: 'handshake' },
+  ap_income: { label: 'AP Income', icon: 'ap' },
   commission_earned: { label: 'Commissions', icon: 'percent' },
-  service_income: { label: 'Service Income', icon: 'build' },
+  service_income: { label: 'Service Income', icon: 'service' },
   other_income: { label: 'Other Income', icon: 'add-circle' },
 
   // Expense
@@ -23,7 +23,7 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
   heat_treatment_fee: { label: 'Treatment', icon: 'local-fire-department' },
   chemical_treatment_fee: { label: 'Treatment', icon: 'science' },
   polishing_fee: { label: 'Polishing', icon: 'auto-awesome' },
-  trip_expense: { label: 'Trips', icon: 'flight' },
+  trip_expense: { label: 'Trips', icon: 'trip' },
   transport: { label: 'Transport', icon: 'local-shipping' },
   insurance: { label: 'Insurance', icon: 'shield' },
   commission_paid: { label: 'Commissions', icon: 'percent' },

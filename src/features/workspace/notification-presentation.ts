@@ -1,10 +1,10 @@
 import type { IconName } from "@/components/ui/icon";
 
 export function fallbackIconForType(type: string): IconName {
-  if (type.startsWith("cheque_")) return "money-check-dollar";
-  if (type.startsWith("bill_")) return "receipt-long";
-  if (type.startsWith("ap_")) return "handshake";
-  if (type.startsWith("service_")) return "handyman";
+  if (type.startsWith("cheque_")) return "cheque";
+  if (type.startsWith("bill_")) return "bill";
+  if (type.startsWith("ap_")) return "ap";
+  if (type.startsWith("service_")) return "service";
   if (type.startsWith("payment_")) return "payments";
   if (type.startsWith("verification_")) return "verified-user";
   if (type.startsWith("announcement_")) return "campaign";
@@ -38,6 +38,7 @@ export type InboxActionId =
   | "decline_ap_cancel"
   | "accept_gem_transfer"
   | "decline_gem_transfer"
+  | "add_service_bill"
   | "view_listing"
   | "view_verify"
   | "view_account";
@@ -212,6 +213,16 @@ const BY_TYPE: Record<string, Omit<NotificationPresentation, "icon">> = {
     "warning",
   ),
   service_job_updated: social("Service", "updated a job", [OPEN]),
+  service_job_completed: social(
+    "Service",
+    "completed a job",
+    [
+      { id: "add_service_bill", label: "Add bill", variant: "primary" },
+      { id: "open", label: "Details", variant: "ghost" },
+    ],
+    "success",
+    "service_completed",
+  ),
   service_cancellation_requested: social(
     "Service",
     "requested cancellation",

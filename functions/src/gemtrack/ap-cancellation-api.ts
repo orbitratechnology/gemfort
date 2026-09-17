@@ -1,7 +1,6 @@
 import {
   Timestamp,
   type DocumentReference,
-  type DocumentSnapshot,
 } from 'firebase-admin/firestore';
 
 import { ApiError } from '../api/errors';
@@ -61,6 +60,7 @@ async function ensureApNotification(input: {
     | 'ap_cancellation_rejected';
   title: string;
   message: string;
+  direction: 'given' | 'taken';
   apId: string;
 }) {
   await ensureDeterministicNotificationDoc({
@@ -68,6 +68,7 @@ async function ensureApNotification(input: {
     type: input.type,
     title: input.title,
     message: input.message,
+    direction: input.direction,
     referenceType: 'ap',
     referenceId: input.apId,
   });
@@ -97,6 +98,7 @@ export async function requestApCancellationForApi(
       type: 'ap_cancellation_requested' as const,
       title: 'AP cancellation requested',
       message: `${ap.senderName || 'Trader'} asked to cancel an AP. Accept to unlock the stones.`,
+      direction: 'taken' as const,
     };
 
     if (decision.kind === 'transition') {
@@ -149,6 +151,7 @@ export async function respondApCancellationForApi(
         action === 'accepted'
           ? `${ap.receiverName || 'Trader'} accepted your cancellation request.`
           : `${ap.receiverName || 'Trader'} kept the AP active.`,
+      direction: 'given' as const,
     };
 
     const heldItems = (ap.items ?? []).filter((item) => item.lineStatus === 'held');
@@ -156,10 +159,7 @@ export async function respondApCancellationForApi(
       action === 'accepted' && decision.kind === 'transition'
         ? heldItems.map((item) => db.collection('gemtrack_gems').doc(item.gemId))
         : [];
-    const gemSnaps: DocumentSnapshot[] = [];
-    for (const gemRef of gemRefs) {
-      gemSnaps.push(await transaction.get(gemRef));
-    }
+    const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
 
     if (decision.kind === 'transition') {
       if (action === 'accepted') {

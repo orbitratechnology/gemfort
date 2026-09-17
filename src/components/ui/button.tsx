@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   text: {
-    ...Typography.headlineMdMobile,
+    ...Typography.button,
   },
   disabled: {
     opacity: 0.45,

@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { forwardRef, type ComponentProps } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,7 +6,10 @@ import {
   type ViewProps,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import {
+  KeyboardAwareScrollView,
+  type KeyboardAwareScrollViewRef,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Spacing } from '@/constants/design-tokens';
@@ -58,19 +61,22 @@ export function Screen({
 }
 
 /** Themed ScrollView drop-in (replaces ScrollView + gray100 background) */
-export function ThemedScrollView({ style, keyboardShouldPersistTaps, ...props }: ScrollViewProps) {
-  const { colors } = useAppTheme();
-  return (
-    <KeyboardAwareScrollView
-      ScrollViewComponent={GestureScrollView}
-      style={[{ flex: 1, backgroundColor: colors.background }, style]}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps={keyboardShouldPersistTaps ?? 'handled'}
-      bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
-      {...props}
-    />
-  );
-}
+export const ThemedScrollView = forwardRef<KeyboardAwareScrollViewRef, ScrollViewProps>(
+  function ThemedScrollView({ style, keyboardShouldPersistTaps, ...props }, ref) {
+    const { colors } = useAppTheme();
+    return (
+      <KeyboardAwareScrollView
+        ref={ref}
+        ScrollViewComponent={GestureScrollView}
+        style={[{ flex: 1, backgroundColor: colors.background }, style]}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps ?? 'handled'}
+        bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
+        {...props}
+      />
+    );
+  },
+);
 
 /** Themed View drop-in for full-screen layouts */
 export function ThemedView({ style, ...props }: ViewProps) {

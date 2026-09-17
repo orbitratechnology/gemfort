@@ -38,6 +38,7 @@ yarn-error.*
 # workspace-scoped CLI configuration
 .firebase-config/
 .gcloud/
+.firebase/
 
 # typescript
 *.tsbuildinfo
@@ -58,6 +59,9 @@ example
 !/docs/phase-1-api-contract.md
 !/docs/phase-2-hono-shell.md
 !/docs/phase-3-client-canary.md
+!/docs/privacy-policy.md
+!/docs/terms-and-conditions.md
+!/docs/legal-and-security-audit.md
 !/docs/phase-4-app-check-canary.md
 /plan
 
@@ -73,6 +77,9 @@ GoogleService-Info*.plist
 
 # Artifacts
 *.apk
+
+# Goldie store screenshot outputs
+goldie/out/
 
 # Temporary agent media
 .tmp-*

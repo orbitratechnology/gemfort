@@ -1,3 +1,5 @@
+import * as Crypto from 'expo-crypto';
+
 import { callApi } from '@/lib/api/api-client';
 import type { ApPaymentMethod } from '@/types';
 
@@ -33,7 +35,7 @@ type ApPaymentReceivedInput = {
 
 function idempotencyKey(operation: string, scope = 'request'): string {
   const safeScope = scope.replace(/[^A-Za-z0-9._:-]/g, '-').slice(0, 72);
-  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const nonce = Crypto.randomUUID();
   return `mobile-${operation}-${safeScope || 'request'}-${nonce}`.slice(0, 128);
 }
 

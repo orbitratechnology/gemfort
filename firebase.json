@@ -19,6 +19,48 @@
       "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
     }
   ],
+  "hosting": {
+    "site": "gemfort",
+    "public": "public",
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/l/**",
+        "destination": "/share/index.html"
+      },
+      {
+        "source": "/business/**",
+        "destination": "/share/index.html"
+      }
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+          }
+        ]
+      }
+    ]
+  },
   "storage": {
     "rules": "storage.rules"
   },

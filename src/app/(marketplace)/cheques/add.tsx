@@ -58,7 +58,7 @@ import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
 
@@ -358,7 +358,11 @@ export default function AddChequeScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={step === 0 ? "Direction" : "Add cheque"} closeIcon />
+      <StackHeader
+        title={step === 0 ? "Direction" : "Add cheque"}
+        closeIcon
+        image={require("@/assets/images/cheque-icon.png")}
+      />
 
       {step === 0 ? (
         <View
@@ -399,7 +403,7 @@ export default function AddChequeScreen() {
                   clearField("chequeNumber");
                 }}
                 placeholder="e.g. 001234"
-                leftIcon="money-check-dollar"
+                leftIcon="cheque"
                 error={errors.chequeNumber}
               />
               <BankSelectField

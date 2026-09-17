@@ -6,7 +6,7 @@ import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 
 import { deleteMyAccountForApi, type DeleteAccountResult } from '../account/delete-account-api';
-import { linkVerifiedPhoneForApi } from '../auth/link-verified-phone';
+import { syncPhoneProfileForApi } from '../auth/sync-phone-profile';
 import {
   cancelApRequestForApi,
   createApRequestForApi,
@@ -48,6 +48,16 @@ import {
   type ServiceCancellationResult,
 } from '../gemtrack/service-cancellation-api';
 import {
+  createServiceRequestForApi,
+  completeLapidaryServiceForApi,
+  deleteLapidaryJobForApi,
+  parseCreateServiceRequestInput,
+  parseCompleteLapidaryServiceInput,
+  respondServiceRequestForApi,
+  updateLapidaryServiceStatusForApi,
+  type CreateServiceRequestInput,
+} from '../gemtrack/service-request-api';
+import {
   parseSubmitListingOfferInput,
   submitListingOfferForApi,
   type SubmitListingOfferInput,
@@ -56,8 +66,11 @@ import {
   cancelGemTransferForApi,
   createGemTransferForApi,
   parseCreateGemTransferInput,
+  parseRecordGemSaleInput,
+  recordGemSaleForApi,
   respondGemTransferForApi,
   type CreateGemTransferInput,
+  type RecordGemSaleInput,
 } from './gem-transfer-api';
 import { executeIdempotent, type MutationExecutor } from './idempotency';
 import { apiErrorResponse, ApiError, toApiError } from './errors';
@@ -89,7 +102,6 @@ const COMPAT_CALLABLES = new Set([
   'deleteApRecord',
   'requestServiceCancellation',
   'respondServiceCancellation',
-  'linkVerifiedPhone',
   'deleteMyAccount',
   'searchFlights',
   'getFlightPriceCalendar',
@@ -109,7 +121,6 @@ const COMPAT_MUTATIONS = new Set([
   'deleteApRecord',
   'requestServiceCancellation',
   'respondServiceCancellation',
-  'linkVerifiedPhone',
   'deleteMyAccount',
 ]);
 
@@ -134,7 +145,7 @@ export type ApiAppOptions = {
   cancelApRequest?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
   returnApGem?: (apId: string, uid: string, gemId: string) => Promise<ApLifecycleResult>;
   deleteApRecord?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
-  linkVerifiedPhone?: (uid: string, token: unknown) => Promise<{ phoneNumber: string }>;
+  syncPhoneProfile?: (uid: string) => Promise<{ phoneNumber: string }>;
   deleteMyAccount?: (uid: string, authTime: number | undefined) => Promise<DeleteAccountResult>;
   requestServiceCancellation?: (
     serviceId: string,
@@ -145,6 +156,25 @@ export type ApiAppOptions = {
     uid: string,
     action: 'accepted' | 'rejected',
   ) => Promise<ServiceCancellationResult>;
+  createServiceRequest?: (
+    uid: string,
+    input: CreateServiceRequestInput,
+  ) => Promise<{ serviceId: string; status: 'pending' }>;
+  respondServiceRequest?: (
+    serviceId: string,
+    uid: string,
+    action: 'accepted' | 'rejected',
+    rejectReason?: string | null,
+  ) => Promise<{ serviceId: string; status: 'given' | 'rejected' }>;
+  updateLapidaryServiceStatus?: (
+    serviceId: string,
+    uid: string,
+    status: 'in_progress' | 'ready' | 'returned',
+  ) => Promise<{ serviceId: string; status: 'in_progress' | 'ready' | 'received_back' }>;
+  deleteLapidaryJob?: (
+    serviceId: string,
+    uid: string,
+  ) => Promise<{ serviceId: string; status: 'deleted' }>;
   requestApCancellation?: (apId: string, uid: string) => Promise<ApCancellationResult>;
   respondApCancellation?: (
     apId: string,
@@ -176,6 +206,11 @@ export type ApiAppOptions = {
     uid: string,
     input: CreateGemTransferInput,
   ) => Promise<{ requestId: string; status: 'pending' }>;
+  recordGemSale?: (
+    gemId: string,
+    uid: string,
+    input: RecordGemSaleInput,
+  ) => Promise<{ saleId: string; status: 'recorded' }>;
   respondGemTransfer?: (
     requestId: string,
     uid: string,
@@ -325,12 +360,17 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const cancelApRequest = options.cancelApRequest ?? cancelApRequestForApi;
   const returnApGem = options.returnApGem ?? returnApGemForApi;
   const deleteApRecord = options.deleteApRecord ?? deleteApRecordForApi;
-  const linkVerifiedPhone = options.linkVerifiedPhone ?? linkVerifiedPhoneForApi;
+  const syncPhoneProfile = options.syncPhoneProfile ?? syncPhoneProfileForApi;
   const deleteMyAccount = options.deleteMyAccount ?? deleteMyAccountForApi;
   const requestServiceCancellation =
     options.requestServiceCancellation ?? requestServiceCancellationForApi;
   const respondServiceCancellation =
     options.respondServiceCancellation ?? respondServiceCancellationForApi;
+  const createServiceRequest = options.createServiceRequest ?? createServiceRequestForApi;
+  const respondServiceRequest = options.respondServiceRequest ?? respondServiceRequestForApi;
+  const updateLapidaryServiceStatus =
+    options.updateLapidaryServiceStatus ?? updateLapidaryServiceStatusForApi;
+  const deleteLapidaryJob = options.deleteLapidaryJob ?? deleteLapidaryJobForApi;
   const requestApCancellation = options.requestApCancellation ?? requestApCancellationForApi;
   const respondApCancellation = options.respondApCancellation ?? respondApCancellationForApi;
   const recordApGemSale = options.recordApGemSale ?? recordApGemSaleForApi;
@@ -338,6 +378,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const apPaymentReceived = options.apPaymentReceived ?? apPaymentReceivedForApi;
   const submitListingOffer = options.submitListingOffer ?? submitListingOfferForApi;
   const createGemTransfer = options.createGemTransfer ?? createGemTransferForApi;
+  const recordGemSale = options.recordGemSale ?? recordGemSaleForApi;
   const respondGemTransfer = options.respondGemTransfer ?? respondGemTransferForApi;
   const cancelGemTransfer = options.cancelGemTransfer ?? cancelGemTransferForApi;
   const runMutation = options.executeMutation ?? executeIdempotent;
@@ -444,6 +485,59 @@ export function createApiApp(options: ApiAppOptions = {}) {
     ));
   });
 
+  app.post('/v1/services/requests', auth, appCheck, async (c) => {
+    const input = parseCreateServiceRequestInput(await readJson(c));
+    return success(c, await mutation(c, input, (uid) => createServiceRequest(uid, input)));
+  });
+
+  app.post('/v1/services/:serviceId/request/respond', auth, appCheck, async (c) => {
+    const input = await readJson(c);
+    if (!input || typeof input !== 'object') {
+      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
+    }
+    const value = input as { action?: unknown; rejectReason?: unknown };
+    const action = actionOf(value.action);
+    const rejectReason = value.rejectReason == null
+      ? null
+      : typeof value.rejectReason === 'string'
+        ? value.rejectReason
+        : (() => { throw new ApiError('invalid-argument', 'rejectReason must be text.'); })();
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId, action, rejectReason }, (uid) =>
+      respondServiceRequest(serviceId, uid, action, rejectReason),
+    ));
+  });
+
+  app.post('/v1/services/:serviceId/status', auth, appCheck, async (c) => {
+    const input = await readJson(c);
+    if (!input || typeof input !== 'object') {
+      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
+    }
+    const status = (input as { status?: unknown }).status;
+    if (status !== 'in_progress' && status !== 'ready' && status !== 'returned') {
+      throw new ApiError('invalid-argument', 'status must be in_progress, ready, or returned.');
+    }
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId, status }, (uid) =>
+      updateLapidaryServiceStatus(serviceId, uid, status),
+    ));
+  });
+
+  app.post('/v1/services/:serviceId/complete', auth, appCheck, async (c) => {
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    const input = parseCompleteLapidaryServiceInput(await readJson(c));
+    return success(c, await mutation(c, { serviceId, ...input }, (uid) =>
+      completeLapidaryServiceForApi(serviceId, uid, input),
+    ));
+  });
+
+  app.delete('/v1/services/:serviceId/job', auth, appCheck, async (c) => {
+    const serviceId = requiredRouteParam(c, 'serviceId');
+    return success(c, await mutation(c, { serviceId }, (uid) =>
+      deleteLapidaryJob(serviceId, uid),
+    ));
+  });
+
   app.post('/v1/services/:serviceId/cancellation/respond', auth, appCheck, async (c) => {
     const input = await readJson(c);
     if (!input || typeof input !== 'object') {
@@ -456,14 +550,9 @@ export function createApiApp(options: ApiAppOptions = {}) {
     ));
   });
 
-  app.post('/v1/auth/phone/link', auth, appCheck, async (c) => {
-    const input = await readJson(c);
-    if (!input || typeof input !== 'object') {
-      throw new ApiError('invalid-argument', 'Request body must be a JSON object.');
-    }
-    const token = (input as { token?: unknown }).token;
-    return success(c, await mutation(c, { token }, (uid) => linkVerifiedPhone(uid, token)));
-  });
+  app.post('/v1/auth/phone/sync', auth, appCheck, async (c) =>
+    success(c, await mutation(c, null, (uid) => syncPhoneProfile(uid))),
+  );
 
   app.delete('/v1/account', auth, appCheck, async (c) => {
     const user = requireUser(c);
@@ -497,6 +586,14 @@ export function createApiApp(options: ApiAppOptions = {}) {
     const input = parseCreateGemTransferInput(await readJson(c));
     return success(c, await mutation(c, { gemId, input }, (uid) =>
       createGemTransfer(gemId, uid, input),
+    ));
+  });
+
+  app.post('/v1/gems/:gemId/sales', auth, appCheck, async (c) => {
+    const gemId = requiredRouteParam(c, 'gemId');
+    const input = parseRecordGemSaleInput(await readJson(c));
+    return success(c, await mutation(c, { gemId, input }, (uid) =>
+      recordGemSale(gemId, uid, input),
     ));
   });
 
@@ -580,10 +677,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
               const value = data as { serviceId?: unknown; action?: unknown };
               if (typeof value.serviceId !== 'string') throw new ApiError('invalid-argument', 'serviceId is required.');
               return respondServiceCancellation(value.serviceId, user.uid, actionOf(value.action));
-            }
-            case 'linkVerifiedPhone': {
-              const token = data && typeof data === 'object' ? (data as { token?: unknown }).token : undefined;
-              return linkVerifiedPhone(user.uid, token);
             }
             case 'deleteMyAccount':
               return deleteMyAccount(user.uid, user.token.auth_time);

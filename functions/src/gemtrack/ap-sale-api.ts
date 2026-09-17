@@ -91,6 +91,7 @@ async function ensureSaleNotification(input: {
     type: 'ap_gem_sold',
     title: 'AP gem sold',
     message: `${input.receiverName} sold ${input.gemLabel}. You are owed ${formatCurrency(input.ownerReceives, input.currency)}.`,
+    direction: 'given',
     referenceType: 'ap',
     referenceId: input.apId,
   });
@@ -165,8 +166,7 @@ export async function recordApGemSaleForApi(
       ownerReceives,
       currency: saleCurrency,
     });
-    const eventSnap = await transaction.get(eventRef);
-    const gemSnap = await transaction.get(gemRef);
+    const [eventSnap, gemSnap] = await transaction.getAll(eventRef, gemRef);
 
     if (line.lineStatus === 'sold') {
       if (!eventSnap.exists) {

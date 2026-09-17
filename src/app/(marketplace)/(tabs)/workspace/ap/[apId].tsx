@@ -22,7 +22,10 @@ import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sa
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from "@/features/marketplace/marketplace-service";
 import {
   apAgreedTotal,
   apOwnerOwedTotal,
@@ -49,6 +52,7 @@ import {
 } from "@/features/workspace/delete-gates";
 import {
   subscribeApRecordsForUser,
+  subscribeBusinessByOwnerUid,
   subscribeContacts,
   subscribeGemsByIds,
   subscribeVerifiedBusinesses,
@@ -72,7 +76,7 @@ import { haptics } from "@/lib/haptics";
 import { formatDate, formatRelativeDue } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
   ApLifecycleStatus,
@@ -84,11 +88,11 @@ import type {
 const PAY_METHODS: {
   value: ApPaymentMethod;
   label: string;
-  icon: "payments" | "account-balance" | "money-check-dollar";
+  icon: "payments" | "account-balance" | "cheque";
 }[] = [
   { value: "cash", label: "Cash", icon: "payments" },
   { value: "transfer", label: "Transfer", icon: "account-balance" },
-  { value: "cheque", label: "Cheque", icon: "money-check-dollar" },
+  { value: "cheque", label: "Cheque", icon: "cheque" },
 ];
 
 type StepState = "done" | "active" | "pending" | "overdue";
@@ -105,7 +109,7 @@ function apStatusMeta(
       return { label: "Pending", icon: "schedule", tone: "neutral" };
     case "accepted":
     case "with_holder":
-      return { label: "With holder", icon: "handshake", tone: "warning" };
+      return { label: "With holder", icon: "ap", tone: "warning" };
     case "payment_sent":
       return { label: "Payment sent", icon: "send", tone: "warning" };
     case "done":
@@ -122,7 +126,7 @@ function apStatusMeta(
         tone: "neutral",
       };
     default:
-      return { label: apStatusLabel(status), icon: "handshake", tone: "neutral" };
+      return { label: apStatusLabel(status), icon: "ap", tone: "neutral" };
   }
 }
 
@@ -182,7 +186,7 @@ function apTimelineSteps(
 
 export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { colors } = useAppTheme();
   const { formatBase, formatStored, preferred } = usePreferredMoney();
   const toast = useToast();
@@ -268,6 +272,14 @@ export default function ApDetailScreen() {
     enabled: !!ap,
   });
 
+  const { data: myBusiness } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ["ap"] });
     await queryClient.invalidateQueries({ queryKey: ["gems"] });
@@ -323,7 +335,7 @@ export default function ApDetailScreen() {
     contacts.find((c) => c.id === ap.receiverContactId) ?? null;
   const holderName = isSender
     ? ap.receiverName || receiverContact?.displayName || "Holder"
-    : profile?.displayName || user?.displayName || "You";
+    : myBusiness?.businessName?.trim() || "Your Business";
   const holderPhoto = isSender
     ? resolvePartyPhotoUrl(receiverContact, businesses) ||
       resolveBusinessPhotoByOwnerUid(ap.receiverUid, businesses)
@@ -386,57 +398,60 @@ export default function ApDetailScreen() {
           </Animated.View>
         </ScreenInset>
 
-        {/* Receiver ↔ Gems visual (bottom-to-top) */}
+        {/* Gems ↔ Receiver (left-to-right relation) */}
         <ScreenInset>
           <Animated.View
             entering={FadeInDown.delay(60).duration(320)}
             style={styles.relation}
           >
-            <Pressable
-              style={({ pressed }) => [
-                styles.holderBlock,
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                if (isSender && ap.receiverContactId) {
-                  router.push(
-                    `/(marketplace)/(tabs)/workspace/contacts/${ap.receiverContactId}` as never,
-                  );
-                } else if (isSender && ap.receiverBusinessId) {
-                  router.push(`/business/${ap.receiverBusinessId}` as never);
-                }
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`AP party ${partyName}`}
-            >
-              <ContactAvatar
-                name={partyName}
-                photoUrl={partyPhoto}
-                size={88}
-              />
-              <Text
-                style={[styles.holderName, { color: colors.onSurface }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
+            <View style={styles.holderSide}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.holderBlock,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  if (isSender && ap.receiverContactId) {
+                    router.push(
+                      `/(marketplace)/(tabs)/workspace/contacts/${ap.receiverContactId}` as never,
+                    );
+                  } else if (isSender && ap.receiverBusinessId) {
+                    router.push(`/business/${ap.receiverBusinessId}` as never);
+                  }
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`AP party ${partyName}`}
               >
-                {partyName}
-              </Text>
-              <Text style={[styles.holderRole, { color: colors.textMuted }]}>
-                {partyRole}
-              </Text>
-            </Pressable>
+                <ContactAvatar
+                  name={partyName}
+                  photoUrl={partyPhoto}
+                  size={88}
+                />
+                <Text
+                  style={[styles.holderName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {partyName}
+                </Text>
+                <Text style={[styles.holderRole, { color: colors.textMuted }]}>
+                  {partyRole}
+                </Text>
+              </Pressable>
+            </View>
 
-            <View style={styles.relationMid} pointerEvents="none">
+            <View
+              style={[
+                styles.relationMid,
+                !isSender && styles.relationMidReverse,
+              ]}
+              pointerEvents="none"
+            >
               <View
                 style={[
                   styles.relationLine,
                   { backgroundColor: colors.outlineVariant },
                 ]}
-              />
-              <Icon
-                name={isSender ? "keyboard-arrow-up" : "keyboard-arrow-down"}
-                size={22}
-                color={colors.outline}
               />
               <View
                 style={[
@@ -461,6 +476,11 @@ export default function ApDetailScreen() {
                   {directionLabel}
                 </Text>
               </View>
+              <Icon
+                name={isSender ? "keyboard-arrow-right" : "keyboard-arrow-left"}
+                size={22}
+                color={colors.outline}
+              />
             </View>
 
             <View style={styles.gemsBlock}>
@@ -635,7 +655,7 @@ export default function ApDetailScreen() {
                     {!sold ? (
                       <View style={styles.apPriceRow}>
                         <Icon
-                          name="handshake"
+                          name="ap"
                           size={14}
                           color={colors.onSurfaceVariant}
                         />
@@ -895,7 +915,7 @@ export default function ApDetailScreen() {
                   ? "Continue with cheque"
                   : "Payment Sent"
               }
-              icon={payMethod === "cheque" ? "money-check-dollar" : "send"}
+              icon={payMethod === "cheque" ? "cheque" : "send"}
               onPress={() => {
                 const amountToValidate =
                   payAmount || (owed > 0 ? String(owed) : "");
@@ -990,7 +1010,7 @@ export default function ApDetailScreen() {
               }
               icon={
                 receiveMethod === "cheque"
-                  ? "money-check-dollar"
+                  ? "cheque"
                   : "check-circle"
               }
               onPress={() => {
@@ -1095,13 +1115,19 @@ const styles = StyleSheet.create({
 
   relation: {
     width: "100%",
+    flexDirection: "row-reverse",
     alignItems: "center",
     gap: 10,
   },
+  holderSide: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+  },
   holderBlock: {
+    width: "100%",
     alignItems: "center",
     gap: 8,
-    maxWidth: "80%",
   },
   holderName: {
     ...Typography.headlineSm,
@@ -1115,18 +1141,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   relationMid: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
-    minHeight: 72,
+    height: 48,
     width: 120,
   },
+  relationMidReverse: { flexDirection: "row-reverse" },
   relationLine: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    top: 23,
+    height: 2,
   },
   directionBadge: {
     flexDirection: "row",
@@ -1143,7 +1171,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   gemsBlock: {
-    width: "100%",
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: 8,
   },

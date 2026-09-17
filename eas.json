@@ -46,13 +46,40 @@
         "simulator": true
       }
     },
+    "internal": {
+      "bun": "1.4.2",
+      "environment": "preview",
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "internal",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "preview"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "beta": {
+      "bun": "1.4.2",
+      "extends": "internal",
+      "channel": "beta"
+    },
+    "closed": {
+      "bun": "1.4.2",
+      "extends": "internal",
+      "channel": "closed"
+    },
     "production": {
       "bun": "1.4.2",
       "environment": "production",
+      "distribution": "store",
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
+        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
+        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
       }
     },
     "production-apk": {
@@ -61,7 +88,10 @@
       "distribution": "internal",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
+        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
+        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
       },
       "android": {
         "buildType": "apk"
@@ -70,6 +100,24 @@
   },
   "submit": {
     "production": {},
-    "preview": {}
+    "preview": {},
+    "internal": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    },
+    "beta": {
+      "android": {
+        "track": "beta",
+        "releaseStatus": "completed"
+      }
+    },
+    "closed": {
+      "android": {
+        "track": "alpha",
+        "releaseStatus": "completed"
+      }
+    }
   }
 }

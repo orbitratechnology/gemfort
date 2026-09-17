@@ -1,23 +1,25 @@
 import { Image } from "expo-image";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
-import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyFlag } from "@/components/ui/country-flag";
+import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
 import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     getCurrencyLabel,
     type CurrencyCode,
@@ -37,14 +39,15 @@ import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subs
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
+import { friendlyError } from "@/lib/errors";
 import {
     logoutUser,
     updatePreferredCurrency,
 } from "@/lib/firebase/auth-service";
-import { friendlyError } from "@/lib/errors";
+import { runWithCleanup } from "@/lib/run-with-cleanup";
 import type { ThemePreference } from "@/lib/theme-preference";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
+import { confirm } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const themeOptions: { id: ThemePreference; label: string; icon: IconName }[] = [
@@ -83,7 +86,7 @@ function Row({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
     >
-      <View style={[styles.rowIcon]}>
+      <View style={styles.rowIcon}>
         <Icon
           name={icon}
           size={20}
@@ -119,7 +122,7 @@ export default function ProfileScreen() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
-  const [savingCurrency, setSavingCurrency] = useState(false);
+  const savingCurrencyRef = useRef(false);
 
   const { data: business } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
@@ -150,28 +153,39 @@ export default function ProfileScreen() {
   }
 
   async function handleCurrencySelect(code: CurrencyCode) {
-    if (!user || code === preferredCurrency || savingCurrency) return;
-    setSavingCurrency(true);
+    if (!user || code === preferredCurrency || savingCurrencyRef.current) return;
+    savingCurrencyRef.current = true;
     try {
-      await updatePreferredCurrency(user.uid, code);
-      await refreshProfile();
-      toast.success(`Display currency set to ${code}`);
+      await runWithCleanup(async () => {
+        await updatePreferredCurrency(user.uid, code);
+        await refreshProfile();
+        toast.success(`Display currency set to ${code}`);
+      }, () => {
+        savingCurrencyRef.current = false;
+      });
     } catch (e) {
       toast.error(friendlyError(e, "Could not update currency."));
-    } finally {
-      setSavingCurrency(false);
     }
   }
 
   const effectiveRole = resolveProfileRole(profile);
   const isVerified = profile?.verificationStatus === "verified";
-  const initial = (profile?.displayName ?? "?").charAt(0).toUpperCase();
+  const businessName = business?.businessName?.trim() || "Your Business";
+  const initial = businessName.charAt(0).toUpperCase();
   const roleLabel = ROLE_LABELS[effectiveRole] ?? "Member";
   const memberYear = user.metadata?.creationTime
     ? new Date(user.metadata.creationTime).getFullYear()
     : new Date().getFullYear();
   const coverUri = business?.coverPhotoUrl ?? null;
   const avatarUri = business?.logoUrl ?? null;
+  const businessReputationBadge = business
+    ? businessReputationBadgeForBusiness(business)
+    : "member";
+  const reputationBadge = profile?.recognizedBadge
+    ? "recognized"
+    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
+      ? "identity"
+      : businessReputationBadge;
 
   return (
     <View
@@ -215,22 +229,14 @@ export default function ProfileScreen() {
                   </Text>
                 )}
               </View>
-              {isVerified ? (
-                <View
-                  style={[
-                    styles.verifiedDot,
-                    {
-                      backgroundColor: colors.accent,
-                      borderColor: colors.background,
-                    },
-                  ]}
-                >
-                  <Icon name="verified" size={16} color={colors.onSecondary} />
-                </View>
-              ) : null}
+              <AvatarVerificationBadge
+                type={reputationBadge}
+                borderColor={colors.background}
+                size="lg"
+              />
             </View>
             <Text style={[styles.name, { color: colors.primary }]}>
-              {profile?.displayName}
+              {businessName}
             </Text>
             <View style={styles.roleRow}>
               <Text style={[styles.role, { color: colors.onSurfaceVariant }]}>
@@ -246,7 +252,23 @@ export default function ProfileScreen() {
         <View style={styles.body}>
           <FormSectionLabel title="BUSINESS PROFILE" />
           <FormSection padded={false}>
-            {!isVerified ? (
+            {isVerified ? (
+              <>
+                <Row
+                  colors={colors}
+                  icon="verified-user"
+                  label="Promote Verification"
+                  subtitle="Submit additional documents for a higher tier"
+                  onPress={() => router.push("/profile/verify")}
+                  trailing={
+                    <Text style={[styles.trailingValue, { color: colors.primary }]}>
+                      Promote
+                    </Text>
+                  }
+                />
+                <Divider colors={colors} />
+              </>
+            ) : (
               <>
                 <Row
                   colors={colors}
@@ -267,7 +289,7 @@ export default function ProfileScreen() {
                 />
                 <Divider colors={colors} />
               </>
-            ) : null}
+            )}
             <Row
               colors={colors}
               icon="storefront"
@@ -275,50 +297,6 @@ export default function ProfileScreen() {
               subtitle="Update contact & info"
               onPress={() => router.push("/profile/business" as Href)}
             />
-          </FormSection>
-
-          <FormSectionLabel title="APPEARANCE" />
-          <FormSection>
-            <View
-              style={[
-                styles.segment,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              {themeOptions.map((option) => {
-                const active = preference === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => setPreference(option.id)}
-                    style={[
-                      styles.segmentBtn,
-                      active && { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Icon
-                      name={option.icon}
-                      size={16}
-                      color={
-                        active ? colors.onPrimary : colors.onSurfaceVariant
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        {
-                          color: active
-                            ? colors.onPrimary
-                            : colors.onSurfaceVariant,
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
           </FormSection>
 
           <FormSectionLabel title="PREFERENCES" />
@@ -364,6 +342,50 @@ export default function ProfileScreen() {
                 </Text>
               }
             />
+          </FormSection>
+
+          <FormSectionLabel title="APPEARANCE" />
+          <FormSection>
+            <View
+              style={[
+                styles.segment,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              {themeOptions.map((option) => {
+                const active = preference === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => setPreference(option.id)}
+                    style={[
+                      styles.segmentBtn,
+                      active && { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Icon
+                      name={option.icon}
+                      size={16}
+                      color={
+                        active ? colors.onPrimary : colors.onSurfaceVariant
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        {
+                          color: active
+                            ? colors.onPrimary
+                            : colors.onSurfaceVariant,
+                        },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </FormSection>
 
           <Pressable
@@ -453,7 +475,8 @@ const styles = StyleSheet.create({
   avatar: {
     width: 96,
     height: 96,
-    borderRadius: 48,
+    borderRadius: 24,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
@@ -461,17 +484,6 @@ const styles = StyleSheet.create({
   },
   avatarImg: { width: "100%", height: "100%" },
   avatarInitial: { fontSize: 36, fontWeight: "700" },
-  verifiedDot: {
-    position: "absolute",
-    bottom: 2,
-    right: 2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   name: { ...Typography.headlineSm },
   roleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   role: { ...Typography.bodyLg },

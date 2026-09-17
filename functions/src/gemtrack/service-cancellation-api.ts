@@ -15,19 +15,44 @@ import {
 
 type ServiceDoc = {
   ownerUid: string;
+  traderBusinessName?: string | null;
+  traderBusinessLogoUrl?: string | null;
   gemId: string;
+  gemPhotoUrl?: string | null;
   serviceType: string;
+  serviceTypes?: string[];
   providerUid?: string | null;
   providerName?: string | null;
+  providerBusinessName?: string | null;
+  providerBusinessLogoUrl?: string | null;
+  traderUid?: string | null;
+  traderBusinessId?: string | null;
+  providerBusinessId?: string | null;
+  previousStoneStage?: string | null;
+  previousGemStatus?: string | null;
+  previousOutcome?: string | null;
+  cancellationPreviousStatus?: string | null;
   status: string;
 };
 
 export type ServiceCancellationResult = {
   ok: true;
-  status: 'cancelled' | 'cancellation_requested' | 'in_progress';
+  status: 'cancelled' | 'cancellation_requested' | 'given' | 'in_progress' | 'ready' | 'overdue';
 };
 
 type ServiceCancellationAction = 'accepted' | 'rejected';
+type ServiceCancellationNotification = {
+  recipientUid: string;
+  type:
+    | 'service_cancellation_requested'
+    | 'service_cancellation_accepted'
+    | 'service_cancellation_rejected';
+  title: string;
+  message: string;
+  actorName: string | null;
+  actorPhotoUrl: string | null;
+  imageUrl: string | null;
+};
 
 function throwDecision(decision: Extract<MutationDecision, { kind: 'reject' }>): never {
   throw new ApiError(decision.code, decision.message);
@@ -35,6 +60,34 @@ function throwDecision(decision: Extract<MutationDecision, { kind: 'reject' }>):
 
 function isGemLockedByService(status: unknown): boolean {
   return status === 'with_cutter' || status === 'with_heater' || status === 'with_polisher';
+}
+
+function restoredGemFields(
+  service: ServiceDoc,
+  gem: { status?: unknown; stoneStage?: unknown; custody?: unknown },
+): Record<string, unknown> {
+  const stage = ['rough', 'cut', 'heated', 'polished'].includes(String(service.previousStoneStage))
+    ? String(service.previousStoneStage)
+    : ['rough', 'cut', 'heated', 'polished'].includes(String(gem.stoneStage))
+      ? String(gem.stoneStage)
+      : gem.status === 'ready_for_sale'
+        ? 'polished'
+        : 'rough';
+  const outcome = service.previousOutcome === 'listed' ? 'listed' : null;
+  const previousStatus = ['ready_for_sale', 'rough', 'cut', 'heated', 'polished'].includes(
+    String(service.previousGemStatus),
+  )
+    ? String(service.previousGemStatus)
+    : stage;
+  return {
+    status: outcome === 'listed' ? 'listed' : previousStatus,
+    stoneStage: stage,
+    outcome,
+    isListedOnMarketplace: outcome === 'listed',
+    custody: null,
+    currentLocation: null,
+    currentHolderContactId: null,
+  };
 }
 
 async function ensureServiceNotification(input: {
@@ -46,6 +99,9 @@ async function ensureServiceNotification(input: {
   title: string;
   message: string;
   serviceId: string;
+  actorName?: string | null;
+  actorPhotoUrl?: string | null;
+  imageUrl?: string | null;
 }) {
   await ensureDeterministicNotificationDoc({
     recipientUid: input.recipientUid,
@@ -54,6 +110,9 @@ async function ensureServiceNotification(input: {
     message: input.message,
     referenceType: 'service',
     referenceId: input.serviceId,
+    actorName: input.actorName ?? null,
+    actorPhotoUrl: input.actorPhotoUrl ?? null,
+    imageUrl: input.imageUrl ?? null,
   });
 }
 
@@ -88,23 +147,21 @@ export async function requestServiceCancellationForApi(
     let gemSnap: DocumentSnapshot | null = null;
     let gemRef: DocumentReference | null = null;
 
-    if (!providerUid && decision.kind === 'transition') {
+    if (decision.kind === 'transition' && decision.status === 'cancelled') {
       gemRef = db.collection('gemtrack_gems').doc(service.gemId);
       gemSnap = await transaction.get(gemRef);
     }
 
     if (decision.kind === 'replay') {
-      const notification: {
-        recipientUid: string;
-        type: 'service_cancellation_requested';
-        title: string;
-        message: string;
-      } | null = decision.status === 'cancellation_requested' && providerUid
+      const notification: ServiceCancellationNotification | null = decision.status === 'cancellation_requested' && providerUid
         ? {
           recipientUid: providerUid,
           type: 'service_cancellation_requested',
           title: 'Service cancellation requested',
           message: `A trader asked to cancel ${service.serviceType.replace(/_/g, ' ')}.`,
+          actorName: service.traderBusinessName ?? 'Trader',
+          actorPhotoUrl: service.traderBusinessLogoUrl ?? null,
+          imageUrl: service.gemPhotoUrl ?? null,
           }
         : null;
       return {
@@ -114,31 +171,30 @@ export async function requestServiceCancellationForApi(
     }
 
     const now = Timestamp.now();
-    transaction.update(ref, { status: decision.status, updatedAt: now });
+    transaction.update(ref, {
+      status: decision.status,
+      ...(decision.status === 'cancellation_requested'
+        ? { cancellationPreviousStatus: service.status }
+        : {}),
+      updatedAt: now,
+    });
 
-    let notification: {
-      recipientUid: string;
-      type: 'service_cancellation_requested';
-      title: string;
-      message: string;
-    } | null = null;
-    if (providerUid) {
+    let notification: ServiceCancellationNotification | null = null;
+    if (providerUid && decision.status === 'cancellation_requested') {
       notification = {
         recipientUid: providerUid,
         type: 'service_cancellation_requested',
         title: 'Service cancellation requested',
         message: `A trader asked to cancel ${service.serviceType.replace(/_/g, ' ')}.`,
+        actorName: service.traderBusinessName ?? 'Trader',
+        actorPhotoUrl: service.traderBusinessLogoUrl ?? null,
+        imageUrl: service.gemPhotoUrl ?? null,
       };
-    } else if (gemRef && gemSnap) {
-      const gem = gemSnap.data() as { ownerUid?: string; status?: string } | undefined;
-      if (gemSnap.exists && gem?.ownerUid === service.ownerUid && isGemLockedByService(gem.status)) {
-        transaction.update(gemRef, {
-          status: 'ready_for_sale',
-          custody: null,
-          currentLocation: null,
-          currentHolderContactId: null,
-          updatedAt: now,
-        });
+    }
+    if (decision.status === 'cancelled' && gemRef && gemSnap) {
+      const gem = gemSnap.data() as { ownerUid?: string; status?: string; stoneStage?: string; custody?: string } | undefined;
+      if (gemSnap.exists && gem?.ownerUid === service.ownerUid && (isGemLockedByService(gem.status) || isGemLockedByService(gem.custody))) {
+        transaction.update(gemRef, { ...restoredGemFields(service, gem), updatedAt: now });
       }
     }
 
@@ -150,10 +206,7 @@ export async function requestServiceCancellationForApi(
 
   if (result.notification) {
     await ensureServiceNotification({
-      recipientUid: result.notification.recipientUid,
-      type: result.notification.type,
-      title: result.notification.title,
-      message: result.notification.message,
+      ...result.notification,
       serviceId: id,
     });
   }
@@ -176,7 +229,11 @@ export async function respondServiceCancellationForApi(
 
     const service = serviceSnap.data() as ServiceDoc;
     const decision = decideServiceCancellationResponse(
-      { ...service, providerUid: service.providerUid ?? null },
+      {
+        ...service,
+        providerUid: service.providerUid ?? null,
+        previousStatus: service.cancellationPreviousStatus ?? null,
+      },
       uid,
       action,
     );
@@ -206,6 +263,9 @@ export async function respondServiceCancellationForApi(
           type,
           title,
           message,
+          actorName: service.providerBusinessName ?? service.providerName ?? 'Lapidary',
+          actorPhotoUrl: service.providerBusinessLogoUrl ?? null,
+          imageUrl: service.gemPhotoUrl ?? null,
         },
       };
     }
@@ -214,15 +274,9 @@ export async function respondServiceCancellationForApi(
     transaction.update(ref, { status: decision.status, updatedAt: now });
 
     if (action === 'accepted' && gemSnap) {
-      const gem = gemSnap.data() as { ownerUid?: string; status?: string } | undefined;
-      if (gemSnap.exists && gem?.ownerUid === service.ownerUid && isGemLockedByService(gem.status)) {
-        transaction.update(gemRef, {
-          status: 'ready_for_sale',
-          custody: null,
-          currentLocation: null,
-          currentHolderContactId: null,
-          updatedAt: now,
-        });
+      const gem = gemSnap.data() as { ownerUid?: string; status?: string; stoneStage?: string; custody?: string } | undefined;
+      if (gemSnap.exists && gem?.ownerUid === service.ownerUid && (isGemLockedByService(gem.status) || isGemLockedByService(gem.custody))) {
+        transaction.update(gemRef, { ...restoredGemFields(service, gem), updatedAt: now });
       }
     }
 
@@ -233,16 +287,16 @@ export async function respondServiceCancellationForApi(
         type,
         title,
         message,
+        actorName: service.providerBusinessName ?? service.providerName ?? 'Lapidary',
+        actorPhotoUrl: service.providerBusinessLogoUrl ?? null,
+        imageUrl: service.gemPhotoUrl ?? null,
       },
     };
   });
 
   if (result.notification) {
     await ensureServiceNotification({
-      recipientUid: result.notification.recipientUid,
-      type: result.notification.type,
-      title: result.notification.title,
-      message: result.notification.message,
+      ...result.notification,
       serviceId: id,
     });
   }

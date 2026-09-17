@@ -9,12 +9,13 @@ import {
     Text,
     View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -31,8 +32,6 @@ import {
 import {
     deleteApRecord,
     ensureApReceiverPayoutExpense,
-    fetchGivenApRecords,
-    fetchTakenApRecords,
     requestApCancellation,
     respondApCancellation,
     respondApRequest,
@@ -53,8 +52,6 @@ import {
     subscribeContacts,
     subscribeGems,
     subscribeGemsByIds,
-    subscribeGivenApRecords,
-    subscribeTakenApRecords,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
@@ -67,13 +64,18 @@ import {
     fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import {
+    fetchGivenApPage,
+    fetchTakenApPage,
+} from "@/features/workspace/workspace-pagination";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
-import { confirmDelete } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     ApLifecycleStatus,
@@ -86,6 +88,10 @@ import type {
 type ApSide = "given" | "taken";
 
 type SectionKey = "pending" | "accepted" | "payment_sent" | "done" | "closed";
+
+type ApListRow =
+  | { kind: "section"; key: string; title: string }
+  | { kind: "record"; key: string; record: ApRecord };
 
 const SECTION_ORDER: SectionKey[] = [
   "pending",
@@ -167,7 +173,7 @@ function statusTone(
     bg: colors.primaryContainer,
     fg: colors.onPrimaryContainer,
     accent: colors.primary,
-    icon: "handshake",
+    icon: "ap",
   };
 }
 
@@ -464,19 +470,17 @@ export default function ApListScreen() {
   const [side, setSide] = useState<ApSide>("given");
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const givenQ = useFirestoreLiveQuery({
-    queryKey: ["ap", "given", user?.uid],
-    queryFn: () => fetchGivenApRecords(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeGivenApRecords(user!.uid, onData, onError),
+  const givenQ = useFirestoreInfiniteQuery({
+    queryKey: ["ap", "given", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchGivenApPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
-  const takenQ = useFirestoreLiveQuery({
-    queryKey: ["ap", "taken", user?.uid],
-    queryFn: () => fetchTakenApRecords(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeTakenApRecords(user!.uid, onData, onError),
+  const takenQ = useFirestoreInfiniteQuery({
+    queryKey: ["ap", "taken", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchTakenApPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -496,17 +500,17 @@ export default function ApListScreen() {
   });
 
   const allRecords = useMemo(
-    () => [...(givenQ.data ?? []), ...(takenQ.data ?? [])],
-    [givenQ.data, takenQ.data],
+    () => [...givenQ.items, ...takenQ.items],
+    [givenQ.items, takenQ.items],
   );
 
   useEffect(() => {
-    for (const r of takenQ.data ?? []) {
+    for (const r of takenQ.items) {
       if (r.status === "done") {
         void ensureApReceiverPayoutExpense(r).catch(() => {});
       }
     }
-  }, [takenQ.data]);
+  }, [takenQ.items]);
 
   const missingGemIds = useMemo(() => {
     const known = new Set(ownedGems.map((g) => g.id));
@@ -534,14 +538,14 @@ export default function ApListScreen() {
 
   const counterpartyUids = useMemo(() => {
     const uids = new Set<string>();
-    for (const r of givenQ.data ?? []) {
+    for (const r of givenQ.items) {
       if (r.receiverUid) uids.add(r.receiverUid);
     }
-    for (const r of takenQ.data ?? []) {
+    for (const r of takenQ.items) {
       if (r.senderUid) uids.add(r.senderUid);
     }
     return [...uids].sort();
-  }, [givenQ.data, takenQ.data]);
+  }, [givenQ.items, takenQ.items]);
 
   const { data: logosByOwner = {} } = useFirestoreLiveQuery({
     queryKey: ["ap", "party-logos", user?.uid, counterpartyUids.join(",")],
@@ -605,28 +609,44 @@ export default function ApListScreen() {
   );
 
   const records = useMemo(
-    () => (side === "given" ? (givenQ.data ?? []) : (takenQ.data ?? [])),
-    [side, givenQ.data, takenQ.data],
+    () => (side === "given" ? givenQ.items : takenQ.items),
+    [side, givenQ.items, takenQ.items],
   );
   const isRefetching = givenQ.isRefetching || takenQ.isRefetching;
   const summary = useMemo(() => getApSummary(records), [records]);
   const takenPending = useMemo(
-    () => (takenQ.data ?? []).filter((r) => r.status === "pending").length,
-    [takenQ.data],
+    () => takenQ.items.filter((r) => r.status === "pending").length,
+    [takenQ.items],
   );
 
   const sections = useMemo(() => {
     const map = new Map<SectionKey, ApRecord[]>();
     for (const key of SECTION_ORDER) map.set(key, []);
     for (const r of records) {
-      map.get(sectionFor(r.status))!.push(r);
+      const section = map.get(sectionFor(r.status));
+      if (section) section.push(r);
     }
     return SECTION_ORDER.map((key) => ({
       key,
       title: SECTION_TITLE[key],
-      data: map.get(key)!,
+      data: map.get(key) ?? [],
     })).filter((s) => s.data.length > 0);
   }, [records]);
+
+  const listRows = useMemo<ApListRow[]>(
+    () =>
+      sections.flatMap((section) => [
+        { kind: "section" as const, key: `section:${section.key}`, title: section.title },
+        ...section.data.map((record) => ({
+          kind: "record" as const,
+          key: record.id,
+          record,
+        })),
+      ]),
+    [sections],
+  );
+
+  const activeQuery = side === "given" ? givenQ : takenQ;
 
   async function refetch() {
     await Promise.all([givenQ.refetch(), takenQ.refetch()]);
@@ -705,64 +725,52 @@ export default function ApListScreen() {
         takenPendingCount={takenPending}
       />
 
-      <ScrollView
+      <FlashList<ApListRow>
+        data={listRows}
+        keyExtractor={(item) => item.key}
+        getItemType={(item) => item.kind}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-      >
-        <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                {side === "given" ? "OUT" : "HOLDING"}
-              </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {summary.totalOut}
-                {summary.pendingRequests > 0
-                  ? ` · ${summary.pendingRequests} pending`
-                  : ""}
-              </Text>
+        onEndReached={() => {
+          if (activeQuery.hasNextPage && !activeQuery.isFetchingNextPage) {
+            void activeQuery.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCol}>
+                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>
+                  {side === "given" ? "OUT" : "HOLDING"}
+                </Text>
+                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                  {summary.totalOut}
+                  {summary.pendingRequests > 0 ? ` · ${summary.pendingRequests} pending` : ""}
+                </Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: colors.onPrimary + "22" }]} />
+              <View style={styles.summaryCol}>
+                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>AGREED</Text>
+                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                  {formatBase(summary.totalValue)}
+                </Text>
+              </View>
             </View>
-            <View
-              style={[
-                styles.summaryDivider,
-                { backgroundColor: colors.onPrimary + "22" },
-              ]}
-            />
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                AGREED
+            {summary.overdueCount > 0 ? (
+              <Text style={[styles.summaryHint, { color: colors.onPrimary + "CC" }]}>
+                {summary.overdueCount} overdue
               </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {formatBase(summary.totalValue)}
-              </Text>
-            </View>
+            ) : null}
           </View>
-          {summary.overdueCount > 0 ? (
-            <Text
-              style={[styles.summaryHint, { color: colors.onPrimary + "CC" }]}
-            >
-              {summary.overdueCount} overdue
-            </Text>
-          ) : null}
-        </View>
-
-        {records.length === 0 ? (
+        }
+        ListEmptyComponent={
           <EmptyState
-            icon="handshake"
+            icon={side === "given" ? "call-made" : "call-received"}
             title={side === "given" ? "No AP given" : "No AP taken"}
             subtitle={
               side === "given"
@@ -779,63 +787,66 @@ export default function ApListScreen() {
               ) : undefined
             }
           />
-        ) : (
-          sections.map((section) => (
-            <View key={section.key} style={styles.section}>
+        }
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={activeQuery.hasNextPage}
+            isFetchingNextPage={activeQuery.isFetchingNextPage}
+            isFetchNextPageError={activeQuery.isFetchNextPageError}
+            onRetry={() => void activeQuery.fetchNextPage()}
+          />
+        }
+        renderItem={({ item }) => {
+          if (item.kind === "section") {
+            return (
               <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {section.title}
+                {item.title}
               </Text>
-              <View style={styles.list}>
-                {section.data.map((r) => {
-                  const firstGemId = r.items?.[0]?.gemId;
-                  return (
-                    <ApRow
-                      key={r.id}
-                      record={r}
-                      side={side}
-                      colors={colors}
-                      gemPhotoUrl={
-                        firstGemId
-                          ? (gemPhotoById.get(firstGemId) ?? null)
-                          : null
-                      }
-                      partyPhotoUrl={resolvePartyPhoto(
-                        r,
-                        side,
-                        contactById,
-                        logoByOwnerUid,
-                        businesses,
-                      )}
-                      responding={respondingId === r.id}
-                      onRespond={
-                        side === "taken"
-                          ? (action) => onRespond(r.id, action)
-                          : undefined
-                      }
-                      uid={user?.uid}
-                      onDelete={onDelete}
-                      onRequestCancellation={onRequestCancellation}
-                      onRespondCancellation={onRespondCancellation}
-                    />
-                  );
-                })}
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+            );
+          }
+          const record = item.record;
+          const firstGemId = record.items?.[0]?.gemId;
+          return (
+            <ApRow
+              record={record}
+              side={side}
+              colors={colors}
+              gemPhotoUrl={
+                firstGemId ? (gemPhotoById.get(firstGemId) ?? null) : null
+              }
+              partyPhotoUrl={resolvePartyPhoto(
+                record,
+                side,
+                contactById,
+                logoByOwnerUid,
+                businesses,
+              )}
+              responding={respondingId === record.id}
+              onRespond={
+                side === "taken"
+                  ? (action) => onRespond(record.id, action)
+                  : undefined
+              }
+              uid={user?.uid}
+              onDelete={onDelete}
+              onRequestCancellation={onRequestCancellation}
+              onRespondCancellation={onRespondCancellation}
+            />
+          );
+        }}
+      />
 
       {side === "given" ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Give on AP"
-          style={({ pressed }) => [
-            styles.fab,
-            { backgroundColor: colors.primary },
-            pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-          ]}
-          onPress={() => router.push("/(marketplace)/ap/add" as never)}
-        >
+        style={({ pressed }) => [
+          styles.fab,
+          { backgroundColor: colors.primary },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+        ]}
+        onPress={() => router.push("/(marketplace)/ap/add" as never)}
+      >
           <Icon name="add" size={28} color={colors.onPrimary} />
         </Pressable>
       ) : null}

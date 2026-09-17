@@ -15,6 +15,9 @@ jest.mock('@/lib/firebase/config', () => ({
   getFirebaseAuth: jest.fn(() => ({ currentUser: null })),
   getFirebaseDb: jest.fn(() => ({})),
 }));
+jest.mock('@/lib/firebase/app-check', () => ({
+  getFirebaseAppCheckToken: jest.fn(() => Promise.resolve(null)),
+}));
 jest.mock('@/lib/firebase/db', () => ({
   doc: jest.fn(),
   getDoc: jest.fn(),

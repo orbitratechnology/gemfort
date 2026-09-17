@@ -12,6 +12,7 @@ import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import {
   TRIP_STATUS_LABELS,
   TRIP_TYPES,
@@ -109,7 +110,12 @@ export function TripPickerSheet({
       </View>
 
       {filtered.length === 0 ? (
-        <EmptyState icon="flight" title="No trips" subtitle={emptyHint} />
+        <EmptyState
+          icon="trip"
+          image={WORKSPACE_ENTITY_IMAGES.trip}
+          title="No trips"
+          subtitle={emptyHint}
+        />
       ) : (
         <FlashList
           data={filtered}
@@ -147,7 +153,7 @@ export function TripPickerSheet({
                   ]}
                 >
                   <Icon
-                    name="flight-takeoff"
+                    name="trip"
                     size={18}
                     color={colors.onSecondaryContainer}
                   />
@@ -225,7 +231,16 @@ export function TripSelectField({
         ]}
       >
         {trip ? (
-          <View style={{ flex: 1, gap: 2 }}>
+          <>
+            <View
+              style={[
+                styles.fieldIcon,
+                { backgroundColor: colors.primaryContainer },
+              ]}
+            >
+              <Icon name="trip" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
             <Text
               style={[styles.fieldTitle, { color: colors.onSurface }]}
               numberOfLines={1}
@@ -238,7 +253,8 @@ export function TripSelectField({
             >
               {tripSubtitle(trip)}
             </Text>
-          </View>
+            </View>
+          </>
         ) : (
           <Text style={[styles.placeholder, { color: colors.textMuted }]}>
             {placeholder}
@@ -315,6 +331,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     borderCurve: "continuous",
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  fieldIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   fieldTitle: { ...Typography.bodyMd, fontWeight: "600" },
   fieldSub: { ...Typography.caption },

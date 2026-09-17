@@ -7,6 +7,9 @@ import { fallbackIconForType } from "@/features/workspace/notification-presentat
 import { gemPrimaryPhotoUrl, resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import { fetchApRecordById } from "@/features/workspace/ap-lifecycle-service";
 import {
+  fetchServiceRequestById,
+} from "@/features/marketplace/request-service";
+import {
   fetchBill,
   fetchCheque,
   fetchGem,
@@ -31,10 +34,43 @@ export type NotificationVisual = {
   mediaShape: "circle" | "rounded";
   label: string;
   actorName: string | null;
+  directionLabel: string | null;
   fallbackIcon: IconName;
 };
 
 export { fallbackIconForType };
+
+function notificationDirectionLabel(
+  direction: AppNotification["direction"],
+): string | null {
+  switch (direction) {
+    case "given":
+      return "Given";
+    case "taken":
+      return "Taken";
+    case "to_pay":
+      return "To pay";
+    case "to_receive":
+      return "To receive";
+    default:
+      return null;
+  }
+}
+
+function chequeDirectionLabel(direction: string | null | undefined): string | null {
+  if (direction === "given") return "Given";
+  if (direction === "received") return "Taken";
+  return null;
+}
+
+function apDirectionLabel(
+  ap: { senderUid?: string | null; receiverUid?: string | null },
+  viewerUid: string,
+): string | null {
+  if (ap.senderUid === viewerUid) return "Given";
+  if (ap.receiverUid === viewerUid) return "Taken";
+  return null;
+}
 
 function uniqueIds(
   notifications: AppNotification[],
@@ -96,6 +132,7 @@ export function notificationVisualFromNotification(
     mediaShape: "rounded",
     label: n.actorName?.slice(0, 2).toUpperCase() || n.title.slice(0, 2).toUpperCase(),
     actorName: n.actorName ?? null,
+    directionLabel: notificationDirectionLabel(n.direction),
     fallbackIcon: fallbackIconForType(n.type),
   };
 }
@@ -127,10 +164,14 @@ export async function resolveNotificationVisuals(
     ),
   ];
 
-  const [aps, services, cheques, bills, announcements, listings] =
+  const [aps, services, serviceRequests, cheques, bills, announcements, listings] =
     await Promise.all([
       mapFetch(uniqueIds(notifications, "ap"), fetchApRecordById),
       mapFetch(uniqueIds(notifications, "service"), fetchService),
+      mapFetch(
+        uniqueIds(notifications, "service_request"),
+        fetchServiceRequestById,
+      ),
       mapFetch(uniqueIds(notifications, "cheque"), fetchCheque),
       mapFetch(uniqueIds(notifications, "bill"), fetchBill),
       mapFetch(uniqueIds(notifications, "announcement"), fetchAnnouncement),
@@ -154,6 +195,13 @@ export async function resolveNotificationVisuals(
   for (const s of services.values()) {
     if (s.gemId) gemIds.add(s.gemId);
     if (s.providerBusinessId) businessIds.add(s.providerBusinessId);
+  }
+  for (const request of serviceRequests.values()) {
+    if (request.gemId) gemIds.add(request.gemId);
+    if (request.traderBusinessId) businessIds.add(request.traderBusinessId);
+    if (request.lapidaryBusinessId) businessIds.add(request.lapidaryBusinessId);
+    if (request.traderUid) ownerUids.add(request.traderUid);
+    if (request.lapidaryUid) ownerUids.add(request.lapidaryUid);
   }
   for (const c of cheques.values()) {
     if (c.counterpartyContactId) contactIds.add(c.counterpartyContactId);
@@ -204,6 +252,8 @@ export async function resolveNotificationVisuals(
     if (n.referenceType === "ap") {
       const ap = aps.get(refId);
       if (!ap) continue;
+      visual.directionLabel =
+        visual.directionLabel || apDirectionLabel(ap, viewerUid);
       const firstGemId = ap.items?.[0]?.gemId;
       const gemPhoto = firstGemId
         ? gemPrimaryPhotoUrl(gems.get(firstGemId))
@@ -239,11 +289,20 @@ export async function resolveNotificationVisuals(
       const service = services.get(refId);
       if (!service) continue;
       const gemPhoto = gemPrimaryPhotoUrl(gems.get(service.gemId));
-      const biz = service.providerBusinessId
-        ? businessesById.get(service.providerBusinessId)
-        : null;
-      visual.actorName =
-        visual.actorName || biz?.businessName || service.providerName || null;
+      const viewerIsProvider = service.providerUid === viewerUid;
+      const actorBusinessId = viewerIsProvider
+        ? service.traderBusinessId
+        : service.providerBusinessId;
+      const actorUid = viewerIsProvider ? service.traderUid : service.providerUid;
+      const biz = actorBusinessId
+        ? businessesById.get(actorBusinessId)
+        : actorUid
+          ? businessesByOwner.get(actorUid)
+          : null;
+      const actorName = viewerIsProvider
+        ? service.traderBusinessName
+        : service.providerBusinessName || service.providerName;
+      visual.actorName = visual.actorName || biz?.businessName || actorName || null;
       visual.label =
         visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
       if (!visual.imageUrl && biz?.logoUrl) {
@@ -257,9 +316,47 @@ export async function resolveNotificationVisuals(
       continue;
     }
 
+    if (n.referenceType === "service_request") {
+      const request = serviceRequests.get(refId);
+      if (!request) continue;
+
+      const viewerIsLapidary = request.lapidaryUid === viewerUid;
+      const actorBusinessId = viewerIsLapidary
+        ? request.traderBusinessId
+        : request.lapidaryBusinessId;
+      const actorUid = viewerIsLapidary
+        ? request.traderUid
+        : request.lapidaryUid;
+      const business =
+        (actorBusinessId ? businessesById.get(actorBusinessId) : null) ??
+        businessesByOwner.get(actorUid);
+
+      visual.actorName =
+        visual.actorName ||
+        business?.businessName ||
+        (viewerIsLapidary ? "Trader" : "Lapidary");
+      visual.label =
+        visual.actorName?.slice(0, 2).toUpperCase() || visual.label;
+
+      if (!visual.imageUrl && business?.logoUrl) {
+        visual.imageUrl = business.logoUrl;
+        visual.shape = "circle";
+      }
+      if (!visual.mediaUrl) {
+        const gemPhoto = gemPrimaryPhotoUrl(gems.get(request.gemId));
+        if (gemPhoto) {
+          visual.mediaUrl = gemPhoto;
+          visual.mediaShape = "rounded";
+        }
+      }
+      continue;
+    }
+
     if (n.referenceType === "cheque") {
       const cheque = cheques.get(refId);
       if (!cheque) continue;
+      visual.directionLabel =
+        visual.directionLabel || chequeDirectionLabel(cheque.direction);
       const contact = cheque.counterpartyContactId
         ? contacts.get(cheque.counterpartyContactId)
         : null;
@@ -284,6 +381,13 @@ export async function resolveNotificationVisuals(
     if (n.referenceType === "bill") {
       const bill = bills.get(refId);
       if (!bill) continue;
+      visual.directionLabel =
+        visual.directionLabel ||
+        (bill.direction === "payable"
+          ? "To pay"
+          : bill.direction === "receivable"
+            ? "To receive"
+            : null);
       const contact = bill.counterpartyContactId
         ? contacts.get(bill.counterpartyContactId)
         : null;

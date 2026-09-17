@@ -1,4 +1,9 @@
 import type { AuthUser } from '@/lib/firebase/auth-types';
+import {
+  ApiClientError,
+  callApi,
+  type ApiClientDependencies,
+} from '../api-client';
 
 jest.mock('@/lib/firebase/auth', () => ({
   getIdToken: jest.fn(),
@@ -11,12 +16,6 @@ jest.mock('@/lib/firebase/config', () => ({
 jest.mock('@/lib/firebase/app-check', () => ({
   getFirebaseAppCheckToken: jest.fn(async () => 'app-check-token'),
 }));
-
-import {
-  ApiClientError,
-  callApi,
-  type ApiClientDependencies,
-} from '../api-client';
 
 const user = {} as AuthUser;
 

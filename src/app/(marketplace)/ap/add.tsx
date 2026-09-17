@@ -1,7 +1,12 @@
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { Button } from "@/components/ui/button";
@@ -37,7 +42,6 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
-import { formatCurrency } from "@/lib/utils";
 import {
   addApSchema,
   amountFieldError,
@@ -45,7 +49,7 @@ import {
 } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -69,6 +73,7 @@ function defaultPrice(
 export default function AddApScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const { gemId: preselected } = useLocalSearchParams<{ gemId?: string }>();
@@ -200,15 +205,22 @@ export default function AddApScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Give on AP" closeIcon />
-      <ThemedScrollView contentContainerStyle={styles.content}>
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title="Give on AP"
+        closeIcon
+        image={require("@/assets/images/ap-icon.png")}
+      />
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <FormSection title="Gems">
           {lines.map((line) => {
             const gem = gems.find((g) => g.id === line.gemId);
+            const gemName =
+              gem?.title?.trim() || gem?.variety?.trim() || "Gem";
             return (
               <View
                 key={line.gemId}
@@ -223,7 +235,7 @@ export default function AddApScreen() {
                 <View style={styles.lineHeader}>
                   <GemThumb
                     uri={gemPrimaryPhotoUrl(gem)}
-                    label={gem ? gem.variety?.trim() || formatGemType(gem.gemType) : "Gem"}
+                    label={gemName}
                     size={52}
                     radius={12}
                   />
@@ -232,21 +244,14 @@ export default function AddApScreen() {
                       style={[styles.lineTitle, { color: colors.onSurface }]}
                       numberOfLines={1}
                     >
-                      {gem
-                        ? gem.variety?.trim() ||
-                          formatGemType(gem.gemType) ||
-                          gem.sku
-                        : line.gemId.slice(0, 8)}
+                      {gemName}
                     </Text>
                     <Text
                       style={[styles.lineSub, { color: colors.textMuted }]}
                     >
                       {gem
-                        ? `${gem.sku} · ${gem.currentWeight} ct`
-                        : "Gem"}
-                      {gem?.acquisitionCost
-                        ? ` · cost ${formatCurrency(gem.acquisitionCost)}`
-                        : ""}
+                        ? `${formatGemType(gem.gemType)} · ${gem.currentWeight} ct`
+                        : "Gem type"}
                     </Text>
                   </View>
                   <Pressable
@@ -325,7 +330,7 @@ export default function AddApScreen() {
         <ScreenInset>
           <Button
             title="Send AP request"
-            icon="handshake"
+            icon="ap"
             onPress={handleSubmit}
           />
         </ScreenInset>
@@ -340,12 +345,13 @@ export default function AddApScreen() {
         emptyHint="No available gems. Add a gem or free one from another AP first."
         onSelect={addGem}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   lineCard: {
     borderRadius: Radius.lg,

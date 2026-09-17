@@ -4,8 +4,8 @@ import { FontFamily } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { needsPhoneVerification } from "@/lib/firebase/auth-service";
 import {
-  formSheetFitContentOptions,
-  silkStackScreenOptions,
+    formSheetFitContentOptions,
+    silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -69,6 +69,13 @@ export default function MarketplaceLayout() {
         }}
       />
       <Stack.Screen
+        name="money/record-sale"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
         name="gems/edit"
         options={{
           ...formSheetFitContentOptions,
@@ -96,11 +103,28 @@ export default function MarketplaceLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       />
+      <Stack.Screen
+        name="money/payables/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
+        name="money/receivables/add"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
       {ACTION_SCREENS.map((name) => (
         <Stack.Screen
           key={name}
           name={name}
-          options={{ presentation: "formSheet" }}
+          options={{
+            ...formSheetFitContentOptions,
+            contentStyle: { backgroundColor: colors.background },
+          }}
         />
       ))}
     </Stack>

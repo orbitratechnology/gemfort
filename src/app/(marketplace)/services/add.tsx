@@ -1,7 +1,12 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
@@ -18,7 +23,13 @@ import {
     GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusiness } from "@/features/marketplace/marketplace-service";
+import {
+    fetchBusiness,
+    fetchBusinessByOwnerUid,
+} from "@/features/marketplace/marketplace-service";
+import {
+    createServiceRequest,
+} from "@/features/marketplace/request-service";
 import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import {
     subscribeContacts,
@@ -29,6 +40,7 @@ import {
     fetchContacts,
     fetchGems,
 } from "@/features/workspace/workspace-service";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
@@ -36,21 +48,25 @@ import { Timestamp } from "@/lib/firebase/db";
 import { addServiceSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const SERVICE_TYPES = [
   { id: "cutting", label: "Cutting" },
-  { id: "heating", label: "Heating" },
-  { id: "polishing", label: "Polishing" },
   { id: "recutting", label: "Recutting" },
+  { id: "heating", label: "Heating" },
+  { id: "reheating", label: "Reheating" },
+  { id: "polishing", label: "Polishing" },
+  { id: "repolishing", label: "Repolishing" },
   { id: "appraisal", label: "Appraisal" },
 ];
 
 export default function AddServiceScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const toast = useToast();
+  const router = useRouter();
   const { gemId: preselectedGemId, serviceType: serviceTypeParam } = useLocalSearchParams<{
     gemId?: string;
     serviceType?: string;
@@ -59,7 +75,7 @@ export default function AddServiceScreen() {
   const [gemId, setGemId] = useState(preselectedGemId ?? "");
   const [provider, setProvider] = useState<ProviderSelection | null>(null);
   const [serviceType, setServiceType] = useState(
-    serviceTypeParam === "heating" || serviceTypeParam === "polishing" || serviceTypeParam === "cutting"
+    SERVICE_TYPES.some((type) => type.id === serviceTypeParam)
       ? serviceTypeParam
       : "cutting",
   );
@@ -84,6 +100,11 @@ export default function AddServiceScreen() {
     enabled: !!user,
   });
 
+  const selectedProviderContact =
+    provider?.source === "contact"
+      ? contacts.find((contact) => contact.id === provider.contactId) ?? null
+      : null;
+
   const selectedGem = useMemo(
     () => gems.find((g) => g.id === gemId) ?? null,
     [gems, gemId],
@@ -93,12 +114,14 @@ export default function AddServiceScreen() {
     () => gems.filter((gem) => {
       const available = gemActionAvailability(gem);
       if (serviceType === "cutting" || serviceType === "recutting") {
-        return serviceType === "cutting"
-          ? available.send_for_cutting
-          : available.give_on_ap;
+        return available.send_for_cutting;
       }
-      if (serviceType === "heating") return available.send_for_heating;
-      if (serviceType === "polishing") return available.send_for_polishing;
+      if (serviceType === "heating" || serviceType === "reheating") {
+        return available.send_for_heating;
+      }
+      if (serviceType === "polishing" || serviceType === "repolishing") {
+        return available.send_for_polishing;
+      }
       return available.give_on_ap;
     }),
     [gems, serviceType],
@@ -131,10 +154,42 @@ export default function AddServiceScreen() {
 
     try {
       await withLoading(async () => {
-        let providerUid: string | null = null;
         if (provider.source === "business") {
-          const biz = await fetchBusiness(provider.businessId);
-          providerUid = biz?.ownerUid ?? null;
+          const [biz, senderBusiness] = await Promise.all([
+            fetchBusiness(provider.businessId),
+            fetchBusinessByOwnerUid(user.uid),
+          ]);
+          if (!biz) {
+            throw new Error("This lapidary profile is unavailable.");
+          }
+
+          const gem = selectedGem;
+          if (!gem) {
+            throw new Error("The selected gem is unavailable.");
+          }
+          const gemName =
+            gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
+          const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
+
+          await createServiceRequest({
+            traderUid: user.uid,
+            traderBusinessId: senderBusiness?.id ?? null,
+            traderBusinessName: senderBusiness?.businessName ?? null,
+            traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
+            lapidaryBusinessId: provider.businessId,
+            providerName: biz.businessName,
+            providerBusinessName: biz.businessName,
+            providerBusinessLogoUrl: biz.logoUrl,
+            gemId: result.data.gemId,
+            gemName,
+            gemPhotoUrl,
+            serviceTypes: [result.data.serviceType],
+            expectedReturnDays: result.data.daysUntilReturn,
+            weightBefore: result.data.weightBefore,
+          });
+          toast.success("Service request sent");
+          router.back();
+          return;
         }
         const expectedReturn = Timestamp.fromDate(
           new Date(Date.now() + result.data.daysUntilReturn * 86400000),
@@ -146,7 +201,7 @@ export default function AddServiceScreen() {
             provider.source === "contact" ? provider.contactId : "",
           providerBusinessId:
             provider.source === "business" ? provider.businessId : null,
-          providerUid,
+          providerUid: null,
           providerName: provider.label,
           dateGiven: Timestamp.now(),
           expectedReturnDate: expectedReturn,
@@ -166,14 +221,17 @@ export default function AddServiceScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Add Service" closeIcon />
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title="Add Service"
+        closeIcon
+        image={require("@/assets/images/lapidary-icon.png")}
+      />
       <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        contentInsetAdjustmentBehavior="automatic"
       >
         <ScreenInset>
           <GemSelectField
@@ -264,6 +322,16 @@ export default function AddServiceScreen() {
           <PickerSelectField
             label="Provider"
             valueLabel={provider?.label ?? null}
+            avatarName={
+              provider?.source === "business"
+                ? provider.label
+                : selectedProviderContact?.displayName
+            }
+            avatarPhotoUrl={
+              provider?.source === "business"
+                ? provider.logoUrl
+                : selectedProviderContact?.photoUrl
+            }
             subtitle={
               provider?.source === "business"
                 ? provider.businessType.replace(/_/g, " ")
@@ -272,12 +340,16 @@ export default function AddServiceScreen() {
                   : null
             }
             placeholder="Search lapidaries or contacts…"
-            icon="handyman"
+            icon="service"
             onPress={() => setProviderSheetOpen(true)}
             error={errors.provider}
           />
 
-          <Button title="Add Service" icon="handyman" onPress={handleSubmit} />
+          <Button
+            title={provider?.source === "business" ? "Send Request" : "Add Service"}
+            icon="service"
+            onPress={handleSubmit}
+          />
         </ScreenInset>
       </ThemedScrollView>
 
@@ -313,12 +385,13 @@ export default function AddServiceScreen() {
           });
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { gap: Spacing.lg, paddingBottom: Spacing.section },
   chips: {
     flexDirection: "row",

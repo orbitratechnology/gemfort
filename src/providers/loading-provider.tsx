@@ -10,36 +10,14 @@ import {
 } from "react";
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-
-export type WithLoadingOptions = {
-  /** Status copy shown on the blocking overlay. */
-  message?: string;
-  /**
-   * When false, only flips the global busy flag (disables buttons)
-   * without showing the full-screen overlay. Use inside ConfirmDialog
-   * flows that already have their own spinner.
-   */
-  overlay?: boolean;
-};
-
-type LoadingApi = {
-  /** True while any tracked mutation is in flight. */
-  isBusy: boolean;
-  /** Current overlay message (empty when idle). */
-  message: string;
-  show: (message?: string) => void;
-  hide: () => void;
-  setMessage: (message: string) => void;
-  withLoading: <T>(
-    task: () => Promise<T>,
-    messageOrOptions?: string | WithLoadingOptions,
-  ) => Promise<T>;
-};
+import { safeUserMessage } from "@/lib/errors";
+import {
+  setLoadingBridge,
+  type LoadingApi,
+  type WithLoadingOptions,
+} from "@/providers/loading-bridge";
 
 const LoadingContext = createContext<LoadingApi | null>(null);
-
-/** Module bridge so services / non-hook call sites work after mount. */
-let bridge: LoadingApi | null = null;
 
 const DEFAULT_MESSAGE = "Please wait…";
 
@@ -47,10 +25,10 @@ function resolveOptions(
   messageOrOptions?: string | WithLoadingOptions,
 ): Required<WithLoadingOptions> {
   if (typeof messageOrOptions === "string") {
-    return { message: messageOrOptions, overlay: true };
+    return { message: safeUserMessage(messageOrOptions, DEFAULT_MESSAGE), overlay: true };
   }
   return {
-    message: messageOrOptions?.message ?? DEFAULT_MESSAGE,
+    message: safeUserMessage(messageOrOptions?.message ?? DEFAULT_MESSAGE, DEFAULT_MESSAGE),
     overlay: messageOrOptions?.overlay ?? true,
   };
 }
@@ -67,7 +45,7 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
     overlayDepthRef.current += 1;
     setDepth(depthRef.current);
     setOverlayDepth(overlayDepthRef.current);
-    if (nextMessage) setMessageState(nextMessage);
+    if (nextMessage) setMessageState(safeUserMessage(nextMessage, DEFAULT_MESSAGE));
     else if (depthRef.current === 1) setMessageState(DEFAULT_MESSAGE);
   }, []);
 
@@ -80,7 +58,7 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMessage = useCallback((next: string) => {
-    setMessageState(next || DEFAULT_MESSAGE);
+    setMessageState(safeUserMessage(next, DEFAULT_MESSAGE));
   }, []);
 
   const withLoading = useCallback(
@@ -124,9 +102,9 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    bridge = api;
+    setLoadingBridge(api);
     return () => {
-      if (bridge === api) bridge = null;
+      setLoadingBridge(null);
     };
   }, [api]);
 
@@ -153,36 +131,4 @@ export function useLoading(): LoadingApi {
 export function useIsBusy(): boolean {
   const ctx = useContext(LoadingContext);
   return ctx?.isBusy ?? false;
-}
-
-/**
- * Imperative helper — works from any module once LoadingProvider is mounted.
- * Prefer this (or `useLoading().withLoading`) around Firebase writes / uploads.
- */
-export async function withLoading<T>(
-  task: () => Promise<T>,
-  messageOrOptions?: string | WithLoadingOptions,
-): Promise<T> {
-  if (!bridge) {
-    return task();
-  }
-  return bridge.withLoading(task, messageOrOptions);
-}
-
-export function showLoading(message?: string): void {
-  if (!bridge) {
-    return;
-  }
-  bridge.show(message);
-}
-
-export function hideLoading(): void {
-  if (!bridge) return;
-  bridge.hide();
-}
-
-/** Update overlay copy while a nested upload / write is running. */
-export function setLoadingMessage(message: string): void {
-  if (!bridge) return;
-  bridge.setMessage(message);
 }

@@ -31,13 +31,12 @@ const testCases = [
     request: {
       auth: null,
       method: 'get',
-      path: '/databases/(default)/documents/businesses/qa-trader-biz',
+      path: '/databases/(default)/documents/public_businesses/qa-trader-biz',
     },
     resource: {
       data: {
         verificationStatus: 'verified',
         isActive: true,
-        ownerUid: traderUid,
       },
     },
   },
@@ -46,11 +45,11 @@ const testCases = [
     request: {
       auth: null,
       method: 'get',
-      path: '/databases/(default)/documents/businesses/pending-biz',
+      path: '/databases/(default)/documents/businesses/qa-trader-biz',
     },
     resource: {
       data: {
-        verificationStatus: 'none',
+        verificationStatus: 'verified',
         isActive: true,
         ownerUid: traderUid,
       },

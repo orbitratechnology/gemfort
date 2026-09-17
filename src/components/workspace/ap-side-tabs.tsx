@@ -6,7 +6,7 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
 
-type ApSide = "given" | "taken";
+export type ApSide = "given" | "taken";
 
 type ApSideTabsProps = {
   side: ApSide;
@@ -23,7 +23,7 @@ const TABS: {
   { id: "taken", label: "Taken", icon: "call-received" },
 ];
 
-/** Given ↔ Taken switcher — matches ContactsHubTabs / Money segment. */
+/** Given ↔ Taken switcher — matches the Money segment. */
 export function ApSideTabs({
   side,
   onChange,

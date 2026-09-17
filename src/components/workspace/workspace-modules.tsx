@@ -40,7 +40,6 @@ type WorkspaceModulesProps = {
 };
 
 type TilePalette = {
-  wash: string;
   badgeBg: string;
   badgeFg: string;
 };
@@ -49,61 +48,12 @@ function formatModuleCount(value: number): string {
   return value > 99 ? "99+" : String(value);
 }
 
-/** Soft pastel-adjacent washes using theme surfaces (layout inspired by reference cards). */
-function tilePalette(
-  index: number,
-  colors: ThemeColors,
-  isDark: boolean,
-): TilePalette {
-  if (isDark) {
-    const whiteWashes = [
-      `
-        linear-gradient(125deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 42%, rgba(255,255,255,0.10) 100%),
-        radial-gradient(ellipse 75% 95% at 100% 45%, rgba(255,255,255,0.16) 0%, transparent 58%)
-      `,
-    ];
-    return {
-      wash: whiteWashes[index % whiteWashes.length]!,
-      badgeBg: "rgba(255,255,255,0.12)",
-      badgeFg: colors.onSurfaceVariant,
-    };
-  }
-
-  const palettes: TilePalette[] = [
-    {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainerHigh} 0%, ${colors.surfaceContainerLowest} 48%, ${colors.primaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.primary}12 0%, transparent 62%)
-      `,
-      badgeBg: colors.surfaceContainerLowest + "E6",
-      badgeFg: colors.onSurfaceVariant,
-    },
-    {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainer} 0%, ${colors.surfaceContainerLowest} 52%, ${colors.secondaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.secondary}14 0%, transparent 62%)
-      `,
-      badgeBg: colors.surfaceContainerLowest + "E6",
-      badgeFg: colors.onSurfaceVariant,
-    },
-    {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceContainerLow} 0%, ${colors.surfaceContainerLowest} 50%, ${colors.tertiaryContainer} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.tertiary}12 0%, transparent 62%)
-      `,
-      badgeBg: colors.surfaceContainerLowest + "E6",
-      badgeFg: colors.onSurfaceVariant,
-    },
-    {
-      wash: `
-        linear-gradient(125deg, ${colors.surfaceVariant}55 0%, ${colors.surfaceContainerLowest} 55%, ${colors.surfaceContainerHigh} 100%),
-        radial-gradient(ellipse 70% 90% at 100% 50%, ${colors.outline}18 0%, transparent 62%)
-      `,
-      badgeBg: colors.surfaceContainerLowest + "E6",
-      badgeFg: colors.onSurfaceVariant,
-    },
-  ];
-  return palettes[index % palettes.length]!;
+/** Shared badge colors using the app's semantic surface family. */
+function tilePalette(colors: ThemeColors, isDark: boolean): TilePalette {
+  return {
+    badgeBg: (isDark ? colors.surfaceContainerHigh : colors.surfaceContainerLowest) + "E6",
+    badgeFg: colors.onSurfaceVariant,
+  };
 }
 
 function ModuleTile({
@@ -118,7 +68,7 @@ function ModuleTile({
   isDark: boolean;
 }) {
   const countLabel = formatModuleCount(item.value);
-  const palette = tilePalette(index, colors, isDark);
+  const palette = tilePalette(colors, isDark);
   const featured = item.featured === true;
 
   return (
@@ -137,7 +87,6 @@ function ModuleTile({
           styles.tile,
           featured && styles.tileFeatured,
           {
-            experimental_backgroundImage: palette.wash,
             backgroundColor: isDark
               ? colors.surfaceContainer
               : colors.surfaceContainerLowest,
@@ -155,8 +104,8 @@ function ModuleTile({
         ]}
       >
         <View style={styles.copyCol}>
-          <View style={[styles.badge]}>
-            <Text style={[styles.badgeText, { color: colors.textMuted }]}>
+          <View style={[styles.badge, { backgroundColor: palette.badgeBg }]}>
+            <Text style={[styles.badgeText, { color: palette.badgeFg }]}>
               {countLabel}
             </Text>
           </View>

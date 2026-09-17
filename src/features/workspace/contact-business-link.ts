@@ -50,6 +50,15 @@ export function filterBusinessesByKinds(
   });
 }
 
+/** Remove the signed-in owner's own business from public/selection lists. */
+export function filterBusinessesForViewer(
+  businesses: Business[],
+  viewerBusinessId: string | null | undefined,
+): Business[] {
+  if (!viewerBusinessId) return businesses;
+  return businesses.filter((business) => business.id !== viewerBusinessId);
+}
+
 /** Build phone → business map (first wins). Only businesses with a public phone. */
 export function buildBusinessPhoneIndex(
   businesses: Business[],
@@ -78,9 +87,10 @@ export function matchBusinessForContact(
   if (contactKeys.length === 0) return null;
 
   const matches = new Map<string, Business>();
+  const contactKeySet = new Set(contactKeys);
   for (const business of businesses) {
     const bizKeys = businessPhoneKeys(business);
-    if (bizKeys.some((k) => contactKeys.includes(k))) {
+    if (bizKeys.some((k) => contactKeySet.has(k))) {
       matches.set(business.id, business);
     }
   }

@@ -7,8 +7,9 @@ import { apiApp, createApiApp } from './app';
 
 const authenticatedApi = createApiApp({
   appCheckMode: 'enforce',
-  verifyIdToken: async (token) => {
+  verifyIdToken: async (token, checkRevoked) => {
     assert.equal(token, 'id-token');
+    assert.equal(checkRevoked, true);
     return { uid: 'user-1' } as DecodedIdToken;
   },
   verifyAppCheck: async (token) => {
@@ -17,6 +18,27 @@ const authenticatedApi = createApiApp({
       appId: 'app-1',
       token: {} as VerifyAppCheckTokenResponse['token'],
     };
+  },
+});
+
+const syncPhoneApi = createApiApp({
+  appCheckMode: 'enforce',
+  executeMutation: async ({ execute }) => execute(),
+  verifyIdToken: async (token, checkRevoked) => {
+    assert.equal(token, 'id-token');
+    assert.equal(checkRevoked, true);
+    return { uid: 'user-1' } as DecodedIdToken;
+  },
+  verifyAppCheck: async (token) => {
+    assert.equal(token, 'app-check-token');
+    return {
+      appId: 'app-1',
+      token: {} as VerifyAppCheckTokenResponse['token'],
+    };
+  },
+  syncPhoneProfile: async (uid) => {
+    assert.equal(uid, 'user-1');
+    return { phoneNumber: '+94770000001' };
   },
 });
 
@@ -94,6 +116,25 @@ test('protected routes enforce App Check after Firebase Auth', async () => {
   assert.equal(body.error.code, 'unauthenticated');
 });
 
+test('phone profile sync uses the authenticated Firebase Auth profile', async () => {
+  const response = await syncPhoneApi.request('/v1/auth/phone/sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer id-token',
+      'X-Firebase-AppCheck': 'app-check-token',
+      'Idempotency-Key': 'phone-sync-test',
+    },
+    body: '{}',
+  });
+  const body = (await response.json()) as {
+    data: { phoneNumber: string };
+  };
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.data, { phoneNumber: '+94770000001' });
+});
+
 test('all canonical migration routes are registered behind Firebase Auth', async () => {
   const routes = [
     ['POST', '/v1/ap/requests'],
@@ -106,15 +147,21 @@ test('all canonical migration routes are registered behind Firebase Auth', async
     ['POST', '/v1/ap/records/ap-1/cancellation'],
     ['POST', '/v1/ap/records/ap-1/cancellation/respond'],
     ['DELETE', '/v1/ap/records/ap-1'],
+    ['POST', '/v1/services/requests'],
+    ['POST', '/v1/services/service-1/request/respond'],
+    ['POST', '/v1/services/service-1/status'],
+    ['POST', '/v1/services/service-1/complete'],
+    ['DELETE', '/v1/services/service-1/job'],
     ['POST', '/v1/services/service-1/cancellation'],
     ['POST', '/v1/services/service-1/cancellation/respond'],
-    ['POST', '/v1/auth/phone/link'],
+    ['POST', '/v1/auth/phone/sync'],
     ['DELETE', '/v1/account'],
     ['POST', '/v1/flights/search'],
     ['POST', '/v1/flights/calendar'],
     ['POST', '/v1/flights/booking-link'],
     ['POST', '/v1/listings/listing-1/offers'],
     ['POST', '/v1/gems/gem-1/transfer-requests'],
+    ['POST', '/v1/gems/gem-1/sales'],
     ['POST', '/v1/gem-transfer-requests/request-1/respond'],
     ['POST', '/v1/gem-transfer-requests/request-1/cancel'],
   ] as const;
@@ -167,6 +214,11 @@ const serviceApi = createApiApp({
     assert.equal(uid, 'owner-1');
     assert.equal(action, 'accepted');
     return { ok: true, status: 'cancelled' };
+  },
+  deleteLapidaryJob: async (serviceId, uid) => {
+    assert.equal(serviceId, 'service-1');
+    assert.equal(uid, 'owner-1');
+    return { serviceId, status: 'deleted' };
   },
   requestApCancellation: async (apId, uid) => {
     assert.equal(apId, 'ap-1');
@@ -269,6 +321,23 @@ test('service mutation routes require a bounded idempotency key', async () => {
   assert.equal(response.status, 400);
   assert.equal(body.error.code, 'invalid-argument');
   assert.equal(called, false);
+});
+
+test('lapidary job deletion passes the authenticated provider identity', async () => {
+  const response = await serviceApi.request('/v1/services/service-1/job', {
+    method: 'DELETE',
+    headers: {
+      Authorization: 'Bearer id-token',
+      'X-Firebase-AppCheck': 'app-check-token',
+      'Idempotency-Key': 'service-job-delete-1',
+    },
+  });
+  const body = (await response.json()) as {
+    data: { serviceId: string; status: string };
+  };
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.data, { serviceId: 'service-1', status: 'deleted' });
 });
 
 test('service cancellation routes pass verified identity and action to the handler', async () => {

@@ -10,7 +10,7 @@ import {
 import type { SFSymbol } from "sf-symbols-typescript";
 
 import { haptics } from "@/lib/haptics";
-import { showActions } from "@/providers/confirm-provider";
+import { showActions } from "@/providers/confirm-bridge";
 
 export type ContextMenuAction = {
   label: string;
@@ -118,5 +118,5 @@ export function ContextActionsLink({
   );
 }
 
-/** Prefer `@/providers/confirm-provider` for new call sites. */
-export { confirmDelete } from "@/providers/confirm-provider";
+/** Prefer `@/providers/confirm-bridge` for new call sites. */
+export { confirmDelete } from "@/providers/confirm-bridge";

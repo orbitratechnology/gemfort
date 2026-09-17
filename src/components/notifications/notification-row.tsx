@@ -13,6 +13,7 @@ import {
 } from "@/features/workspace/notification-presentation";
 import type { NotificationVisual } from "@/features/workspace/notification-visuals";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { safeUserMessage } from "@/lib/errors";
 import { formatRelativeTime } from "@/lib/utils";
 import type { AppNotification } from "@/types";
 
@@ -217,6 +218,8 @@ function NotificationRowInner({
 }: NotificationRowProps) {
   const { colors } = useAppTheme();
   const presentation = getNotificationPresentation(n.type);
+  const title = safeUserMessage(n.title, "GemFort update");
+  const message = safeUserMessage(n.message, "Open GemFort to view the update.");
   const tone = toneColors(presentation.tone, colors);
   const unread = !n.isRead;
   const actor = visual.actorName;
@@ -242,7 +245,7 @@ function NotificationRowInner({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${n.title}. ${n.message}`}
+        accessibilityLabel={`${title}${visual.directionLabel ? `, ${visual.directionLabel}` : ""}. ${message}`}
         accessibilityState={{ selected: unread }}
         style={({ pressed }) => ({
           flexDirection: "row",
@@ -295,7 +298,7 @@ function NotificationRowInner({
                 }}
                 numberOfLines={2}
               >
-                {n.title}
+                {title}
               </Text>
               {unread ? (
                 <View
@@ -320,7 +323,7 @@ function NotificationRowInner({
             }}
             numberOfLines={isMedia ? 3 : 2}
           >
-            {n.message}
+            {message}
           </Text>
 
           <View
@@ -352,6 +355,26 @@ function NotificationRowInner({
                 {presentation.categoryLabel}
               </Text>
             </View>
+            {visual.directionLabel ? (
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: Radius.full,
+                  backgroundColor: colors.surfaceContainerHighest,
+                }}
+              >
+                <Text
+                  style={{
+                    ...Typography.caption,
+                    fontWeight: "700",
+                    color: colors.onSurfaceVariant,
+                  }}
+                >
+                  {visual.directionLabel}
+                </Text>
+              </View>
+            ) : null}
             <Text
               style={{
                 ...Typography.caption,
@@ -378,7 +401,7 @@ function NotificationRowInner({
         {showSideMedia && visual.mediaUrl ? (
           <SideMedia
             uri={visual.mediaUrl}
-            label={n.title}
+            label={title}
             size={SIDE_MEDIA_SIZE}
           />
         ) : null}

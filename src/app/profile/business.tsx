@@ -1,7 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Redirect, router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import {
+    Redirect,
+    router,
+    useLocalSearchParams,
+} from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -13,11 +17,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SocialLinkField } from "@/components/marketplace/business-social-links";
 import { Button } from "@/components/ui/button";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import { CityField } from "@/components/ui/city-field";
 import { CountryField } from "@/components/ui/country-field";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyAmountField } from "@/components/ui/currency-amount-field";
-import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
@@ -25,6 +30,12 @@ import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ProfileLocationPicker } from "@/components/ui/profile-location-picker";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+    businessProfileSectionTitle,
+    isBusinessProfileSection,
+    type BusinessProfileSection,
+} from "@/constants/business-profile-sections";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import { cityBelongsToCountry } from "@/constants/cities";
 import type { CurrencyCode } from "@/constants/currencies";
 import {
@@ -65,7 +76,7 @@ import {
 } from "@/lib/location/profile-location";
 import { parseAmountInput } from "@/lib/money/mask";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     Business,
@@ -174,14 +185,24 @@ type FormProps = {
   user: AuthUser;
   profile: UserProfile | null;
   colors: ThemeColors;
+  section: BusinessProfileSection | null;
 };
 
-function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
+function BusinessProfileForm({
+  business,
+  user,
+  profile,
+  colors,
+  section,
+}: FormProps) {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [businessName, setBusinessName] = useState(
-    business?.businessName ?? "",
+  const [businessName, setBusinessName] = useState(() =>
+    business?.businessName?.trim() ||
+    profile?.displayName?.trim() ||
+    user.displayName?.trim() ||
+    "",
   );
   const [shortDescription, setShortDescription] = useState(
     business?.shortDescription ?? "",
@@ -213,8 +234,8 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
   const [logoUri, setLogoUri] = useState<string | null>(
     business?.logoUrl ?? null,
   );
-  const [coverLocal, setCoverLocal] = useState<LocalMedia | null>(null);
-  const [logoLocal, setLogoLocal] = useState<LocalMedia | null>(null);
+  const coverLocalRef = useRef<LocalMedia | null>(null);
+  const logoLocalRef = useRef<LocalMedia | null>(null);
   const [lapidaryServiceDrafts, setLapidaryServiceDrafts] = useState<
     LapidaryServiceDraft[]
   >(() => lapidaryDraftsFromBusiness(business));
@@ -241,13 +262,33 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     !!business?.providerProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
-  const displayName = businessName.trim() || "Your Business";
+  const businessReputationBadge = business
+    ? businessReputationBadgeForBusiness(business)
+    : "member";
+  const reputationBadge = profile?.recognizedBadge
+    ? "recognized"
+    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
+      ? "identity"
+      : businessReputationBadge;
+  const businessDisplayName = businessName.trim() || "Your Business";
+  const showAllSections = section === null;
+  const showPhotos = showAllSections || section === "photos";
+  const showIdentity = showAllSections || section === "identity";
+  const showLocation = showAllSections || section === "location";
+  const showServices = showAllSections || section === "services";
+  const showContact = showAllSections || section === "contact";
+  const showWebsite = showAllSections || section === "website";
+  const showSocial = showAllSections || section === "social";
 
   useEffect(() => {
-    if (business?.location) return;
+    if (!showLocation || business?.location) return;
     let active = true;
-    setLocationDetecting(true);
-    void detectProfileLocation()
+    void Promise.resolve()
+      .then(() => {
+        if (!active) return null;
+        setLocationDetecting(true);
+        return detectProfileLocation();
+      })
       .then((detected) => {
         if (!active || !detected) return;
         setLocation(detected);
@@ -262,7 +303,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     return () => {
       active = false;
     };
-  }, [business?.id, business?.location]);
+  }, [business?.id, business?.location, showLocation]);
 
   function updateLapidaryServiceDraft(
     serviceId: string,
@@ -284,7 +325,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     try {
       const media = await pickLocalMedia({ allows: "images", aspect: [3, 1] });
       if (!media) return;
-      setCoverLocal(media);
+      coverLocalRef.current = media;
       setCoverUri(media.uri);
     } catch (e) {
       toast.error(friendlyError(e, "Could not pick cover photo."));
@@ -295,7 +336,7 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
     try {
       const media = await pickLocalMedia({ allows: "images", aspect: [1, 1] });
       if (!media) return;
-      setLogoLocal(media);
+      logoLocalRef.current = media;
       setLogoUri(media.uri);
     } catch (e) {
       toast.error(friendlyError(e, "Could not pick profile photo."));
@@ -320,47 +361,48 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
       }
     }
     try {
+      const nextLogoLocal = logoLocalRef.current;
+      const nextCoverLocal = coverLocalRef.current;
       await withLoading(async () => {
         const socialLinks = { website, instagram, tiktok, facebook, wechat };
         let nextLogo = logoUri;
         let nextCover = coverUri;
 
-        if (logoLocal) {
+        if (nextLogoLocal) {
           nextLogo = await uploadLocalMedia(
-            logoLocal,
-            `businesses/${user.uid}/logo.${extensionForMedia(logoLocal)}`,
+            nextLogoLocal,
+            `businesses/${user.uid}/logo.${extensionForMedia(nextLogoLocal)}`,
           );
         }
-        if (coverLocal) {
+        if (nextCoverLocal) {
           nextCover = await uploadLocalMedia(
-            coverLocal,
-            `businesses/${user.uid}/cover.${extensionForMedia(coverLocal)}`,
+            nextCoverLocal,
+            `businesses/${user.uid}/cover.${extensionForMedia(nextCoverLocal)}`,
           );
         }
 
         const stamp = Date.now();
-        const galleryEntries: Business["galleryPhotos"] = [];
-        for (let i = 0; i < galleryLocal.length; i++) {
-          const item = galleryLocal[i];
-          const existing = existingGalleryByUrl.get(item.uri);
-          if (existing) {
-            galleryEntries.push(existing);
-            continue;
-          }
-          const url = await uploadLocalMedia(
-            item,
-            `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
-          );
-          galleryEntries.push({
-            photoId: `${stamp}_${i}`,
-            url,
-            type: "work",
-            beforeUrl: null,
-            afterUrl: null,
-            caption: null,
-            uploadedAt: Timestamp.now(),
-          });
-        }
+        const galleryEntries: Business["galleryPhotos"] = await Promise.all(
+          galleryLocal.map(async (item, i) => {
+            const existing = existingGalleryByUrl.get(item.uri);
+            if (existing) {
+              return existing;
+            }
+            const url = await uploadLocalMedia(
+              item,
+              `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
+            );
+            return {
+              photoId: `${stamp}_${i}`,
+              url,
+              type: "work",
+              beforeUrl: null,
+              afterUrl: null,
+              caption: null,
+              uploadedAt: Timestamp.now(),
+            };
+          }),
+        );
 
         if (business) {
           await updateBusinessProfile(business.id, {
@@ -391,22 +433,18 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             );
             return;
           }
-          const id = await createBusinessProfile(
-            user.uid,
-            profile?.displayName ?? "Owner",
-            {
-              businessName,
-              businessType: derivedBusinessType,
-              city,
-              country,
-              address,
-              location,
-              shortDescription: shortDescription || "Gem business in Beruwala.",
-              whatsapp: whatsapp || profile?.phone || undefined,
-              phone: phone || profile?.phone || undefined,
-              socialLinks,
-            },
-          );
+          const id = await createBusinessProfile(user.uid, {
+            businessName,
+            businessType: derivedBusinessType,
+            city,
+            country,
+            address,
+            location,
+            shortDescription: shortDescription || "Gem business in Beruwala.",
+            whatsapp: whatsapp || profile?.phone || undefined,
+            phone: phone || profile?.phone || undefined,
+            socialLinks,
+          });
           const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
           if (nextLogo) mediaUpdates.logoUrl = nextLogo;
           if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
@@ -421,8 +459,8 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           }
         }
 
-        setCoverLocal(null);
-        setLogoLocal(null);
+        coverLocalRef.current = null;
+        logoLocalRef.current = null;
         setCoverUri(nextCover);
         setLogoUri(nextLogo);
         await queryClient.invalidateQueries({ queryKey: ["my-business"] });
@@ -442,8 +480,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 
   return (
     <>
-      {/* Edge-to-edge banner + centered avatar (Instagram edit profile) */}
-      <View style={styles.hero}>
+      {showPhotos ? (
+        <>
+          {/* Edge-to-edge banner + centered avatar (Instagram edit profile) */}
+          <View style={styles.hero}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Change cover photo"
@@ -501,24 +541,16 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
                   <Text
                     style={[styles.avatarInitials, { color: colors.primary }]}
                   >
-                    {initials(displayName)}
+                    {initials(businessDisplayName)}
                   </Text>
                 </View>
               )}
             </View>
-            {isVerified ? (
-              <View
-                style={[
-                  styles.verifiedBadge,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon name="verified" size={16} color={colors.onSecondary} />
-              </View>
-            ) : null}
+            <AvatarVerificationBadge
+              type={reputationBadge}
+              borderColor={colors.background}
+              size="md"
+            />
             <View
               style={[styles.avatarCam, { backgroundColor: colors.primary }]}
             >
@@ -530,27 +562,30 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
             style={[styles.heroName, { color: colors.onSurface }]}
             numberOfLines={2}
           >
-            {displayName}
+            {businessDisplayName}
           </Text>
           <Text style={[styles.heroMeta, { color: colors.textMuted }]}>
             {accountTypeLabel}
             {isVerified ? " · Verified" : ""}
           </Text>
         </View>
-      </View>
+          </View>
 
-      <FormSection title="Business Photos">
-        <MediaAlbumField
-          value={galleryLocal}
-          onChange={setGalleryLocal}
-          max={MAX_GALLERY_PHOTOS}
-          emptyTitle="Add business photos"
-          emptySubtitle="Works, work samples, showroom, and business photos"
-        />
-      </FormSection>
+          <FormSection title="Business Photos">
+            <MediaAlbumField
+              value={galleryLocal}
+              onChange={setGalleryLocal}
+              max={MAX_GALLERY_PHOTOS}
+              emptyTitle="Add business photos"
+              emptySubtitle="Works, work samples, showroom, and business photos"
+            />
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="IDENTITY" />
-      <FormSection>
+      {showIdentity ? (
+        <>
+          <FormSection>
         <Input
           label="Business name"
           value={businessName}
@@ -567,10 +602,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           style={styles.textArea}
           leftIcon="notes"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="LOCATION" />
-      <FormSection>
+      {showLocation ? (
+        <>
+          <FormSection>
         <CountryField
           label="Country"
           value={country}
@@ -641,11 +679,12 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           placeholder="Street, building, area"
           leftIcon="home"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      {isLapidary ? (
+      {showServices && isLapidary ? (
         <>
-          <FormSectionLabel title="PUBLIC SERVICES" />
           <FormSection>
             <Text style={[styles.serviceHint, { color: colors.textMuted }]}>
               Select every service your workshop provides. Pricing is optional and
@@ -784,8 +823,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
         </>
       ) : null}
 
-      <FormSectionLabel title="CONTACT" />
-      <FormSection>
+      {showContact ? (
+        <>
+          <FormSection>
         <PhoneNumberField
           label="WhatsApp"
           value={whatsapp}
@@ -796,10 +836,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           value={phone}
           onChangeText={setPhone}
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="WEBSITE" />
-      <FormSection>
+      {showWebsite ? (
+        <>
+          <FormSection>
         <SocialLinkField
           platform="website"
           label="Website"
@@ -810,10 +853,13 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           keyboardType="url"
           placeholder="yourbusiness.com"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
-      <FormSectionLabel title="SOCIAL" />
-      <FormSection>
+      {showSocial ? (
+        <>
+          <FormSection>
         <SocialLinkField
           platform="instagram"
           label="Instagram"
@@ -850,7 +896,9 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
           autoCorrect={false}
           placeholder="WeChat ID"
         />
-      </FormSection>
+          </FormSection>
+        </>
+      ) : null}
 
       <View style={styles.actions}>
         <Button
@@ -901,6 +949,10 @@ function BusinessProfileForm({ business, user, profile, colors }: FormProps) {
 export default function MyBusinessProfileScreen() {
   const { colors } = useAppTheme();
   const { user, profile } = useAuth();
+  const { section: sectionParam } = useLocalSearchParams<{
+    section?: string | string[];
+  }>();
+  const section = isBusinessProfileSection(sectionParam) ? sectionParam : null;
 
   const { data: business, isLoading } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
@@ -910,10 +962,11 @@ export default function MyBusinessProfileScreen() {
     enabled: !!user,
   });
 
-  const screenTitle = useMemo(
-    () => (business ? "Edit Business" : "My Business"),
-    [business],
-  );
+  const screenTitle = section
+    ? businessProfileSectionTitle(section)
+    : business
+      ? "Edit Business"
+      : "My Business";
 
   const canPreviewPublic =
     !!business &&
@@ -929,7 +982,7 @@ export default function MyBusinessProfileScreen() {
     >
       <StackHeader
         title={screenTitle}
-        closeIcon
+        closeIcon={!section}
         right={
           canPreviewPublic ? (
             <Pressable
@@ -964,6 +1017,7 @@ export default function MyBusinessProfileScreen() {
             user={user}
             profile={profile}
             colors={colors}
+            section={section}
           />
         </ThemedScrollView>
       )}
@@ -1019,7 +1073,8 @@ const styles = StyleSheet.create({
   avatarRing: {
     width: AVATAR,
     height: AVATAR,
-    borderRadius: AVATAR / 2,
+    borderRadius: 24,
+    borderCurve: "continuous",
     borderWidth: 3,
     overflow: "hidden",
     alignItems: "center",
@@ -1033,17 +1088,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitials: { ...Typography.headlineMdMobile, fontWeight: "700" },
-  verifiedBadge: {
-    position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   avatarCam: {
     position: "absolute",
     left: 2,

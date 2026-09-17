@@ -3,7 +3,9 @@ import * as Sharing from 'expo-sharing';
 import { Share } from 'react-native';
 import { toast } from 'sonner-native';
 
+import { safeUserMessage } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
+export { businessShareUrl, listingShareUrl } from '@/lib/public-links';
 
 export type ShareLinkOptions = {
   /** Canonical URL (listing, deep link, etc.). */
@@ -51,11 +53,10 @@ export async function shareLink(options: ShareLinkOptions): Promise<ShareResult>
     return 'shared';
   } catch {
     haptics.error();
-    toast.error('Could not open share sheet');
+    toast.error(safeUserMessage('Could not open share sheet'));
     return 'unavailable';
   }
 }
-
 /**
  * Share a local file via expo-sharing (PDF, image, etc.).
  */
@@ -64,14 +65,14 @@ export async function shareFile(options: ShareFileOptions): Promise<ShareResult>
 
   if (!uri || uri.startsWith('http://') || uri.startsWith('https://')) {
     haptics.error();
-    toast.error('Only local files can be shared this way');
+    toast.error(safeUserMessage('Only local files can be shared this way'));
     return 'unavailable';
   }
 
   const available = await Sharing.isAvailableAsync();
   if (!available) {
     haptics.error();
-    toast.error('Sharing is not available on this device');
+    toast.error(safeUserMessage('Sharing is not available on this device'));
     return 'unavailable';
   }
 
@@ -85,7 +86,7 @@ export async function shareFile(options: ShareFileOptions): Promise<ShareResult>
     return 'shared';
   } catch {
     haptics.error();
-    toast.error('Could not share file');
+    toast.error(safeUserMessage('Could not share file'));
     return 'unavailable';
   }
 }
@@ -98,15 +99,6 @@ export async function copyLink(
   await Clipboard.setStringAsync(url);
   if (options?.silent) return;
   haptics.light();
-  toast.success('Link copied');
+  toast.success(safeUserMessage('Link copied'));
 }
 
-/** Public listing URL for a slug. */
-export function listingShareUrl(slug: string): string {
-  return `https://gemfort.app/l/${slug}`;
-}
-
-/** App deep link for a business profile (universal links cover /l only today). */
-export function businessShareUrl(businessId: string): string {
-  return `https://gemfort.app/business/${businessId}`;
-}

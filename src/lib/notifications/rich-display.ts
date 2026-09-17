@@ -27,6 +27,7 @@ export type RichPushData = {
   title?: string;
   body?: string;
   type?: string;
+  direction?: "given" | "taken" | "to_pay" | "to_receive";
   referenceType?: string;
   referenceId?: string;
   priority?: string;
@@ -46,6 +47,7 @@ const CRITICAL_RED = '#B83A3A';
 const LARGE_ICON_BY_REFERENCE = {
   ap: require('../../../assets/images/ap-icon.png'),
   service: require('../../../assets/images/lapidary-icon.png'),
+  service_request: require('../../../assets/images/lapidary-icon.png'),
   cheque: require('../../../assets/images/cheque-icon.png'),
   bill: require('../../../assets/images/bill-icon.png'),
   listing: require('../../../assets/images/mygems-icon.png'),
@@ -60,11 +62,18 @@ export function parseRichPushData(
   raw: Record<string, unknown> | null | undefined,
 ): RichPushData {
   if (!raw) return {};
+  const rawDirection = asString(raw.direction);
+  const direction = ["given", "taken", "to_pay", "to_receive"].includes(
+    rawDirection,
+  )
+    ? (rawDirection as RichPushData["direction"])
+    : undefined;
   return {
     notificationId: asString(raw.notificationId) || undefined,
     title: asString(raw.title) || undefined,
     body: asString(raw.body) || asString(raw.message) || undefined,
     type: asString(raw.type) || undefined,
+    direction,
     referenceType: asString(raw.referenceType) || undefined,
     referenceId: asString(raw.referenceId) || undefined,
     priority: asString(raw.priority) || undefined,
@@ -148,7 +157,12 @@ function androidCategoryFor(data: RichPushData): AndroidCategory {
   if (type.includes('due') || type.includes('overdue') || type.includes('maturing')) {
     return AndroidCategory.REMINDER;
   }
-  if (data.referenceType === 'service') return AndroidCategory.SERVICE;
+  if (
+    data.referenceType === 'service' ||
+    data.referenceType === 'service_request'
+  ) {
+    return AndroidCategory.SERVICE;
+  }
   return AndroidCategory.STATUS;
 }
 
@@ -181,6 +195,9 @@ function actionsForCategory(categoryId?: string): AndroidAction[] {
     ];
   }
   if (categoryId === 'listing_offer') return [action('view', 'View listing')];
+  if (categoryId === 'service_completed') {
+    return [action('add_service_bill', 'Add bill'), action('view', 'Details')];
+  }
   return [action('view', 'View')];
 }
 
@@ -204,11 +221,19 @@ export async function displayRichNotification(data: RichPushData) {
   const channelId = channelForPriority(data.priority);
   const group = notificationGroupForType(data.type ?? '');
   const threadId = data.threadId || notificationThreadIdForType(data.type ?? '');
-  // Keep high-priority security / overdue alerts individually prominent.
-  const shouldGroup = data.priority !== 'high';
+  // Requests need to remain visible as the actionable notification itself.
+  // Otherwise Android shows only the generic service-group summary when the
+  // request is the first item in the group.
+  const shouldGroup =
+    data.priority !== 'high' && data.type !== 'service_request_received';
 
   if (Platform.OS === 'android') {
     const senderIcon = profileUrl || fallbackLargeIcon(data.referenceType);
+    if (data.type === 'service_request_received') {
+      // Remove a summary left by an older grouped service notification so the
+      // actionable request is the only service alert shown to the recipient.
+      await notifee.cancelNotification(`summary:${group.key}`);
+    }
     if (shouldGroup) {
       // Android requires the summary to exist before child notifications can be
       // displayed as one expandable group in the system shade.
@@ -238,6 +263,7 @@ export async function displayRichNotification(data: RichPushData) {
       data: {
         notificationId: data.notificationId ?? '',
         type: data.type ?? '',
+        direction: data.direction ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',
         categoryId: data.categoryId ?? '',
@@ -273,7 +299,7 @@ export async function displayRichNotification(data: RichPushData) {
                 picture: gemUrl,
                 // Keep the sender visible in both collapsed and expanded layouts.
                 largeIcon: senderIcon,
-                summary: data.actorName || undefined,
+                ...(data.actorName ? { summary: data.actorName } : {}),
               },
             }
           : body
@@ -281,7 +307,7 @@ export async function displayRichNotification(data: RichPushData) {
                 style: {
                   type: AndroidStyle.BIGTEXT,
                   text: body,
-                  summary: data.actorName || undefined,
+                  ...(data.actorName ? { summary: data.actorName } : {}),
                 },
               }
             : {}),
@@ -318,6 +344,7 @@ export async function displayRichNotification(data: RichPushData) {
       data: {
         notificationId: data.notificationId ?? '',
         type: data.type ?? '',
+        direction: data.direction ?? '',
         referenceType: data.referenceType ?? '',
         referenceId: data.referenceId ?? '',
         actorPhotoUrl: profileUrl ?? '',
@@ -393,6 +420,7 @@ export type NotifeeActionHandler = (
   referenceType: string | null,
   referenceId: string | null,
   notificationId?: string,
+  notificationType?: string | null,
 ) => void | Promise<void>;
 
 export function wireNotifeePressEvents(onAction?: NotifeeActionHandler) {
@@ -401,13 +429,22 @@ export function wireNotifeePressEvents(onAction?: NotifeeActionHandler) {
     const data = detail.notification?.data ?? {};
     const referenceType = data.referenceType != null ? String(data.referenceType) : null;
     const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    const notificationType = data.type != null ? String(data.type) : null;
     if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
-      void onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      void onAction(
+        detail.pressAction.id,
+        referenceType,
+        referenceId,
+        detail.notification?.id,
+        notificationType,
+      );
       return;
     }
     navigateFromNotificationRef(
       referenceType,
       referenceId,
+      undefined,
+      notificationType,
     );
   });
 }
@@ -418,13 +455,22 @@ export async function wireNotifeeBackgroundPress(onAction?: NotifeeActionHandler
     const data = detail.notification?.data ?? {};
     const referenceType = data.referenceType != null ? String(data.referenceType) : null;
     const referenceId = data.referenceId != null ? String(data.referenceId) : null;
+    const notificationType = data.type != null ? String(data.type) : null;
     if (type === EventType.ACTION_PRESS && detail.pressAction?.id && onAction) {
-      await onAction(detail.pressAction.id, referenceType, referenceId, detail.notification?.id);
+      await onAction(
+        detail.pressAction.id,
+        referenceType,
+        referenceId,
+        detail.notification?.id,
+        notificationType,
+      );
       return;
     }
     navigateFromNotificationRef(
       referenceType,
       referenceId,
+      undefined,
+      notificationType,
     );
   });
 }

@@ -1,138 +1,149 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OtpInput, type OtpInputRef } from 'react-native-otp-entry';
 
 import { StoryChapter } from '@/components/brand/story-chapter';
 import { Button } from '@/components/ui/button';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
-import { MaskedInput } from '@/components/ui/masked-input';
+import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
-import { Spacing, Typography } from '@/constants/design-tokens';
+import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { useRegistrationExit } from '@/hooks/use-registration-exit';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { isFirebaseConfigured } from '@/lib/firebase/config';
 import {
   confirmPhoneVerificationCode,
   sendPhoneVerificationCode,
-  skipPhoneVerificationForDev,
 } from '@/lib/firebase/phone-auth';
-import { attemptPhoneNumberVerification } from '@/lib/firebase/phone-pnv';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 import { friendlyError } from '@/lib/errors';
 import { markOnboardingComplete } from '@/lib/onboarding';
+import { runWithCleanup } from '@/lib/run-with-cleanup';
 import { parseForm, verifyOtpSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function VerifyOtpScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
-  const { user, refreshProfile } = useAuth();
-  const phone = normalizePhoneNumber(phoneParam ?? '');
+  const {
+    phone: phoneParam,
+    verificationId: verificationIdParam,
+    afterRegistration,
+  } = useLocalSearchParams<{
+    phone?: string | string[];
+    verificationId?: string | string[];
+    afterRegistration?: string | string[];
+  }>();
+  const { refreshProfile } = useAuth();
+  const phoneValue = Array.isArray(phoneParam) ? phoneParam[0] : phoneParam;
+  const verificationId = Array.isArray(verificationIdParam)
+    ? verificationIdParam[0]
+    : verificationIdParam;
+  const phone = normalizePhoneNumber(phoneValue ?? '');
+  const registrationFlow = Array.isArray(afterRegistration)
+    ? afterRegistration[0]
+    : afterRegistration;
+  const handleChangePhone = useCallback(() => {
+    router.replace({
+      pathname: '/(auth)/complete-phone',
+      params: registrationFlow === '1' ? { afterRegistration: '1' } : {},
+    });
+  }, [registrationFlow]);
+  const registrationExit = useRegistrationExit({
+    title: registrationFlow === '1' ? 'Leave registration?' : 'Leave phone setup?',
+  });
 
-  const [verificationId, setVerificationId] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [cooldown, setCooldown] = useState(0);
+  const activeVerificationIdRef = useRef(verificationId);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pnvChecking, setPnvChecking] = useState(false);
-  const pnvAttemptedRef = useRef(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpRef = useRef<OtpInputRef>(null);
+  const verifyingRef = useRef(false);
+  const resendingRef = useRef(false);
 
   useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [cooldown]);
+  }, [resendCooldown]);
 
-  // Android-first: try carrier-level Phone Number Verification on entry. Any
-  // failure (unsupported carrier, declined consent, mismatch) falls back to
-  // the SMS flow below.
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    if (!isFirebaseConfigured) return;
-    if (pnvAttemptedRef.current) return;
-    pnvAttemptedRef.current = true;
-    let cancelled = false;
+  async function handleConfirm(nextCode: string) {
+    if (verifyingRef.current) return;
 
-    (async () => {
-      setPnvChecking(true);
-      try {
-        const attempt = await attemptPhoneNumberVerification(phone);
-        if (cancelled) return;
-        if (attempt.status === 'verified') {
-          await markOnboardingComplete();
-          await refreshProfile();
-          router.replace('/(marketplace)/(tabs)/home');
-        }
-      } catch (error) {
-        if (cancelled) return;
-        toast.error(
-          friendlyError(error, 'That mobile number is already linked to another GemFort account.'),
-        );
-      } finally {
-        if (!cancelled) setPnvChecking(false);
-      }
-    })();
+    const activeVerificationId = activeVerificationIdRef.current;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [phone, refreshProfile, toast]);
-
-  const handleSendCode = useCallback(async () => {
-    if (!phone) {
-      toast.error('No phone number to verify.');
-      return;
-    }
-    if (!isFirebaseConfigured) {
-      toast.error('Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.');
-      return;
-    }
-    try {
-      await withLoading(async () => {
-        const id = await sendPhoneVerificationCode(phone);
-        setVerificationId(id);
-        setCooldown(60);
-        toast.success(`Code sent to ${phone}`);
-      }, 'Sending code…');
-    } catch (e) {
-      toast.error(friendlyError(e, 'Could not send code. Try again.'));
-    }
-  }, [phone, toast]);
-
-  async function handleConfirm() {
-    Keyboard.dismiss();
-    if (!verificationId) {
-      toast.error('Send a verification code first.');
-      return;
-    }
-    const result = parseForm(verifyOtpSchema, { code });
+    const result = parseForm(verifyOtpSchema, { code: nextCode });
     if (!result.success) {
       setErrors(result.errors);
       return;
     }
+    if (!activeVerificationId || !phone) {
+      toast.error('This verification session has expired. Enter your phone number again.');
+      return;
+    }
 
+    verifyingRef.current = true;
     setErrors({});
     try {
       await withLoading(async () => {
-        await confirmPhoneVerificationCode(verificationId, result.data.code);
+        await confirmPhoneVerificationCode(activeVerificationId, result.data.code, phone);
         await markOnboardingComplete();
         await refreshProfile();
-        router.replace('/(marketplace)/(tabs)/home');
+        registrationExit.allowNextNavigation();
+        router.replace(
+          registrationFlow === '1'
+            ? '/(auth)/business-onboarding'
+            : '/(marketplace)/(tabs)/home',
+        );
       }, 'Verifying…');
     } catch (e) {
-      setErrors({ code: 'Invalid or expired code. Try again.' });
-      toast.error(friendlyError(e, 'Verification failed. Invalid code.'));
+      verifyingRef.current = false;
+      const errorCode =
+        typeof e === 'object' && e !== null && 'code' in e
+          ? String((e as { code?: unknown }).code ?? '')
+          : '';
+      setErrors(
+        errorCode === 'auth/invalid-verification-code' ||
+          errorCode === 'auth/invalid-verification-id' ||
+          errorCode === 'auth/code-expired'
+          ? { code: 'Invalid or expired code. Try again.' }
+          : {},
+      );
+      toast.error(friendlyError(e, 'Verification failed. Please try again.'));
     }
   }
 
-  async function handleSkipDev() {
-    if (!user || !__DEV__) return;
-    await skipPhoneVerificationForDev(user.uid, phone);
-    await markOnboardingComplete();
-    await refreshProfile();
-    router.replace('/(marketplace)/(tabs)/home');
+  async function handleResend() {
+    if (resendingRef.current || resendCooldown > 0) return;
+    if (!phone) {
+      toast.error('No phone number to verify.');
+      return;
+    }
+
+    resendingRef.current = true;
+    try {
+      const nextVerificationId = await runWithCleanup(
+        () =>
+          withLoading(
+            () => sendPhoneVerificationCode(phone, true),
+            { message: 'Sending code…', overlay: false },
+          ),
+        () => {
+          resendingRef.current = false;
+        },
+      );
+      activeVerificationIdRef.current = nextVerificationId;
+      otpRef.current?.clear();
+      setErrors({});
+      setResendCooldown(60);
+      toast.success(`Code sent to ${phone}`);
+    } catch (error) {
+      toast.error(friendlyError(error, 'Could not resend the verification code. Try again.'));
+    }
   }
 
   return (
@@ -141,66 +152,82 @@ export default function VerifyOtpScreen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled">
         <ScreenInset style={styles.lead}>
+          <View
+            style={[styles.iconWrap, { backgroundColor: colors.primaryMuted }]}
+            accessibilityRole="image"
+            accessibilityLabel="Phone verification">
+            <Icon name="phone" size={32} color={colors.primary} />
+          </View>
           <StoryChapter
             title="Verify your phone"
-            body={
-              Platform.OS === 'android'
-                ? `We will verify ${phone || 'your number'} with your mobile carrier first. If that is not possible, we will send a one-time SMS code.`
-                : `We will send a one-time SMS code to ${phone || 'your number'}.`
-            }
+            body={`Enter the 6-digit code sent to ${phone || 'your number'}.`}
+            align="center"
           />
-
-          {pnvChecking ? (
-            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
-              Checking your carrier for instant verification…
-            </Text>
-          ) : null}
-
-          <Button
-            title={verificationId ? 'Resend code' : 'Send code'}
-            icon="sms"
-            disabled={cooldown > 0 || pnvChecking}
-            onPress={handleSendCode}
-          />
-          {cooldown > 0 ? (
-            <Text style={[styles.cooldown, { color: colors.textMuted }]}>
-              Resend available in {cooldown}s
-            </Text>
-          ) : null}
         </ScreenInset>
 
-        <FormSection title="Enter code">
-          <MaskedInput
-            label="6-digit code"
-            mode="custom"
-            mask="999999"
-            leftIcon="pin"
-            value={code}
-            onChangeText={(v, raw) => {
-              setCode(raw.slice(0, 6));
-              setErrors({});
-            }}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            autoComplete="sms-otp"
-            placeholder="000000"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={handleConfirm}
-            error={errors.code}
-          />
+        <FormSection style={styles.otpSection}>
+          <View style={styles.otpField}>
+            <OtpInput
+              ref={otpRef}
+              numberOfDigits={6}
+              autoFocus
+              type="numeric"
+              focusColor={colors.primary}
+              onTextChange={() => {
+                setErrors((current) => (current.code ? {} : current));
+              }}
+              onFilled={handleConfirm}
+              textInputProps={{ accessibilityLabel: '6-digit verification code' }}
+              theme={{
+                containerStyle: styles.otpRow,
+                pinCodeContainerStyle: {
+                  ...styles.otpSlot,
+                  backgroundColor: colors.surfaceMuted,
+                  borderColor: colors.border,
+                },
+                pinCodeTextStyle: {
+                  ...styles.otpChar,
+                  color: colors.text,
+                },
+                focusStickStyle: {
+                  ...styles.fakeCaret,
+                  backgroundColor: colors.primary,
+                },
+              }}
+            />
+            {errors.code ? (
+              <Text
+                style={[styles.error, { color: colors.error }]}
+                accessibilityLiveRegion="polite">
+                {errors.code}
+              </Text>
+            ) : null}
+          </View>
         </FormSection>
 
-        <ScreenInset style={styles.cta}>
+        <ScreenInset style={styles.actions}>
           <Button
-            title="Verify & continue"
-            icon="verified"
-            onPress={handleConfirm}
+            title={resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : 'Resend OTP'}
+            icon="refresh"
+            variant="secondary"
+            disabled={resendCooldown > 0}
+            onPress={() => void handleResend()}
           />
-
-          {__DEV__ ? (
-            <Button title="Skip (dev only)" variant="ghost" onPress={handleSkipDev} />
-          ) : null}
+          <Button
+            title="Change phone number"
+            icon="edit"
+            variant="ghost"
+            onPress={() => {
+              registrationExit.allowNextNavigation();
+              handleChangePhone();
+            }}
+          />
+          <Button
+            title="Sign out"
+            icon="logout"
+            variant="ghost"
+            onPress={registrationExit.confirmSignOut}
+          />
         </ScreenInset>
       </ThemedScrollView>
     </SafeAreaView>
@@ -210,11 +237,58 @@ export default function VerifyOtpScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.section,
     gap: Spacing.lg,
+    alignItems: 'center',
   },
-  lead: { gap: Spacing.lg },
-  cta: { gap: Spacing.lg },
-  cooldown: { ...Typography.caption, textAlign: 'center' },
+  lead: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpSection: {
+    alignItems: 'center',
+  },
+  otpField: {
+    width: '100%',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  otpRow: {
+    width: '100%',
+    maxWidth: 304,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignSelf: 'center',
+  },
+  otpSlot: {
+    width: 44,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 10,
+  },
+  otpChar: {
+    ...Typography.headlineMd,
+  },
+  fakeCaret: {
+    width: 2,
+    height: 28,
+    borderRadius: 1,
+  },
+  error: { ...Typography.bodySmall, textAlign: 'center' },
+  actions: {
+    width: '100%',
+    gap: Spacing.sm,
+  },
 });

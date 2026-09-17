@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryFlag, CountryLabel } from "@/components/ui/country-flag";
+import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import {
     CurrencyAmountField,
     type CurrencyAmountValue,
@@ -26,6 +27,10 @@ import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+  GemCertificateBadge,
+  GemCertificateCard,
+} from "@/components/workspace/gem-certificate";
 import { resolveCurrencyCode, type CurrencyCode } from "@/constants/currencies";
 import {
     FontFamily,
@@ -33,6 +38,7 @@ import {
     Spacing,
     Typography,
 } from "@/constants/design-tokens";
+import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
     formatGemType,
     formatShapeLabel,
@@ -44,7 +50,6 @@ import {
     fetchBusinessByOwnerUid,
     fetchBuyerOffersForListing,
     fetchOffersForListing,
-    isBusinessVerified,
     isListingOfferUnread,
     LISTING_OFFER_LIMITS,
     markListingOffersRead,
@@ -69,8 +74,8 @@ import { copyLink, listingShareUrl, shareLink } from "@/lib/share";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ListingOffer } from "@/types";
 
@@ -107,7 +112,7 @@ export default function PublicListingScreen() {
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -236,9 +241,12 @@ export default function PublicListingScreen() {
   const photos = (activeListing.photoUrls ?? []).filter(
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
-  const shareUrl =
-    activeListing.shareableUrl ||
-    listingShareUrl(activeListing.shareableSlug || slug!);
+  const certificate = activeListing.certificate?.url
+    ? activeListing.certificate
+    : null;
+  // Always build the canonical URL so older Firestore documents that still
+  // contain a retired host cannot produce broken shares.
+  const shareUrl = listingShareUrl(activeListing.shareableSlug || slug!);
   const listingTitle =
     activeListing.title || formatGemType(activeListing.gemType);
   const sellerWhatsapp =
@@ -301,17 +309,23 @@ export default function PublicListingScreen() {
   if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
   if (activeListing.clarity) tags.push(activeListing.clarity);
 
-  const ownerName =
+  const businessDisplayName =
     business?.businessName?.trim() ||
     activeListing.sellerBusinessName?.trim() ||
     "Seller";
   const ownerRole = businessRoleLabel(
     business?.businessType ?? activeListing.sellerBusinessType ?? undefined,
   );
-  const ownerVerified =
-    isBusinessVerified(business) || activeListing.sellerIsVerified === true;
+  const reputationBadge = businessReputationBadgeForBusiness(business);
+  const ownerVerified = activeListing.sellerIsVerified === true;
+  const ownerAvatarVerification =
+    reputationBadge !== "none"
+      ? reputationBadge
+      : ownerVerified
+        ? "identity"
+        : "none";
   const ownerAvatar = business?.logoUrl ?? activeListing.sellerLogoUrl ?? null;
-  const ownerInitials = initials(ownerName);
+  const ownerInitials = initials(businessDisplayName);
   const yearsActive = business?.badges?.yearsActive;
   const locationBits = [
     business?.city ?? activeListing.sellerCity,
@@ -402,8 +416,6 @@ export default function PublicListingScreen() {
           buyerUid: user.uid,
           buyerName:
             myBusiness?.businessName?.trim() ||
-            profile?.displayName?.trim() ||
-            user.email ||
             "Buyer",
           buyerBusiness: myBusiness,
           amount: result.data.amount,
@@ -513,6 +525,7 @@ export default function PublicListingScreen() {
                 ? ` · ${activeListing.caratWeight} ct`
                 : ""}
             </Text>
+            {certificate ? <GemCertificateBadge /> : null}
           </View>
 
           <View style={styles.priceRow}>
@@ -554,7 +567,7 @@ export default function PublicListingScreen() {
             }
             disabled={!business}
             accessibilityRole="button"
-            accessibilityLabel={`${ownerName}, ${ownerRole}`}
+            accessibilityLabel={`${businessDisplayName}, ${ownerRole}`}
             style={({ pressed }) => [
               styles.ownerCard,
               {
@@ -588,44 +601,18 @@ export default function PublicListingScreen() {
                   </Text>
                 )}
               </View>
-              {ownerVerified ? (
-                <View
-                  style={[
-                    styles.ownerVerifiedDot,
-                    {
-                      backgroundColor: colors.primary,
-                      borderColor: colors.surfaceContainerLowest,
-                    },
-                  ]}
-                >
-                  <Icon name="verified" size={10} color={colors.onPrimary} />
-                </View>
-              ) : null}
+              <AvatarVerificationBadge
+                type={ownerAvatarVerification}
+                borderColor={colors.surfaceContainerLowest}
+              />
             </View>
             <View style={styles.ownerText}>
               <Text
                 style={[styles.ownerName, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {ownerName}
+                {businessDisplayName}
               </Text>
-              {ownerVerified ? (
-                <View
-                  style={[
-                    styles.verifiedPill,
-                    { backgroundColor: colors.primaryContainer },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.verifiedPillText,
-                      { color: colors.onPrimaryContainer },
-                    ]}
-                  >
-                    VERIFIED SELLER
-                  </Text>
-                </View>
-              ) : null}
               <Text
                 style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
@@ -713,6 +700,18 @@ export default function PublicListingScreen() {
               );
             })}
           </View>
+
+          {certificate ? (
+            <View style={styles.certificateSection}>
+              <Text
+                style={[styles.sectionLabel, { color: colors.textMuted }]}
+                accessibilityRole="header"
+              >
+                CERTIFICATE
+              </Text>
+              <GemCertificateCard certificate={certificate} />
+            </View>
+          ) : null}
 
           {activeListing.description ? (
             <View style={styles.descBlock}>
@@ -1234,7 +1233,8 @@ const styles = StyleSheet.create({
   ownerAvatar: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -1242,35 +1242,13 @@ const styles = StyleSheet.create({
   ownerAvatarImg: {
     width: 52,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
-  ownerVerifiedDot: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   ownerText: { flex: 1, gap: 4, minWidth: 0 },
   ownerName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
   ownerRole: { ...Typography.caption },
-  verifiedPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.sm,
-  },
-  verifiedPillText: {
-    ...Typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    fontSize: 9,
-  },
 
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
@@ -1286,6 +1264,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.md,
+  },
+  certificateSection: { gap: Spacing.sm },
+  sectionLabel: {
+    ...Typography.caption,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   specCell: {
     width: "47%",

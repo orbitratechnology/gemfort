@@ -5,7 +5,11 @@ export { syncExchangeRates } from './gemtrack/exchange-rates';
 export { onChequeBounced } from './gemtrack/cheque-bounced';
 
 export { onAnnouncementPublished } from './gemnet/announcement';
-export { onVerificationStatusChanged } from './gemnet/verification';
+export {
+  onBusinessProfileChanged,
+  onVerificationStatusChanged,
+} from './gemnet/verification';
+export { syncPublicBusinessProjection } from './gemnet/public-businesses';
 export { onReportResolved } from './gemnet/report-resolved';
 export { onUserAccountAction } from './gemnet/account-action';
 export {
@@ -17,7 +21,7 @@ export { onLikeCreated } from './gemnet/likes';
 
 export { onNotificationCreated } from './notifications/on-created';
 
-// Auth account deletion and phone linking are handled through gemfortApi;
+// Auth account deletion and phone profile synchronization are handled through gemfortApi;
 // retain the Auth trigger as the server-side cleanup safety net.
 export { onAuthUserDeleted } from './account/delete-account';
 

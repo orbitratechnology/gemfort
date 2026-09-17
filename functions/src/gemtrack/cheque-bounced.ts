@@ -36,7 +36,15 @@ export const onChequeBounced = onDocumentUpdated(
       recipientUid: ownerUid,
       type: 'cheque_bounced',
       title: 'Cheque bounced',
-      message: `Cheque from ${counterpartyName} for ${formatCurrency(after.amount as number, (after.currency as string) ?? 'LKR')} has bounced. Take action.`,
+      message: after.direction === 'given'
+        ? `Cheque to ${counterpartyName} for ${formatCurrency(after.amount as number, (after.currency as string) ?? 'LKR')} has bounced. Take action.`
+        : `Cheque from ${counterpartyName} for ${formatCurrency(after.amount as number, (after.currency as string) ?? 'LKR')} has bounced. Take action.`,
+      direction:
+        after.direction === 'given'
+          ? 'given'
+          : after.direction === 'received'
+            ? 'taken'
+            : undefined,
       referenceType: 'cheque',
       referenceId: chequeId,
       priority: 'high',

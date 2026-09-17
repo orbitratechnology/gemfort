@@ -8,8 +8,14 @@ import {
   type PartySelection,
 } from '@/components/workspace/contact-picker-sheet';
 import type { BusinessKind } from '@/features/workspace/contact-business-link';
-import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
-import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from '@/features/marketplace/marketplace-service';
+import {
+  subscribeBusinessByOwnerUid,
+  subscribeVerifiedBusinesses,
+} from '@/features/workspace/firestore-subscriptions';
 import { ensureContactForBusiness } from '@/features/workspace/workspace-service';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
@@ -37,6 +43,8 @@ type ContactPickerProps = {
    * Selecting a business creates/links a contact (1:1 by phone) and returns its id.
    */
   allowedBusinessKinds?: BusinessKind[];
+  /** Preserve whether the user chose a local contact or a GemFort profile. */
+  onPartyChange?: (selection: PartySelection) => void;
 };
 
 /**
@@ -58,6 +66,7 @@ export function ContactPicker({
   allowClear = false,
   clearLabel = 'No contact (optional)',
   allowedBusinessKinds,
+  onPartyChange,
 }: ContactPickerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -99,9 +108,18 @@ export function ContactPicker({
     enabled: usePartySheet && open && isFirebaseConfigured,
   });
 
+  const { data: ownBusiness = null } = useFirestoreLiveQuery({
+    queryKey: ['my-business', user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !usePartySheet && !!user && open && isFirebaseConfigured,
+  });
+
   async function handlePartySelect(selection: PartySelection) {
     if (!user) return;
     if (selection.source === 'contact') {
+      onPartyChange?.(selection);
       onChange(selection.contactId);
       onCustomNameChange?.('');
       return;
@@ -122,6 +140,7 @@ export function ContactPicker({
         contacts,
       );
       await queryClient.invalidateQueries({ queryKey: ['contacts', user.uid] });
+      onPartyChange?.({ ...selection, linkedContactId: contactId });
       onChange(contactId);
       onCustomNameChange?.('');
     } finally {
@@ -147,6 +166,8 @@ export function ContactPicker({
         label={label}
         valueLabel={displayName}
         subtitle={subtitle}
+        avatarName={selected?.displayName}
+        avatarPhotoUrl={selected?.photoUrl}
         placeholder={
           usePartySheet
             ? 'Search GemFort profiles or contacts…'
@@ -186,6 +207,7 @@ export function ContactPicker({
           customNameLabel={customNameLabel}
           allowClear={allowClear}
           clearLabel={clearLabel}
+          excludeBusinessId={ownBusiness?.id}
           onClear={() => {
             onChange('');
             onCustomNameChange?.('');

@@ -1,4 +1,5 @@
 import { normalizePhoneKey } from "@/features/workspace/device-contacts-service";
+import { normalizeContactTypes } from "@/constants/contact-types";
 import {
     findContactForBusiness,
     linkFieldsFromBusiness,
@@ -12,6 +13,7 @@ import {
   gemActionAvailability,
   isGemStoneStage,
   isTerminalOutcome,
+  normalizeGemTreatment,
   patchFromFlatStatus,
   resolveGemLifecycle,
   type GemLifecycle,
@@ -19,6 +21,7 @@ import {
 import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
+import { listingShareUrl } from "@/lib/public-links";
 import {
     collection,
     deleteDoc,
@@ -53,6 +56,7 @@ import type {
     ChequeDirection,
     ChequeStatus,
     Contact,
+    GemCertificate,
     GemCost,
     GemEvent,
     GemStatus,
@@ -123,6 +127,11 @@ export async function createGem(
     outcome: input.outcome ?? null,
     isListedOnMarketplace: false,
   });
+  const treatment = normalizeGemTreatment(
+    input.treatmentStatus,
+    lifecycle.stoneStage,
+    input.isNatural,
+  );
   const acquisitionCurrency = input.acquisitionCurrency ?? "LKR";
   const askingCurrency = input.askingPriceCurrency ?? acquisitionCurrency;
   const minimumCurrency = input.minimumPriceCurrency ?? acquisitionCurrency;
@@ -157,8 +166,8 @@ export async function createGem(
     clarity: input.clarity ?? null,
     cutType: input.cutType ?? null,
     shape: input.shape ?? null,
-    isNatural: input.isNatural ?? true,
-    treatmentStatus: input.treatmentStatus ?? "natural",
+    isNatural: treatment.isNatural,
+    treatmentStatus: treatment.treatmentStatus,
     treatmentDetails: input.treatmentDetails ?? null,
     status: derivePrimaryStatus(lifecycle),
     stoneStage: lifecycle.stoneStage,
@@ -193,6 +202,7 @@ export async function createGem(
     lastSoldPriceCurrency: null,
     lastSalePaymentMethod: null,
     photoUrls: input.photoUrls ?? [],
+    certificate: input.certificate ?? null,
     isListedOnMarketplace: false,
     marketplaceListingId: null,
     notes: input.notes ?? null,
@@ -246,12 +256,24 @@ export type UpdateGemDetailsInput = {
   isNatural: boolean;
   treatmentStatus: string;
   photoUrls: string[];
+  certificate: GemCertificate | null;
 };
 
 /** Persist photo URLs after a late/background upload finishes. */
 export function queueGemPhotoUrls(gemId: string, photoUrls: string[]): void {
   queueDocUpdate("gemtrack_gems", gemId, {
     photoUrls,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Persist a certificate after a deferred Storage upload completes. */
+export function queueGemCertificate(
+  gemId: string,
+  certificate: GemCertificate | null,
+): void {
+  queueDocUpdate("gemtrack_gems", gemId, {
+    certificate,
     updatedAt: serverTimestamp(),
   });
 }
@@ -275,6 +297,12 @@ export async function updateGemDetails(
   }
   if (!gem || gem.ownerUid !== ownerUid) throw new Error("Gem not found");
 
+  const treatment = normalizeGemTreatment(
+    input.treatmentStatus,
+    resolveGemLifecycle(gem).stoneStage,
+    input.isNatural,
+  );
+
   const acquisitionCostBase = await convertToBase(
     input.acquisitionCost,
     input.acquisitionCurrency,
@@ -295,9 +323,10 @@ export async function updateGemDetails(
     colorPrimary: input.colorPrimary,
     clarity: input.clarity,
     shape: input.shape,
-    isNatural: input.isNatural,
-    treatmentStatus: input.treatmentStatus,
+    isNatural: treatment.isNatural,
+    treatmentStatus: treatment.treatmentStatus,
     photoUrls: input.photoUrls,
+    certificate: input.certificate,
     updatedAt: serverTimestamp(),
   });
 
@@ -307,6 +336,7 @@ export async function updateGemDetails(
   ) {
     queueDocUpdate("gems", gem.marketplaceListingId, {
       photoUrls: input.photoUrls,
+      certificate: input.certificate,
       updatedAt: serverTimestamp(),
     });
   }
@@ -493,9 +523,13 @@ export async function updateGemStatus(
   );
 }
 
-export async function fetchGemEvents(gemId: string): Promise<GemEvent[]> {
+export async function fetchGemEvents(
+  ownerUid: string,
+  gemId: string,
+): Promise<GemEvent[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_gem_events"),
+    where("ownerUid", "==", ownerUid),
     where("gemId", "==", gemId),
     orderBy("createdAt", "asc"),
   );
@@ -503,13 +537,30 @@ export async function fetchGemEvents(gemId: string): Promise<GemEvent[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as GemEvent);
 }
 
-export async function fetchGemCosts(gemId: string): Promise<GemCost[]> {
+export async function fetchGemCosts(
+  ownerUid: string,
+  gemId: string,
+): Promise<GemCost[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_gem_costs"),
+    where("ownerUid", "==", ownerUid),
     where("gemId", "==", gemId),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as GemCost);
+}
+
+export async function fetchGemServices(
+  ownerUid: string,
+  gemId: string,
+): Promise<ServiceRecord[]> {
+  const q = query(
+    collection(getFirebaseDb(), "gemtrack_services"),
+    where("ownerUid", "==", ownerUid),
+    where("gemId", "==", gemId),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceRecord);
 }
 
 // ─── Services ───────────────────────────────────────
@@ -562,11 +613,14 @@ export async function createService(
   }
   const available = gemActionAvailability(gem);
   const canStart =
-    input.serviceType === "cutting"
+    input.serviceType === "cutting" || input.serviceType === "recutting"
       ? available.send_for_cutting
-      : input.serviceType === "heating" || input.serviceType === "heat_treatment"
+      : input.serviceType === "heating" ||
+          input.serviceType === "reheating" ||
+          input.serviceType === "heat_treatment"
         ? available.send_for_heating
-        : input.serviceType === "polishing"
+        : input.serviceType === "polishing" ||
+            input.serviceType === "repolishing"
           ? available.send_for_polishing
           : available.give_on_ap;
   if (!canStart) {
@@ -592,9 +646,11 @@ export async function createService(
     updatedAt: now,
   });
   const serviceCustody: GemStatus =
-    input.serviceType === "heating" || input.serviceType === "heat_treatment"
+    input.serviceType === "heating" ||
+    input.serviceType === "reheating" ||
+    input.serviceType === "heat_treatment"
       ? "with_heater"
-      : input.serviceType === "polishing"
+      : input.serviceType === "polishing" || input.serviceType === "repolishing"
         ? "with_polisher"
         : "with_cutter";
   void updateGemStatus(
@@ -653,13 +709,15 @@ export async function completeService(
     const newTotal = gem.totalCost + finalCostBase;
     const newStatus: GemStatus =
       service.serviceType === "heating" ||
+      service.serviceType === "reheating" ||
       service.serviceType === "heat_treatment"
         ? "heated"
-        : service.serviceType === "polishing"
+        : service.serviceType === "polishing" ||
+            service.serviceType === "repolishing"
           ? "polished"
           : "cut";
 
-    queueDocUpdate("gemtrack_gems", service.gemId, {
+    const gemUpdates: Record<string, unknown> = {
       currentWeight: input.weightAfter,
       totalCost: newTotal,
       status: newStatus,
@@ -667,7 +725,16 @@ export async function completeService(
       custody: null,
       currentLocation: null,
       updatedAt: now,
-    });
+    };
+    if (
+      service.serviceType === "heating" ||
+      service.serviceType === "reheating" ||
+      service.serviceType === "heat_treatment"
+    ) {
+      gemUpdates.isNatural = false;
+      gemUpdates.treatmentStatus = "heated";
+    }
+    queueDocUpdate("gemtrack_gems", service.gemId, gemUpdates);
     queueDocCreate("gemtrack_gem_costs", {
       gemId: service.gemId,
       ownerUid,
@@ -842,7 +909,7 @@ export async function fetchContacts(ownerUid: string): Promise<Contact[]> {
       return {
         id: d.id,
         ...data,
-        contactTypes: Array.isArray(data.contactTypes) ? data.contactTypes : [],
+        contactTypes: normalizeContactTypes(data.contactTypes),
         photoUrl: data.photoUrl ?? null,
         deviceContactId: data.deviceContactId ?? null,
         linkedBusinessId: data.linkedBusinessId ?? null,
@@ -864,7 +931,7 @@ export async function createContact(
     phone: normalizePhoneForStorage(input.phone),
     whatsapp: normalizePhoneForStorage(input.whatsapp),
     email: input.email ?? null,
-    contactTypes: input.contactTypes ?? [],
+    contactTypes: normalizeContactTypes(input.contactTypes),
     notes: input.notes ?? null,
     isFavourite: input.isFavourite ?? false,
     photoUrl: input.photoUrl ?? null,
@@ -936,7 +1003,7 @@ export async function importDeviceContactToWorkspace(
     email: device.email,
     contactTypes: options?.contactTypes?.length
       ? options.contactTypes
-      : ["broker"],
+      : ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl,
@@ -948,59 +1015,6 @@ export async function importDeviceContactToWorkspace(
   return { id, created: true };
 }
 
-export async function importDeviceContactsBatch(
-  ownerUid: string,
-  devices: {
-    id: string;
-    displayName: string;
-    companyName: string | null;
-    phone: string | null;
-    email: string | null;
-    imageUri: string | null;
-  }[],
-  contactTypes?: string[],
-): Promise<{ created: number; linked: number }> {
-  let existing = await fetchContacts(ownerUid);
-  let created = 0;
-  let linked = 0;
-  for (const device of devices) {
-    const result = await importDeviceContactToWorkspace(ownerUid, device, {
-      contactTypes,
-      existing,
-    });
-    if (result.created) {
-      created += 1;
-      const e164 = normalizePhoneForStorage(device.phone);
-      // Keep local list fresh for subsequent duplicate checks
-      existing = [
-        ...existing,
-        {
-          id: result.id,
-          ownerUid,
-          displayName: device.displayName,
-          companyName: device.companyName,
-          phone: e164,
-          whatsapp: e164,
-          email: device.email,
-          contactTypes: contactTypes?.length ? contactTypes : ["broker"],
-          notes: null,
-          isFavourite: false,
-          photoUrl: null,
-          deviceContactId: device.id,
-          linkedBusinessId: null,
-          linkedBusinessName: null,
-          linkedBusinessType: null,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        },
-      ];
-    } else {
-      linked += 1;
-    }
-  }
-  return { created, linked };
-}
-
 async function uploadContactPhoto(
   ownerUid: string,
   deviceContactId: string,
@@ -1008,14 +1022,22 @@ async function uploadContactPhoto(
 ): Promise<string> {
   const ext = localUri.split("?")[0]?.split(".").pop()?.toLowerCase();
   const safeExt = ext && ext.length <= 5 ? ext : "jpg";
+  const contentType =
+    safeExt === "jpg" || safeExt === "jpeg"
+      ? "image/jpeg"
+      : `image/${safeExt}`;
   return uploadBlobToStorage(
     localUri,
     `users/${ownerUid}/contacts/${deviceContactId}.${safeExt}`,
+    contentType,
   );
 }
 
 export async function updateContact(contactId: string, data: Partial<Contact>) {
   const payload: Partial<Contact> = { ...data };
+  if (data.contactTypes !== undefined) {
+    payload.contactTypes = normalizeContactTypes(data.contactTypes);
+  }
   if (data.phone !== undefined) {
     payload.phone = normalizePhoneForStorage(data.phone);
   }
@@ -1104,7 +1126,7 @@ export async function ensureContactForBusiness(
     phone,
     whatsapp: business.contacts?.whatsapp?.value ?? phone,
     email: business.contacts?.email?.value ?? null,
-    contactTypes: ["broker"],
+    contactTypes: ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl: business.logoUrl ?? null,
@@ -1120,7 +1142,7 @@ export async function ensureContactForBusiness(
     phone,
     whatsapp: business.contacts?.whatsapp?.value ?? phone,
     email: business.contacts?.email?.value ?? null,
-    contactTypes: ["broker"],
+    contactTypes: ["trader"],
     notes: null,
     isFavourite: false,
     photoUrl: business.logoUrl ?? null,
@@ -2004,20 +2026,27 @@ export async function deleteTrip(tripId: string, ownerUid: string) {
   }
   for (const tg of tripGems) {
     queueDocDelete("gemtrack_trip_gems", tg.id);
-    if (tg.status === "on_trip") {
-      const gem = await fetchGem(tg.gemId);
-      if (gem && gem.ownerUid === ownerUid) {
+  }
+  const gemIdsToClear = await Promise.all(
+    tripGems
+      .filter((tg) => tg.status === "on_trip")
+      .map(async (tg) => {
+        const gem = await fetchGem(tg.gemId);
+        if (!gem || gem.ownerUid !== ownerUid) return null;
         const life = resolveGemLifecycle(gem);
-        if (life.custody === "on_trip" || gem.status === "on_trip") {
-          void updateGemLifecycle(
-            tg.gemId,
-            ownerUid,
-            { custody: null },
-            "Removed from trip",
-          );
-        }
-      }
-    }
+        return life.custody === "on_trip" || gem.status === "on_trip"
+          ? tg.gemId
+          : null;
+      }),
+  );
+  for (const gemId of gemIdsToClear) {
+    if (!gemId) continue;
+    void updateGemLifecycle(
+      gemId,
+      ownerUid,
+      { custody: null },
+      "Removed from trip",
+    );
   }
   queueDocDelete("gemtrack_trips", tripId);
 }
@@ -2229,35 +2258,42 @@ export async function distributeTripOverhead(
     0,
   );
   const now = Timestamp.now();
+  const allocations = await Promise.all(
+    purchases.map(async (tg) => {
+      const share =
+        totalPurchase > 0
+          ? (overhead * (tg.purchaseCost ?? 0)) / totalPurchase
+          : overhead / purchases.length;
+      if (share <= 0) return null;
+
+      const gem = await fetchGem(tg.gemId);
+      if (!gem) return null;
+      return { gem, share, tg };
+    }),
+  );
   let distributed = 0;
 
-  for (const tg of purchases) {
-    const share =
-      totalPurchase > 0
-        ? (overhead * (tg.purchaseCost ?? 0)) / totalPurchase
-        : overhead / purchases.length;
-    if (share <= 0) continue;
-
-    const gem = await fetchGem(tg.gemId);
-    if (!gem) continue;
+  for (const allocation of allocations) {
+    if (!allocation) continue;
+    const { gem, share, tg } = allocation;
 
     queueDocCreate("gemtrack_gem_costs", {
-        gemId: tg.gemId,
-        ownerUid,
-        costType: "trip_overhead",
-        description: "Trip overhead allocation",
-        amount: share,
-        currency: "LKR",
-        amountBase: share,
-        serviceRecordId: null,
-        date: now,
-        createdAt: now,
-      });
+      gemId: tg.gemId,
+      ownerUid,
+      costType: "trip_overhead",
+      description: "Trip overhead allocation",
+      amount: share,
+      currency: "LKR",
+      amountBase: share,
+      serviceRecordId: null,
+      date: now,
+      createdAt: now,
+    });
 
     queueDocUpdate("gemtrack_gems", tg.gemId, {
-        totalCost: gem.totalCost + share,
-        updatedAt: serverTimestamp(),
-      });
+      totalCost: gem.totalCost + share,
+      updatedAt: serverTimestamp(),
+    });
     distributed += share;
   }
 
@@ -2325,6 +2361,8 @@ export async function createListing(
   let photoUrls = Array.isArray(input.photoUrls)
     ? (input.photoUrls as string[])
     : [];
+  let certificate =
+    (input.certificate as GemCertificate | null | undefined) ?? null;
   const workspaceGemId =
     typeof input.workspaceGemId === "string" ? input.workspaceGemId : null;
 
@@ -2357,6 +2395,7 @@ export async function createListing(
           (u): u is string => typeof u === "string" && u.length > 0,
         );
       }
+      certificate = gemData.certificate ?? certificate;
     }
   }
 
@@ -2406,6 +2445,7 @@ export async function createListing(
     title: listingTitle || input.title,
     workspaceGemId,
     photoUrls,
+    certificate,
     currency,
     priceMin,
     priceMax,
@@ -2420,7 +2460,7 @@ export async function createListing(
     sellerCountry,
     sellerIsVerified,
     shareableSlug: slug,
-    shareableUrl: `https://gemfort.app/l/${slug}`,
+    shareableUrl: listingShareUrl(slug),
     status: "active",
     soldAt: null,
     soldPrice: null,
@@ -2581,6 +2621,8 @@ export type SubmitVerificationInput = {
     addressProofUrl: string | null;
     otherDocUrls: string[];
   };
+  /** Keep an existing verified tier active while a promotion is reviewed. */
+  preserveVerifiedStatus?: boolean;
 };
 
 export async function submitVerificationApplication(
@@ -2607,17 +2649,20 @@ export async function submitVerificationApplication(
       businessName,
       servicesOffered: input.servicesOffered,
       documents: input.documents,
+      isPromotion: input.preserveVerifiedStatus === true,
       status: "pending",
       adminUid: null,
       adminNotes: "",
       submittedAt: now,
     },
   );
-  queueDocUpdate("users", applicantUid, {
-      verificationStatus: "pending",
-      dateOfBirth,
-      updatedAt: serverTimestamp(),
-    });
+  if (!input.preserveVerifiedStatus) {
+    queueDocUpdate("users", applicantUid, {
+        verificationStatus: "pending",
+        dateOfBirth,
+        updatedAt: serverTimestamp(),
+      });
+  }
 
   return applicationId;
 }

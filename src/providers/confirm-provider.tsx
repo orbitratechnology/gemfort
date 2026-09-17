@@ -9,42 +9,15 @@ import {
   type ReactNode,
 } from "react";
 
+import { ActionSheet } from "@/components/ui/action-sheet";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { withLoading } from "@/providers/loading-bridge";
 import {
-  ActionSheet,
-  type ActionSheetItem,
-} from "@/components/ui/action-sheet";
-import {
-  ConfirmDialog,
-  type ConfirmTone,
-} from "@/components/ui/confirm-dialog";
-import type { IconName } from "@/components/ui/icon";
-import { withLoading } from "@/providers/loading-provider";
-
-export type ConfirmOptions = {
-  title: string;
-  message?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: ConfirmTone;
-  icon?: IconName;
-  /**
-   * Runs when the user confirms. Dialog shows a loading state while awaiting.
-   * Throw (or reject) to keep the dialog open after failure.
-   */
-  onConfirm?: () => void | Promise<void>;
-};
-
-export type ShowActionsOptions = {
-  title?: string;
-  message?: string;
-  cancelLabel?: string;
-  actions: ActionSheetItem[];
-};
-
-type ConfirmApi = {
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
-  showActions: (options: ShowActionsOptions) => void;
-};
+  setConfirmBridge,
+  type ConfirmApi,
+  type ConfirmOptions,
+  type ShowActionsOptions,
+} from "@/providers/confirm-bridge";
 
 type PendingConfirm = ConfirmOptions & {
   resolve: (value: boolean) => void;
@@ -55,9 +28,6 @@ type PendingActions = ShowActionsOptions & {
 };
 
 const ConfirmContext = createContext<ConfirmApi | null>(null);
-
-/** Module bridge so non-hook call sites work after mount. */
-let bridge: ConfirmApi | null = null;
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingConfirm | null>(null);
@@ -98,9 +68,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    bridge = api;
+    setConfirmBridge(api);
     return () => {
-      if (bridge === api) bridge = null;
+      setConfirmBridge(null);
     };
   }, [api]);
 
@@ -168,39 +138,4 @@ export function useConfirm(): ConfirmApi {
     throw new Error("useConfirm must be used within ConfirmProvider");
   }
   return ctx;
-}
-
-/**
- * Imperative confirm — works from any module once ConfirmProvider is mounted.
- */
-export function confirm(options: ConfirmOptions): Promise<boolean> {
-  if (!bridge) {
-    return Promise.resolve(false);
-  }
-  return bridge.confirm(options);
-}
-
-/** Themed multi-action sheet (replaces native Alert menus). */
-export function showActions(options: ShowActionsOptions): void {
-  if (!bridge) {
-    return;
-  }
-  bridge.showActions(options);
-}
-
-/** Destructive delete confirm with loading-aware confirm button. */
-export function confirmDelete(
-  title: string,
-  message: string,
-  onConfirm: () => void | Promise<void>,
-): Promise<boolean> {
-  return confirm({
-    title,
-    message,
-    tone: "destructive",
-    confirmLabel: "Delete",
-    cancelLabel: "Cancel",
-    icon: "delete-outline",
-    onConfirm,
-  });
 }

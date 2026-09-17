@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
 import { CountryFlag } from "@/components/ui/country-flag";
-import { Icon, type IconName } from "@/components/ui/icon";
+import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { TripExpensesSheet } from "@/components/workspace/trip-expenses-sheet";
@@ -21,6 +21,7 @@ import {
     TripQuickActions,
 } from "@/components/workspace/trip-money-cards";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { flagUrl, resolveCountryCode } from "@/constants/gem-options";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
@@ -54,8 +55,8 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function TripDetailScreen() {
@@ -254,7 +255,6 @@ export default function TripDetailScreen() {
                 style={styles.heroBlur}
               >
                 <HeroCardContent
-                  typeIcon={typeMeta?.icon ?? "flight"}
                   statusLabel={TRIP_STATUS_LABELS[trip.status]}
                   locationLine={locationLine}
                   dates={formatTripDates(trip)}
@@ -268,7 +268,6 @@ export default function TripDetailScreen() {
           ) : (
             <View style={styles.heroBlur}>
               <HeroCardContent
-                typeIcon={typeMeta?.icon ?? "flight"}
                 statusLabel={TRIP_STATUS_LABELS[trip.status]}
                 locationLine={locationLine}
                 dates={formatTripDates(trip)}
@@ -419,7 +418,6 @@ export default function TripDetailScreen() {
 }
 
 function HeroCardContent({
-  typeIcon,
   statusLabel,
   locationLine,
   dates,
@@ -429,7 +427,6 @@ function HeroCardContent({
   onFlagBackground,
   fallbackIconColor = "#FFFFFF",
 }: {
-  typeIcon: IconName;
   statusLabel: string;
   locationLine: string;
   dates: string;
@@ -449,7 +446,6 @@ function HeroCardContent({
     ? "rgba(255,255,255,0.62)"
     : fallbackIconColor + "99";
   const iconColor = onFlagBackground ? "#FFFFFF" : fallbackIconColor;
-
   return (
     <>
       <View style={styles.heroTop}>
@@ -463,7 +459,12 @@ function HeroCardContent({
             },
           ]}
         >
-          <Icon name={typeIcon} size={26} color={iconColor} />
+          <Image
+            source={WORKSPACE_ENTITY_IMAGES.trip}
+            style={styles.heroEntityImage}
+            contentFit="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
         <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
           <Text style={[styles.statusText, { color: statusTextColor }]}>
@@ -537,6 +538,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  heroEntityImage: { width: 40, height: 40 },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 5,

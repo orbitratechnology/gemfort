@@ -15,13 +15,14 @@ import {
 
 import { AP_PAYMENT_OVERDUE_DAYS, DUE_SOON_DAYS } from '../config';
 import { formatCurrency, toDate } from './create';
-import type { NotificationInput } from './types';
+import type { NotificationDirection, NotificationInput } from './types';
 
 type ContactDoc = { displayName?: string };
 type GemDoc = { variety?: string | null; gemType?: string; sku?: string };
 type ChequeDoc = {
   ownerUid: string;
   status: string;
+  direction?: 'given' | 'received';
   issuedBy?: string;
   amount: number;
   currency?: string;
@@ -60,7 +61,7 @@ type ReceivableDoc = {
 type BillDoc = {
   ownerUid: string;
   status: string;
-  direction?: string;
+  direction?: 'payable' | 'receivable';
   counterpartyContactId?: string;
   amount: number;
   amountSettled?: number;
@@ -81,6 +82,27 @@ type OwnerContext = {
 function contactName(contacts: Map<string, ContactDoc>, id: string | undefined, fallback = 'Unknown') {
   if (!id) return fallback;
   return contacts.get(id)?.displayName ?? fallback;
+}
+
+function chequeDirection(direction: ChequeDoc['direction']): NotificationDirection | undefined {
+  if (direction === 'given') return 'given';
+  if (direction === 'received') return 'taken';
+  return undefined;
+}
+
+function billDirection(direction: BillDoc['direction']): NotificationDirection | undefined {
+  if (direction === 'payable') return 'to_pay';
+  if (direction === 'receivable') return 'to_receive';
+  return undefined;
+}
+
+function apDirectionForRecipient(
+  ap: ApDoc,
+  recipientUid: string,
+): NotificationDirection | undefined {
+  if (ap.senderUid === recipientUid) return 'given';
+  if (ap.receiverUid === recipientUid) return 'taken';
+  return undefined;
 }
 
 function gemLabel(gems: Map<string, GemDoc>, gemId: string | undefined) {
@@ -171,11 +193,15 @@ export function buildGemTrackCandidatesForOwner(
     if (c.status !== 'holding' && c.status !== 'deposited') continue;
     const maturity = toDate(c.maturityDate);
     if (maturity && isSameDay(startOfDay(maturity), tomorrow)) {
+      const who = contactName(ctx.contacts, c.counterpartyContactId, c.issuedBy);
       candidates.push({
         recipientUid: ownerUid,
         type: 'cheque_maturing_tomorrow',
         title: 'Cheque maturing tomorrow',
-        message: `Cheque from ${contactName(ctx.contacts, c.counterpartyContactId, c.issuedBy)} for ${formatCurrency(c.amount, c.currency)} matures tomorrow.`,
+        message: c.direction === 'given'
+          ? `Cheque to ${who} for ${formatCurrency(c.amount, c.currency)} matures tomorrow.`
+          : `Cheque from ${who} for ${formatCurrency(c.amount, c.currency)} matures tomorrow.`,
+        direction: chequeDirection(c.direction),
         referenceType: 'cheque',
         referenceId: doc.id,
       });
@@ -206,6 +232,7 @@ export function buildGemTrackCandidatesForOwner(
       message: isPayable
         ? `Pay ${formatCurrency(remaining, b.currency)} to ${who} today.`
         : `Collect ${formatCurrency(remaining, b.currency)} from ${who} today.`,
+      direction: billDirection(b.direction),
       referenceType: 'bill',
       referenceId: doc.id,
     });
@@ -228,6 +255,7 @@ export function buildGemTrackCandidatesForOwner(
           type: 'ap_overdue',
           title: 'AP stone overdue',
           message: `AP with ${holder} is ${daysOverdue(due)} day${daysOverdue(due) === 1 ? '' : 's'} overdue.`,
+          direction: apDirectionForRecipient(r, ownerUid),
           referenceType: 'ap',
           referenceId: doc.id,
         });
@@ -238,6 +266,7 @@ export function buildGemTrackCandidatesForOwner(
           type: 'ap_return_due_soon',
           title: 'AP return due soon',
           message: `AP with ${holder} is due back in ${DUE_SOON_DAYS} days.`,
+          direction: apDirectionForRecipient(r, ownerUid),
           referenceType: 'ap',
           referenceId: doc.id,
         });
@@ -259,6 +288,7 @@ export function buildGemTrackCandidatesForOwner(
           type: 'ap_payment_overdue',
           title: 'AP payment overdue',
           message: `Payment from AP (${holder}) is overdue.`,
+          direction: apDirectionForRecipient(r, ownerUid),
           referenceType: 'ap',
           referenceId: doc.id,
         });

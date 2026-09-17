@@ -20,13 +20,17 @@ import {
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from "@/features/marketplace/marketplace-service";
 import {
   fetchApRecordsForUser,
   recordApGemSale,
 } from "@/features/workspace/ap-lifecycle-service";
 import {
   subscribeApRecordsForUser,
+  subscribeBusinessByOwnerUid,
   subscribeGem,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
@@ -42,7 +46,7 @@ import { haptics } from "@/lib/haptics";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, sellApGemSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
@@ -56,7 +60,7 @@ export default function ApSellScreen() {
   const raw = useLocalSearchParams<{ apId?: string; gemId?: string }>();
   const apId = firstParam(raw.apId);
   const gemId = firstParam(raw.gemId);
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -102,6 +106,14 @@ export default function ApSellScreen() {
     enabled: !!ap,
   });
 
+  const { data: myBusiness } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+
   if (!didPrefill && line) {
     setDidPrefill(true);
     if (line.agreedPrice > 0) {
@@ -113,7 +125,7 @@ export default function ApSellScreen() {
   const senderPhoto = ap
     ? resolveBusinessPhotoByOwnerUid(ap.senderUid, businesses)
     : null;
-  const youName = profile?.displayName || user?.displayName || "You";
+  const youName = myBusiness?.businessName?.trim() || "Your Business";
   const youPhoto = user?.photoURL ?? null;
   const gemLabel = line?.gemLabel ?? "Gem";
   const currency = line?.currency || "LKR";
@@ -231,7 +243,11 @@ export default function ApSellScreen() {
   if (isLoading || !ap || !line) {
     return (
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-        <StackHeader title="Sell" closeIcon />
+        <StackHeader
+          title="Sell"
+          closeIcon
+          image={require("@/assets/images/ap-icon.png")}
+        />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>
             {isLoading ? "Loading…" : "Gem not found on this AP."}
@@ -244,7 +260,11 @@ export default function ApSellScreen() {
   if (ap.receiverUid !== user?.uid || line.lineStatus !== "held") {
     return (
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-        <StackHeader title="Sell" closeIcon />
+        <StackHeader
+          title="Sell"
+          closeIcon
+          image={require("@/assets/images/ap-icon.png")}
+        />
         <View style={styles.center}>
           <Text style={{ color: colors.textMuted }}>
             This gem cannot be sold on AP right now.
@@ -256,7 +276,11 @@ export default function ApSellScreen() {
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title={stepTitle} closeIcon />
+      <StackHeader
+        title={stepTitle}
+        closeIcon
+        image={require("@/assets/images/ap-icon.png")}
+      />
       <ApSellStepRail step={step} />
 
       {step === 0 ? (
@@ -444,9 +468,9 @@ export default function ApSellScreen() {
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   center: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.xl,

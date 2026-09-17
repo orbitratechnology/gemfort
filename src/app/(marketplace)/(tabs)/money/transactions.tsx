@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/currency-amount-field';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
@@ -26,13 +27,14 @@ import {
 } from '@/features/workspace/payment-source';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
 import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
-import { subscribeGems, subscribeTransactions } from '@/features/workspace/firestore-subscriptions';
+import { subscribeGems } from '@/features/workspace/firestore-subscriptions';
 import {
   createTransaction,
   fetchGems,
-  fetchTransactions,
 } from '@/features/workspace/workspace-service';
+import { fetchTransactionsPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
@@ -42,7 +44,7 @@ import { uploadReceipt } from '@/lib/firebase/receipt-service';
 import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function TransactionsScreen() {
@@ -59,16 +61,23 @@ export default function TransactionsScreen() {
   });
   const [description, setDescription] = useState('');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
-  const [gemId, setGemId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const { data: transactions = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ['transactions', user?.uid],
-    queryFn: () => fetchTransactions(user!.uid),
-    subscribe: (onData, onError) => subscribeTransactions(user!.uid, onData, onError),
+  const {
+    items: transactions,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ['transactions', user?.uid, 'infinite'],
+    fetchPage: (cursor, pageSize) =>
+      fetchTransactionsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -115,7 +124,7 @@ export default function TransactionsScreen() {
           description:
             result.data.description ||
             (type === 'income' ? 'Income' : 'Expense'),
-          gemId,
+          gemId: null,
           contactId: null,
           receiptUrl,
           date: Timestamp.now(),
@@ -123,7 +132,6 @@ export default function TransactionsScreen() {
         setMoney({ amount: '', currency: preferred });
         setDescription('');
         setReceipt(null);
-        setGemId(null);
         setShowForm(false);
         await queryClient.invalidateQueries({ queryKey: ['transactions'] });
       }, 'Adding…');
@@ -200,6 +208,18 @@ export default function TransactionsScreen() {
           keyExtractor={(t) => t.id}
           onRefresh={refetch}
           refreshing={isRefetching}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            <InfiniteListFooter
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              isFetchNextPageError={isFetchNextPageError}
+              onRetry={() => void fetchNextPage()}
+            />
+          }
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
@@ -286,8 +306,12 @@ export default function TransactionsScreen() {
 
         {/* Floating Action Button */}
         {!showForm && (
-          <Pressable 
-            style={[styles.fab, { backgroundColor: colors.primary }]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              { backgroundColor: colors.primary },
+              pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+            ]}
             onPress={() => setShowForm(true)}
           >
             <Icon name="add" size={28} color={colors.onPrimary} />
@@ -360,11 +384,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 15,
-    elevation: 5,
     zIndex: 100,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
   },
 });

@@ -28,7 +28,6 @@ import {
   subscribeGems,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-  createClientNotification,
   createServiceRequest,
 } from "@/features/marketplace/request-service";
 import { fetchGems } from "@/features/workspace/workspace-service";
@@ -37,7 +36,7 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -138,12 +137,10 @@ export default function RequestServiceScreen() {
     );
     return LAPIDARY_SERVICE_OPTIONS.filter((option) => offered.has(option.id));
   }, [business?.providerProfile?.services, business?.providerProfile?.servicesOffered]);
-
-  useEffect(() => {
-    setServiceTypes((previous) =>
-      previous.filter((id) => serviceOptions.some((option) => option.id === id)),
-    );
-  }, [serviceOptions]);
+  const selectedServiceTypes = serviceTypes.filter((id) =>
+    serviceOptions.some((option) => option.id === id),
+  );
+  const selectedServiceTypeSet = new Set(selectedServiceTypes);
 
   useEffect(() => {
     if (
@@ -192,11 +189,14 @@ export default function RequestServiceScreen() {
   }
 
   function toggleService(serviceId: LapidaryServiceId) {
-    setServiceTypes((prev) =>
-      prev.includes(serviceId)
-        ? prev.filter((x) => x !== serviceId)
-        : [...prev, serviceId],
-    );
+    setServiceTypes((prev) => {
+      const available = prev.filter((id) =>
+        serviceOptions.some((option) => option.id === id),
+      );
+      return available.includes(serviceId)
+        ? available.filter((x) => x !== serviceId)
+        : [...available, serviceId];
+    });
     clearField("serviceTypes");
   }
 
@@ -235,7 +235,7 @@ export default function RequestServiceScreen() {
   }
 
   function continueServices() {
-    if (serviceTypes.length === 0) {
+    if (selectedServiceTypes.length === 0) {
       setErrors({ serviceTypes: "Select at least one service" });
       toast.error("Select at least one service");
       return;
@@ -249,7 +249,7 @@ export default function RequestServiceScreen() {
     const nextErrors: Record<string, string> = {};
     const gem = gems.find((g) => g.id === gemId);
     if (!gem) nextErrors.gemId = "Select a gem from your inventory";
-    if (serviceTypes.length === 0)
+    if (selectedServiceTypes.length === 0)
       nextErrors.serviceTypes = "Select at least one service";
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -261,29 +261,22 @@ export default function RequestServiceScreen() {
     try {
       await withLoading(async () => {
         const gemName = gemDisplayName(gem!);
-        const id = await createServiceRequest({
+        await createServiceRequest({
           traderUid: user.uid,
           traderBusinessId: myBusiness?.id ?? null,
-          lapidaryUid: business.ownerUid,
+          traderBusinessName: myBusiness?.businessName ?? null,
+          traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
           lapidaryBusinessId: business.id,
+          providerName: business.businessName,
+          providerBusinessName: business.businessName,
+          providerBusinessLogoUrl: business.logoUrl,
           gemId: gem!.id,
           gemName,
           gemPhotoUrl: gemPrimaryPhotoUrl(gem),
-          serviceTypes,
+          serviceTypes: selectedServiceTypes,
           notes,
-        });
-        await createClientNotification({
-          recipientUid: business.ownerUid,
-          type: "service_request_received",
-          title: "New service request",
-          message: `${profile?.displayName ?? "A trader"} requested ${serviceTypes
-            .map((id) =>
-              LAPIDARY_SERVICE_OPTIONS.find((option) => option.id === id)?.label ??
-              id,
-            )
-            .join(", ")} for ${gemName}.`,
-          referenceType: "service_request",
-          referenceId: id,
+          expectedReturnDays: 14,
+          weightBefore: gem!.currentWeight,
         });
         toast.success("Service request sent.");
         router.back();
@@ -312,7 +305,7 @@ export default function RequestServiceScreen() {
           <Button
             title={serviceOptions.length ? "Continue" : "No services available"}
             onPress={continueServices}
-            disabled={serviceTypes.length === 0 || serviceOptions.length === 0}
+            disabled={selectedServiceTypes.length === 0 || serviceOptions.length === 0}
           />
         }
       >
@@ -322,7 +315,7 @@ export default function RequestServiceScreen() {
         {serviceOptions.length > 0 ? (
           <View style={styles.serviceList}>
             {serviceOptions.map((s) => {
-              const active = serviceTypes.includes(s.id);
+              const active = selectedServiceTypeSet.has(s.id);
               return (
                 <Pressable
                   key={s.id}
@@ -383,7 +376,7 @@ export default function RequestServiceScreen() {
           </View>
         ) : (
           <View style={styles.emptyServices}>
-            <Icon name="handyman" size={30} color={colors.outlineVariant} />
+            <Icon name="service" size={30} color={colors.outlineVariant} />
             <Text style={[styles.emptyServicesTitle, { color: colors.onSurface }]}>
               No services published
             </Text>
@@ -419,7 +412,7 @@ export default function RequestServiceScreen() {
             icon="send"
             onPress={submit}
             loading={submitting}
-            disabled={!selectedGem || serviceTypes.length === 0}
+            disabled={!selectedGem || selectedServiceTypes.length === 0}
           />
         }
       >
@@ -434,7 +427,7 @@ export default function RequestServiceScreen() {
               },
             ]}
           >
-            <Icon name="handyman" size={22} color={colors.primary} />
+            <Icon name="service" size={22} color={colors.primary} />
             <View style={styles.previewBody}>
               <Text style={[styles.workshopName, { color: colors.onSurface }]}>
                 {business?.businessName ?? "Lapidary"}
@@ -460,7 +453,7 @@ export default function RequestServiceScreen() {
             </Pressable>
           </View>
           <View style={styles.chipRow}>
-            {serviceTypes.map((id) => (
+            {selectedServiceTypes.map((id) => (
               <View
                 key={id}
                 style={[styles.summaryChip, { backgroundColor: colors.primaryContainer }]}

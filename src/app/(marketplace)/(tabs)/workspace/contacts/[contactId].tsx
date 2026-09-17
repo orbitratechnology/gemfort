@@ -18,9 +18,12 @@ import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ThemedScrollView } from "@/components/ui/screen";
-import { CallLogRow } from "@/components/workspace/call-log-row";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import { CONTACT_TYPES } from "@/constants/contact-types";
+import {
+  CONTACT_TYPE_OPTIONS,
+  getContactTypeOption,
+  normalizeContactTypes,
+} from "@/constants/contact-types";
 import {
   BrandPalette,
   Radius,
@@ -34,7 +37,6 @@ import {
   subscribeServices,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
-import { isCallLogsSupported } from "@/features/workspace/call-logs-service";
 import { resolvePartyPhotoUrl } from "@/features/workspace/party-photo";
 import {
   deleteContact,
@@ -45,12 +47,11 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { useMatchedCallLogs } from "@/hooks/use-matched-call-logs";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
-import { confirmDelete } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirmDelete } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function ContactDetailScreen() {
@@ -108,21 +109,8 @@ export default function ContactDetailScreen() {
     };
   }, [contactId, services, apRecords]);
 
-  const callLogsSupported = isCallLogsSupported();
-  const { logs: allCallLogs } = useMatchedCallLogs({
-    enabled: !!user && callLogsSupported,
-  });
-
   const contact = contacts.find((c) => c.id === contactId);
   const avatarUrl = resolvePartyPhotoUrl(contact, businesses);
-
-  const contactCalls = useMemo(
-    () =>
-      allCallLogs.filter(
-        (log) => log.partyKind === "contact" && log.partyId === contactId,
-      ),
-    [allCallLogs, contactId],
-  );
 
   function startEdit() {
     if (!contact) return;
@@ -130,7 +118,7 @@ export default function ContactDetailScreen() {
     setPhone(contact.phone ?? "");
     setWhatsapp(contact.whatsapp ?? "");
     setEmail(contact.email ?? "");
-    setContactTypes(contact.contactTypes);
+    setContactTypes(normalizeContactTypes(contact.contactTypes));
     setNotes(contact.notes ?? "");
     setEditing(true);
   }
@@ -250,14 +238,14 @@ export default function ContactDetailScreen() {
               leftIcon="email"
             />
           </FormSection>
-          <FormSection title="Types" padded={false}>
+          <FormSection title="Roles" padded={false}>
             <View style={styles.typeChips}>
-              {CONTACT_TYPES.map((t) => {
-                const active = contactTypes.includes(t);
+              {CONTACT_TYPE_OPTIONS.map(({ value, label, icon }) => {
+                const active = contactTypes.includes(value);
                 return (
                   <Pressable
-                    key={t}
-                    onPress={() => toggleType(t)}
+                    key={value}
+                    onPress={() => toggleType(value)}
                     style={[
                       styles.chip,
                       active
@@ -271,6 +259,13 @@ export default function ContactDetailScreen() {
                           },
                     ]}
                   >
+                    <Icon
+                      name={icon}
+                      size={18}
+                      color={
+                        active ? colors.onPrimary : colors.onSurfaceVariant
+                      }
+                    />
                     <Text
                       style={[
                         styles.chipText,
@@ -281,7 +276,7 @@ export default function ContactDetailScreen() {
                         },
                       ]}
                     >
-                      {t}
+                      {label}
                     </Text>
                   </Pressable>
                 );
@@ -367,24 +362,32 @@ export default function ContactDetailScreen() {
           ) : null}
           {contact.contactTypes.length ? (
             <View style={styles.typeRow}>
-              {contact.contactTypes.map((t) => (
-                <View
-                  key={t}
-                  style={[
-                    styles.typeBadge,
-                    { backgroundColor: colors.surfaceContainerHighest },
-                  ]}
-                >
-                  <Text
+              {contact.contactTypes.map((t) => {
+                const option = getContactTypeOption(t);
+                return (
+                  <View
+                    key={t}
                     style={[
-                      styles.typeBadgeText,
-                      { color: colors.onSurfaceVariant },
+                      styles.typeBadge,
+                      { backgroundColor: colors.surfaceContainerHighest },
                     ]}
                   >
-                    {t}
-                  </Text>
-                </View>
-              ))}
+                    <Icon
+                      name={option.icon}
+                      size={15}
+                      color={colors.onSurfaceVariant}
+                    />
+                    <Text
+                      style={[
+                        styles.typeBadgeText,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
           ) : null}
           {contact.deviceContactId ? (
@@ -566,47 +569,6 @@ export default function ContactDetailScreen() {
           </FormSection>
         ) : null}
 
-        {callLogsSupported ? (
-          <FormSection
-            title="Calls"
-            hint={
-              contactCalls.length
-                ? `${contactCalls.length} matched`
-                : undefined
-            }
-            padded={false}
-          >
-            {contactCalls.length ? (
-              contactCalls.slice(0, 20).map((log, index) => (
-                <CallLogRow
-                  key={log.id}
-                  log={log}
-                  compact
-                  isLast={index === Math.min(contactCalls.length, 20) - 1}
-                  onPress={() => {
-                    if (contact.phone) {
-                      void Linking.openURL(openPhone(contact.phone));
-                    }
-                  }}
-                />
-              ))
-            ) : (
-              <Text
-                style={[
-                  styles.emptyHistory,
-                  {
-                    color: colors.textMuted,
-                    paddingHorizontal: Spacing.containerMargin,
-                    paddingVertical: Spacing.md,
-                  },
-                ]}
-              >
-                No matched calls with this contact yet.
-              </Text>
-            )}
-          </FormSection>
-        ) : null}
-
         <FormSection title="Service history" padded={false}>
           {history?.services.length ? (
             history.services.map((s, index) => (
@@ -620,7 +582,7 @@ export default function ContactDetailScreen() {
                   },
                 ]}
               >
-                <Icon name="handyman" size={18} color={colors.primary} />
+                <Icon name="service" size={18} color={colors.primary} />
                 <View style={styles.historyBody}>
                   <Text
                     style={[styles.historyTitle, { color: colors.onSurface }]}
@@ -752,6 +714,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: Radius.full,
@@ -818,6 +783,9 @@ const styles = StyleSheet.create({
   emptyHistory: { ...Typography.bodyMd },
 
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Radius.full,

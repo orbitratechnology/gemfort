@@ -1,4 +1,5 @@
 import { isRegisterableRole } from "@/constants/roles";
+import type { LegalAcceptance } from "@/constants/legal";
 import { callApi } from "@/lib/api/api-client";
 import {
     createUserWithEmailAndPassword,
@@ -20,9 +21,9 @@ import {
     setDoc,
     updateDoc,
 } from "@/lib/firebase/db";
-import { normalizePhoneNumber } from "@/lib/firebase/phone-utils";
 import { clearOnboardingState } from "@/lib/onboarding";
 import { clearThemePreference } from "@/lib/theme-preference";
+import { safeUserMessage } from "@/lib/errors";
 import type { UserProfile, UserRole } from "@/types";
 
 export type { AuthUser } from "@/lib/firebase/auth-types";
@@ -32,9 +33,13 @@ export async function registerUser(input: {
   password: string;
   displayName: string;
   role: UserRole;
+  legalAcceptance: LegalAcceptance;
 }) {
   if (!isRegisterableRole(input.role)) {
     throw new Error("Select Trader or Lapidary to continue.");
+  }
+  if (!input.legalAcceptance?.termsVersion || !input.legalAcceptance?.privacyVersion) {
+    throw new Error("Accept the Terms and Conditions and Privacy Policy to continue.");
   }
 
   const auth = getFirebaseAuth();
@@ -51,11 +56,14 @@ export async function registerUser(input: {
   // which races updateProfile and causes auth/no-current-user.
   const profile: Omit<
     UserProfile,
-    "createdAt" | "lastActiveAt" | "updatedAt"
+    "createdAt" | "lastActiveAt" | "updatedAt" | "legalConsent"
   > & {
     createdAt: ReturnType<typeof serverTimestamp>;
     lastActiveAt: ReturnType<typeof serverTimestamp>;
     updatedAt: ReturnType<typeof serverTimestamp>;
+    legalConsent: LegalAcceptance & {
+      acceptedAt: ReturnType<typeof serverTimestamp>;
+    };
   } = {
     uid,
     email: input.email.trim().toLowerCase(),
@@ -73,6 +81,10 @@ export async function registerUser(input: {
     companyId: null,
     fcmToken: null,
     phoneVerified: false,
+    legalConsent: {
+      ...input.legalAcceptance,
+      acceptedAt: serverTimestamp(),
+    },
     createdAt: serverTimestamp(),
     lastActiveAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -80,7 +92,8 @@ export async function registerUser(input: {
 
   await setDoc(doc(getFirebaseDb(), "users", uid), profile);
 
-  // Auth displayName is optional — Firestore is the source of truth.
+  // Keep the auth displayName for provider compatibility; businessName is the
+  // canonical name used by account and marketplace surfaces.
   const current = auth.currentUser;
   if (current?.uid === uid) {
     try {
@@ -103,7 +116,7 @@ export async function loginUser(email: string, password: string) {
   if (profile?.isSuspended) {
     await signOut(getFirebaseAuth());
     throw new Error(
-      profile.suspendedReason ?? "Your account has been suspended.",
+      safeUserMessage(profile.suspendedReason, "Your account has been suspended."),
     );
   }
   await updateDoc(doc(getFirebaseDb(), "users", credential.user.uid), {
@@ -223,28 +236,11 @@ export function needsPhoneVerification(profile: UserProfile | null): boolean {
   return !profile?.phone || profile.phoneVerified !== true;
 }
 
-/** Save the number selected before the signed-in user proves ownership by SMS. */
-export async function savePhoneForVerification(phone: string) {
-  const user = getFirebaseAuth().currentUser;
-  if (!user) throw new Error("You must be signed in to add a phone number.");
-  const normalizedPhone = normalizePhoneNumber(phone);
-  if (!/^\+\d{10,15}$/.test(normalizedPhone)) {
-    throw new Error("Select your country and enter a valid mobile number.");
-  }
-
-  await updateDoc(doc(getFirebaseDb(), "users", user.uid), {
-    phone: normalizedPhone,
-    phoneVerified: false,
-    updatedAt: serverTimestamp(),
-  });
-  return normalizedPhone;
-}
-
 export async function updateFcmToken(uid: string, token: string | null) {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   // Ensure Auth ID token is attached before the Firestore write (avoids
   // permission-denied when push registration races auth restore on Android).
@@ -263,7 +259,7 @@ export async function updatePreferredCurrency(
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   await getIdToken(current);
   await updateDoc(doc(getFirebaseDb(), "users", uid), {
@@ -279,7 +275,7 @@ export async function updateNotificationPreferences(
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   await getIdToken(current);
   await updateDoc(doc(getFirebaseDb(), "users", uid), {

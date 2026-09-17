@@ -28,8 +28,8 @@ import {
     parseForm,
 } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-provider";
-import { withLoading } from "@/providers/loading-provider";
+import { confirm } from "@/providers/confirm-bridge";
+import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function AccountSettingsScreen() {
@@ -326,7 +326,7 @@ export default function AccountSettingsScreen() {
             <Button
               title={
                 socialProvider && !hasPasswordProvider
-                  ? `Continue with ${socialProvider === "apple.com" ? "Apple" : "Google"} to delete`
+                  ? `Continue to delete`
                   : "Delete my account"
               }
               icon="delete-forever"

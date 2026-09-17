@@ -1,8 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { CountryField } from '@/components/ui/country-field';
@@ -24,13 +29,14 @@ import { friendlyError } from '@/lib/errors';
 import { addTripPurchaseSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-provider';
+import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddTripPurchaseScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -85,10 +91,18 @@ export default function AddTripPurchaseScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <StackHeader title="Buy Gem on Trip" closeIcon />
+    <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+      <StackHeader
+        title="Buy Gem on Trip"
+        closeIcon
+        image={require("@/assets/images/trips-icon.png")}
+      />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
+      <ThemedScrollView
+        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <FormSection title="Gem type" padded={false}>
           <View style={styles.typeGrid}>
             {GEM_TYPES.map((t) => {
@@ -157,12 +171,13 @@ export default function AddTripPurchaseScreen() {
         <Button title="Add to trip" icon="add" onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  /** No flex:1 — required for formSheet fitToContents height measurement. */
+  sheet: { gap: Spacing.sm },
   content: { paddingBottom: Spacing.section, gap: Spacing.lg },
   typeGrid: {
     flexDirection: 'row',

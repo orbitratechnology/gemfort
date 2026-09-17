@@ -244,9 +244,11 @@ export const addServiceSchema = z.object({
   daysUntilReturn: wholeDays("Return days", 1, 365),
   serviceType: z.enum([
     "cutting",
-    "heating",
-    "polishing",
     "recutting",
+    "heating",
+    "reheating",
+    "polishing",
+    "repolishing",
     "appraisal",
   ]),
 });
@@ -322,6 +324,14 @@ export const completeServiceSchema = z.object({
 
 export type CompleteServiceForm = z.infer<typeof completeServiceSchema>;
 
+export const completeLapidaryJobSchema = z.object({
+  weightAfter: positiveNumber("After weight", 10_000),
+  finalCost: positiveNumber("Service fee"),
+  paymentDueDays: wholeDays("Payment due", 0, 730),
+});
+
+export type CompleteLapidaryJobForm = z.infer<typeof completeLapidaryJobSchema>;
+
 const nonNegativeNumber = (label: string, max = 99_999_999) =>
   z
     .string()
@@ -372,11 +382,16 @@ export const registerSchema = z.object({
   displayName: z
     .string()
     .trim()
-    .min(2, "Enter your full name")
-    .max(60, "Name is too long"),
+    .min(2, "Enter your business name")
+    .max(60, "Business name is too long"),
   email: z.string().trim().email("Enter a valid email address"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary"]),
+  acceptedLegal: z.literal(true, {
+    errorMap: () => ({
+      message: "Agree to the Terms and Conditions and Privacy Policy",
+    }),
+  }),
 });
 
 export type RegisterForm = z.infer<typeof registerSchema>;

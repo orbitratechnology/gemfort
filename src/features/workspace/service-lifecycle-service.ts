@@ -15,7 +15,7 @@ export async function respondServiceCancellation(
   action: 'accepted' | 'rejected',
 ) {
   return callApi<
-    { ok: true; status: 'cancelled' | 'in_progress' },
+    { ok: true; status: 'cancelled' | 'given' | 'in_progress' | 'ready' | 'overdue' },
     { action: 'accepted' | 'rejected' }
   >(`/v1/services/${encodeURIComponent(serviceId)}/cancellation/respond`, { action }, {
     retryAuthOn401: true,

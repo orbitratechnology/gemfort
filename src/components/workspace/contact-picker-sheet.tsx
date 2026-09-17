@@ -12,23 +12,34 @@ import {
 import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
+import { AvatarVerificationBadge } from '@/components/ui/verification-badge';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
+import { getContactTypeOption } from '@/constants/contact-types';
+import { businessReputationBadgeForBusiness } from '@/constants/business-reputation';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { ROLE_LABELS } from '@/constants/roles';
 import {
   type BusinessKind,
   businessKindOf,
   filterBusinessesByKinds,
+  filterBusinessesForViewer,
 } from '@/features/workspace/contact-business-link';
 import { filterContacts } from '@/features/workspace/contact-utils';
 import { resolvePartyPhotoUrl } from '@/features/workspace/party-photo';
-import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
-import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from '@/features/marketplace/marketplace-service';
+import {
+  subscribeBusinessByOwnerUid,
+  subscribeVerifiedBusinesses,
+} from '@/features/workspace/firestore-subscriptions';
 import { syncContactBusinessLinks } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
+import { useAuth } from '@/providers/auth-provider';
 import type { Business, Contact } from '@/types';
 
 export type ContactSelection = {
@@ -43,6 +54,7 @@ export type BusinessSelection = {
   businessId: string;
   label: string;
   businessType: string;
+  logoUrl?: string | null;
   linkedContactId?: string | null;
 };
 
@@ -68,6 +80,8 @@ type ContactPickerSheetProps = {
   allowClear?: boolean;
   onClear?: () => void;
   clearLabel?: string;
+  /** Hide a contact linked to the signed-in owner's own business. */
+  excludeBusinessId?: string | null;
 };
 
 export type PartyPickerSheetProps = {
@@ -90,7 +104,6 @@ function businessMatches(b: Business, q: string) {
   if (!q) return true;
   const hay = [
     b.businessName,
-    b.ownerName,
     b.city,
     b.district,
     b.businessType,
@@ -170,9 +183,16 @@ function ContactRow({
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
+  const primaryType = contact.contactTypes?.[0]
+    ? getContactTypeOption(contact.contactTypes[0])
+    : null;
   const gemfortBadge = contact.linkedBusinessName
     ? `On GemFort · ${contact.linkedBusinessType?.replace(/_/g, ' ') ?? 'profile'}`
     : null;
+  const contactMeta = gemfortBadge ??
+    [contact.companyName, contact.phone ?? contact.whatsapp]
+      .filter(Boolean)
+      .join(' · ');
   return (
     <Pressable
       accessibilityRole="button"
@@ -186,28 +206,36 @@ function ContactRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <ContactAvatar
-        name={contact.displayName}
-        photoUrl={photoUrl ?? contact.photoUrl}
-        size={40}
-      />
+      <View style={styles.contactAvatarWrap}>
+        <ContactAvatar
+          name={contact.displayName}
+          photoUrl={photoUrl ?? contact.photoUrl}
+          size={40}
+        />
+        <AvatarVerificationBadge
+          type={contact.linkedBusinessId ? 'member' : 'none'}
+          borderColor={selected ? colors.primaryContainer : colors.surfaceContainerLow}
+        />
+      </View>
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
             {contact.displayName}
           </Text>
-          {contact.linkedBusinessId ? (
-            <Icon name="verified" size={16} color={colors.accent} />
-          ) : null}
         </View>
-        <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-          {gemfortBadge ??
-            ([contact.companyName, contact.phone ?? contact.whatsapp]
-              .filter(Boolean)
-              .join(' · ') ||
-              (contact.contactTypes ?? []).join(', ') ||
-              'Contact')}
-        </Text>
+        {contactMeta || !primaryType ? (
+          <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+            {contactMeta || 'Contact'}
+          </Text>
+        ) : null}
+        {primaryType ? (
+          <View style={styles.roleMeta}>
+            <Icon name={primaryType.icon} size={14} color={colors.textMuted} />
+            <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+              {primaryType.label}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {selected ? <Icon name="check-circle" size={22} color={colors.primary} /> : null}
     </Pressable>
@@ -227,6 +255,7 @@ function BusinessRow({
 }) {
   const { colors } = useAppTheme();
   const role = roleLabelForBusiness(business);
+  const reputationBadge = businessReputationBadgeForBusiness(business);
   const phone =
     business.contacts?.phone?.value ?? business.contacts?.whatsapp?.value ?? null;
   return (
@@ -242,25 +271,28 @@ function BusinessRow({
           opacity: pressed ? 0.9 : 1,
         },
       ]}>
-      <View
-        style={[
-          styles.avatar,
-          { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' },
-        ]}>
-        {business.logoUrl ? (
-          <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
-        ) : (
-          <Icon name={marketIcon(business)} size={20} color={colors.primary} />
-        )}
+      <View style={styles.contactAvatarWrap}>
+        <View
+          style={[
+            styles.avatar,
+            { backgroundColor: colors.surfaceContainerHigh, overflow: 'hidden' },
+          ]}>
+          {business.logoUrl ? (
+            <Image source={{ uri: business.logoUrl }} style={styles.avatarImg} contentFit="cover" />
+          ) : (
+            <Icon name={marketIcon(business)} size={20} color={colors.primary} />
+          )}
+        </View>
+        <AvatarVerificationBadge
+          type={reputationBadge}
+          borderColor={selected ? colors.primaryContainer : colors.surfaceContainerLow}
+        />
       </View>
       <View style={styles.rowBody}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.onSurface, flex: 1 }]} numberOfLines={1}>
             {business.businessName}
           </Text>
-          {business.badges.isVerified ? (
-            <Icon name="verified" size={16} color={colors.accent} />
-          ) : null}
         </View>
         <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
           {role}
@@ -290,13 +322,21 @@ export function ContactPickerSheet({
   allowClear = false,
   onClear,
   clearLabel = 'No contact (optional)',
+  excludeBusinessId = null,
 }: ContactPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
+  const selectableContacts = useMemo(
+    () =>
+      excludeBusinessId
+        ? contacts.filter((contact) => contact.linkedBusinessId !== excludeBusinessId)
+        : contacts,
+    [contacts, excludeBusinessId],
+  );
   const debouncedQuery = useDebouncedValue(query, 300);
   const filtered = useMemo(
-    () => filterContacts(contacts, debouncedQuery, typeFilter),
-    [contacts, debouncedQuery, typeFilter],
+    () => filterContacts(selectableContacts, debouncedQuery, typeFilter),
+    [selectableContacts, debouncedQuery, typeFilter],
   );
   const trimmed = query.trim();
   const canUseCustom = allowCustomName && !!onSelectCustomName && trimmed.length > 0;
@@ -395,13 +435,13 @@ export function ContactPickerSheet({
         ListEmptyComponent={
           <EmptyState
             icon="person-search"
-            title={contacts.length === 0 ? 'No contacts' : 'No matches'}
+            title={selectableContacts.length === 0 ? 'No contacts' : 'No matches'}
             subtitle={
               allowCustomName
-                ? contacts.length === 0
+                ? selectableContacts.length === 0
                   ? 'Type a name above, then tap to use it.'
                   : 'Try another search, or use the typed name above.'
-                : contacts.length === 0
+                : selectableContacts.length === 0
                   ? emptyHint
                   : 'Try a different search.'
             }
@@ -439,6 +479,7 @@ export function PartyPickerSheet({
   preferBusinesses = true,
 }: PartyPickerSheetProps) {
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const showMarket = allowedBusinessKinds.length > 0;
   const [tab, setTab] = useState<TabId>(
     showMarket && preferBusinesses ? 'market' : 'contacts',
@@ -497,7 +538,25 @@ export function PartyPickerSheet({
     enabled: visible && isFirebaseConfigured,
   });
 
-  const businesses = marketBusinesses;
+  const { data: ownBusiness = null } = useFirestoreLiveQuery({
+    queryKey: ['my-business', user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: visible && !!user && isFirebaseConfigured,
+  });
+
+  const businesses = useMemo(
+    () => filterBusinessesForViewer(marketBusinesses, ownBusiness?.id),
+    [marketBusinesses, ownBusiness?.id],
+  );
+  const selectableContacts = useMemo(
+    () =>
+      ownBusiness?.id
+        ? contacts.filter((contact) => contact.linkedBusinessId !== ownBusiness.id)
+        : contacts,
+    [contacts, ownBusiness?.id],
+  );
 
   useEffect(() => {
     if (!visible || allBusinesses.length === 0) return;
@@ -517,17 +576,17 @@ export function PartyPickerSheet({
   }, [businesses, debouncedQuery]);
 
   const filteredContacts = useMemo(
-    () => filterContacts(contacts, debouncedQuery, contactTypeFilter),
-    [contacts, debouncedQuery, contactTypeFilter],
+    () => filterContacts(selectableContacts, debouncedQuery, contactTypeFilter),
+    [selectableContacts, debouncedQuery, contactTypeFilter],
   );
 
   const contactByBusinessId = useMemo(() => {
     const map = new Map<string, Contact>();
-    for (const c of contacts) {
+    for (const c of selectableContacts) {
       if (c.linkedBusinessId) map.set(c.linkedBusinessId, c);
     }
     return map;
-  }, [contacts]);
+  }, [selectableContacts]);
 
   const tabs: { id: TabId; label: string; icon: IconName }[] = showMarket
     ? [
@@ -623,6 +682,7 @@ export function PartyPickerSheet({
                     businessId: item.id,
                     label: item.businessName,
                     businessType: item.businessType,
+                    logoUrl: item.logoUrl,
                     linkedContactId: linked?.id ?? null,
                   });
                   closeSheet();
@@ -690,6 +750,8 @@ type SelectFieldProps = {
   subtitle?: string | null;
   placeholder?: string;
   icon?: IconName;
+  avatarName?: string | null;
+  avatarPhotoUrl?: string | null;
   onPress: () => void;
   error?: string;
 };
@@ -701,6 +763,8 @@ export function PickerSelectField({
   subtitle,
   placeholder = 'Search and select',
   icon = 'search',
+  avatarName,
+  avatarPhotoUrl,
   onPress,
   error,
 }: SelectFieldProps) {
@@ -720,9 +784,13 @@ export function PickerSelectField({
             opacity: pressed ? 0.92 : 1,
           },
         ]}>
-        <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
-          <Icon name={icon} size={18} color={valueLabel ? colors.primary : colors.outline} />
-        </View>
+        {avatarName ? (
+          <ContactAvatar name={avatarName} photoUrl={avatarPhotoUrl} size={44} />
+        ) : (
+          <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
+            <Icon name={icon} size={18} color={valueLabel ? colors.primary : colors.outline} />
+          </View>
+        )}
         <View style={styles.fieldBody}>
           {valueLabel ? (
             <>
@@ -813,16 +881,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minHeight: 64,
   },
+  contactAvatarWrap: {
+    position: 'relative',
+  },
   avatar: {
+    position: 'relative',
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarImg: { width: '100%', height: '100%' },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  roleMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   name: { ...Typography.labelMd, fontWeight: '700' },
   meta: { ...Typography.caption },
 
