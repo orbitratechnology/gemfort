@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactListRow } from "@/components/workspace/contact-list-row";
 import {
@@ -31,7 +32,6 @@ import {
 } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-  subscribeContacts,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import { presentDeviceContactPicker } from "@/features/workspace/device-contacts-service";
@@ -42,13 +42,14 @@ import {
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
   deleteContact,
-  fetchContacts,
   importDeviceContactToWorkspace,
   syncContactBusinessLinks,
   updateContact,
 } from "@/features/workspace/workspace-service";
+import { fetchContactsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { friendlyError } from "@/lib/errors";
 import { runWithCleanup } from "@/lib/run-with-cleanup";
@@ -174,19 +175,17 @@ export default function ContactsListScreen() {
   } | null>(null);
 
   const {
-    data: contacts = [],
+    items: loadedContacts,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["contacts", user?.uid],
-    queryFn: async () => {
-      const [list, businesses] = await Promise.all([
-        fetchContacts(user!.uid),
-        fetchBusinesses(),
-      ]);
-      return syncContactBusinessLinks(list, businesses);
-    },
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["contacts", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchContactsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -197,6 +196,10 @@ export default function ContactsListScreen() {
     enabled: !!user,
   });
 
+  const contacts = useMemo(
+    () => syncContactBusinessLinks(loadedContacts, businesses),
+    [loadedContacts, businesses],
+  );
   const contactPhotoMap = buildContactPhotoMap(contacts, businesses);
   const filtered = filterContacts(contacts, debouncedQuery, typeFilter);
   const sections = groupContactsByLetter(filtered);
@@ -329,6 +332,18 @@ export default function ContactsListScreen() {
         renderScrollComponent={(props) => <ScrollView {...props} />}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
         }
         ListHeaderComponent={
           <ContactsListHeader

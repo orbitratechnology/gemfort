@@ -58,7 +58,7 @@ export function GemCard({
   style,
 }: GemCardProps) {
   const { colors } = useAppTheme();
-  const { formatStored } = usePreferredMoney();
+  const { formatBase, formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
   const price =
     gem.askingPrice != null
@@ -67,7 +67,7 @@ export function GemCard({
           currency: gem.askingPriceCurrency ?? gem.totalCostCurrency,
           amountBase: gem.askingPriceBase,
         })
-      : "No price set";
+      : formatBase(gem.totalCost);
 
   const gemTitle = gem.title?.trim() || formatGemType(gem.gemType);
   const lifecycle = resolveGemLifecycle(gem);

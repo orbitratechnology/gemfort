@@ -7,6 +7,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import {
     CurrencyAmountField,
     type CurrencyAmountValue,
@@ -18,14 +19,13 @@ import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { subscribePayables } from '@/features/workspace/firestore-subscriptions';
 import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
 import {
-    fetchPayables,
-    recordPayablePayment,
+  recordPayablePayment,
 } from '@/features/workspace/workspace-service';
+import { fetchPayablesPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
@@ -55,10 +55,18 @@ export default function PayablesScreen() {
   const [paymentReceipt, setPaymentReceipt] = useState<LocalMedia | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const { data: payables = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ['payables', user?.uid],
-    queryFn: () => fetchPayables(user!.uid),
-    subscribe: (onData, onError) => subscribePayables(user!.uid, onData, onError),
+  const {
+    items: payables,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ['payables', user?.uid, 'infinite'],
+    fetchPage: (cursor, pageSize) =>
+      fetchPayablesPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -242,6 +250,18 @@ export default function PayablesScreen() {
         refreshing={isRefetching}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
         ListHeaderComponent={
           <View style={styles.listHeader}>
             <View style={[styles.summary, { backgroundColor: colors.primary }]}>

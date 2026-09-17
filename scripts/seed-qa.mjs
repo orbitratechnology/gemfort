@@ -110,7 +110,6 @@ function businessBase(uid, p) {
   return {
     ownerUid: uid,
     businessName: p.businessName,
-    ownerName: p.displayName,
     brNumber: `BR-QA-${p.role}`,
     ngjaNumber: `NGJA-QA-${p.role}`,
     gemLicenseNumber: `GL-QA-${p.role}`,

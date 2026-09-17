@@ -309,17 +309,19 @@ export default function BusinessProfileScreen() {
     const sameType = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
+        b.id !== myBusiness?.id &&
         !dismissedIdSet.has(b.id) &&
         b.businessType === business.businessType,
     );
     const others = allBusinesses.filter(
       (b) =>
         b.id !== business.id &&
+        b.id !== myBusiness?.id &&
         !dismissedIdSet.has(b.id) &&
         b.businessType !== business.businessType,
     );
     return [...sameType, ...others].slice(0, SUGGEST_LIMIT);
-  }, [allBusinesses, business, dismissedIds]);
+  }, [allBusinesses, business, dismissedIds, myBusiness?.id]);
 
   const yearsValue = business
     ? String(business.badges.yearsActive || business.yearEstablished || "—")
@@ -572,7 +574,6 @@ export default function BusinessProfileScreen() {
           </Text>
           <Text style={[styles.roleLine, { color: colors.onSurfaceVariant }]}>
             {role}
-            {business.ownerName ? ` · ${business.ownerName}` : ""}
           </Text>
           {business.shortDescription?.trim() ? (
             <Text style={[styles.bio, { color: colors.onSurface }]}>
@@ -938,6 +939,7 @@ export default function BusinessProfileScreen() {
                   <ListingCard
                     key={listing.id}
                     listing={listing}
+                    ownerPhotoUrl={business?.logoUrl}
                     href={`/listing/${listing.shareableSlug}`}
                   />
                 ))}

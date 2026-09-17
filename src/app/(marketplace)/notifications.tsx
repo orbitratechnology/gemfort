@@ -13,6 +13,7 @@ import {
 import { NotificationRow } from "@/components/notifications/notification-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import {
   notificationVisualFromNotification,
@@ -24,15 +25,14 @@ import {
   respondApRequest,
 } from "@/features/workspace/ap-lifecycle-service";
 import { respondGemTransferRequest } from "@/features/workspace/gem-transfer-api";
-import { subscribeNotifications } from "@/features/workspace/firestore-subscriptions";
 import {
-  fetchNotifications,
   fetchService,
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { fetchNotificationsPage } from "@/features/workspace/workspace-pagination";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { friendlyError } from "@/lib/errors";
 import { navigateFromNotificationRef } from "@/lib/notification-navigation";
 import {
@@ -115,15 +115,18 @@ export default function NotificationsScreen() {
   );
 
   const {
-    data: notifications = [],
+    items: notifications,
     refetch,
     isRefetching,
     isLoading,
-  } = useFirestoreLiveQuery({
-    queryKey: ["notifications", user?.uid],
-    queryFn: () => fetchNotifications(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeNotifications(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["notifications", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchNotificationsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -454,6 +457,18 @@ export default function NotificationsScreen() {
         )}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
         }
         ListEmptyComponent={
           isLoading ? (

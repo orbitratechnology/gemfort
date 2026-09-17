@@ -66,8 +66,11 @@ import {
   cancelGemTransferForApi,
   createGemTransferForApi,
   parseCreateGemTransferInput,
+  parseRecordGemSaleInput,
+  recordGemSaleForApi,
   respondGemTransferForApi,
   type CreateGemTransferInput,
+  type RecordGemSaleInput,
 } from './gem-transfer-api';
 import { executeIdempotent, type MutationExecutor } from './idempotency';
 import { apiErrorResponse, ApiError, toApiError } from './errors';
@@ -203,6 +206,11 @@ export type ApiAppOptions = {
     uid: string,
     input: CreateGemTransferInput,
   ) => Promise<{ requestId: string; status: 'pending' }>;
+  recordGemSale?: (
+    gemId: string,
+    uid: string,
+    input: RecordGemSaleInput,
+  ) => Promise<{ saleId: string; status: 'recorded' }>;
   respondGemTransfer?: (
     requestId: string,
     uid: string,
@@ -370,6 +378,7 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const apPaymentReceived = options.apPaymentReceived ?? apPaymentReceivedForApi;
   const submitListingOffer = options.submitListingOffer ?? submitListingOfferForApi;
   const createGemTransfer = options.createGemTransfer ?? createGemTransferForApi;
+  const recordGemSale = options.recordGemSale ?? recordGemSaleForApi;
   const respondGemTransfer = options.respondGemTransfer ?? respondGemTransferForApi;
   const cancelGemTransfer = options.cancelGemTransfer ?? cancelGemTransferForApi;
   const runMutation = options.executeMutation ?? executeIdempotent;
@@ -577,6 +586,14 @@ export function createApiApp(options: ApiAppOptions = {}) {
     const input = parseCreateGemTransferInput(await readJson(c));
     return success(c, await mutation(c, { gemId, input }, (uid) =>
       createGemTransfer(gemId, uid, input),
+    ));
+  });
+
+  app.post('/v1/gems/:gemId/sales', auth, appCheck, async (c) => {
+    const gemId = requiredRouteParam(c, 'gemId');
+    const input = parseRecordGemSaleInput(await readJson(c));
+    return success(c, await mutation(c, { gemId, input }, (uid) =>
+      recordGemSale(gemId, uid, input),
     ));
   });
 

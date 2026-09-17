@@ -17,7 +17,10 @@ import { ContactPicker } from "@/components/workspace/contact-picker";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
-import { createGemTransferRequest } from "@/features/workspace/gem-transfer-api";
+import {
+  createGemTransferRequest,
+  recordGemSale,
+} from "@/features/workspace/gem-transfer-api";
 import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import { fetchContacts, fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -137,35 +140,56 @@ export default function RecordSaleScreen() {
       toast.error("Choose which stone you are selling.");
       return;
     }
-    if (!buyerContact?.linkedBusinessId) {
-      toast.error("Select a contact linked to a verified trader business.");
+    if (!buyerContact) {
+      setErrors((previous) => ({
+        ...previous,
+        buyer: "Select a Trader or Contact.",
+      }));
+      toast.error("Select a Trader or Contact.");
       return;
     }
 
     try {
       await withLoading(async () => {
         const data = result.data;
-        await createGemTransferRequest({
-          gemId: gem.id,
-          recipientBusinessId: buyerContact.linkedBusinessId,
-          recipientContactId: buyerContact.id,
-          recipientName: buyerLabel,
-          amount: data.price,
-          currency: price.currency,
-          paymentMethod: data.method === "transfer" ? "bank_transfer" : data.method,
-        });
+        const paymentMethod =
+          data.method === "transfer" ? "bank_transfer" : data.method;
+        if (buyerContact.linkedBusinessId) {
+          await createGemTransferRequest({
+            gemId: gem.id,
+            recipientBusinessId: buyerContact.linkedBusinessId,
+            recipientContactId: buyerContact.id,
+            recipientName: buyerLabel,
+            amount: data.price,
+            currency: price.currency,
+            paymentMethod,
+          });
+        } else {
+          await recordGemSale({
+            gemId: gem.id,
+            recipientContactId: buyerContact.id,
+            recipientName: buyerLabel,
+            amount: data.price,
+            currency: price.currency,
+            paymentMethod,
+          });
+        }
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        toast.success(`${gem.sku} sale request sent for trader acceptance.`);
+        toast.success(
+          buyerContact.linkedBusinessId
+            ? `${gem.sku} sale recorded — waiting for trader acceptance.`
+            : `${gem.sku} sale recorded to ${buyerLabel}.`,
+        );
         router.back();
-      }, "Sending sale request…");
+      }, buyerContact.linkedBusinessId ? "Recording trader sale…" : "Recording sale…");
     } catch (e) {
-      toast.error(friendlyError(e, "Could not send the sale request."));
+      toast.error(friendlyError(e, "Could not record the sale."));
     }
   }
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
-      <StackHeader title="Request gem sale" closeIcon />
+      <StackHeader title="Record sale" closeIcon />
 
       <ThemedScrollView
         style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
@@ -199,14 +223,15 @@ export default function RecordSaleScreen() {
             error={errors.price}
           />
           <ContactPicker
-            label="Buyer"
+            label="Sold to"
             contacts={contacts}
             value={buyerContactId}
             onChange={(id) => {
               setBuyerContactId(id);
               clearField("buyer");
             }}
-            emptyHint="Select a contact linked to a verified trader business."
+            allowedBusinessKinds={["traders"]}
+            emptyHint="Select a Trader or Contact."
             error={errors.buyer}
           />
           <ChipSelect
@@ -291,7 +316,7 @@ export default function RecordSaleScreen() {
         gems={sellable}
         value={selectedGemId ?? ""}
         title="Select gem"
-        emptyHint="No gems are currently eligible for a sale request."
+        emptyHint="No gems are currently eligible to record as sold."
         initialTab="on_sale"
         onSelect={(g) => {
           setSelectedGemId(g.id);
@@ -300,8 +325,8 @@ export default function RecordSaleScreen() {
       />
 
       <FormFooter
-        title="Send sale request"
-        icon="send"
+        title="Record sale"
+        icon="price-check"
         onPress={handleConfirm}
       />
     </View>

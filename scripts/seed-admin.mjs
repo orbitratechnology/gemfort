@@ -50,7 +50,6 @@ await db.collection('businesses').doc('kamal-gem-cutting').set(
     ownerUid: 'seed',
     businessType: 'cutter',
     businessName: 'Kamal Gem Cutting',
-    ownerName: 'Kamal Silva',
     brNumber: 'BR-002',
     ngjaNumber: 'NGJA-002',
     yearEstablished: 2008,

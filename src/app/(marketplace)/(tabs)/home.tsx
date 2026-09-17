@@ -31,6 +31,7 @@ import {
     canAccessModule,
     resolveProfileRole,
 } from "@/constants/roles";
+import { filterBusinessesForViewer } from "@/features/workspace/contact-business-link";
 import { popularByRole } from "@/features/marketplace/home-feed";
 import {
     demoBusinesses,
@@ -192,14 +193,6 @@ export default function HomeScreen() {
     () => quickActionsForRole(role, !!user),
     [role, user],
   );
-  const displayName =
-    profile?.displayName?.trim() || user?.displayName?.trim() || "Guest";
-  const roleLabel = profile
-    ? (ROLE_LABELS[role] ?? "Member")
-    : user
-      ? "Member"
-      : "Sign in";
-  const initials = initialsFromName(displayName);
   const { data: myBusiness } = useFirestoreLiveQuery({
     queryKey: ["my-business", user?.uid],
     queryFn: () => fetchBusinessByOwnerUid(user!.uid),
@@ -207,6 +200,14 @@ export default function HomeScreen() {
       subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: !!user && isFirebaseConfigured,
   });
+  const displayName =
+    myBusiness?.businessName?.trim() || (user ? "Your Business" : "Guest");
+  const roleLabel = profile
+    ? (ROLE_LABELS[role] ?? "Member")
+    : user
+      ? "Member"
+      : "Sign in";
+  const initials = initialsFromName(displayName);
 
   const avatarUri = myBusiness?.logoUrl ?? user?.photoURL ?? null;
   // Track which URI failed so a new avatarUri retries without an effect reset.
@@ -289,6 +290,11 @@ export default function HomeScreen() {
     [businesses],
   );
 
+  const publicBusinesses = useMemo(
+    () => filterBusinessesForViewer(businesses, myBusiness?.id),
+    [businesses, myBusiness?.id],
+  );
+
   const { data: apRecords = [], refetch: refetchAp } = useFirestoreLiveQuery({
     queryKey: ["ap", user?.uid],
     queryFn: () => fetchApRecords(user!.uid),
@@ -345,12 +351,12 @@ export default function HomeScreen() {
   );
 
   const traders = useMemo(
-    () => popularByRole(businesses, "traders"),
-    [businesses],
+    () => popularByRole(publicBusinesses, "traders"),
+    [publicBusinesses],
   );
   const lapidaries = useMemo(
-    () => popularByRole(businesses, "lapidaries"),
-    [businesses],
+    () => popularByRole(publicBusinesses, "lapidaries"),
+    [publicBusinesses],
   );
 
   function contactName(id: string | null | undefined) {
@@ -575,6 +581,7 @@ export default function HomeScreen() {
                 <ListingCard
                   key={gem.id}
                   listing={gem}
+                  ownerPhotoUrl={businessPhoto(gem.businessId)}
                   href={`/listing/${gem.shareableSlug}`}
                 />
               ))}

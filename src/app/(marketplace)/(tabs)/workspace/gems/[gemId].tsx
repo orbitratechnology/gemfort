@@ -512,13 +512,14 @@ export default function GemDetailScreen() {
   });
 
   const hasAsk = gem.askingPrice != null;
-  const askLabel = hasAsk
+  const marketPriceLabel = hasAsk
     ? formatStored({
         amount: gem.askingPrice!,
         currency: askCurrency,
         amountBase: gem.askingPriceBase,
       })
-    : "No asking price";
+    : "Not listed";
+  const costLabel = formatBase(costBase);
   const perCaratLabel =
     hasAsk && gem.currentWeight > 0
       ? `${formatStored({
@@ -528,15 +529,15 @@ export default function GemDetailScreen() {
         })} / ct`
       : null;
 
-  const ownerName =
-    business?.businessName?.trim() || profile?.displayName?.trim() || "Owner";
+  const businessDisplayName =
+    business?.businessName?.trim() || "Your Business";
   const ownerRole =
     business?.businessType === "lapidary"
       ? "Lapidary"
       : (ROLE_LABELS[resolveProfileRole(profile)] ?? "Trader");
   const ownerAvatar = business?.logoUrl ?? null;
   const ownerReputationBadge = businessReputationBadgeForBusiness(business);
-  const ownerInitials = initials(ownerName);
+  const ownerInitials = initials(businessDisplayName);
 
   const heroHeight = windowWidth;
   const bottomBarPad = Math.max(insets.bottom, 12);
@@ -638,33 +639,53 @@ export default function GemDetailScreen() {
           </View>
 
           <View style={styles.priceRow}>
-            <Text
-              style={[
-                styles.priceHero,
-                {
-                  color: hasAsk ? colors.successEmerald : colors.textMuted,
-                  fontFamily: FontFamily.bold,
-                },
-              ]}
-              selectable={false}
-            >
-              {askLabel}
-            </Text>
-            {perCaratLabel ? (
+            <View style={styles.priceMetric}>
+              <Text
+                style={[styles.priceLabel, { color: colors.onSurfaceVariant }]}
+              >
+                Listed market price
+              </Text>
               <Text
                 style={[
-                  styles.perCarat,
+                  styles.priceHero,
                   {
-                    color: hasAsk
-                      ? colors.successEmerald
-                      : colors.onSurfaceVariant,
+                    color: hasAsk ? colors.successEmerald : colors.textMuted,
+                    fontFamily: FontFamily.bold,
                   },
                 ]}
                 selectable={false}
               >
-                {perCaratLabel}
+                {marketPriceLabel}
               </Text>
-            ) : null}
+              {perCaratLabel ? (
+                <Text
+                  style={[
+                    styles.perCarat,
+                    {
+                      color: hasAsk
+                        ? colors.successEmerald
+                        : colors.onSurfaceVariant,
+                    },
+                  ]}
+                  selectable={false}
+                >
+                  {perCaratLabel}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.priceMetric}>
+              <Text
+                style={[styles.priceLabel, { color: colors.onSurfaceVariant }]}
+              >
+                Cost
+              </Text>
+              <Text
+                style={[styles.costValue, { color: colors.onSurface }]}
+                selectable={false}
+              >
+                {costLabel}
+              </Text>
+            </View>
           </View>
 
           {/* Elevated owner profile */}
@@ -711,7 +732,7 @@ export default function GemDetailScreen() {
                 style={[styles.ownerName, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {ownerName}
+                {businessDisplayName}
               </Text>
               <Text
                 style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}
@@ -1391,12 +1412,18 @@ const styles = StyleSheet.create({
   subtitle: { ...Typography.bodyMd },
   priceRow: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "flex-start",
     flexWrap: "wrap",
-    gap: Spacing.sm,
+    gap: Spacing.lg,
     marginTop: 2,
   },
+  priceMetric: { flex: 1, minWidth: 0, gap: 4 },
+  priceLabel: { ...Typography.caption },
   priceHero: {
+    ...Typography.headlineSm,
+    fontVariant: ["tabular-nums"],
+  },
+  costValue: {
     ...Typography.headlineSm,
     fontVariant: ["tabular-nums"],
   },

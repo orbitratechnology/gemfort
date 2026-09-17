@@ -91,7 +91,8 @@ export async function registerUser(input: {
 
   await setDoc(doc(getFirebaseDb(), "users", uid), profile);
 
-  // Auth displayName is optional — Firestore is the source of truth.
+  // Keep the auth displayName for provider compatibility; businessName is the
+  // canonical name used by account and marketplace surfaces.
   const current = auth.currentUser;
   if (current?.uid === uid) {
     try {

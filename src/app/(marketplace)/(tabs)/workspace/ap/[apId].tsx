@@ -22,7 +22,10 @@ import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sa
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from "@/features/marketplace/marketplace-service";
 import {
   apAgreedTotal,
   apOwnerOwedTotal,
@@ -49,6 +52,7 @@ import {
 } from "@/features/workspace/delete-gates";
 import {
   subscribeApRecordsForUser,
+  subscribeBusinessByOwnerUid,
   subscribeContacts,
   subscribeGemsByIds,
   subscribeVerifiedBusinesses,
@@ -182,7 +186,7 @@ function apTimelineSteps(
 
 export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { colors } = useAppTheme();
   const { formatBase, formatStored, preferred } = usePreferredMoney();
   const toast = useToast();
@@ -268,6 +272,14 @@ export default function ApDetailScreen() {
     enabled: !!ap,
   });
 
+  const { data: myBusiness } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ["ap"] });
     await queryClient.invalidateQueries({ queryKey: ["gems"] });
@@ -323,7 +335,7 @@ export default function ApDetailScreen() {
     contacts.find((c) => c.id === ap.receiverContactId) ?? null;
   const holderName = isSender
     ? ap.receiverName || receiverContact?.displayName || "Holder"
-    : profile?.displayName || user?.displayName || "You";
+    : myBusiness?.businessName?.trim() || "Your Business";
   const holderPhoto = isSender
     ? resolvePartyPhotoUrl(receiverContact, businesses) ||
       resolveBusinessPhotoByOwnerUid(ap.receiverUid, businesses)

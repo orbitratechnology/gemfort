@@ -180,8 +180,15 @@ export async function createApRequestForApi(
   }
 
   const businessRef = db.collection('businesses').doc(linkedBusinessId);
-  const senderRef = db.collection('users').doc(uid);
   const gemRefs = input.items.map((item) => db.collection('gemtrack_gems').doc(item.gemId));
+  const senderBusinessSnap = await db
+    .collection('businesses')
+    .where('ownerUid', '==', uid)
+    .limit(1)
+    .get();
+  const senderBusinessName =
+    (senderBusinessSnap.docs[0]?.data()?.businessName as string | undefined)?.trim() ||
+    'Trader';
   const apRef = idempotencyKey
     ? db
         .collection('gemtrack_ap_records')
@@ -203,14 +210,9 @@ export async function createApRequestForApi(
       };
     }
 
-    const transactionSnaps = await transaction.getAll(
-      businessRef,
-      senderRef,
-      ...gemRefs,
-    );
+    const transactionSnaps = await transaction.getAll(businessRef, ...gemRefs);
     const businessSnap = transactionSnaps[0]!;
-    const senderSnap = transactionSnaps[1]!;
-    const gemSnaps = transactionSnaps.slice(2);
+    const gemSnaps = transactionSnaps.slice(1);
 
     if (!businessSnap.exists) throw new ApiError('not-found', 'Trader business profile not found.');
     const business = businessSnap.data()!;
@@ -219,10 +221,7 @@ export async function createApRequestForApi(
       throw new ApiError('failed-precondition', 'Invalid AP receiver.');
     }
 
-    const senderName =
-      (senderSnap.data()?.displayName as string | undefined)?.trim() ||
-      (business.ownerName as string | undefined)?.trim() ||
-      'Trader';
+    const senderName = senderBusinessName;
     const lines: ApGemLine[] = [];
     for (let index = 0; index < input.items.length; index += 1) {
       const item = input.items[index]!;

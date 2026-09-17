@@ -8,8 +8,14 @@ import {
   type PartySelection,
 } from '@/components/workspace/contact-picker-sheet';
 import type { BusinessKind } from '@/features/workspace/contact-business-link';
-import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
-import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from '@/features/marketplace/marketplace-service';
+import {
+  subscribeBusinessByOwnerUid,
+  subscribeVerifiedBusinesses,
+} from '@/features/workspace/firestore-subscriptions';
 import { ensureContactForBusiness } from '@/features/workspace/workspace-service';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
@@ -97,6 +103,14 @@ export function ContactPicker({
       return subscribeVerifiedBusinesses(onData, onError);
     },
     enabled: usePartySheet && open && isFirebaseConfigured,
+  });
+
+  const { data: ownBusiness = null } = useFirestoreLiveQuery({
+    queryKey: ['my-business', user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !usePartySheet && !!user && open && isFirebaseConfigured,
   });
 
   async function handlePartySelect(selection: PartySelection) {
@@ -188,6 +202,7 @@ export function ContactPicker({
           customNameLabel={customNameLabel}
           allowClear={allowClear}
           clearLabel={clearLabel}
+          excludeBusinessId={ownBusiness?.id}
           onClear={() => {
             onChange('');
             onCustomNameChange?.('');

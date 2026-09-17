@@ -34,6 +34,24 @@ export function createGemTransferRequest(input: {
   );
 }
 
+export function recordGemSale(input: {
+  gemId: string;
+  recipientContactId: string;
+  recipientName: string;
+  amount: number;
+  currency: string;
+  paymentMethod: GemPaymentMethod;
+  sourceTripId?: string | null;
+  sourceTripGemId?: string | null;
+}) {
+  const { gemId, ...body } = input;
+  return callApi<{ saleId: string; status: "recorded" }, typeof body>(
+    `/v1/gems/${encodeURIComponent(gemId)}/sales`,
+    body,
+    mutationOptions("record-sale", gemId),
+  );
+}
+
 export function respondGemTransferRequest(
   requestId: string,
   action: "accepted" | "rejected",

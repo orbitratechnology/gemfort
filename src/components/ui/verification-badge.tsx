@@ -52,12 +52,15 @@ const reputationConfig: Record<
 };
 
 const badgeAssets = {
-  member: require("@/assets/images/verified-badges/recognized.webp"),
-  identity: require("@/assets/images/verified-badges/business.webp"),
-  business: require("@/assets/images/verified-badges/member.webp"),
-  gem: require("@/assets/images/verified-badges/identity.webp"),
-  recognized: require("@/assets/images/verified-badges/gem.webp"),
+  member: require("@/assets/images/verified-badges/member.webp"),
+  identity: require("@/assets/images/verified-badges/identity.webp"),
+  business: require("@/assets/images/verified-badges/business.webp"),
+  gem: require("@/assets/images/verified-badges/gem.webp"),
+  recognized: require("@/assets/images/verified-badges/recognized.webp"),
 } as const;
+
+/** Shared badge artwork for tier education and avatar badges. */
+export const verificationBadgeAssets = badgeAssets;
 
 export function AvatarVerificationBadge({
   type,

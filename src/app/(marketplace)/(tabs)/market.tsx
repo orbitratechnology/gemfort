@@ -2,12 +2,12 @@ import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,36 +19,50 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { SkeletonList } from "@/components/ui/skeleton-list";
+import { verificationBadgeAssets } from "@/components/ui/verification-badge";
 import {
-  AttributePickerField,
-  GemTypePickerSheet,
+    AttributePickerField,
+    GemTypePickerSheet,
 } from "@/components/workspace/gem-attribute-pickers";
+import {
+    BUSINESS_REPUTATION_BADGE_LABELS,
+    businessReputationBadgeForBusiness,
+} from "@/constants/business-reputation";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { GEM_TYPES, formatGemType } from "@/constants/gem-options";
+import { marketTabFromBusinessType } from "@/constants/roles";
+import { fetchBusinessesPage, fetchPublicListingsPage } from "@/features/marketplace/marketplace-pagination";
 import {
-  demoBusinesses,
-  demoListings,
-  fetchBusinesses,
-  fetchPublicListings,
-  filterBusinesses,
-  filterListings,
-  searchBusinesses,
-  searchListings,
-  type ListingFilters,
+    demoBusinesses,
+    demoListings,
+    fetchBusinessByOwnerUid,
+    filterListings,
+    searchBusinesses,
+    searchListings,
+    type ListingFilters,
 } from "@/features/marketplace/marketplace-service";
-import {
-  subscribePublicListings,
-  subscribeVerifiedBusinesses,
-} from "@/features/workspace/firestore-subscriptions";
+import { filterBusinessesForViewer } from "@/features/workspace/contact-business-link";
+import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
-import type { Business, MarketplaceListing } from "@/types";
+import { useAuth } from "@/providers/auth-provider";
+import type {
+    Business,
+    BusinessReputationBadge,
+    MarketplaceListing,
+} from "@/types";
+
 
 type Tab = "gems" | "traders" | "lapidaries";
 type BusinessSortBy = "featured" | "rating" | "name";
+type BusinessVerificationFilter =
+  | "all"
+  | Exclude<BusinessReputationBadge, "none">;
 const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries"];
 
 const QUICK_TYPES = [
@@ -89,8 +103,40 @@ const BUSINESS_SORT_OPTIONS: { id: BusinessSortBy; label: string }[] = [
   { id: "name", label: "Name (A–Z)" },
 ];
 
+const BUSINESS_VERIFICATION_OPTIONS: {
+  id: BusinessVerificationFilter;
+  label: string;
+}[] = [
+  { id: "all", label: "All levels" },
+  { id: "member", label: BUSINESS_REPUTATION_BADGE_LABELS.member },
+  { id: "identity", label: "Identity" },
+  { id: "business", label: "Business" },
+  { id: "gem", label: "Gem" },
+  { id: "recognized", label: BUSINESS_REPUTATION_BADGE_LABELS.recognized },
+];
+
+const BUSINESS_VERIFICATION_LEVELS = BUSINESS_VERIFICATION_OPTIONS.filter(
+  (option): option is {
+    id: Exclude<BusinessVerificationFilter, "all">;
+    label: string;
+  } => option.id !== "all",
+);
+
+type VerificationBadgeType = Exclude<BusinessVerificationFilter, "all">;
+
+function VerificationBadgeImage({ type }: { type: VerificationBadgeType }) {
+  return (
+    <Image
+      source={verificationBadgeAssets[type]}
+      style={styles.verificationBadgeImage}
+      contentFit="contain"
+    />
+  );
+}
+
 export default function MarketScreen() {
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const initialTab =
     typeof tabParam === "string" && VALID_TABS.includes(tabParam as Tab)
@@ -121,67 +167,56 @@ export default function MarketScreen() {
   );
 
   // Business filters
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [verificationTier, setVerificationTier] =
+    useState<BusinessVerificationFilter>("all");
   const [city, setCity] = useState("all");
   const [businessSort, setBusinessSort] = useState<BusinessSortBy>("featured");
   const [draftBusiness, setDraftBusiness] = useState<{
-    verified: "all" | "verified";
+    verificationTier: BusinessVerificationFilter;
     city: string;
     sort: BusinessSortBy;
-  }>({ verified: "all", city: "all", sort: "featured" });
+  }>({ verificationTier: "all", city: "all", sort: "featured" });
 
   const businessType = tab === "traders" ? ("trader" as const) : ("lapidary" as const);
 
-  const {
-    data: businesses,
-    isLoading: businessesLoading,
-    refetch: refetchBusinesses,
-    isRefetching: businessesRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["businesses", tab],
-    queryFn: async () => {
-      const filters = { businessType };
-      if (!isFirebaseConfigured) return demoBusinesses(filters);
-      return fetchBusinesses(filters);
-    },
-    subscribe: (onData, onError) => {
-      const filters = { businessType };
-      if (!isFirebaseConfigured) {
-        onData(demoBusinesses(filters));
-        return () => undefined;
-      }
-      return subscribeVerifiedBusinesses((all) => {
-        onData(filterBusinesses(all, filters));
-      }, onError);
-    },
-    enabled: tab !== "gems",
+  const { data: myBusiness = null } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user && isFirebaseConfigured,
   });
 
-  const {
-    data: listings = [],
-    isLoading: listingsLoading,
-    refetch: refetchListings,
-    isRefetching: listingsRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["public-listings"],
-    queryFn: async () => {
-      if (!isFirebaseConfigured) return demoListings();
-      return fetchPublicListings();
-    },
-    subscribe: (onData, onError) => {
-      if (!isFirebaseConfigured) {
-        onData(demoListings());
-        return () => undefined;
-      }
-      return subscribePublicListings(onData, onError);
-    },
-    enabled: tab === "gems",
+  const businessesQuery = useFirestoreInfiniteQuery({
+    queryKey: ["businesses", tab, "infinite"],
+    fetchPage: (cursor, pageSize) => fetchBusinessesPage(cursor, pageSize),
+    enabled: isFirebaseConfigured,
   });
+
+  const listingsQuery = useFirestoreInfiniteQuery({
+    queryKey: ["public-listings", "infinite"],
+    fetchPage: (cursor, pageSize) => fetchPublicListingsPage(cursor, pageSize),
+    enabled: tab === "gems" && isFirebaseConfigured,
+  });
+
+  const businesses = isFirebaseConfigured
+    ? filterBusinessesForViewer(businessesQuery.items, myBusiness?.id)
+    : demoBusinesses({ businessType });
+  const listings = isFirebaseConfigured ? listingsQuery.items : demoListings();
 
   const cities = useMemo(() => {
-    const set = new Set((businesses ?? []).map((b) => b.city).filter(Boolean));
+    const marketTab = tab === "lapidaries" ? "lapidaries" : "traders";
+    const set = new Set(
+      (businesses ?? [])
+        .filter(
+          (business) =>
+            marketTabFromBusinessType(business.businessType) === marketTab,
+        )
+        .map((b) => b.city)
+        .filter(Boolean),
+    );
     return ["all", ...Array.from(set).sort()];
-  }, [businesses]);
+  }, [businesses, tab]);
 
   const filteredGems = useMemo(() => {
     const searched = searchListings(debouncedSearch, listings);
@@ -189,8 +224,17 @@ export default function MarketScreen() {
   }, [listings, debouncedSearch, gemType, gemSort]);
 
   const filteredBusinesses = useMemo(() => {
-    let result = searchBusinesses(debouncedSearch, businesses ?? []);
-    if (verifiedOnly) result = result.filter((b) => b.badges.isVerified);
+    const marketTab = tab === "lapidaries" ? "lapidaries" : "traders";
+    let result = searchBusinesses(debouncedSearch, businesses ?? []).filter(
+      (business) =>
+        marketTabFromBusinessType(business.businessType) === marketTab,
+    );
+    if (verificationTier !== "all") {
+      result = result.filter(
+        (business) =>
+          businessReputationBadgeForBusiness(business) === verificationTier,
+      );
+    }
     if (city !== "all") result = result.filter((b) => b.city === city);
     const sorted = [...result];
     if (businessSort === "rating") {
@@ -206,7 +250,14 @@ export default function MarketScreen() {
       });
     }
     return sorted;
-  }, [debouncedSearch, businesses, verifiedOnly, city, businessSort]);
+  }, [
+    debouncedSearch,
+    businesses,
+    verificationTier,
+    city,
+    businessSort,
+    tab,
+  ]);
 
   const segments: { id: Tab; label: string; icon: IconName }[] = [
     { id: "gems", label: "Gems", icon: "diamond" },
@@ -214,14 +265,16 @@ export default function MarketScreen() {
     { id: "lapidaries", label: "Lapidaries", icon: "handyman" },
   ];
 
-  const isLoading = tab === "gems" ? listingsLoading : businessesLoading;
-  const isRefetching =
-    tab === "gems" ? listingsRefetching : businessesRefetching;
+  const activeQuery = tab === "gems" ? listingsQuery : businessesQuery;
+  const isLoading = isFirebaseConfigured && activeQuery.isLoading;
+  const isRefetching = isFirebaseConfigured && activeQuery.isRefetching;
   const gemFilterActive = gemType !== "all" || gemSort !== "recent";
   const businessFilterCount =
-    (verifiedOnly ? 1 : 0) +
+    (verificationTier !== "all" ? 1 : 0) +
     (city !== "all" ? 1 : 0) +
     (businessSort !== "featured" ? 1 : 0);
+  const filterActive =
+    tab === "gems" ? gemFilterActive : businessFilterCount > 0;
 
   const listData: (Business | MarketplaceListing)[] =
     tab === "gems" ? filteredGems : filteredBusinesses;
@@ -232,7 +285,7 @@ export default function MarketScreen() {
       setDraftGemSort(gemSort);
     } else {
       setDraftBusiness({
-        verified: verifiedOnly ? "verified" : "all",
+        verificationTier,
         city,
         sort: businessSort,
       });
@@ -245,7 +298,7 @@ export default function MarketScreen() {
       setGemType(draftGemType);
       setGemSort(draftGemSort);
     } else {
-      setVerifiedOnly(draftBusiness.verified === "verified");
+      setVerificationTier(draftBusiness.verificationTier);
       setCity(draftBusiness.city);
       setBusinessSort(draftBusiness.sort);
     }
@@ -271,30 +324,72 @@ export default function MarketScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={tab === "gems" ? refetchListings : refetchBusinesses}
+            onRefresh={() => void activeQuery.refetch()}
+          />
+        }
+        onEndReached={() => {
+          if (
+            isFirebaseConfigured &&
+            activeQuery.hasNextPage &&
+            !activeQuery.isFetchingNextPage
+          ) {
+            void activeQuery.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={isFirebaseConfigured ? activeQuery.hasNextPage : false}
+            isFetchingNextPage={activeQuery.isFetchingNextPage}
+            isFetchNextPageError={activeQuery.isFetchNextPageError}
+            onRetry={() => void activeQuery.fetchNextPage()}
           />
         }
         ListHeaderComponent={
           <View style={styles.headerBlock}>
-            <View
-              style={[
-                styles.searchBox,
-                styles.contentInset,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Icon name="search" size={22} color={colors.textMuted} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.textMain }]}
-                placeholder={
-                  tab === "gems"
-                    ? "Search gems, origins…"
-                    : "Search traders, lapidaries…"
-                }
-                placeholderTextColor={colors.textMuted}
-                value={search}
-                onChangeText={setSearch}
-              />
+            <View style={[styles.searchRow, styles.contentInset]}>
+              <View
+                style={[
+                  styles.searchBox,
+                  { backgroundColor: colors.surfaceContainerLow },
+                ]}
+              >
+                <Icon name="search" size={22} color={colors.textMuted} />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.textMain }]}
+                  placeholder={
+                    tab === "gems"
+                      ? "Search gems, origins…"
+                      : "Search traders, lapidaries…"
+                  }
+                  placeholderTextColor={colors.textMuted}
+                  value={search}
+                  onChangeText={setSearch}
+                />
+              </View>
+              <Pressable
+                onPress={openFilter}
+                accessibilityRole="button"
+                accessibilityLabel="Open filters"
+                accessibilityState={{ selected: filterActive }}
+                style={[
+                  styles.searchFilterButton,
+                  {
+                    backgroundColor: filterActive
+                      ? colors.primary
+                      : colors.surfaceContainerLow,
+                    borderColor: filterActive
+                      ? colors.primary
+                      : colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Icon
+                  name="tune"
+                  size={22}
+                  color={filterActive ? colors.onPrimary : colors.textMain}
+                />
+              </Pressable>
             </View>
 
             <View
@@ -304,11 +399,7 @@ export default function MarketScreen() {
                 { backgroundColor: colors.surfaceContainerLow },
               ]}
             >
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.segment}
-              >
+              <View style={styles.segment}>
                 {segments.map((s) => {
                   const active = tab === s.id;
                   const tone = active ? colors.onPrimary : colors.onSurfaceVariant;
@@ -328,7 +419,7 @@ export default function MarketScreen() {
                     </Pressable>
                   );
                 })}
-              </ScrollView>
+              </View>
             </View>
 
             {tab === "gems" ? (
@@ -337,39 +428,6 @@ export default function MarketScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.filterRow}
               >
-                <Pressable
-                  onPress={openFilter}
-                  style={[
-                    styles.filterChip,
-                    gemFilterActive
-                      ? {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        }
-                      : {
-                          backgroundColor: colors.surfaceContainerLowest,
-                          borderColor: colors.outlineVariant,
-                        },
-                  ]}
-                >
-                  <Icon
-                    name="tune"
-                    size={16}
-                    color={gemFilterActive ? colors.onPrimary : colors.textMain}
-                  />
-                  <Text
-                    style={[
-                      styles.filterText,
-                      {
-                        color: gemFilterActive
-                          ? colors.onPrimary
-                          : colors.textMain,
-                      },
-                    ]}
-                  >
-                    Filter
-                  </Text>
-                </Pressable>
                 {QUICK_TYPES.map((t) => {
                   const active = gemType === t.id;
                   return (
@@ -414,80 +472,42 @@ export default function MarketScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.filterRow}
               >
-                <Pressable
-                  onPress={openFilter}
-                  style={[
-                    styles.filterChip,
-                    businessFilterCount > 0
-                      ? {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        }
-                      : {
-                          backgroundColor: colors.surfaceContainerLowest,
-                          borderColor: colors.outlineVariant,
-                        },
-                  ]}
-                >
-                  <Icon
-                    name="tune"
-                    size={16}
-                    color={
-                      businessFilterCount > 0
-                        ? colors.onPrimary
-                        : colors.textMain
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.filterText,
-                      {
-                        color:
-                          businessFilterCount > 0
-                            ? colors.onPrimary
-                            : colors.textMain,
-                      },
-                    ]}
-                  >
-                    Filters
-                    {businessFilterCount > 0
-                      ? ` (${businessFilterCount})`
-                      : ""}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setVerifiedOnly((v) => !v)}
-                  style={[
-                    styles.filterChip,
-                    verifiedOnly
-                      ? {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        }
-                      : {
-                          backgroundColor: colors.surfaceContainerLowest,
-                          borderColor: colors.outlineVariant,
-                        },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      {
-                        color: verifiedOnly
-                          ? colors.onPrimary
-                          : colors.textMain,
-                      },
-                    ]}
-                  >
-                    Verified
-                  </Text>
-                  <Icon
-                    name="verified"
-                    size={16}
-                    color={verifiedOnly ? colors.onPrimary : colors.textMain}
-                  />
-                </Pressable>
+                {BUSINESS_VERIFICATION_LEVELS.map((option) => {
+                  const active = verificationTier === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() =>
+                        setVerificationTier(active ? "all" : option.id)
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`${option.label} verification level`}
+                      accessibilityState={{ selected: active }}
+                      style={[
+                        styles.filterChip,
+                        active
+                          ? {
+                              backgroundColor: colors.primary,
+                              borderColor: colors.primary,
+                            }
+                          : {
+                              backgroundColor: colors.surfaceContainerLowest,
+                              borderColor: colors.outlineVariant,
+                            },
+                      ]}
+                    >
+                      <VerificationBadgeImage type={option.id} />
+                      <Text
+                        style={[
+                          styles.filterText,
+                          { color: active ? colors.onPrimary : colors.textMain },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
                 {city !== "all" ? (
                   <Pressable
                     onPress={() => setCity("all")}
@@ -552,6 +572,10 @@ export default function MarketScreen() {
             {tab === "gems" ? (
               <ListingCard
                 listing={item as MarketplaceListing}
+                ownerPhotoUrl={businessesQuery.items.find(
+                  (business) =>
+                    business.id === (item as MarketplaceListing).businessId,
+                )?.logoUrl}
                 href={`/listing/${(item as MarketplaceListing).shareableSlug}`}
               />
             ) : (
@@ -585,7 +609,7 @@ export default function MarketScreen() {
                   setDraftGemSort("recent");
                 } else {
                   setDraftBusiness({
-                    verified: "all",
+                    verificationTier: "all",
                     city: "all",
                     sort: "featured",
                   });
@@ -639,12 +663,16 @@ export default function MarketScreen() {
           <>
             <FilterChipGroup
               label="Verification"
-              value={draftBusiness.verified}
-              onChange={(v) => setDraftBusiness((d) => ({ ...d, verified: v }))}
-              options={[
-                { id: "all", label: "All" },
-                { id: "verified", label: "Verified only" },
-              ]}
+              value={draftBusiness.verificationTier}
+              onChange={(v) =>
+                setDraftBusiness((d) => ({ ...d, verificationTier: v }))
+              }
+              options={BUSINESS_VERIFICATION_OPTIONS}
+              renderLeading={(option) =>
+                option.id === "all" ? null : (
+                  <VerificationBadgeImage type={option.id} />
+                )
+              }
             />
             <FilterChipGroup
               label="Location"
@@ -689,13 +717,27 @@ const styles = StyleSheet.create({
   contentInset: {
     marginHorizontal: Spacing.containerMargin,
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.stackSm,
+  },
   searchBox: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     borderRadius: Radius.full,
     paddingHorizontal: 16,
     height: 48,
+  },
+  searchFilterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchInput: { flex: 1, ...Typography.bodyMd },
   segmentTrack: {
@@ -710,8 +752,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   segmentBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -743,6 +787,10 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderCurve: "continuous",
+  },
+  verificationBadgeImage: {
+    width: 20,
+    height: 20,
   },
   filterText: { ...Typography.labelMd },
   cell: {

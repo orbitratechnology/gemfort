@@ -17,7 +17,7 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { resolveCountryCode } from "@/constants/gem-options";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
-import type { MarketplaceListing } from "@/types";
+import type { Business, MarketplaceListing } from "@/types";
 
 type ListingCardProps = {
   listing: MarketplaceListing;
@@ -25,6 +25,8 @@ type ListingCardProps = {
   href?: Href;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Fallback for older listings without a denormalized seller logo. */
+  ownerPhotoUrl?: Pick<Business, "logoUrl">["logoUrl"];
 };
 
 /**
@@ -36,6 +38,7 @@ export function ListingCard({
   href,
   onPress,
   style,
+  ownerPhotoUrl,
 }: ListingCardProps) {
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
@@ -49,8 +52,8 @@ export function ListingCard({
       : "Inquire";
   const hasOriginFlag = !!resolveCountryCode(listing.origin);
   const caratLabel = `${listing.caratWeight} ct`;
-  const ownerName = listing.sellerBusinessName?.trim() || "Seller";
-  const ownerAvatar = listing.sellerLogoUrl ?? null;
+  const businessDisplayName = listing.sellerBusinessName?.trim() || "Seller";
+  const ownerAvatar = listing.sellerLogoUrl?.trim() || ownerPhotoUrl?.trim() || null;
 
   const media = listing.photoUrls?.[0] ? (
     <Image
@@ -74,7 +77,7 @@ export function ListingCard({
     <ElevatedCard
       href={href}
       onPress={onPress}
-      accessibilityLabel={`${listing.title}, ${caratLabel}, ${price}, ${ownerName}${listing.certificate?.url ? ", certified" : ""}`}
+      accessibilityLabel={`${listing.title}, ${caratLabel}, ${price}, ${businessDisplayName}${listing.certificate?.url ? ", certified" : ""}`}
       style={[styles.card, style]}
     >
       <View style={styles.media}>
@@ -133,12 +136,12 @@ export function ListingCard({
         </View>
 
         <View style={styles.ownerRow}>
-          <ContactAvatar name={ownerName} photoUrl={ownerAvatar} size={20} />
+          <ContactAvatar name={businessDisplayName} photoUrl={ownerAvatar} size={20} />
           <Text
             style={[styles.ownerName, { color: colors.onSurfaceVariant }]}
             numberOfLines={1}
           >
-            {ownerName}
+            {businessDisplayName}
           </Text>
         </View>
       </View>

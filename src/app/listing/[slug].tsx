@@ -112,7 +112,7 @@ export default function PublicListingScreen() {
   const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -309,7 +309,7 @@ export default function PublicListingScreen() {
   if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
   if (activeListing.clarity) tags.push(activeListing.clarity);
 
-  const ownerName =
+  const businessDisplayName =
     business?.businessName?.trim() ||
     activeListing.sellerBusinessName?.trim() ||
     "Seller";
@@ -325,7 +325,7 @@ export default function PublicListingScreen() {
         ? "identity"
         : "none";
   const ownerAvatar = business?.logoUrl ?? activeListing.sellerLogoUrl ?? null;
-  const ownerInitials = initials(ownerName);
+  const ownerInitials = initials(businessDisplayName);
   const yearsActive = business?.badges?.yearsActive;
   const locationBits = [
     business?.city ?? activeListing.sellerCity,
@@ -416,8 +416,6 @@ export default function PublicListingScreen() {
           buyerUid: user.uid,
           buyerName:
             myBusiness?.businessName?.trim() ||
-            profile?.displayName?.trim() ||
-            user.email ||
             "Buyer",
           buyerBusiness: myBusiness,
           amount: result.data.amount,
@@ -569,7 +567,7 @@ export default function PublicListingScreen() {
             }
             disabled={!business}
             accessibilityRole="button"
-            accessibilityLabel={`${ownerName}, ${ownerRole}`}
+            accessibilityLabel={`${businessDisplayName}, ${ownerRole}`}
             style={({ pressed }) => [
               styles.ownerCard,
               {
@@ -613,7 +611,7 @@ export default function PublicListingScreen() {
                 style={[styles.ownerName, { color: colors.onSurface }]}
                 numberOfLines={1}
               >
-                {ownerName}
+                {businessDisplayName}
               </Text>
               <Text
                 style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}

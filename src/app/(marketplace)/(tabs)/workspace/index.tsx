@@ -155,6 +155,21 @@ function jobStatusTone(
   }
 }
 
+function WorkspaceLoading({ colors }: { colors: ThemeColors }) {
+  return (
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
+      <View
+        style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+      >
+        <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export default function WorkspaceHub() {
   const { user, profile } = useAuth();
   const { colors } = useAppTheme();
@@ -164,21 +179,21 @@ export default function WorkspaceHub() {
   const userId = user?.uid;
   const role = resolveProfileRole(profile);
 
-  const { data: gems = [] } = useFirestoreLiveQuery({
+  const { data: gems = [], isLoading: gemsLoading } = useFirestoreLiveQuery({
     queryKey: ["gems", userId],
     queryFn: () => fetchGems(userId!),
     subscribe: (onData, onError) => subscribeGems(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "gems"),
   });
 
-  const { data: services = [] } = useFirestoreLiveQuery({
+  const { data: services = [], isLoading: servicesLoading } = useFirestoreLiveQuery({
     queryKey: ["services", userId],
     queryFn: () => fetchServices(userId!),
     subscribe: (onData, onError) => subscribeServices(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "services"),
   });
 
-  const { data: apRecords = [] } = useFirestoreLiveQuery({
+  const { data: apRecords = [], isLoading: apRecordsLoading } = useFirestoreLiveQuery({
     queryKey: ["ap", userId],
     queryFn: () => fetchApRecords(userId!),
     subscribe: (onData, onError) =>
@@ -186,14 +201,14 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "ap"),
   });
 
-  const { data: contacts = [] } = useFirestoreLiveQuery({
+  const { data: contacts = [], isLoading: contactsLoading } = useFirestoreLiveQuery({
     queryKey: ["contacts", userId],
     queryFn: () => fetchContacts(userId!),
     subscribe: (onData, onError) => subscribeContacts(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "contacts"),
   });
 
-  const { data: businesses = [] } = useFirestoreLiveQuery({
+  const { data: businesses = [], isLoading: businessesLoading } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
     queryFn: () => fetchBusinesses(),
     subscribe: (onData, onError) => subscribeVerifiedBusinesses(onData, onError),
@@ -238,7 +253,7 @@ export default function WorkspaceHub() {
     [userId, contactPhoto, businessPhoto, ownerBusinessPhoto],
   );
 
-  const { data: transactions = [] } = useFirestoreLiveQuery({
+  const { data: transactions = [], isLoading: transactionsLoading } = useFirestoreLiveQuery({
     queryKey: ["transactions", userId],
     queryFn: () => fetchTransactions(userId!),
     subscribe: (onData, onError) =>
@@ -246,28 +261,28 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "money"),
   });
 
-  const { data: cheques = [] } = useFirestoreLiveQuery({
+  const { data: cheques = [], isLoading: chequesLoading } = useFirestoreLiveQuery({
     queryKey: ["cheques", userId],
     queryFn: () => fetchCheques(userId!),
     subscribe: (onData, onError) => subscribeCheques(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "cheques"),
   });
 
-  const { data: bills = [] } = useFirestoreLiveQuery({
+  const { data: bills = [], isLoading: billsLoading } = useFirestoreLiveQuery({
     queryKey: ["bills", userId],
     queryFn: () => fetchBills(userId!),
     subscribe: (onData, onError) => subscribeBills(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "bills"),
   });
 
-  const { data: trips = [] } = useFirestoreLiveQuery({
+  const { data: trips = [], isLoading: tripsLoading } = useFirestoreLiveQuery({
     queryKey: ["trips", userId],
     queryFn: () => fetchTrips(userId!),
     subscribe: (onData, onError) => subscribeTrips(userId!, onData, onError),
     enabled: !!userId && canAccessModule(role, "trips"),
   });
 
-  const { data: jobs = [] } = useFirestoreLiveQuery({
+  const { data: jobs = [], isLoading: jobsLoading } = useFirestoreLiveQuery({
     queryKey: ["lapidary-jobs", userId],
     queryFn: () => fetchLapidaryJobs(userId!),
     subscribe: (onData, onError) =>
@@ -275,13 +290,30 @@ export default function WorkspaceHub() {
     enabled: !!userId && canAccessModule(role, "jobs"),
   });
 
-  const { data: incomingServiceRequests = [] } = useFirestoreLiveQuery({
+  const {
+    data: incomingServiceRequests = [],
+    isLoading: incomingServiceRequestsLoading,
+  } = useFirestoreLiveQuery({
     queryKey: ["incoming-service-requests", userId],
     queryFn: () => fetchIncomingServiceRequests(userId!),
     subscribe: (onData, onError) =>
       subscribeIncomingServiceRequests(userId!, onData, onError),
     enabled: !!userId && role === "lapidary",
   });
+
+  const workspaceDataLoading =
+    !!userId &&
+    ((canAccessModule(role, "gems") && gemsLoading) ||
+      (canAccessModule(role, "services") && servicesLoading) ||
+      (canAccessModule(role, "ap") && apRecordsLoading) ||
+      (canAccessModule(role, "contacts") && contactsLoading) ||
+      businessesLoading ||
+      (canAccessModule(role, "money") && transactionsLoading) ||
+      (canAccessModule(role, "cheques") && chequesLoading) ||
+      (canAccessModule(role, "bills") && billsLoading) ||
+      (canAccessModule(role, "trips") && tripsLoading) ||
+      (canAccessModule(role, "jobs") && jobsLoading) ||
+      (role === "lapidary" && incomingServiceRequestsLoading));
 
   if (!user) {
     return (
@@ -294,18 +326,11 @@ export default function WorkspaceHub() {
 
   // Avoid flashing trader inventory while the Firestore profile is still loading.
   if (!profile) {
-    return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
-      >
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <Text style={{ color: colors.textMuted }}>Loading workspace…</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <WorkspaceLoading colors={colors} />;
+  }
+
+  if (workspaceDataLoading) {
+    return <WorkspaceLoading colors={colors} />;
   }
 
   const overdueServices = detectOverdueServices(services);
@@ -510,7 +535,7 @@ export default function WorkspaceHub() {
             {
               label: "Sale",
               icon: "sell",
-              route: `${MONEY}/record-sale`,
+              route: "/(marketplace)/money/record-sale",
             },
           ];
 

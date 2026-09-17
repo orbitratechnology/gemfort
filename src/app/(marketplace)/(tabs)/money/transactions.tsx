@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/currency-amount-field';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
@@ -26,13 +27,14 @@ import {
 } from '@/features/workspace/payment-source';
 import { groupTransactionsByDate } from '@/features/workspace/money-utils';
 import { gemPrimaryPhotoUrl } from '@/features/workspace/party-photo';
-import { subscribeGems, subscribeTransactions } from '@/features/workspace/firestore-subscriptions';
+import { subscribeGems } from '@/features/workspace/firestore-subscriptions';
 import {
   createTransaction,
   fetchGems,
-  fetchTransactions,
 } from '@/features/workspace/workspace-service';
+import { fetchTransactionsPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
@@ -64,10 +66,18 @@ export default function TransactionsScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const { data: transactions = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ['transactions', user?.uid],
-    queryFn: () => fetchTransactions(user!.uid),
-    subscribe: (onData, onError) => subscribeTransactions(user!.uid, onData, onError),
+  const {
+    items: transactions,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ['transactions', user?.uid, 'infinite'],
+    fetchPage: (cursor, pageSize) =>
+      fetchTransactionsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -198,6 +208,18 @@ export default function TransactionsScreen() {
           keyExtractor={(t) => t.id}
           onRefresh={refetch}
           refreshing={isRefetching}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            <InfiniteListFooter
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              isFetchNextPageError={isFetchNextPageError}
+              onRetry={() => void fetchNextPage()}
+            />
+          }
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"

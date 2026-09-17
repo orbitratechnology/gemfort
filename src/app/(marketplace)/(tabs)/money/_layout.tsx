@@ -2,10 +2,7 @@ import { Stack } from 'expo-router';
 
 import { SignInPrompt } from '@/components/auth/sign-in-prompt';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import {
-  formSheetFitContentOptions,
-  silkStackScreenOptions,
-} from '@/navigation/silk-stack-options';
+import { silkStackScreenOptions } from '@/navigation/silk-stack-options';
 import { useAuth } from '@/providers/auth-provider';
 
 /**
@@ -42,13 +39,6 @@ export default function MoneyLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen
-        name="record-sale"
-        options={{
-          ...formSheetFitContentOptions,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      />
     </Stack>
   );
 }

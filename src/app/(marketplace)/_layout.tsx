@@ -69,6 +69,13 @@ export default function MarketplaceLayout() {
         }}
       />
       <Stack.Screen
+        name="money/record-sale"
+        options={{
+          ...formSheetFitContentOptions,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      />
+      <Stack.Screen
         name="gems/edit"
         options={{
           ...formSheetFitContentOptions,

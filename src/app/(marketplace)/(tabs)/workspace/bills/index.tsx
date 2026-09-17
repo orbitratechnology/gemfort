@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { FlashList } from "@/components/ui/gesture-lists";
 import {
     Pressable,
     RefreshControl,
@@ -7,11 +8,11 @@ import {
     Text,
     View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
@@ -28,17 +29,17 @@ import {
     remainingAmount,
 } from "@/features/workspace/bill-utils";
 import {
-    subscribeBills,
     subscribeContacts,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import { buildContactPhotoMap } from "@/features/workspace/party-photo";
 import {
     deleteBill,
-    fetchBills,
     fetchContacts,
 } from "@/features/workspace/workspace-service";
+import { fetchBillsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
@@ -188,13 +189,17 @@ export default function BillsIndexScreen() {
   const [side, setSide] = useState<ApSide>("given");
 
   const {
-    data: bills = [],
+    items: bills,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["bills", user?.uid],
-    queryFn: () => fetchBills(user!.uid),
-    subscribe: (onData, onError) => subscribeBills(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["bills", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchBillsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -234,6 +239,7 @@ export default function BillsIndexScreen() {
   );
   const open = sideBills.filter(isOpenBill);
   const closed = sideBills.filter((b) => !isOpenBill(b));
+  const orderedBills = useMemo(() => [...open, ...closed], [open, closed]);
 
   async function handleDelete(billId: string) {
     if (!user) return;
@@ -255,100 +261,74 @@ export default function BillsIndexScreen() {
       <StackHeader title="Bills" />
       <ApSideTabs side={side} onChange={setSide} />
 
-      <ScrollView
+      <FlashList
+        data={orderedBills}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
-      >
-        <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                TO PAY
-              </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {summary.payableCount} · {formatBase(summary.payableTotal)}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.summaryDivider,
-                { backgroundColor: colors.onPrimary + "22" },
-              ]}
-            />
-            <View style={styles.summaryCol}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: colors.onPrimary + "99" },
-                ]}
-              >
-                TO RECEIVE
-              </Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                {summary.receivableCount} ·{" "}
-                {formatBase(summary.receivableTotal)}
-              </Text>
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCol}>
+                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>TO PAY</Text>
+                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                  {summary.payableCount} · {formatBase(summary.payableTotal)}
+                </Text>
+              </View>
+              <View style={[styles.summaryDivider, { backgroundColor: colors.onPrimary + "22" }]} />
+              <View style={styles.summaryCol}>
+                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>TO RECEIVE</Text>
+                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
+                  {summary.receivableCount} · {formatBase(summary.receivableTotal)}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-
-        {open.length === 0 && closed.length === 0 ? (
+        }
+        ListEmptyComponent={
           <EmptyState
             icon="receipt-long"
             title="No bills yet"
             subtitle="Add a bill to remind yourself who to pay or collect from."
           />
-        ) : null}
-
-        {open.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Open
-            </Text>
-            {open.map((b) => (
-              <BillRow
-                key={b.id}
-                bill={b}
-                contactName={contactMap.get(b.counterpartyContactId) ?? ""}
-                contactPhotoUrl={
-                  contactPhotoMap.get(b.counterpartyContactId) ?? null
-                }
-                colors={colors}
-                onDelete={() => handleDelete(b.id)}
-              />
-            ))}
+        }
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
+        renderItem={({ item, index }) => (
+          <View>
+            {index === 0 && open.length > 0 ? (
+              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+                Open
+              </Text>
+            ) : index === open.length && closed.length > 0 ? (
+              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+                Settled
+              </Text>
+            ) : null}
+            <BillRow
+              bill={item}
+              contactName={contactMap.get(item.counterpartyContactId) ?? ""}
+              contactPhotoUrl={contactPhotoMap.get(item.counterpartyContactId) ?? null}
+              colors={colors}
+              onDelete={() => handleDelete(item.id)}
+            />
           </View>
-        ) : null}
-
-        {closed.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Settled
-            </Text>
-            {closed.map((b) => (
-              <BillRow
-                key={b.id}
-                bill={b}
-                contactName={contactMap.get(b.counterpartyContactId) ?? ""}
-                contactPhotoUrl={
-                  contactPhotoMap.get(b.counterpartyContactId) ?? null
-                }
-                colors={colors}
-                onDelete={() => handleDelete(b.id)}
-              />
-            ))}
-          </View>
-        ) : null}
-      </ScrollView>
+        )}
+      />
 
       <Pressable
         accessibilityRole="button"

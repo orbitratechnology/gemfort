@@ -1,4 +1,4 @@
-import { Timestamp, type DocumentData } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type DocumentData } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/logger';
 import {
   onDocumentUpdated,
@@ -83,7 +83,6 @@ async function ensureApprovedBusiness(application: DocumentData): Promise<string
     return businessSnapshot.id;
   }
 
-  const user = userSnapshot.data() ?? {};
   const applicationType = stringValue(application.applicationType);
   const isLapidary =
     applicationType === 'lapidary' ||
@@ -100,7 +99,6 @@ async function ensureApprovedBusiness(application: DocumentData): Promise<string
   const businessRef = businessIdForCreate
     ? db.collection('businesses').doc(businessIdForCreate)
     : db.collection('businesses').doc();
-  const ownerName = stringValue(user.displayName) ?? 'GemFort member';
   const serviceIds = Array.isArray(application.servicesOffered)
     ? application.servicesOffered
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -113,7 +111,6 @@ async function ensureApprovedBusiness(application: DocumentData): Promise<string
       ownerUid: applicantUid,
       businessType,
       businessName,
-      ownerName,
       brNumber: '',
       ngjaNumber: '',
       gemLicenseNumber: '',
@@ -283,7 +280,18 @@ export const onBusinessProfileChanged = onDocumentWritten(
     if (!businessSnapshot?.exists) return;
 
     const business = businessSnapshot.data();
-    if (!business || hasVerifiedBadge(business)) return;
+    if (!business) return;
+
+    // Remove the legacy second account name as profiles are touched. The
+    // public projection also omits it, so businessName remains canonical.
+    if (Object.prototype.hasOwnProperty.call(business, 'ownerName')) {
+      await businessSnapshot.ref.update({
+        ownerName: FieldValue.delete(),
+        updatedAt: Timestamp.now(),
+      });
+    }
+
+    if (hasVerifiedBadge(business)) return;
 
     const ownerUid = stringValue(business.ownerUid);
     if (!ownerUid) return;
@@ -301,8 +309,12 @@ export const onBusinessProfileChanged = onDocumentWritten(
     const tier = verificationTier(user?.verificationTier);
     const reputation = user?.recognizedBadge === true ? 'recognized' : tier;
     const now = Timestamp.now();
+    const googleName = stringValue(user?.displayName);
+    const defaultBusinessName =
+      stringValue(business.businessName) || googleName;
 
     await businessSnapshot.ref.update({
+      ...(defaultBusinessName ? { businessName: defaultBusinessName } : {}),
       verificationStatus: 'verified',
       verificationTier: tier,
       verifiedAt: now,

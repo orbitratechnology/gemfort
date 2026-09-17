@@ -50,6 +50,15 @@ export function filterBusinessesByKinds(
   });
 }
 
+/** Remove the signed-in owner's own business from public/selection lists. */
+export function filterBusinessesForViewer(
+  businesses: Business[],
+  viewerBusinessId: string | null | undefined,
+): Business[] {
+  if (!viewerBusinessId) return businesses;
+  return businesses.filter((business) => business.id !== viewerBusinessId);
+}
+
 /** Build phone → business map (first wins). Only businesses with a public phone. */
 export function buildBusinessPhoneIndex(
   businesses: Business[],

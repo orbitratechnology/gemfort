@@ -198,8 +198,11 @@ function BusinessProfileForm({
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [businessName, setBusinessName] = useState(
-    business?.businessName ?? "",
+  const [businessName, setBusinessName] = useState(() =>
+    business?.businessName?.trim() ||
+    profile?.displayName?.trim() ||
+    user.displayName?.trim() ||
+    "",
   );
   const [shortDescription, setShortDescription] = useState(
     business?.shortDescription ?? "",
@@ -267,7 +270,7 @@ function BusinessProfileForm({
     : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
       ? "identity"
       : businessReputationBadge;
-  const displayName = businessName.trim() || "Your Business";
+  const businessDisplayName = businessName.trim() || "Your Business";
   const showAllSections = section === null;
   const showPhotos = showAllSections || section === "photos";
   const showIdentity = showAllSections || section === "identity";
@@ -430,22 +433,18 @@ function BusinessProfileForm({
             );
             return;
           }
-          const id = await createBusinessProfile(
-            user.uid,
-            profile?.displayName ?? "Owner",
-            {
-              businessName,
-              businessType: derivedBusinessType,
-              city,
-              country,
-              address,
-              location,
-              shortDescription: shortDescription || "Gem business in Beruwala.",
-              whatsapp: whatsapp || profile?.phone || undefined,
-              phone: phone || profile?.phone || undefined,
-              socialLinks,
-            },
-          );
+          const id = await createBusinessProfile(user.uid, {
+            businessName,
+            businessType: derivedBusinessType,
+            city,
+            country,
+            address,
+            location,
+            shortDescription: shortDescription || "Gem business in Beruwala.",
+            whatsapp: whatsapp || profile?.phone || undefined,
+            phone: phone || profile?.phone || undefined,
+            socialLinks,
+          });
           const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
           if (nextLogo) mediaUpdates.logoUrl = nextLogo;
           if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
@@ -542,7 +541,7 @@ function BusinessProfileForm({
                   <Text
                     style={[styles.avatarInitials, { color: colors.primary }]}
                   >
-                    {initials(displayName)}
+                    {initials(businessDisplayName)}
                   </Text>
                 </View>
               )}
@@ -563,7 +562,7 @@ function BusinessProfileForm({
             style={[styles.heroName, { color: colors.onSurface }]}
             numberOfLines={2}
           >
-            {displayName}
+            {businessDisplayName}
           </Text>
           <Text style={[styles.heroMeta, { color: colors.textMuted }]}>
             {accountTypeLabel}

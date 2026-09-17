@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon } from "@/components/ui/icon";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { nestedTabHubForPathname } from "@/navigation/tab-stack-nav";
 
@@ -108,7 +108,11 @@ export function StackHeader({
           accessibilityIgnoresInvertColors
           />
         ) : null}
-        <Text style={[styles.title, { color: titleColor }]} numberOfLines={1}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { color: titleColor }]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
       </View>
@@ -126,13 +130,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.stackMd,
   },
   side: {
-    minWidth: 40,
-    minHeight: 40,
+    minWidth: TouchTarget.minWidth,
+    minHeight: TouchTarget.minWidth,
     alignItems: "center",
     justifyContent: "center",
   },
   sideChip: {
     borderRadius: 20,
+    borderCurve: "continuous",
     backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
   right: {
@@ -151,5 +156,5 @@ const styles = StyleSheet.create({
     gap: Spacing.stackSm,
   },
   titleImage: { width: 32, height: 32 },
-  title: { ...Typography.headlineMdMobile, flexShrink: 1},
+  title: { ...Typography.headlineMdMobile, flexShrink: 1 },
 });

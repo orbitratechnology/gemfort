@@ -22,16 +22,24 @@ import {
   type BusinessKind,
   businessKindOf,
   filterBusinessesByKinds,
+  filterBusinessesForViewer,
 } from '@/features/workspace/contact-business-link';
 import { filterContacts } from '@/features/workspace/contact-utils';
 import { resolvePartyPhotoUrl } from '@/features/workspace/party-photo';
-import { fetchBusinesses } from '@/features/marketplace/marketplace-service';
-import { subscribeVerifiedBusinesses } from '@/features/workspace/firestore-subscriptions';
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from '@/features/marketplace/marketplace-service';
+import {
+  subscribeBusinessByOwnerUid,
+  subscribeVerifiedBusinesses,
+} from '@/features/workspace/firestore-subscriptions';
 import { syncContactBusinessLinks } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { isFirebaseConfigured } from '@/lib/firebase/config';
+import { useAuth } from '@/providers/auth-provider';
 import type { Business, Contact } from '@/types';
 
 export type ContactSelection = {
@@ -72,6 +80,8 @@ type ContactPickerSheetProps = {
   allowClear?: boolean;
   onClear?: () => void;
   clearLabel?: string;
+  /** Hide a contact linked to the signed-in owner's own business. */
+  excludeBusinessId?: string | null;
 };
 
 export type PartyPickerSheetProps = {
@@ -94,7 +104,6 @@ function businessMatches(b: Business, q: string) {
   if (!q) return true;
   const hay = [
     b.businessName,
-    b.ownerName,
     b.city,
     b.district,
     b.businessType,
@@ -313,13 +322,21 @@ export function ContactPickerSheet({
   allowClear = false,
   onClear,
   clearLabel = 'No contact (optional)',
+  excludeBusinessId = null,
 }: ContactPickerSheetProps) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
+  const selectableContacts = useMemo(
+    () =>
+      excludeBusinessId
+        ? contacts.filter((contact) => contact.linkedBusinessId !== excludeBusinessId)
+        : contacts,
+    [contacts, excludeBusinessId],
+  );
   const debouncedQuery = useDebouncedValue(query, 300);
   const filtered = useMemo(
-    () => filterContacts(contacts, debouncedQuery, typeFilter),
-    [contacts, debouncedQuery, typeFilter],
+    () => filterContacts(selectableContacts, debouncedQuery, typeFilter),
+    [selectableContacts, debouncedQuery, typeFilter],
   );
   const trimmed = query.trim();
   const canUseCustom = allowCustomName && !!onSelectCustomName && trimmed.length > 0;
@@ -418,13 +435,13 @@ export function ContactPickerSheet({
         ListEmptyComponent={
           <EmptyState
             icon="person-search"
-            title={contacts.length === 0 ? 'No contacts' : 'No matches'}
+            title={selectableContacts.length === 0 ? 'No contacts' : 'No matches'}
             subtitle={
               allowCustomName
-                ? contacts.length === 0
+                ? selectableContacts.length === 0
                   ? 'Type a name above, then tap to use it.'
                   : 'Try another search, or use the typed name above.'
-                : contacts.length === 0
+                : selectableContacts.length === 0
                   ? emptyHint
                   : 'Try a different search.'
             }
@@ -462,6 +479,7 @@ export function PartyPickerSheet({
   preferBusinesses = true,
 }: PartyPickerSheetProps) {
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const showMarket = allowedBusinessKinds.length > 0;
   const [tab, setTab] = useState<TabId>(
     showMarket && preferBusinesses ? 'market' : 'contacts',
@@ -520,7 +538,25 @@ export function PartyPickerSheet({
     enabled: visible && isFirebaseConfigured,
   });
 
-  const businesses = marketBusinesses;
+  const { data: ownBusiness = null } = useFirestoreLiveQuery({
+    queryKey: ['my-business', user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: visible && !!user && isFirebaseConfigured,
+  });
+
+  const businesses = useMemo(
+    () => filterBusinessesForViewer(marketBusinesses, ownBusiness?.id),
+    [marketBusinesses, ownBusiness?.id],
+  );
+  const selectableContacts = useMemo(
+    () =>
+      ownBusiness?.id
+        ? contacts.filter((contact) => contact.linkedBusinessId !== ownBusiness.id)
+        : contacts,
+    [contacts, ownBusiness?.id],
+  );
 
   useEffect(() => {
     if (!visible || allBusinesses.length === 0) return;
@@ -540,17 +576,17 @@ export function PartyPickerSheet({
   }, [businesses, debouncedQuery]);
 
   const filteredContacts = useMemo(
-    () => filterContacts(contacts, debouncedQuery, contactTypeFilter),
-    [contacts, debouncedQuery, contactTypeFilter],
+    () => filterContacts(selectableContacts, debouncedQuery, contactTypeFilter),
+    [selectableContacts, debouncedQuery, contactTypeFilter],
   );
 
   const contactByBusinessId = useMemo(() => {
     const map = new Map<string, Contact>();
-    for (const c of contacts) {
+    for (const c of selectableContacts) {
       if (c.linkedBusinessId) map.set(c.linkedBusinessId, c);
     }
     return map;
-  }, [contacts]);
+  }, [selectableContacts]);
 
   const tabs: { id: TabId; label: string; icon: IconName }[] = showMarket
     ? [

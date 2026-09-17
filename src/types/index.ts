@@ -96,7 +96,6 @@ export type Business = {
   ownerUid: string;
   businessType: BusinessType;
   businessName: string;
-  ownerName: string;
   brNumber: string;
   ngjaNumber: string;
   gemLicenseNumber?: string;

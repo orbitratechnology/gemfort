@@ -664,7 +664,7 @@ export default function MoneyDashboard() {
                 No transactions yet
               </Text>
               <Pressable
-                onPress={() => router.push(`${MONEY}/record-sale` as never)}
+                onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
                 style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
               >
                 <Text
@@ -686,7 +686,7 @@ export default function MoneyDashboard() {
           { backgroundColor: colors.primary },
           pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
         ]}
-        onPress={() => router.push(`${MONEY}/record-sale` as never)}
+        onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>

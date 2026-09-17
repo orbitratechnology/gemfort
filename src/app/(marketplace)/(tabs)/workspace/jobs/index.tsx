@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { Button } from "@/components/ui/button";
 import { FormSectionLabel, ScreenInset } from "@/components/ui/form-section";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -29,21 +30,21 @@ import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
-    fetchIncomingServiceRequests,
-    fetchLapidaryJobs,
     deleteLapidaryJob,
 } from "@/features/marketplace/request-service";
 import {
-    subscribeIncomingServiceRequests,
-    subscribeLapidaryJobs,
-    subscribeProviderServices,
+    fetchIncomingServiceRequestsPage,
+    fetchLapidaryJobsPage,
+    fetchProviderServicesPage,
+} from "@/features/marketplace/request-pagination";
+import {
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import { resolveBusinessPhotoById } from "@/features/workspace/party-photo";
 import { respondServiceCancellation } from "@/features/workspace/service-lifecycle-service";
-import { fetchProviderServices } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime } from "@/lib/utils";
@@ -130,33 +131,82 @@ export default function LapidaryJobsScreen() {
   const canView = !!user && canAccessModule(role, "jobs");
 
   const {
-    data: jobs = [],
-    refetch,
-    isRefetching,
-    isLoading,
-  } = useFirestoreLiveQuery({
-    queryKey: ["lapidary-jobs", user?.uid],
-    queryFn: () => fetchLapidaryJobs(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeLapidaryJobs(user!.uid, onData, onError),
+    items: jobs,
+    refetch: refetchJobs,
+    isRefetching: isRefetchingJobs,
+    isLoading: isLoadingJobs,
+    hasNextPage: hasNextJobsPage,
+    isFetchingNextPage: isFetchingNextJobsPage,
+    isFetchNextPageError: isFetchNextJobsPageError,
+    fetchNextPage: fetchNextJobsPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["lapidary-jobs", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchLapidaryJobsPage(user!.uid, cursor, pageSize),
     enabled: canView,
   });
 
-  const { data: incoming = [] } = useFirestoreLiveQuery({
-    queryKey: ["incoming-service-requests", user?.uid],
-    queryFn: () => fetchIncomingServiceRequests(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeIncomingServiceRequests(user!.uid, onData, onError),
+  const incomingQuery = useFirestoreInfiniteQuery({
+    queryKey: ["incoming-service-requests", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchIncomingServiceRequestsPage(user!.uid, cursor, pageSize),
     enabled: canView,
   });
 
-  const { data: providerServices = [] } = useFirestoreLiveQuery({
-    queryKey: ["provider-services", user?.uid],
-    queryFn: () => fetchProviderServices(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeProviderServices(user!.uid, onData, onError),
+  const providerServicesQuery = useFirestoreInfiniteQuery({
+    queryKey: ["provider-services", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchProviderServicesPage(user!.uid, cursor, pageSize),
     enabled: canView,
   });
+
+  const incoming = incomingQuery.items;
+  const providerServices = providerServicesQuery.items;
+  const isLoading = isLoadingJobs;
+  const isRefetching =
+    isRefetchingJobs ||
+    incomingQuery.isRefetching ||
+    providerServicesQuery.isRefetching;
+  const hasNextPage =
+    hasNextJobsPage ||
+    incomingQuery.hasNextPage ||
+    providerServicesQuery.hasNextPage;
+  const isFetchingNextPage =
+    isFetchingNextJobsPage ||
+    incomingQuery.isFetchingNextPage ||
+    providerServicesQuery.isFetchingNextPage;
+  const isFetchNextPageError =
+    isFetchNextJobsPageError ||
+    incomingQuery.isFetchNextPageError ||
+    providerServicesQuery.isFetchNextPageError;
+
+  function loadMore() {
+    const requests: Promise<unknown>[] = [];
+    if (hasNextJobsPage && !isFetchingNextJobsPage) {
+      requests.push(fetchNextJobsPage());
+    }
+    if (
+      incomingQuery.hasNextPage &&
+      !incomingQuery.isFetchingNextPage
+    ) {
+      requests.push(incomingQuery.fetchNextPage());
+    }
+    if (
+      providerServicesQuery.hasNextPage &&
+      !providerServicesQuery.isFetchingNextPage
+    ) {
+      requests.push(providerServicesQuery.fetchNextPage());
+    }
+    void Promise.all(requests);
+  }
+
+  async function refetch() {
+    await Promise.all([
+      refetchJobs(),
+      incomingQuery.refetch(),
+      providerServicesQuery.refetch(),
+    ]);
+  }
 
   const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
@@ -264,6 +314,16 @@ export default function LapidaryJobsScreen() {
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={loadMore}
+          />
         }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

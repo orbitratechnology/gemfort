@@ -215,7 +215,6 @@ export function accountTypeLabelFromRegistration(
 
 export async function createBusinessProfile(
   ownerUid: string,
-  ownerName: string,
   input: {
     businessName: string;
     businessType: BusinessType;
@@ -269,7 +268,6 @@ export async function createBusinessProfile(
     ownerUid,
     businessType: type,
     businessName: input.businessName.trim(),
-    ownerName: ownerName.trim(),
     brNumber: "",
     ngjaNumber: "",
     gemLicenseNumber: "",
@@ -536,7 +534,6 @@ export function demoBusinesses(filters?: {
       id: "demo-trader-1",
       businessType: "trader",
       businessName: "Beruwala Sapphire House",
-      ownerName: "Demo Trader",
       shortDescription: "Ceylon sapphires",
       city: "Beruwala",
       sellerProfile: {
@@ -560,7 +557,6 @@ export function demoBusinesses(filters?: {
       id: "demo-lapidary-1",
       businessType: "lapidary",
       businessName: "Kamal Gem Cutting",
-      ownerName: "Demo Lapidary",
       shortDescription: "Precision cutting",
       city: "Beruwala",
       sellerProfile: null,

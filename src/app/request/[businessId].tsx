@@ -264,7 +264,7 @@ export default function RequestServiceScreen() {
         await createServiceRequest({
           traderUid: user.uid,
           traderBusinessId: myBusiness?.id ?? null,
-          traderBusinessName: myBusiness?.businessName ?? profile?.displayName ?? null,
+          traderBusinessName: myBusiness?.businessName ?? null,
           traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
           lapidaryBusinessId: business.id,
           providerName: business.businessName,

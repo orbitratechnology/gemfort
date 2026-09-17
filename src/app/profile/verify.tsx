@@ -1,8 +1,15 @@
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { format, subYears } from 'date-fns';
+import { Image } from 'expo-image';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -12,8 +19,9 @@ import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
+import { verificationBadgeAssets } from '@/components/ui/verification-badge';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { LAPIDARY_SERVICE_OPTIONS, ROLE_LABELS, resolveProfileRole } from '@/constants/roles';
+import { LAPIDARY_SERVICE_OPTIONS, resolveProfileRole } from '@/constants/roles';
 import {
     fetchBusinessByOwnerUid,
     updateBusinessProfile,
@@ -40,24 +48,55 @@ function parseIsoDate(value: string | null | undefined): Date | null {
 
 const VERIFICATION_TIERS = [
   {
-    number: '1',
+    id: 'member',
+    number: '01',
     title: 'Member',
-    description: 'Every registered account starts here.',
+    shortDescription: 'Registered account',
+    description: 'Everyone starts here as soon as they join GemFort.',
+    label: 'STARTS HERE',
+    color: '#E3B33C',
+    image: verificationBadgeAssets.member,
   },
   {
-    number: '2',
+    id: 'identity',
+    number: '02',
     title: 'Identity Verified',
-    description: 'Submit a NIC photo for identity verification.',
+    shortDescription: 'NIC verified',
+    description: 'GemFort checks your NIC to confirm who you are.',
+    label: 'NIC CHECK',
+    color: '#26A96B',
+    image: verificationBadgeAssets.identity,
   },
   {
-    number: '3',
+    id: 'business',
+    number: '03',
     title: 'Business Verified',
-    description: 'Add your TIN and business registration details.',
+    shortDescription: 'NIC + TIN + BR verified',
+    description: 'Add your tax number and business registration details.',
+    label: 'BUSINESS CHECK',
+    color: '#D65B9A',
+    image: verificationBadgeAssets.business,
   },
   {
-    number: '4',
+    id: 'gem',
+    number: '04',
     title: 'Gem Verified',
-    description: 'Add a verified Gem Licence.',
+    shortDescription: 'All business documents + Gem Licence',
+    description: 'Add your Gem Licence for the highest document tier.',
+    label: 'GEM CHECK',
+    color: '#4D8CF4',
+    image: verificationBadgeAssets.gem,
+  },
+  {
+    id: 'recognized',
+    number: '05',
+    title: 'Recognized',
+    shortDescription: 'Approved by GemFort',
+    description:
+      'A manual badge for established partners, sponsors, associations, institutions, labs, and notable industry organizations.',
+    label: 'ADMIN ASSIGNED',
+    color: '#B13B52',
+    image: verificationBadgeAssets.recognized,
   },
 ] as const;
 
@@ -197,8 +236,22 @@ export default function VerifyApplicationScreen() {
     }
   }
 
+  const heroDecoration =
+    colors.onPrimary === '#0a0a0a'
+      ? 'rgba(0, 0, 0, 0.08)'
+      : 'rgba(255, 255, 255, 0.16)';
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View
+          style={[styles.backdropGlow, { backgroundColor: colors.primaryMuted }]}
+        />
+        <View
+          style={[styles.backdropRing, { borderColor: colors.primaryMuted }]}
+        />
+      </View>
+
       <StackHeader title="Verification" closeIcon />
 
       <ThemedScrollView
@@ -206,75 +259,89 @@ export default function VerifyApplicationScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <ScreenInset style={styles.intro}>
+        <ScreenInset style={styles.heroInset}>
           <View
             style={[
-              styles.verificationMark,
+              styles.hero,
               {
-                backgroundColor: colors.primaryMuted,
-                borderColor: colors.primary,
+                backgroundColor: colors.primary,
+                boxShadow: `0 10px 28px ${colors.cardShadow}`,
               },
             ]}>
-            <Icon name="verified" size={64} color={colors.primary} />
-          </View>
-          <Text style={[styles.title, { color: colors.primary }]}>
-            {isPromotion ? 'Promote your verification' : 'Apply for verification'}
-          </Text>
-          {isPromotion ? (
-            <Text style={[styles.tierNoteText, { color: colors.textMuted }]}>
-              Your current verification remains active while GemFort reviews the additional documents.
+            <View
+              pointerEvents="none"
+              style={[styles.heroRing, { borderColor: heroDecoration }]}
+            />
+            <View
+              pointerEvents="none"
+              style={[styles.heroRingSmall, { borderColor: heroDecoration }]}
+            />
+            <View style={styles.heroBadgeRail}>
+              {VERIFICATION_TIERS.map((tier, index) => (
+                <View
+                  key={tier.id}
+                  style={[
+                    styles.heroBadgePlate,
+                    {
+                      backgroundColor: heroDecoration,
+                      transform: [{ translateY: index % 2 === 0 ? 0 : 10 }],
+                    },
+                  ]}>
+                  <Image
+                    source={tier.image}
+                    style={styles.heroBadgeImage}
+                    contentFit="contain"
+                    accessibilityLabel={`${tier.title} badge`}
+                  />
+                </View>
+              ))}
+            </View>
+            <Text style={[styles.heroEyebrow, { color: colors.onPrimary }]}>GEMFORT TRUST</Text>
+            <Text style={[styles.heroTitle, { color: colors.onPrimary }]}>
+              {isPromotion ? 'Promote your verification' : 'Make trust easy to see'}
             </Text>
-          ) : null}
-          <View
-            style={[
-              styles.roleCard,
-              {
-                backgroundColor: colors.surfaceContainerLow,
-                borderColor: colors.outlineVariant,
-              },
-            ]}>
-            <View style={[styles.roleIcon, { backgroundColor: colors.primaryMuted }]}>
-              <Icon
-                name={isLapidary ? 'diamond' : 'business'}
-                size={24}
-                color={colors.primary}
-              />
-            </View>
-            <View style={styles.roleCopy}>
-              <Text style={[styles.roleEyebrow, { color: colors.textMuted }]}>ACCOUNT TYPE</Text>
-              <Text style={[styles.roleValue, { color: colors.onSurface }]}>
-                {ROLE_LABELS[role]}
+            <Text style={[styles.heroDescription, { color: colors.onPrimary }]}>
+              {isPromotion
+                ? 'Add stronger documents to move up while your current badge stays active during review.'
+                : 'Your badge tells people what GemFort has checked. Start with your identity, then add business proof.'}
+            </Text>
+            <View style={[styles.reviewPill, { backgroundColor: heroDecoration }]}>
+              <Icon name="verified" size={17} color={colors.onPrimary} />
+              <Text style={[styles.reviewPillText, { color: colors.onPrimary }]}>
+                Every badge is reviewed by a GemFort admin
               </Text>
-            </View>
-            <View style={[styles.roleCheck, { backgroundColor: colors.primaryMuted }]}>
-              <Icon name="check-circle" size={22} color={colors.primary} />
             </View>
           </View>
         </ScreenInset>
 
-        <FormSectionLabel title="VERIFICATION TIERS" />
-        <FormSection>
+        <FormSectionLabel title="BADGES AT A GLANCE" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            Learn what each badge means and which documents help you move up.
+          </Text>
+        </ScreenInset>
+        <ScreenInset>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Verification tiers information"
+            accessibilityLabel="View verification badge requirements"
             accessibilityState={{ expanded: tiersExpanded }}
             onPress={() => setTiersExpanded((expanded) => !expanded)}
             style={[
-              styles.tiersInfo,
+              styles.badgesToggle,
               {
                 backgroundColor: colors.surfaceContainerLow,
                 borderColor: colors.outlineVariant,
               },
             ]}>
-            <View style={[styles.tiersInfoIcon, { backgroundColor: colors.primaryMuted }]}>
-              <Icon name="info-outline" size={20} color={colors.primary} />
+            <View style={[styles.badgesToggleIcon, { backgroundColor: colors.primaryMuted }]}>
+              <Icon name="badge" size={20} color={colors.primary} />
             </View>
-            <View style={styles.tiersInfoText}>
-              <Text style={[styles.tiersInfoTitle, { color: colors.onSurface }]}>
-                How verification works
+            <View style={styles.badgesToggleCopy}>
+              <Text style={[styles.badgesToggleTitle, { color: colors.onSurface }]}>
+                How badge levels work
               </Text>
-              <Text style={[styles.tiersInfoSummary, { color: colors.textMuted }]}>
-                Tap to view the requirements for each tier.
+              <Text style={[styles.badgesToggleSummary, { color: colors.textMuted }]}>
+                {tiersExpanded ? 'Hide badge details' : 'Tap to view all badge requirements'}
               </Text>
             </View>
             <Icon
@@ -283,51 +350,56 @@ export default function VerifyApplicationScreen() {
               color={colors.textMuted}
             />
           </Pressable>
-
-          {tiersExpanded ? (
-            <View
-              style={[
-                styles.tiersInfoPanel,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                },
-              ]}>
-              {VERIFICATION_TIERS.map((tier) => (
-                <View key={tier.title} style={styles.tierRow}>
-                  <View style={[styles.tierMarker, { backgroundColor: colors.primaryMuted }]}>
-                    <Text style={[styles.tierMarkerText, { color: colors.primary }]}>
-                      {tier.number}
-                    </Text>
-                  </View>
-                  <View style={styles.tierCopy}>
+        </ScreenInset>
+        {tiersExpanded ? (
+          <ScreenInset style={styles.tierList}>
+            {VERIFICATION_TIERS.map((tier) => (
+              <View
+                key={tier.id}
+                style={[
+                  styles.tierCard,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                    boxShadow: `0 4px 14px ${colors.cardShadow}`,
+                  },
+                ]}>
+                <View style={styles.tierImageFrame}>
+                  <Image
+                    source={tier.image}
+                    style={styles.tierImage}
+                    contentFit="contain"
+                    accessibilityLabel={`${tier.title} badge`}
+                  />
+                </View>
+                <View style={styles.tierCardCopy}>
+                  <View style={styles.tierCardTopLine}>
                     <Text style={[styles.tierTitle, { color: colors.onSurface }]}>
                       {tier.title}
                     </Text>
-                    <Text style={[styles.tierDescription, { color: colors.textMuted }]}>
-                      {tier.description}
-                    </Text>
+                    <View style={[styles.tierTag, { backgroundColor: `${tier.color}1A` }]}>
+                      <Text style={[styles.tierTagText, { color: tier.color }]}>
+                        {tier.label}
+                      </Text>
+                    </View>
                   </View>
+                  <Text style={[styles.tierShortDescription, { color: tier.color }]}>
+                    {tier.shortDescription}
+                  </Text>
+                  <Text style={[styles.tierDescription, { color: colors.textMuted }]}>
+                    {tier.description}
+                  </Text>
                 </View>
-              ))}
-
-              <View
-                style={[
-                  styles.tierNote,
-                  { borderTopColor: colors.outlineVariant },
-                ]}>
-                <Icon name="verified" size={18} color={colors.primary} />
-                <Text style={[styles.tierNoteText, { color: colors.textMuted }]}>
-                  Recognized is a manual GemFort approval for established partners,
-                  sponsors, associations, institutions, labs, or notable industry
-                  organizations.
-                </Text>
               </View>
-            </View>
-          ) : null}
-        </FormSection>
-
-        <FormSectionLabel title="APPLICANT DETAILS" />
+            ))}
+          </ScreenInset>
+        ) : null}
+        <FormSectionLabel title="YOUR DETAILS" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            These details help our review team match your documents to the right account.
+          </Text>
+        </ScreenInset>
         <FormSection>
           <View style={styles.fields}>
             <Input
@@ -442,7 +514,24 @@ export default function VerifyApplicationScreen() {
           </>
         ) : null}
 
+        <FormSectionLabel title="DOCUMENTS" />
+        <ScreenInset style={styles.sectionIntro}>
+          <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
+            NIC is required for everyone. The other documents are optional upgrades you can add now or later.
+          </Text>
+        </ScreenInset>
         <FormSection>
+          <View style={styles.documentIntro}>
+            <View style={[styles.documentIntroIcon, { backgroundColor: `${VERIFICATION_TIERS[1].color}1A` }]}>
+              <Icon name="badge" size={20} color={VERIFICATION_TIERS[1].color} />
+            </View>
+            <View style={styles.documentIntroCopy}>
+              <Text style={[styles.documentIntroTitle, { color: colors.onSurface }]}>Start with your identity</Text>
+              <Text style={[styles.documentIntroText, { color: colors.textMuted }]}>
+                Add more proof below to be considered for Business or Gem Verified.
+              </Text>
+            </View>
+          </View>
           <MediaField
             label="NIC photo (required)"
             value={idPhoto}
@@ -502,59 +591,178 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     gap: Spacing.md,
   },
-  intro: {
-    gap: Spacing.md,
+  backdropGlow: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: 92,
+    right: -150,
+    opacity: 0.35,
   },
-  verificationMark: {
-    alignSelf: 'center',
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    borderWidth: 1.5,
+  backdropRing: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 1,
+    top: 126,
+    right: -130,
+    opacity: 0.55,
+  },
+  heroInset: { gap: 0 },
+  hero: {
+    minHeight: 300,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  heroRing: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 1,
+    top: -112,
+    right: -92,
+  },
+  heroRingSmall: {
+    position: 'absolute',
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    borderWidth: 1,
+    bottom: -54,
+    left: -44,
+  },
+  heroBadgeRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 72,
+    marginBottom: Spacing.sm,
+  },
+  heroBadgePlate: {
+    width: 54,
+    height: 54,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    ...Typography.headlineSm,
+  heroBadgeImage: { width: 50, height: 50 },
+  heroEyebrow: {
+    ...Typography.labelMd,
+    letterSpacing: 1.2,
     fontWeight: '700',
-    textAlign: 'center',
   },
-  roleCard: {
+  heroTitle: {
+    ...Typography.headlineMd,
+    fontWeight: '700',
+    maxWidth: 310,
+  },
+  heroDescription: {
+    ...Typography.bodyMd,
+    lineHeight: 21,
+    maxWidth: 340,
+  },
+  reviewPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.sm,
+    minHeight: 42,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    marginTop: Spacing.xs,
+  },
+  reviewPillText: {
+    ...Typography.labelMd,
+    flexShrink: 1,
+  },
+  sectionIntro: {
+    gap: Spacing.xs,
+  },
+  sectionLead: {
+    ...Typography.bodyMd,
+    lineHeight: 21,
+  },
+  badgesToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    padding: Spacing.md,
+    minHeight: 72,
+  },
+  badgesToggleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgesToggleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  badgesToggleTitle: { ...Typography.labelMd, fontWeight: '700' },
+  badgesToggleSummary: { ...Typography.bodySm, lineHeight: 19 },
+  tierList: {
+    gap: Spacing.sm,
+  },
+  tierCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
     borderWidth: 1,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderCurve: 'continuous',
     padding: Spacing.md,
-    minHeight: 76,
+    minHeight: 104,
   },
-  roleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.full,
+  tierImageFrame: {
+    width: 68,
+    height: 68,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  roleCopy: {
-    flex: 1,
-    gap: 2,
+  tierImage: { width: 62, height: 62 },
+  tierCardCopy: { flex: 1, gap: 3, minWidth: 0 },
+  tierCardTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  roleEyebrow: {
+  tierTitle: {
+    ...Typography.headlineSmMobile,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  tierTag: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tierTagText: {
+    ...Typography.caption,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  tierShortDescription: {
     ...Typography.labelMd,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-  },
-  roleValue: {
-    ...Typography.headlineSm,
     fontWeight: '700',
   },
-  roleCheck: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+  tierDescription: {
+    ...Typography.bodySm,
+    lineHeight: 19,
   },
   fields: { gap: Spacing.lg },
   dobBlock: { gap: 6 },
@@ -571,64 +779,23 @@ const styles = StyleSheet.create({
   },
   dobValue: { ...Typography.bodyLg, flex: 1 },
   dobError: { ...Typography.labelMd },
-  tiersInfo: {
+  documentIntro: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1,
+    gap: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  documentIntroIcon: {
+    width: 40,
+    height: 40,
     borderRadius: Radius.lg,
     borderCurve: 'continuous',
-    padding: Spacing.md,
-    minHeight: 68,
-  },
-  tiersInfoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tiersInfoText: {
-    flex: 1,
-    gap: 2,
-  },
-  tiersInfoTitle: { ...Typography.labelMd, fontWeight: '700' },
-  tiersInfoSummary: { ...Typography.bodySm, lineHeight: 19 },
-  tiersInfoPanel: {
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  tierRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-  },
-  tierMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierMarkerText: { ...Typography.labelMd, fontWeight: '700' },
-  tierCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  tierTitle: { ...Typography.labelMd, fontWeight: '700' },
-  tierDescription: { ...Typography.bodySm, lineHeight: 19 },
-  tierNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  tierNoteText: { ...Typography.bodySm, flex: 1, lineHeight: 19 },
+  documentIntroCopy: { flex: 1, gap: 2 },
+  documentIntroTitle: { ...Typography.labelMd, fontWeight: '700' },
+  documentIntroText: { ...Typography.bodySm, lineHeight: 19 },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,
@@ -638,7 +805,5 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
   },
-  actions: {
-    marginTop: Spacing.sm,
-  },
+  actions: { marginTop: Spacing.sm, gap: Spacing.sm },
 });

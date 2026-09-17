@@ -170,7 +170,8 @@ export default function ProfileScreen() {
 
   const effectiveRole = resolveProfileRole(profile);
   const isVerified = profile?.verificationStatus === "verified";
-  const initial = (profile?.displayName ?? "?").charAt(0).toUpperCase();
+  const businessName = business?.businessName?.trim() || "Your Business";
+  const initial = businessName.charAt(0).toUpperCase();
   const roleLabel = ROLE_LABELS[effectiveRole] ?? "Member";
   const memberYear = user.metadata?.creationTime
     ? new Date(user.metadata.creationTime).getFullYear()
@@ -235,7 +236,7 @@ export default function ProfileScreen() {
               />
             </View>
             <Text style={[styles.name, { color: colors.primary }]}>
-              {profile?.displayName}
+              {businessName}
             </Text>
             <View style={styles.roleRow}>
               <Text style={[styles.role, { color: colors.onSurfaceVariant }]}>

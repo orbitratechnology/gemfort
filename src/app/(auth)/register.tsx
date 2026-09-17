@@ -380,7 +380,7 @@ export default function RegisterScreen() {
 
           <View style={styles.form}>
             <AuthField
-              label="Full name"
+              label="Business name"
               leftIcon="person"
               value={displayName}
               onChangeText={(v) => {

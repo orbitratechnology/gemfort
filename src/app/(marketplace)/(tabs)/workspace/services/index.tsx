@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
@@ -33,7 +34,6 @@ import {
 import {
     subscribeContacts,
     subscribeGems,
-    subscribeServices,
     subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
@@ -46,10 +46,11 @@ import {
     deleteService,
     fetchContacts,
     fetchGems,
-    fetchServices,
 } from "@/features/workspace/workspace-service";
+import { fetchServicesPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
@@ -181,14 +182,17 @@ export default function ServicesListScreen() {
   const [filter, setFilter] = useState<StatusFilter>("all");
 
   const {
-    data: services = [],
+    items: services,
     refetch,
     isRefetching,
-  } = useFirestoreLiveQuery({
-    queryKey: ["services", user?.uid],
-    queryFn: () => fetchServices(user!.uid),
-    subscribe: (onData, onError) =>
-      subscribeServices(user!.uid, onData, onError),
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["services", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchServicesPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -318,6 +322,18 @@ export default function ServicesListScreen() {
         }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
+        }
         ListHeaderComponent={
           <View style={styles.listHeader}>
             <View

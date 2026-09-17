@@ -382,8 +382,8 @@ export const registerSchema = z.object({
   displayName: z
     .string()
     .trim()
-    .min(2, "Enter your full name")
-    .max(60, "Name is too long"),
+    .min(2, "Enter your business name")
+    .max(60, "Business name is too long"),
   email: z.string().trim().email("Enter a valid email address"),
   password: strongPassword,
   role: z.enum(["trader", "lapidary"]),

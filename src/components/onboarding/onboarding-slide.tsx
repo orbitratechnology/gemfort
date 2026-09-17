@@ -43,7 +43,6 @@ export function OnboardingSlide({
 }: OnboardingSlideProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
-  const isFirst = index === 0;
   const isLast = index === total - 1;
   const enterDown = reduceMotion
     ? undefined
@@ -53,30 +52,28 @@ export function OnboardingSlide({
     <View style={{ width, height, backgroundColor: '#000000' }}>
       <OnboardingHero chapterId={chapter.id} width={width} height={height} />
 
-      {!isFirst ? (
-        <View
+      <View
+        style={{
+          position: 'absolute',
+          top: insets.top + Spacing.sm,
+          right: Spacing.lg,
+          zIndex: 2,
+        }}>
+        <Pressable
+          onPress={onSkip}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
           style={{
-            position: 'absolute',
-            top: insets.top + Spacing.sm,
-            right: Spacing.lg,
-            zIndex: 2,
+            minHeight: 44,
+            minWidth: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: Spacing.sm,
           }}>
-          <Pressable
-            onPress={onSkip}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Skip onboarding"
-            style={{
-              minHeight: 44,
-              minWidth: 44,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: Spacing.sm,
-            }}>
-            <Text style={{ ...Typography.label, color: WHITE_SOFT }}>Skip</Text>
-          </Pressable>
-        </View>
-      ) : null}
+          <Text style={{ ...Typography.label, color: WHITE_SOFT }}>Skip</Text>
+        </Pressable>
+      </View>
 
       {/* Bottom content */}
       <View

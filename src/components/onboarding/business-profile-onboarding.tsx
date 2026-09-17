@@ -71,7 +71,7 @@ export function BusinessProfileOnboarding() {
   const finishingRef = useRef(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [step, setStep] = useState<StepIndex>(0);
-  const [businessName, setBusinessName] = useState("");
+  const [businessName, setBusinessName] = useState<string | undefined>();
   const [shortDescription, setShortDescription] = useState("");
   const [logo, setLogo] = useState<LocalMedia | null>(null);
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
@@ -96,6 +96,9 @@ export function BusinessProfileOnboarding() {
 
   const signedInUser = user;
   const currentProfile = profile;
+  const businessNameValue =
+    businessName ??
+    (currentProfile.displayName?.trim() || signedInUser.displayName?.trim() || "");
   const businessType = businessTypeFromRegistration(currentProfile);
   const enterMs = reduceMotion ? 120 : 220;
   const exitMs = reduceMotion ? 100 : 140;
@@ -109,7 +112,7 @@ export function BusinessProfileOnboarding() {
 
     try {
       await withLoading(async () => {
-        if (businessName.trim() && businessType) {
+        if (businessNameValue.trim() && businessType) {
           let logoUrl: string | null = null;
           if (logo) {
             logoUrl = await uploadLocalMedia(
@@ -120,9 +123,8 @@ export function BusinessProfileOnboarding() {
 
           const businessId = await createBusinessProfile(
             signedInUser.uid,
-            currentProfile.displayName || "Owner",
             {
-              businessName,
+              businessName: businessNameValue,
               businessType,
               city: city.trim() || DEFAULT_CITY,
               country: country.trim() || DEFAULT_COUNTRY,
@@ -217,7 +219,7 @@ export function BusinessProfileOnboarding() {
             <View style={styles.form}>
               <Input
                 label="Business name"
-                value={businessName}
+                value={businessNameValue}
                 onChangeText={setBusinessName}
                 placeholder="e.g. Celestial Sapphires"
                 leftIcon="business"

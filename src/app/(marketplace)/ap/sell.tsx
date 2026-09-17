@@ -20,13 +20,17 @@ import {
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
+import {
+  fetchBusinessByOwnerUid,
+  fetchBusinesses,
+} from "@/features/marketplace/marketplace-service";
 import {
   fetchApRecordsForUser,
   recordApGemSale,
 } from "@/features/workspace/ap-lifecycle-service";
 import {
   subscribeApRecordsForUser,
+  subscribeBusinessByOwnerUid,
   subscribeGem,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
@@ -56,7 +60,7 @@ export default function ApSellScreen() {
   const raw = useLocalSearchParams<{ apId?: string; gemId?: string }>();
   const apId = firstParam(raw.apId);
   const gemId = firstParam(raw.gemId);
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -102,6 +106,14 @@ export default function ApSellScreen() {
     enabled: !!ap,
   });
 
+  const { data: myBusiness } = useFirestoreLiveQuery({
+    queryKey: ["my-business", user?.uid],
+    queryFn: () => fetchBusinessByOwnerUid(user!.uid),
+    subscribe: (onData, onError) =>
+      subscribeBusinessByOwnerUid(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+
   if (!didPrefill && line) {
     setDidPrefill(true);
     if (line.agreedPrice > 0) {
@@ -113,7 +125,7 @@ export default function ApSellScreen() {
   const senderPhoto = ap
     ? resolveBusinessPhotoByOwnerUid(ap.senderUid, businesses)
     : null;
-  const youName = profile?.displayName || user?.displayName || "You";
+  const youName = myBusiness?.businessName?.trim() || "Your Business";
   const youPhoto = user?.photoURL ?? null;
   const gemLabel = line?.gemLabel ?? "Gem";
   const currency = line?.currency || "LKR";

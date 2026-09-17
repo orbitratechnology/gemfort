@@ -172,7 +172,6 @@ export function buildPublicBusinessProjection(
   return {
     businessType: stringValue(data.businessType),
     businessName: stringValue(data.businessName),
-    ownerName: stringValue(data.ownerName),
     yearEstablished: numberOrNull(data.yearEstablished),
     shortDescription: stringValue(data.shortDescription),
     city: stringValue(data.city),

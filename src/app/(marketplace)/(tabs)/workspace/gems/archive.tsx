@@ -13,17 +13,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { GemCard } from "@/components/workspace/gem-card";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { filterGems } from "@/features/workspace/gem-utils";
 import { resolveGemLifecycle, resolveGemSaleStatus } from "@/features/workspace/gem-lifecycle";
-import { subscribeGems } from "@/features/workspace/firestore-subscriptions";
-import { fetchGems } from "@/features/workspace/workspace-service";
+import { fetchArchivedGemsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useAuth } from "@/providers/auth-provider";
 
 const GRID_GAP = Spacing.stackSm;
@@ -37,10 +37,18 @@ export default function GemsArchiveScreen() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [tab, setTab] = useState<ArchiveTab>("all");
 
-  const { data: gems = [], refetch, isRefetching } = useFirestoreLiveQuery({
-    queryKey: ["gems", user?.uid],
-    queryFn: () => fetchGems(user!.uid),
-    subscribe: (onData, onError) => subscribeGems(user!.uid, onData, onError),
+  const {
+    items: gems,
+    refetch,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = useFirestoreInfiniteQuery({
+    queryKey: ["gems", "archive", user?.uid, "infinite"],
+    fetchPage: (cursor, pageSize) =>
+      fetchArchivedGemsPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
 
@@ -142,6 +150,18 @@ export default function GemsArchiveScreen() {
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          <InfiniteListFooter
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            isFetchNextPageError={isFetchNextPageError}
+            onRetry={() => void fetchNextPage()}
+          />
         }
         ListEmptyComponent={
           <EmptyState

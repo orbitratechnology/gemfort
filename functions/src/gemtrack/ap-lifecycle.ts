@@ -113,9 +113,9 @@ export const createApRequest = onCall(
     }
 
     const gemRefs = itemsIn.map((item) => db.collection('gemtrack_gems').doc(item.gemId));
-    const [bizSnap, senderSnap, rates, ...gemSnaps] = await Promise.all([
+    const [bizSnap, senderBusinessSnap, rates, ...gemSnaps] = await Promise.all([
       db.collection('businesses').doc(linkedBusinessId).get(),
-      db.collection('users').doc(uid).get(),
+      db.collection('businesses').where('ownerUid', '==', uid).limit(1).get(),
       loadServerRates(),
       ...gemRefs.map((ref) => ref.get()),
     ]);
@@ -130,8 +130,7 @@ export const createApRequest = onCall(
     }
 
     const senderName =
-      (senderSnap.data()?.displayName as string) ||
-      (biz.ownerName as string) ||
+      (senderBusinessSnap.docs[0]?.data()?.businessName as string | undefined)?.trim() ||
       'Trader';
 
     const lines: ApGemLine[] = [];
