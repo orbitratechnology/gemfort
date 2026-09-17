@@ -51,6 +51,7 @@ function Row({
   onPress,
   trailing,
   danger,
+  disabled = false,
   colors,
 }: {
   icon: IconName;
@@ -59,14 +60,16 @@ function Row({
   onPress?: () => void;
   trailing?: React.ReactNode;
   danger?: boolean;
+  disabled?: boolean;
   colors: ThemeColors;
 }) {
   return (
     <Pressable
-      onPress={onPress}
-      disabled={!onPress}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled || !onPress}
       style={({ pressed }) => [
         styles.row,
+        disabled ? styles.rowDisabled : null,
         pressed && onPress ? { opacity: 0.7 } : null,
       ]}
     >
@@ -192,6 +195,7 @@ export default function SettingsScreen() {
             colors={colors}
             icon="fingerprint"
             label="Biometric lock"
+            disabled={!biometric.available}
             subtitle={
               biometric.available
                 ? `Require ${biometric.methodLabel} when GemFort opens`
@@ -272,6 +276,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.gutterMd,
     paddingVertical: 14,
   },
+  rowDisabled: { opacity: 0.5 },
   rowIcon: {
     width: 36,
     height: 36,

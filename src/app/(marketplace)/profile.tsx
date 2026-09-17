@@ -298,50 +298,6 @@ export default function ProfileScreen() {
             />
           </FormSection>
 
-          <FormSectionLabel title="APPEARANCE" />
-          <FormSection>
-            <View
-              style={[
-                styles.segment,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              {themeOptions.map((option) => {
-                const active = preference === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => setPreference(option.id)}
-                    style={[
-                      styles.segmentBtn,
-                      active && { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Icon
-                      name={option.icon}
-                      size={16}
-                      color={
-                        active ? colors.onPrimary : colors.onSurfaceVariant
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        {
-                          color: active
-                            ? colors.onPrimary
-                            : colors.onSurfaceVariant,
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </FormSection>
-
           <FormSectionLabel title="PREFERENCES" />
           <FormSection padded={false}>
             <Row
@@ -385,6 +341,50 @@ export default function ProfileScreen() {
                 </Text>
               }
             />
+          </FormSection>
+
+          <FormSectionLabel title="APPEARANCE" />
+          <FormSection>
+            <View
+              style={[
+                styles.segment,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              {themeOptions.map((option) => {
+                const active = preference === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => setPreference(option.id)}
+                    style={[
+                      styles.segmentBtn,
+                      active && { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Icon
+                      name={option.icon}
+                      size={16}
+                      color={
+                        active ? colors.onPrimary : colors.onSurfaceVariant
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        {
+                          color: active
+                            ? colors.onPrimary
+                            : colors.onSurfaceVariant,
+                        },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </FormSection>
 
           <Pressable
