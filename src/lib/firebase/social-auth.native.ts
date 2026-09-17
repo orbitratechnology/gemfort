@@ -96,7 +96,7 @@ async function finishSocialSignIn(
   const email = identity.email?.trim().toLowerCase() || user.email?.trim().toLowerCase();
   if (!email) {
     await signOut(auth);
-    throw new Error('Your provider did not return an email address.');
+    throw new Error("We couldn't get an email address from that sign-in. Try again or use email sign-in.");
   }
 
   const profile: Omit<
@@ -156,7 +156,7 @@ export async function signInWithGoogle(
     response = await GoogleOneTapSignIn.presentExplicitSignIn();
   }
   if (!isSuccessResponse(response) || !response.data?.idToken) {
-    throw new Error('Google Sign-In was cancelled or did not return an ID token.');
+    throw new Error('Google sign-in was cancelled. Try again or choose another sign-in method.');
   }
 
   return finishSocialSignIn(
@@ -189,7 +189,7 @@ export async function signInWithApple(
     nonce: hashedNonce,
   });
   if (!apple.identityToken) {
-    throw new Error('Apple Sign-In did not return an identity token.');
+    throw new Error('Apple sign-in was cancelled. Try again or choose another sign-in method.');
   }
 
   const displayName = AppleAuthentication.formatFullName(apple.fullName ?? {
@@ -244,7 +244,7 @@ export async function reauthenticateWithGoogle() {
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.presentExplicitSignIn();
   if (!isSuccessResponse(response) || !response.data?.idToken) {
-    throw new Error('Google Sign-In was cancelled or did not return an ID token.');
+    throw new Error('Google sign-in was cancelled. Try again or choose another sign-in method.');
   }
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error('You must be signed in to continue.');
@@ -259,7 +259,7 @@ export async function reauthenticateWithApple() {
     { encoding: Crypto.CryptoEncoding.HEX },
   );
   const apple = await AppleAuthentication.signInAsync({ nonce: hashedNonce });
-  if (!apple.identityToken) throw new Error('Apple Sign-In did not return an identity token.');
+  if (!apple.identityToken) throw new Error('Apple sign-in was cancelled. Try again or choose another sign-in method.');
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new Error('You must be signed in to continue.');
   await reauthenticateWithCredential(user, AppleAuthProvider.credential(apple.identityToken, rawNonce));

@@ -145,7 +145,7 @@ export function lkrPerUnit(
     currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
   const foreignPerBase = rates[code] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
-    throw new Error(`Missing exchange rate for ${currency}.`);
+    throw new Error('Currency conversion is temporarily unavailable. Please try again later.');
   }
   return 1 / foreignPerBase;
 }
@@ -192,7 +192,7 @@ export function convertFromBaseSync(
     currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
   const foreignPerBase = rates[code] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
-    throw new Error(`Missing exchange rate for ${currency}.`);
+    throw new Error('Currency conversion is temporarily unavailable. Please try again later.');
   }
   return Number((amountBase * foreignPerBase).toFixed(2));
 }

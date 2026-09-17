@@ -3,6 +3,7 @@ import type { AuthUser } from '@/lib/firebase/auth-types';
 import { getFirebaseAppCheckToken } from '@/lib/firebase/app-check';
 import { firebaseConfig, getFirebaseAuth } from '@/lib/firebase/config';
 import { REGION } from '@/lib/firebase/functions-region';
+import { safeUserMessage } from '@/lib/errors';
 
 type ApiSuccess<T> = {
   data: T;
@@ -57,7 +58,7 @@ function apiBaseUrl(): string {
   const projectId = firebaseConfig.projectId.trim();
   if (!projectId) {
     throw new ApiClientError(
-      'Firebase is not configured for this build.',
+      'This feature is temporarily unavailable. Please try again later.',
       0,
       'api/configuration',
     );
@@ -78,8 +79,12 @@ function errorFromResponse(
   parsed: ApiSuccess<unknown> | ApiFailure,
 ): ApiClientError {
   if ('error' in parsed && parsed.error) {
+    const fallback =
+      status === 404
+        ? 'This feature is temporarily unavailable. Please try again later.'
+        : 'We could not complete that request. Please try again.';
     return new ApiClientError(
-      parsed.error.message || 'The request could not be completed.',
+      safeUserMessage(parsed.error.message, fallback),
       status,
       parsed.error.code || 'api/error',
       parsed.error.requestId,
@@ -87,8 +92,8 @@ function errorFromResponse(
   }
   return new ApiClientError(
     status === 404
-      ? 'The GemFort API route is not available yet.'
-      : 'The GemFort API returned an unexpected response.',
+      ? 'This feature is temporarily unavailable. Please try again later.'
+      : 'We could not complete that request. Please try again.',
     status,
     status === 404 ? 'api/not-found' : 'api/invalid-response',
   );
@@ -108,7 +113,7 @@ async function requestOnce<TResult, TData>(
   ]);
   if (!appCheckToken) {
     throw new ApiClientError(
-      'This app could not verify its integrity. Please update and try again.',
+      'This app could not be verified for secure access. Please update and try again.',
       0,
       'app-check/unavailable',
     );
@@ -129,7 +134,7 @@ async function requestOnce<TResult, TData>(
     });
   } catch {
     throw new ApiClientError(
-      'The network is unavailable. Please try again.',
+      'Connection problem. Check your internet and try again.',
       0,
       'network/unavailable',
     );

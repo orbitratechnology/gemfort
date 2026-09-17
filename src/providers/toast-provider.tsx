@@ -114,7 +114,7 @@ function showToast(message: string, options?: ToastOptions) {
   const variant = options?.variant ?? "info";
   if (variant === "success") {
     haptics.success();
-    toast.success(message, { duration });
+    toast.success(safeUserMessage(message), { duration });
     return;
   }
   if (variant === "error") {
@@ -123,7 +123,7 @@ function showToast(message: string, options?: ToastOptions) {
     return;
   }
   haptics.light();
-  toast(message, { duration });
+  toast(safeUserMessage(message), { duration });
 }
 
 /** App-wide toast API — backed by sonner-native. */
@@ -132,7 +132,7 @@ export function useToast(): ToastApi {
     show: showToast,
     success: (message, duration) => {
       haptics.success();
-      toast.success(message, { duration });
+      toast.success(safeUserMessage(message), { duration });
     },
     error: (message, duration) => {
       haptics.error();
@@ -140,7 +140,7 @@ export function useToast(): ToastApi {
     },
     info: (message, duration) => {
       haptics.light();
-      toast(message, { duration });
+      toast(safeUserMessage(message), { duration });
     },
   };
 }

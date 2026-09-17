@@ -23,6 +23,7 @@ import {
 } from "@/lib/firebase/db";
 import { clearOnboardingState } from "@/lib/onboarding";
 import { clearThemePreference } from "@/lib/theme-preference";
+import { safeUserMessage } from "@/lib/errors";
 import type { UserProfile, UserRole } from "@/types";
 
 export type { AuthUser } from "@/lib/firebase/auth-types";
@@ -115,7 +116,7 @@ export async function loginUser(email: string, password: string) {
   if (profile?.isSuspended) {
     await signOut(getFirebaseAuth());
     throw new Error(
-      profile.suspendedReason ?? "Your account has been suspended.",
+      safeUserMessage(profile.suspendedReason, "Your account has been suspended."),
     );
   }
   await updateDoc(doc(getFirebaseDb(), "users", credential.user.uid), {
@@ -239,7 +240,7 @@ export async function updateFcmToken(uid: string, token: string | null) {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   // Ensure Auth ID token is attached before the Firestore write (avoids
   // permission-denied when push registration races auth restore on Android).
@@ -258,7 +259,7 @@ export async function updatePreferredCurrency(
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   await getIdToken(current);
   await updateDoc(doc(getFirebaseDb(), "users", uid), {
@@ -274,7 +275,7 @@ export async function updateNotificationPreferences(
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current || current.uid !== uid) {
-    throw new Error("Not signed in as the target user");
+    throw new Error("Please sign in again to continue.");
   }
   await getIdToken(current);
   await updateDoc(doc(getFirebaseDb(), "users", uid), {

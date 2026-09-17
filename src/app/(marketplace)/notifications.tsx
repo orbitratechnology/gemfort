@@ -221,7 +221,7 @@ export default function NotificationsScreen() {
         setBusyKey(key);
 
         if (actionId === "accept_ap" || actionId === "decline_ap") {
-          if (!n.referenceId) throw new Error("Missing AP reference.");
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
           await respondApRequest(
             n.referenceId,
             actionId === "accept_ap" ? "accepted" : "rejected",
@@ -238,7 +238,7 @@ export default function NotificationsScreen() {
           actionId === "accept_ap_cancel" ||
           actionId === "decline_ap_cancel"
         ) {
-          if (!n.referenceId) throw new Error("Missing AP reference.");
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
           await respondApCancellation(
             n.referenceId,
             actionId === "accept_ap_cancel" ? "accepted" : "rejected",
@@ -273,7 +273,7 @@ export default function NotificationsScreen() {
         }
 
         if (actionId === "add_service_bill") {
-          if (!n.referenceId) throw new Error("Missing service reference.");
+          if (!n.referenceId) throw new Error("This notification is no longer available.");
           const service = await fetchService(n.referenceId);
           if (!service?.finalCost || !service.paymentDueDate) {
             throw new Error("Completion details are not available yet.");

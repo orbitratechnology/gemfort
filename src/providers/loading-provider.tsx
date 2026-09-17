@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { safeUserMessage } from "@/lib/errors";
 import {
   setLoadingBridge,
   type LoadingApi,
@@ -24,10 +25,10 @@ function resolveOptions(
   messageOrOptions?: string | WithLoadingOptions,
 ): Required<WithLoadingOptions> {
   if (typeof messageOrOptions === "string") {
-    return { message: messageOrOptions, overlay: true };
+    return { message: safeUserMessage(messageOrOptions, DEFAULT_MESSAGE), overlay: true };
   }
   return {
-    message: messageOrOptions?.message ?? DEFAULT_MESSAGE,
+    message: safeUserMessage(messageOrOptions?.message ?? DEFAULT_MESSAGE, DEFAULT_MESSAGE),
     overlay: messageOrOptions?.overlay ?? true,
   };
 }
@@ -44,7 +45,7 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
     overlayDepthRef.current += 1;
     setDepth(depthRef.current);
     setOverlayDepth(overlayDepthRef.current);
-    if (nextMessage) setMessageState(nextMessage);
+    if (nextMessage) setMessageState(safeUserMessage(nextMessage, DEFAULT_MESSAGE));
     else if (depthRef.current === 1) setMessageState(DEFAULT_MESSAGE);
   }, []);
 
@@ -57,7 +58,7 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setMessage = useCallback((next: string) => {
-    setMessageState(next || DEFAULT_MESSAGE);
+    setMessageState(safeUserMessage(next, DEFAULT_MESSAGE));
   }, []);
 
   const withLoading = useCallback(

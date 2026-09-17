@@ -41,7 +41,9 @@ export default function CompletePhoneScreen() {
     };
     if (registrationFlow === "1") params.afterRegistration = "1";
     if (!isFirebaseConfigured) {
-      toast.error("Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.");
+      toast.error(
+        "Phone verification is temporarily unavailable. Please try again later.",
+      );
       return;
     }
 

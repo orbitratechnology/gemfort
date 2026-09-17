@@ -9,18 +9,20 @@ const appLinkHost = "gemfort.web.app";
 // Shared image artwork used by signed-in system shortcuts.
 const SHORTCUT_IMAGES = {
   shortcut_app: "./assets/images/gemfort-icon.png",
-  shortcut_add: "./assets/images/mygems-icon.png",
-  shortcut_ap: "./assets/images/ap-icon.png",
-  shortcut_bill: "./assets/images/bill-icon.png",
-  shortcut_cheque: "./assets/images/cheque-icon.png",
-  shortcut_contacts: "./assets/images/ap-icon.png",
-  shortcut_gem: "./assets/images/mygems-icon.png",
-  shortcut_jobs: "./assets/images/lapidary-icon.png",
-  shortcut_market: "./assets/images/mygems-icon.png",
-  shortcut_money: "./assets/images/bill-icon.png",
-  shortcut_search: "./assets/images/gemfort-icon.png",
-  shortcut_service: "./assets/images/lapidary-icon.png",
+  shortcut_add: "./assets/images/shortcuts/shortcut_add_light.png",
+  shortcut_ap: "./assets/images/shortcuts/shortcut_ap_light.png",
+  shortcut_bill: "./assets/images/shortcuts/shortcut_bill_light.png",
+  shortcut_cheque: "./assets/images/shortcuts/shortcut_cheque_light.png",
+  shortcut_contacts: "./assets/images/shortcuts/shortcut_contacts_light.png",
+  shortcut_gem: "./assets/images/shortcuts/shortcut_gem_light.png",
+  shortcut_jobs: "./assets/images/shortcuts/shortcut_jobs_light.png",
+  shortcut_market: "./assets/images/shortcuts/shortcut_market_light.png",
+  shortcut_money: "./assets/images/shortcuts/shortcut_money_light.png",
+  shortcut_search: "./assets/images/shortcuts/shortcut_search_light.png",
+  shortcut_service: "./assets/images/shortcuts/shortcut_service_light.png",
   shortcut_trip: "./assets/images/trips-icon.png",
+  shortcut_certificates:
+    "./assets/images/shortcuts/shortcut_certificates_light.png",
 } as const;
 
 // Android resolves dynamic shortcut icons as drawable/mipmap resources. Use
@@ -35,10 +37,6 @@ const SHORTCUT_ANDROID_ICONS = {
   shortcut_search: {
     foregroundImage: "./assets/images/shortcuts/shortcut_search_light.png",
     backgroundColor: "#FFFFFF",
-  },
-  shortcut_certificates: {
-    foregroundImage: "./assets/images/shortcuts/shortcut_certificates.svg",
-    backgroundColor: "#171717",
   },
 } as const;
 
