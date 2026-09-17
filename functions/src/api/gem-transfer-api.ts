@@ -356,7 +356,7 @@ export async function createGemTransferForApi(
   return { requestId: result.requestId, status: 'pending' };
 }
 
-/** Record a completed sale to a private contact who has no GemFort account. */
+/** Record a completed sale to a contact without moving the gem to another account. */
 export async function recordGemSaleForApi(
   gemIdInput: string,
   sellerUid: string,
@@ -382,17 +382,14 @@ export async function recordGemSaleForApi(
     if (!contactSnap.exists || contactSnap.data()?.ownerUid !== sellerUid) {
       throw new ApiError('permission-denied', 'The selected contact is not yours.');
     }
-    if (contactSnap.data()?.linkedBusinessId) {
-      throw new ApiError(
-        'failed-precondition',
-        'Use the Trader sale flow for a linked GemFort profile.',
-      );
-    }
-
     const gem = gemSnap.data() as Record<string, unknown>;
     if (gem.ownerUid !== sellerUid) {
       throw new ApiError('permission-denied', 'You do not own this gem.');
     }
+    const listingId =
+      typeof gem.marketplaceListingId === 'string' ? gem.marketplaceListingId : null;
+    const listingRef = listingId ? db.collection('gems').doc(listingId) : null;
+    const listingSnap = listingRef ? await transaction.get(listingRef) : null;
     const isOnTrip = gem.custody === 'on_trip' || gem.status === 'on_trip';
     if (isOnTrip && (!sourceTripId || !sourceTripGemId)) {
       throw new ApiError('failed-precondition', 'Choose the sale action from the active trip.');
@@ -451,8 +448,6 @@ export async function recordGemSaleForApi(
       typeof contact.displayName === 'string' && contact.displayName.trim()
         ? contact.displayName.trim()
         : input.recipientName;
-    const listingId =
-      typeof gem.marketplaceListingId === 'string' ? gem.marketplaceListingId : null;
     transaction.update(gemRef, {
       saleTransferRequestId: null,
       saleStatus: 'sold',
@@ -470,8 +465,8 @@ export async function recordGemSaleForApi(
       isListedOnMarketplace: false,
       updatedAt: now,
     });
-    if (listingId) {
-      transaction.update(db.collection('gems').doc(listingId), {
+    if (listingRef && listingSnap?.exists) {
+      transaction.update(listingRef, {
         status: 'sold',
         updatedAt: now,
       });

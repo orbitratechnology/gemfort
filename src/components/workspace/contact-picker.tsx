@@ -43,6 +43,8 @@ type ContactPickerProps = {
    * Selecting a business creates/links a contact (1:1 by phone) and returns its id.
    */
   allowedBusinessKinds?: BusinessKind[];
+  /** Preserve whether the user chose a local contact or a GemFort profile. */
+  onPartyChange?: (selection: PartySelection) => void;
 };
 
 /**
@@ -64,6 +66,7 @@ export function ContactPicker({
   allowClear = false,
   clearLabel = 'No contact (optional)',
   allowedBusinessKinds,
+  onPartyChange,
 }: ContactPickerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -116,6 +119,7 @@ export function ContactPicker({
   async function handlePartySelect(selection: PartySelection) {
     if (!user) return;
     if (selection.source === 'contact') {
+      onPartyChange?.(selection);
       onChange(selection.contactId);
       onCustomNameChange?.('');
       return;
@@ -136,6 +140,7 @@ export function ContactPicker({
         contacts,
       );
       await queryClient.invalidateQueries({ queryKey: ['contacts', user.uid] });
+      onPartyChange?.({ ...selection, linkedContactId: contactId });
       onChange(contactId);
       onCustomNameChange?.('');
     } finally {

@@ -14,6 +14,7 @@ import { type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
+import type { PartySelection } from "@/components/workspace/contact-picker-sheet";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
@@ -61,6 +62,7 @@ export default function RecordSaleScreen() {
     currency: preferred,
   });
   const [buyerContactId, setBuyerContactId] = useState("");
+  const [buyerParty, setBuyerParty] = useState<PartySelection | null>(null);
   const [method, setMethod] = useState<PaymentMethod>("transfer");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -90,7 +92,15 @@ export default function RecordSaleScreen() {
     () => contacts.find((c) => c.id === buyerContactId) ?? null,
     [contacts, buyerContactId],
   );
-  const buyerLabel = buyerContact?.displayName?.trim() || "";
+  const buyerLabel =
+    buyerParty?.label?.trim() || buyerContact?.displayName?.trim() || "";
+  const selectedBuyerContactId =
+    buyerParty?.source === "contact"
+      ? buyerParty.contactId
+      : buyerParty?.source === "business"
+        ? buyerParty.linkedContactId ?? buyerContactId
+        : buyerContactId;
+  const isTraderProfile = buyerParty?.source === "business";
 
   const salePrice = parseFloat(price.amount) || 0;
   const costBasis = gem?.totalCost ?? 0;
@@ -140,7 +150,7 @@ export default function RecordSaleScreen() {
       toast.error("Choose which stone you are selling.");
       return;
     }
-    if (!buyerContact) {
+    if (!selectedBuyerContactId) {
       setErrors((previous) => ({
         ...previous,
         buyer: "Select a Trader or Contact.",
@@ -154,11 +164,11 @@ export default function RecordSaleScreen() {
         const data = result.data;
         const paymentMethod =
           data.method === "transfer" ? "bank_transfer" : data.method;
-        if (buyerContact.linkedBusinessId) {
+        if (buyerParty?.source === "business") {
           await createGemTransferRequest({
             gemId: gem.id,
-            recipientBusinessId: buyerContact.linkedBusinessId,
-            recipientContactId: buyerContact.id,
+            recipientBusinessId: buyerParty.businessId,
+            recipientContactId: selectedBuyerContactId,
             recipientName: buyerLabel,
             amount: data.price,
             currency: price.currency,
@@ -167,7 +177,7 @@ export default function RecordSaleScreen() {
         } else {
           await recordGemSale({
             gemId: gem.id,
-            recipientContactId: buyerContact.id,
+            recipientContactId: selectedBuyerContactId,
             recipientName: buyerLabel,
             amount: data.price,
             currency: price.currency,
@@ -176,12 +186,12 @@ export default function RecordSaleScreen() {
         }
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
         toast.success(
-          buyerContact.linkedBusinessId
+          isTraderProfile
             ? `${gem.sku} sale recorded — waiting for trader acceptance.`
             : `${gem.sku} sale recorded to ${buyerLabel}.`,
         );
         router.back();
-      }, buyerContact.linkedBusinessId ? "Recording trader sale…" : "Recording sale…");
+      }, isTraderProfile ? "Recording trader sale…" : "Recording sale…");
     } catch (e) {
       toast.error(friendlyError(e, "Could not record the sale."));
     }
@@ -230,6 +240,7 @@ export default function RecordSaleScreen() {
               setBuyerContactId(id);
               clearField("buyer");
             }}
+            onPartyChange={setBuyerParty}
             allowedBusinessKinds={["traders"]}
             emptyHint="Select a Trader or Contact."
             error={errors.buyer}

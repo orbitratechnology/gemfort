@@ -69,8 +69,9 @@ import {
     resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import {
-    cancelGemTransferRequest,
-    createGemTransferRequest,
+  cancelGemTransferRequest,
+  createGemTransferRequest,
+  recordGemSale,
 } from "@/features/workspace/gem-transfer-api";
 import {
     fetchContacts,
@@ -371,37 +372,55 @@ export default function GemDetailScreen() {
     }
     setSoldError(null);
     if (!transferParty) {
-      setSoldError("Select a linked trader or contact.");
-      return;
-    }
-    const recipientBusinessId = transferParty.source === "business"
-      ? transferParty.businessId
-      : transferParty.linkedBusinessId;
-    if (!recipientBusinessId) {
-      setSoldError("This contact is not linked to a verified GemFort trader.");
+      setSoldError("Select a Trader or Contact.");
       return;
     }
     setTransferSaving(true);
     try {
       await withLoading(async () => {
-        await createGemTransferRequest({
-          gemId: gem.id,
-          recipientBusinessId,
-          recipientContactId: transferParty.source === "contact" ? transferParty.contactId : null,
-          recipientName: transferParty.label,
-          amount,
-          currency: soldAmount.currency,
-          paymentMethod: transferPaymentMethod,
-          sourceTripId: sell === "1" ? tripId : null,
-          sourceTripGemId: sell === "1" ? tripGemId : null,
-        });
+        if (transferParty.source === "business") {
+          await createGemTransferRequest({
+            gemId: gem.id,
+            recipientBusinessId: transferParty.businessId,
+            recipientContactId: transferParty.linkedContactId ?? null,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        } else {
+          await recordGemSale({
+            gemId: gem.id,
+            recipientContactId: transferParty.contactId,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        }
         await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
         await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
         setTransferOpen(false);
-        toast.success("Sale request sent — waiting for the trader to accept");
-      }, "Sending sale request…");
+        toast.success(
+          transferParty.source === "business"
+            ? "Sale request sent — waiting for the trader to accept"
+            : `Sale recorded to ${transferParty.label}.`,
+        );
+      }, transferParty.source === "business" ? "Sending sale request…" : "Recording sale…");
     } catch (e) {
-      setSoldError(friendlyError(e, "Could not send the sale request."));
+      setSoldError(
+        friendlyError(
+          e,
+          transferParty.source === "business"
+            ? "Could not send the sale request."
+            : "Could not record the sale.",
+        ),
+      );
     } finally {
       setTransferSaving(false);
     }
@@ -1286,15 +1305,27 @@ export default function GemDetailScreen() {
         title="Sell gem"
         footer={
           <Button
-            title={transferSaving ? "Sending…" : "Send sale request"}
-            icon="send"
+            title={
+              transferSaving
+                ? transferParty?.source === "business"
+                  ? "Sending…"
+                  : "Recording…"
+                : transferParty?.source === "business"
+                  ? "Send sale request"
+                  : "Record sale"
+            }
+            icon={transferParty?.source === "business" ? "send" : "price-check"}
             loading={transferSaving}
             disabled={transferSaving}
             onPress={() => void handleSaleRequest()}
           />
         }
       >
-        <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>The trader must accept before ownership moves. Until then, the gem stays in your account and can be marked unsold.</Text>
+        <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
+          {transferParty?.source === "business"
+            ? "The trader must accept before ownership moves. Until then, the gem stays in your account and can be marked unsold."
+            : "A contact sale is recorded immediately. The gem will appear in your Archive as sold; no transfer request is created."}
+        </Text>
         <Pressable
           onPress={() => setPartyPickerOpen(true)}
           style={[styles.statusOption, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}
@@ -1302,7 +1333,13 @@ export default function GemDetailScreen() {
           <Icon name="contacts" size={19} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.statusOptionLabel, { color: colors.onSurface }]}>{transferParty?.label ?? "Select trader or contact"}</Text>
-            <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>{transferParty ? "Linked recipient selected" : "A verified linked trader is required"}</Text>
+            <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
+              {transferParty
+                ? transferParty.source === "business"
+                  ? "Trader acceptance required"
+                  : "Recorded directly to Contacts"
+                : "Select a Trader or Contact"}
+            </Text>
           </View>
           <Icon name="chevron-right" size={20} color={colors.onSurfaceVariant} />
         </Pressable>

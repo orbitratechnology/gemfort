@@ -2,12 +2,12 @@ import { FlashList } from "@/components/ui/gesture-lists";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -15,11 +15,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
-import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { GemCard } from "@/components/workspace/gem-card";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
-import { filterGems } from "@/features/workspace/gem-utils";
 import { resolveGemLifecycle, resolveGemSaleStatus } from "@/features/workspace/gem-lifecycle";
+import { filterGems } from "@/features/workspace/gem-utils";
 import { fetchArchivedGemsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -74,7 +73,6 @@ export default function GemsArchiveScreen() {
       style={[styles.safe, { backgroundColor: colors.background }]}
       edges={["top"]}
     >
-      <WorkspaceScreenBackdrop kind="gems" />
       <StackHeader title="Archive" />
 
       <View style={styles.searchRow}>
