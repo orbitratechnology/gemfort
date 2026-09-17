@@ -21,6 +21,7 @@ import {
   GemCertificateBadge,
   GemCertificateCard,
 } from "@/components/workspace/gem-certificate";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
     CurrencyAmountField,
     type CurrencyAmountValue,
@@ -51,9 +52,11 @@ import {
 import { ROLE_LABELS, resolveProfileRole } from "@/constants/roles";
 import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
+  fetchBusiness,
   fetchBusinessByOwnerUid,
 } from "@/features/marketplace/marketplace-service";
 import {
+    subscribeBusiness,
     subscribeBusinessByOwnerUid,
     subscribeContacts,
     subscribeGem,
@@ -329,6 +332,14 @@ export default function GemDetailScreen() {
       subscribeBusinessByOwnerUid(ownerUid!, onData, onError),
     enabled: !!ownerUid,
   });
+  const soldToBusinessId = gem?.soldToBusinessId ?? null;
+  const { data: soldToBusiness } = useFirestoreLiveQuery({
+    queryKey: ["gem-sold-to-business", soldToBusinessId],
+    queryFn: () => fetchBusiness(soldToBusinessId!),
+    subscribe: (onData, onError) =>
+      subscribeBusiness(soldToBusinessId!, onData, onError),
+    enabled: !!soldToBusinessId,
+  });
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
@@ -486,6 +497,13 @@ export default function GemDetailScreen() {
     : "With me");
   const saleStatus = resolveGemSaleStatus(gem);
   const saleLabel = saleStatus === "pending" ? "Awaiting trader" : saleStatus === "sold" ? "Sold" : "Unsold";
+  const soldTraderName =
+    gem.soldToBusinessName?.split(" · ")[0]?.trim() ||
+    soldToBusiness?.businessName?.trim() ||
+    gem.soldToName?.split(" · ")[0]?.trim() ||
+    "Trader";
+  const soldTraderAvatar =
+    gem.soldToBusinessLogoUrl ?? soldToBusiness?.logoUrl ?? null;
   const shapeLabel = formatShapeLabel(gem.shape || gem.cutType);
   const treatmentLabel = formatTreatmentLabel(
     normalizeGemTreatment(
@@ -791,7 +809,31 @@ export default function GemDetailScreen() {
                 <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>
                   {saleStatus === "pending" ? "Sale awaiting acceptance" : "Sale details"}
                 </Text>
-                <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
+                {soldToBusinessId ? (
+                  <Pressable
+                    style={styles.salePartyRow}
+                    onPress={() =>
+                      router.push(`/business/${soldToBusinessId}` as never)
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${soldTraderName} profile`}
+                  >
+                    <ContactAvatar
+                      name={soldTraderName}
+                      photoUrl={soldTraderAvatar}
+                      size={36}
+                    />
+                    <View style={styles.salePartyCopy}>
+                      <Text style={[styles.salePartyLabel, { color: colors.onSurfaceVariant }]}>To trader</Text>
+                      <Text style={[styles.salePartyName, { color: colors.onSurface }]} numberOfLines={1}>
+                        {soldTraderName}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.outline} />
+                  </Pressable>
+                ) : (
+                  <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
+                )}
                 {gem.soldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.soldPrice, currency: gem.soldPriceCurrency || askCurrency, amountBase: gem.soldPriceBase })}</Text> : null}
                 {gem.salePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.salePaymentMethod.replace("_", " ")}</Text> : null}
               </View>
@@ -1530,6 +1572,15 @@ const styles = StyleSheet.create({
   saleInfo: { padding: Spacing.gutterMd, borderRadius: Radius.lg, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, gap: 6 },
   saleInfoTitle: { ...Typography.bodyLg, fontWeight: "700" },
   saleInfoText: { ...Typography.bodyMd },
+  salePartyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  salePartyCopy: { flex: 1, minWidth: 0, gap: 1 },
+  salePartyLabel: { ...Typography.caption },
+  salePartyName: { ...Typography.bodyMd, fontWeight: "700" },
   statusChip: {
     flexDirection: "row",
     alignItems: "center",

@@ -291,9 +291,15 @@ export type WorkspaceGem = {
   saleStatus?: GemSaleStatus | null;
   soldToUid?: string | null;
   soldToBusinessId?: string | null;
+  soldToBusinessName?: string | null;
+  soldToBusinessLogoUrl?: string | null;
   soldToContactId?: string | null;
   soldToName?: string | null;
   salePaymentMethod?: GemPaymentMethod | null;
+  /** Seller-owned sold snapshot created when a trader accepts a transfer. */
+  archiveSnapshot?: boolean;
+  sourceGemId?: string | null;
+  sourceSaleRequestId?: string | null;
   /** Historical sale metadata retained after the gem moves to its buyer. */
   acquiredFromUid?: string | null;
   acquiredFromName?: string | null;

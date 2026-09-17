@@ -14,4 +14,33 @@ describe("home-screen quick actions", () => {
       }),
     );
   });
+
+  it("exposes the public guest shortcuts with their renamed destinations", () => {
+    const actions = buildHomeScreenQuickActions(false, null);
+
+    expect(actions.map((action) => action.id)).toEqual([
+      "certificates",
+      "market",
+      "search",
+    ]);
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "certificates",
+          title: "Certificates",
+          params: { href: "/verify-certificate-portals" },
+        }),
+        expect.objectContaining({
+          id: "market",
+          title: "Market",
+          params: { href: "/(marketplace)/(tabs)/market" },
+        }),
+        expect.objectContaining({
+          id: "search",
+          title: "Search",
+          params: { href: "/(marketplace)/(tabs)/search" },
+        }),
+      ]),
+    );
+  });
 });

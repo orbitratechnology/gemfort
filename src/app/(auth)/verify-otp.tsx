@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OtpInput, type OtpInputRef } from 'react-native-otp-entry';
@@ -10,6 +10,7 @@ import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { useRegistrationExit } from '@/hooks/use-registration-exit';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import {
   confirmPhoneVerificationCode,
@@ -45,6 +46,15 @@ export default function VerifyOtpScreen() {
   const registrationFlow = Array.isArray(afterRegistration)
     ? afterRegistration[0]
     : afterRegistration;
+  const handleChangePhone = useCallback(() => {
+    router.replace({
+      pathname: '/(auth)/complete-phone',
+      params: registrationFlow === '1' ? { afterRegistration: '1' } : {},
+    });
+  }, [registrationFlow]);
+  const registrationExit = useRegistrationExit({
+    title: registrationFlow === '1' ? 'Leave registration?' : 'Leave phone setup?',
+  });
 
   const activeVerificationIdRef = useRef(verificationId);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -83,6 +93,7 @@ export default function VerifyOtpScreen() {
         await confirmPhoneVerificationCode(activeVerificationId, result.data.code, phone);
         await markOnboardingComplete();
         await refreshProfile();
+        registrationExit.allowNextNavigation();
         router.replace(
           registrationFlow === '1'
             ? '/(auth)/business-onboarding'
@@ -133,13 +144,6 @@ export default function VerifyOtpScreen() {
     } catch (error) {
       toast.error(friendlyError(error, 'Could not resend the verification code. Try again.'));
     }
-  }
-
-  function handleChangePhone() {
-    router.replace({
-      pathname: '/(auth)/complete-phone',
-      params: registrationFlow === '1' ? { afterRegistration: '1' } : {},
-    });
   }
 
   return (
@@ -213,7 +217,16 @@ export default function VerifyOtpScreen() {
             title="Change phone number"
             icon="edit"
             variant="ghost"
-            onPress={handleChangePhone}
+            onPress={() => {
+              registrationExit.allowNextNavigation();
+              handleChangePhone();
+            }}
+          />
+          <Button
+            title="Sign out"
+            icon="logout"
+            variant="ghost"
+            onPress={registrationExit.confirmSignOut}
           />
         </ScreenInset>
       </ThemedScrollView>

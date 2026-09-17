@@ -45,6 +45,8 @@ type TransferDoc = {
   sellerName: string;
   recipientUid: string;
   recipientBusinessId: string;
+  recipientBusinessName?: string | null;
+  recipientBusinessLogoUrl?: string | null;
   recipientContactId: string | null;
   recipientName: string;
   amount: number;
@@ -289,6 +291,11 @@ export async function createGemTransferForApi(
       sellerName: sellerDisplayName,
       recipientUid,
       recipientBusinessId: input.recipientBusinessId,
+      recipientBusinessName: businessDisplayName,
+      recipientBusinessLogoUrl:
+        typeof business.logoUrl === 'string' && business.logoUrl.trim()
+          ? business.logoUrl.trim()
+          : null,
       recipientContactId: input.recipientContactId ?? null,
       recipientName: recipientDisplayName,
       amount: input.amount,
@@ -315,6 +322,11 @@ export async function createGemTransferForApi(
       soldDate: now,
       soldToUid: recipientUid,
       soldToBusinessId: input.recipientBusinessId,
+      soldToBusinessName: businessDisplayName,
+      soldToBusinessLogoUrl:
+        typeof business.logoUrl === 'string' && business.logoUrl.trim()
+          ? business.logoUrl.trim()
+          : null,
       soldToContactId: input.recipientContactId ?? null,
       soldToName: recipientDisplayName,
       salePaymentMethod: input.paymentMethod,
@@ -459,6 +471,8 @@ export async function recordGemSaleForApi(
       soldDate: now,
       soldToUid: null,
       soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
       soldToContactId: input.recipientContactId,
       soldToName: recipientName,
       salePaymentMethod: input.paymentMethod,
@@ -519,6 +533,7 @@ export async function respondGemTransferForApi(
 ): Promise<{ ok: true; status: 'accepted' | 'rejected'; gemId: string }> {
   const requestId = idOf(requestIdInput, 'requestId');
   const requestRef = db.collection('gem_transfer_requests').doc(requestId);
+  const sellerArchiveGemRef = db.collection('gemtrack_gems').doc();
   const rates = action === 'accepted' ? await loadServerRates() : null;
   const result = await db.runTransaction(async (transaction) => {
     const requestSnap = await transaction.get(requestRef);
@@ -571,6 +586,8 @@ export async function respondGemTransferForApi(
         soldDate: null,
         soldToUid: null,
         soldToBusinessId: null,
+        soldToBusinessName: null,
+        soldToBusinessLogoUrl: null,
         soldToContactId: null,
         soldToName: null,
         salePaymentMethod: null,
@@ -584,6 +601,36 @@ export async function respondGemTransferForApi(
     }
 
     const amountBase = convertToBaseServer(request.amount, request.currency, rates!);
+    transaction.create(sellerArchiveGemRef, {
+      ...gem,
+      ownerUid: request.sellerUid,
+      status: 'sold',
+      custody: null,
+      currentLocation: null,
+      currentHolderContactId: null,
+      currentApId: null,
+      outcome: 'sold',
+      saleStatus: 'sold',
+      saleTransferRequestId: null,
+      soldPrice: request.amount,
+      soldPriceCurrency: request.currency,
+      soldPriceBase: amountBase,
+      soldDate: now,
+      soldToUid: recipientUid,
+      soldToBusinessId: request.recipientBusinessId,
+      soldToBusinessName: request.recipientBusinessName ?? request.recipientName,
+      soldToBusinessLogoUrl: request.recipientBusinessLogoUrl ?? null,
+      soldToContactId: request.recipientContactId ?? null,
+      soldToName: request.recipientName,
+      salePaymentMethod: request.paymentMethod,
+      isListedOnMarketplace: false,
+      marketplaceListingId: null,
+      archiveSnapshot: true,
+      sourceGemId: request.gemId,
+      sourceSaleRequestId: requestId,
+      createdAt: gem.createdAt ?? now,
+      updatedAt: now,
+    });
     transaction.update(requestRef, { status: 'accepted', respondedByUid: recipientUid, respondedAt: now, updatedAt: now });
     transaction.update(gemRef, {
       ownerUid: recipientUid,
@@ -612,6 +659,8 @@ export async function respondGemTransferForApi(
       soldDate: null,
       soldToUid: null,
       soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
       soldToContactId: null,
       soldToName: null,
       salePaymentMethod: null,
@@ -661,6 +710,23 @@ export async function respondGemTransferForApi(
       relatedServiceId: null,
       relatedApId: null,
       createdByUid: recipientUid,
+      createdAt: now,
+    });
+    transaction.create(db.collection('gemtrack_gem_events').doc(), {
+      gemId: sellerArchiveGemRef.id,
+      ownerUid: request.sellerUid,
+      eventType: 'sale_completed',
+      fromStatus: gem.status ?? null,
+      toStatus: 'sold',
+      description: `Sold to ${request.recipientName}`,
+      weightAtEvent: gem.currentWeight ?? null,
+      photoUrl: Array.isArray(gem.photoUrls) && typeof gem.photoUrls[0] === 'string'
+        ? gem.photoUrls[0]
+        : null,
+      costAdded: null,
+      relatedServiceId: null,
+      relatedApId: null,
+      createdByUid: request.sellerUid,
       createdAt: now,
     });
     return { status: 'accepted' as const, gemId: request.gemId, sellerUid: request.sellerUid, actorName, replay: false as const };
@@ -721,6 +787,8 @@ export async function cancelGemTransferForApi(
       soldDate: null,
       soldToUid: null,
       soldToBusinessId: null,
+      soldToBusinessName: null,
+      soldToBusinessLogoUrl: null,
       soldToContactId: null,
       soldToName: null,
       salePaymentMethod: null,

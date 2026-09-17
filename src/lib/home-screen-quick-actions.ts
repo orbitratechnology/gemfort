@@ -18,17 +18,26 @@ const ShortcutKey = {
   money: "money",
   market: "market",
   search: "search",
+  certificates: "certificates",
 } as const;
 
 type ShortcutKeyName = (typeof ShortcutKey)[keyof typeof ShortcutKey];
 
 /**
- * Both platforms use the same bundled image; iOS treats it as a template
- * image and Android loads the matching drawable resource.
+ * Prefer native iOS icons for the guest shortcuts. This gives iOS the same
+ * familiar visual language as its system actions while Android uses the
+ * matching bundled resource registered by the config plugin.
  */
 function icon(shortcutKey: ShortcutKeyName): string {
   const assetName = `shortcut_${shortcutKey}`;
-  if (Platform.OS === "ios") return `asset:${assetName}`;
+  if (Platform.OS === "ios") {
+    if (shortcutKey === ShortcutKey.certificates) {
+      return "symbol:checkmark.seal";
+    }
+    if (shortcutKey === ShortcutKey.market) return "symbol:storefront";
+    if (shortcutKey === ShortcutKey.search) return "search";
+    return `asset:${assetName}`;
+  }
   return assetName;
 }
 
@@ -52,11 +61,11 @@ function action(
 function guestActions(): RouterAction[] {
   return [
     action(
-      "certificate-portals",
-      "Certificate portals",
+      "certificates",
+      "Certificates",
       "/verify-certificate-portals",
-      icon(ShortcutKey.app),
-      "Open external verification pages",
+      icon(ShortcutKey.certificates),
+      "Verify gemstone certificates",
     ),
     action(
       "market",

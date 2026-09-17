@@ -6,7 +6,7 @@ const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 const bundleId = "app.gemfort";
 const appLinkHost = "gemfort.web.app";
 
-// Shared image artwork used by both iOS and Android system shortcuts.
+// Shared image artwork used by signed-in system shortcuts.
 const SHORTCUT_IMAGES = {
   shortcut_app: "./assets/images/gemfort-icon.png",
   shortcut_add: "./assets/images/mygems-icon.png",
@@ -21,6 +21,25 @@ const SHORTCUT_IMAGES = {
   shortcut_search: "./assets/images/gemfort-icon.png",
   shortcut_service: "./assets/images/lapidary-icon.png",
   shortcut_trip: "./assets/images/trips-icon.png",
+} as const;
+
+// Android resolves dynamic shortcut icons as drawable/mipmap resources. Use
+// the semantic shortcut artwork for public actions and adaptive layers where
+// the quick-actions config plugin supports them.
+const SHORTCUT_ANDROID_ICONS = {
+  ...SHORTCUT_IMAGES,
+  shortcut_market: {
+    foregroundImage: "./assets/images/shortcuts/shortcut_market_light.png",
+    backgroundColor: "#FFFFFF",
+  },
+  shortcut_search: {
+    foregroundImage: "./assets/images/shortcuts/shortcut_search_light.png",
+    backgroundColor: "#FFFFFF",
+  },
+  shortcut_certificates: {
+    foregroundImage: "./assets/images/shortcuts/shortcut_certificates.svg",
+    backgroundColor: "#171717",
+  },
 } as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -214,30 +233,29 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-quick-actions",
       {
-        // Use the same image in light and dark system menus.
-        androidIcons: SHORTCUT_IMAGES,
+        androidIcons: SHORTCUT_ANDROID_ICONS,
         iosIcons: SHORTCUT_IMAGES,
         // Static iOS actions available before JS loads; replaced dynamically by role.
-        // Use the same bundled template images as the dynamic actions.
+        // Use native system symbols for the public guest shortcuts.
         iosActions: [
           {
-            id: "certificate-portals",
-            title: "Certificate portals",
-            subtitle: "Open external verification pages",
-            icon: "asset:shortcut_app",
+            id: "certificates",
+            title: "Certificates",
+            subtitle: "Verify gemstone certificates",
+            icon: "symbol:checkmark.seal",
             params: { href: "/verify-certificate-portals" },
           },
           {
             id: "market",
             title: "Market",
             subtitle: "Find traders and lapidaries",
-            icon: "asset:shortcut_market",
+            icon: "symbol:storefront",
             params: { href: "/(marketplace)/(tabs)/market" },
           },
           {
             id: "search",
             title: "Search",
-            icon: "asset:shortcut_search",
+            icon: "search",
             params: { href: "/(marketplace)/(tabs)/search" },
           },
         ],

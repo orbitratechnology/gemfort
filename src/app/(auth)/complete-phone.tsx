@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { useRegistrationExit } from "@/hooks/use-registration-exit";
 import { friendlyError } from "@/lib/errors";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { sendPhoneVerificationCode } from "@/lib/firebase/phone-auth";
@@ -20,6 +21,12 @@ export default function CompletePhoneScreen() {
   const initialPhone = Array.isArray(phoneParam) ? phoneParam[0] : phoneParam;
   const [phone, setPhone] = useState(initialPhone ?? "");
   const sendingRef = useRef(false);
+  const registrationFlow = Array.isArray(afterRegistration)
+    ? afterRegistration[0]
+    : afterRegistration;
+  const registrationExit = useRegistrationExit({
+    title: registrationFlow === "1" ? "Leave registration?" : "Leave phone setup?",
+  });
 
   async function handleContinue() {
     if (sendingRef.current) return;
@@ -32,9 +39,6 @@ export default function CompletePhoneScreen() {
     const params: { phone: string; afterRegistration?: string } = {
       phone: normalizedPhone,
     };
-    const registrationFlow = Array.isArray(afterRegistration)
-      ? afterRegistration[0]
-      : afterRegistration;
     if (registrationFlow === "1") params.afterRegistration = "1";
     if (!isFirebaseConfigured) {
       toast.error("Firebase not configured. Set EXPO_PUBLIC_FIREBASE_* env vars.");
@@ -47,6 +51,7 @@ export default function CompletePhoneScreen() {
         () => sendPhoneVerificationCode(normalizedPhone),
         { message: "Sending code…", overlay: false },
       );
+      registrationExit.allowNextNavigation();
       router.replace({
         pathname: "/(auth)/verify-otp",
         params: { ...params, verificationId },
@@ -73,6 +78,12 @@ export default function CompletePhoneScreen() {
         placeholder="Mobile number"
       />
       <Button title="Continue" icon="arrow-forward" onPress={handleContinue} />
+      <Button
+        title="Sign out"
+        icon="logout"
+        variant="ghost"
+        onPress={registrationExit.confirmSignOut}
+      />
     </AuthScreen>
   );
 }

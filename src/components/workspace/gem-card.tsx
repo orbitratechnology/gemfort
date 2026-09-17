@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
-import { Link, type Href } from "expo-router";
+import { Link, router, type Href } from "expo-router";
 import {
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -14,6 +15,7 @@ import {
   ContextActionsLink,
   type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemCertificateBadge } from "@/components/workspace/gem-certificate";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
@@ -23,6 +25,7 @@ import {
 import {
   formatLifecycleSummary,
   resolveGemLifecycle,
+  resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -60,8 +63,15 @@ export function GemCard({
   const { colors } = useAppTheme();
   const { formatBase, formatStored } = usePreferredMoney();
   const photo = gemPrimaryPhotoUrl(gem);
+  const saleStatus = resolveGemSaleStatus(gem);
   const price =
-    gem.askingPrice != null
+    saleStatus === "sold" && gem.soldPrice != null
+      ? formatStored({
+          amount: gem.soldPrice,
+          currency: gem.soldPriceCurrency ?? gem.totalCostCurrency,
+          amountBase: gem.soldPriceBase,
+        })
+      : gem.askingPrice != null
       ? formatStored({
           amount: gem.askingPrice,
           currency: gem.askingPriceCurrency ?? gem.totalCostCurrency,
@@ -72,6 +82,13 @@ export function GemCard({
   const gemTitle = gem.title?.trim() || formatGemType(gem.gemType);
   const lifecycle = resolveGemLifecycle(gem);
   const statusLabel = formatLifecycleSummary(lifecycle);
+  const soldTraderName =
+    gem.soldToBusinessName?.split(" · ")[0]?.trim() ||
+    gem.soldToName?.split(" · ")[0]?.trim() ||
+    "Trader";
+  const salePaymentLabel = gem.salePaymentMethod
+    ? gem.salePaymentMethod.replace(/_/g, " ")
+    : null;
   const hasOriginFlag = !!resolveCountryCode(gem.originCountry);
   const caratLabel = `${gem.currentWeight} ct`;
 
@@ -170,6 +187,40 @@ export function GemCard({
             {price}
           </Text>
         </View>
+
+        {saleStatus === "sold" && gem.soldToBusinessId ? (
+          <Pressable
+            style={styles.saleMeta}
+            onPress={() =>
+              router.push(`/business/${gem.soldToBusinessId}` as never)
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${soldTraderName} profile`}
+          >
+            <ContactAvatar
+              name={soldTraderName}
+              photoUrl={gem.soldToBusinessLogoUrl}
+              size={24}
+            />
+            <View style={styles.saleMetaCopy}>
+              <Text
+                style={[styles.saleMetaName, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                Sold to {soldTraderName}
+              </Text>
+              {salePaymentLabel ? (
+                <Text
+                  style={[styles.saleMetaDetails, { color: colors.onSurfaceVariant }]}
+                  numberOfLines={1}
+                >
+                  {price} · {salePaymentLabel}
+                </Text>
+              ) : null}
+            </View>
+            <Icon name="chevron-right" size={16} color={colors.outline} />
+          </Pressable>
+        ) : null}
       </View>
     </>
   );
@@ -342,4 +393,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
+  saleMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    paddingTop: 2,
+  },
+  saleMetaCopy: { flex: 1, minWidth: 0, gap: 1 },
+  saleMetaName: { ...Typography.caption, fontWeight: "700" },
+  saleMetaDetails: { ...Typography.caption, textTransform: "capitalize" },
 });
