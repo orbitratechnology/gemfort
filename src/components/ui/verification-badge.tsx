@@ -51,12 +51,14 @@ const reputationConfig: Record<
   },
 };
 
+// The asset filenames reflect their original artwork names; these assignments
+// intentionally follow the current product color for each verification tier.
 const badgeAssets = {
   member: require("@/assets/images/verified-badges/member.webp"),
-  identity: require("@/assets/images/verified-badges/identity.webp"),
-  business: require("@/assets/images/verified-badges/business.webp"),
-  gem: require("@/assets/images/verified-badges/gem.webp"),
-  recognized: require("@/assets/images/verified-badges/recognized.webp"),
+  identity: require("@/assets/images/verified-badges/business.webp"),
+  business: require("@/assets/images/verified-badges/identity.webp"),
+  gem: require("@/assets/images/verified-badges/recognized.webp"),
+  recognized: require("@/assets/images/verified-badges/gem.webp"),
 } as const;
 
 /** Shared badge artwork for tier education and avatar badges. */

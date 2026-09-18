@@ -15,6 +15,11 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ActiveProgressStrip } from "@/components/workspace/active-progress-strip";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
+    QuickActionsFab,
+    QuickActionsSheet,
+    type QuickActionSheetItem,
+} from "@/components/workspace/quick-actions-sheet";
+import {
     WorkspaceModules,
     type WorkspaceModuleItem,
 } from "@/components/workspace/workspace-modules";
@@ -176,6 +181,7 @@ export default function WorkspaceHub() {
   const { formatBase, formatStored } = usePreferredMoney();
   const insets = useSafeAreaInsets();
   const [chromeHeight, setChromeHeight] = useState(0);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const userId = user?.uid;
   const role = resolveProfileRole(profile);
 
@@ -472,70 +478,71 @@ export default function WorkspaceHub() {
     items: modules.filter((m) => m.group === g.id),
   })).filter((g) => g.items.length > 0);
 
-  const actions: {
-    label: string;
-    icon: IconName;
-    image?: number;
-    route: string;
-    primary?: boolean;
-  }[] =
+  const actions: QuickActionSheetItem[] =
     role === "lapidary"
         ? [
             {
+              id: "jobs",
               label: "Jobs",
               icon: "construction",
               image: require("@/assets/images/lapidary-icon.png"),
-              route: `${WORKSPACE}/jobs`,
-              primary: true,
+              href: `${WORKSPACE}/jobs`,
             },
             {
+              id: "bill",
               label: "Bill",
               icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
-              route: "/(marketplace)/bills/add",
+              href: "/(marketplace)/bills/add",
             },
             {
+              id: "cheque",
               label: "Cheque",
               icon: "cheque",
               image: require("@/assets/images/cheque-icon.png"),
-              route: "/(marketplace)/cheques/add",
+              href: "/(marketplace)/cheques/add",
             },
             {
+              id: "contacts",
               label: "Contacts",
               icon: "group",
-              route: `${WORKSPACE}/contacts`,
+              href: `${WORKSPACE}/contacts`,
             },
           ]
         : [
             {
+              id: "gem",
               label: "Gem",
               icon: "add",
               image: require("@/assets/images/mygems-icon.png"),
-              route: "/(marketplace)/gems/add",
-              primary: true,
+              href: "/(marketplace)/gems/add",
             },
             {
+              id: "trip",
               label: "Plan trip",
               icon: "trip",
               image: require("@/assets/images/trips-icon.png"),
-              route: "/(marketplace)/trips/add",
+              href: "/(marketplace)/trips/add",
             },
             {
+              id: "cheque",
               label: "Cheque",
               icon: "cheque",
               image: require("@/assets/images/cheque-icon.png"),
-              route: "/(marketplace)/cheques/add",
+              href: "/(marketplace)/cheques/add",
             },
             {
+              id: "bill",
               label: "Bill",
               icon: "bill",
               image: require("@/assets/images/bill-icon.png"),
-              route: "/(marketplace)/bills/add",
+              href: "/(marketplace)/bills/add",
             },
             {
+              id: "sale",
               label: "Sale",
               icon: "sell",
-              route: "/(marketplace)/money/record-sale",
+              href: "/(marketplace)/money/record-sale",
             },
           ];
 
@@ -786,71 +793,6 @@ export default function WorkspaceHub() {
           </View>
         </Pressable>
 
-        {/* Quick actions */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-            Quick actions
-          </Text>
-          <View
-            style={[
-              styles.actionsCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            {actions.map((a, index) => (
-              <Pressable
-                key={a.label}
-                onPress={() => router.push(a.route as never)}
-                style={({ pressed }) => [
-                  styles.actionItem,
-                  index < actions.length - 1 && {
-                    borderRightWidth: StyleSheet.hairlineWidth,
-                    borderRightColor: colors.outlineVariant,
-                  },
-                  pressed && { opacity: 0.75 },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.actionIcon,
-                    a.image
-                      ? null
-                      : a.primary
-                        ? { backgroundColor: colors.primary }
-                        : { backgroundColor: colors.primaryContainer },
-                  ]}
-                >
-                  {a.image ? (
-                    <Image
-                      source={a.image}
-                      style={styles.actionImage}
-                      contentFit="cover"
-                      accessibilityIgnoresInvertColors
-                    />
-                  ) : (
-                    <Icon
-                      name={a.icon}
-                      size={20}
-                      color={
-                        a.primary ? colors.onPrimary : colors.onPrimaryContainer
-                      }
-                    />
-                  )}
-                </View>
-                <Text
-                  style={[
-                    styles.actionLabel,
-                    { color: colors.onSurfaceVariant },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {a.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
         {/* Needs attention — above Inventory */}
         {showNeedsAttention ? (
           <View style={styles.section}>
@@ -1025,6 +967,13 @@ export default function WorkspaceHub() {
 
       </ThemedScrollView>
 
+      <QuickActionsFab onPress={() => setQuickActionsOpen(true)} />
+      <QuickActionsSheet
+        visible={quickActionsOpen}
+        onClose={() => setQuickActionsOpen(false)}
+        actions={actions}
+      />
+
       <View
         pointerEvents="box-none"
         style={[styles.chrome, { backgroundColor: colors.background }]}
@@ -1121,37 +1070,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   countPillText: { ...Typography.caption, fontWeight: "700" },
-
-  actionsCard: {
-    flexDirection: "row",
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    paddingVertical: 14,
-    boxShadow: "0 2px 12px rgba(0, 0, 0, 0.06)",
-  },
-  actionItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  actionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  actionImage: {
-    width: 44,
-    height: 44,
-  },
-  actionLabel: {
-    ...Typography.caption,
-    fontWeight: "600",
-    textAlign: "center",
-  },
 
   alertList: { gap: Spacing.stackSm },
   alertRow: {

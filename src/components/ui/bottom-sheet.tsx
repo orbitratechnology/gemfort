@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import NativeBottomSheet from '@expo/ui/community/bottom-sheet';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import {
-  KeyboardAwareScrollView,
+    KeyboardAwareScrollView,
 } from 'react-native-keyboard-controller';
 
 import { Icon } from '@/components/ui/icon';
@@ -183,6 +183,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
+    flexDirection: 'row',
   },
   chipText: { ...Typography.labelMd, lineHeight: 18, includeFontPadding: false },
 });

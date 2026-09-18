@@ -20,6 +20,7 @@ import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import { verificationBadgeAssets } from '@/components/ui/verification-badge';
+import { BUSINESS_REPUTATION_BADGE_COLORS } from '@/constants/business-reputation';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { LAPIDARY_SERVICE_OPTIONS, resolveProfileRole } from '@/constants/roles';
 import {
@@ -54,7 +55,7 @@ const VERIFICATION_TIERS = [
     shortDescription: 'Registered account',
     description: 'Everyone starts here as soon as they join GemFort.',
     label: 'STARTS HERE',
-    color: '#E3B33C',
+    color: BUSINESS_REPUTATION_BADGE_COLORS.member,
     image: verificationBadgeAssets.member,
   },
   {
@@ -64,7 +65,7 @@ const VERIFICATION_TIERS = [
     shortDescription: 'NIC verified',
     description: 'GemFort checks your NIC to confirm who you are.',
     label: 'NIC CHECK',
-    color: '#26A96B',
+    color: BUSINESS_REPUTATION_BADGE_COLORS.identity,
     image: verificationBadgeAssets.identity,
   },
   {
@@ -74,7 +75,7 @@ const VERIFICATION_TIERS = [
     shortDescription: 'NIC + TIN + BR verified',
     description: 'Add your tax number and business registration details.',
     label: 'BUSINESS CHECK',
-    color: '#D65B9A',
+    color: BUSINESS_REPUTATION_BADGE_COLORS.business,
     image: verificationBadgeAssets.business,
   },
   {
@@ -84,7 +85,7 @@ const VERIFICATION_TIERS = [
     shortDescription: 'All business documents + Gem Licence',
     description: 'Add your Gem Licence for the highest document tier.',
     label: 'GEM CHECK',
-    color: '#4D8CF4',
+    color: BUSINESS_REPUTATION_BADGE_COLORS.gem,
     image: verificationBadgeAssets.gem,
   },
   {
@@ -95,7 +96,7 @@ const VERIFICATION_TIERS = [
     description:
       'A manual badge for established partners, sponsors, associations, institutions, labs, and notable industry organizations.',
     label: 'ADMIN ASSIGNED',
-    color: '#B13B52',
+    color: BUSINESS_REPUTATION_BADGE_COLORS.recognized,
     image: verificationBadgeAssets.recognized,
   },
 ] as const;

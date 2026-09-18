@@ -14,6 +14,18 @@ export const BUSINESS_REPUTATION_BADGE_LABELS: Record<
   recognized: "Recognized",
 };
 
+/** Shared tier colors used anywhere a verification level is represented by color. */
+export const BUSINESS_REPUTATION_BADGE_COLORS: Record<
+  Exclude<BusinessReputationBadgeType, "none">,
+  string
+> = {
+  member: "#D65B9A",
+  identity: "#26A96B",
+  business: "#4D8CF4",
+  gem: "#E3B33C",
+  recognized: "#B13B52",
+};
+
 export function parseBusinessReputationBadge(
   value: unknown,
 ): BusinessReputationBadgeType | null {
