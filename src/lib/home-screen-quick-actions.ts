@@ -12,12 +12,12 @@ const ShortcutKey = {
   ap: "ap",
   service: "service",
   jobs: "jobs",
-  contacts: "contacts",
   bill: "bill",
   cheque: "cheque",
   money: "money",
   market: "market",
   search: "search",
+  scan: "scan",
   certificates: "certificates",
 } as const;
 
@@ -34,6 +34,7 @@ function icon(shortcutKey: ShortcutKeyName): string {
     if (shortcutKey === ShortcutKey.certificates) {
       return "symbol:checkmark.seal";
     }
+    if (shortcutKey === ShortcutKey.scan) return "symbol:qrcode";
     if (shortcutKey === ShortcutKey.market) return "symbol:storefront";
     if (shortcutKey === ShortcutKey.search) return "search";
     return `asset:${assetName}`;
@@ -61,6 +62,13 @@ function action(
 function guestActions(): RouterAction[] {
   return [
     action(
+      "scan-certificate",
+      "Scan certificate",
+      "/scan-certificate",
+      icon(ShortcutKey.scan),
+      "Open a report QR or barcode",
+    ),
+    action(
       "certificates",
       "Certificates",
       "/verify-certificate-portals",
@@ -85,6 +93,13 @@ function guestActions(): RouterAction[] {
 
 function traderActions(): RouterAction[] {
   return [
+    action(
+      "scan-certificate",
+      "Scan certificate",
+      "/scan-certificate",
+      icon(ShortcutKey.scan),
+      "Open a report QR or barcode",
+    ),
     action(
       "add-gem",
       "Gem",
@@ -112,18 +127,18 @@ function traderActions(): RouterAction[] {
 function lapidaryActions(): RouterAction[] {
   return [
     action(
+      "scan-certificate",
+      "Scan certificate",
+      "/scan-certificate",
+      icon(ShortcutKey.scan),
+      "Open a report QR or barcode",
+    ),
+    action(
       "jobs",
       "Jobs",
       "/(marketplace)/(tabs)/workspace/jobs",
       icon(ShortcutKey.jobs),
       "Inbound cutting & treatment work",
-    ),
-    action(
-      "contacts",
-      "Contacts",
-      "/(marketplace)/(tabs)/workspace/contacts",
-      icon(ShortcutKey.contacts),
-      "Traders, buyers & partners",
     ),
     action(
       "bill",

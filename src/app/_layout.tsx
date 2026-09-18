@@ -125,6 +125,14 @@ function RootNavigator() {
       />
       <Stack.Screen name="handle-share" options={{ headerShown: false }} />
       <Stack.Screen
+        name="scan-certificate"
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          contentStyle: { backgroundColor: "transparent" },
+        }}
+      />
+      <Stack.Screen
         name="verify-certificate-portals"
         options={{
           ...formSheetScreenOptions,

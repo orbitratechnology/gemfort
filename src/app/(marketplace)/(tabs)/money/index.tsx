@@ -18,6 +18,7 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { CashFlowGraph } from "@/components/workspace/cash-flow-graph";
 import { DateRangeSheet } from "@/components/workspace/date-range-sheet";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -128,12 +129,7 @@ export default function MoneyDashboard() {
     [receivables, payables],
   );
 
-  const maxBucket = Math.max(
-    1,
-    ...buckets.map((b) => Math.max(b.income, b.expense)),
-  );
   const maxCategory = Math.max(1, ...categories.map((c) => c.amount));
-  const hasCashFlow = buckets.some((b) => b.income > 0 || b.expense > 0);
   const rangedTransactions = useMemo(
     () =>
       transactions.filter((t) => {
@@ -432,72 +428,11 @@ export default function MoneyDashboard() {
 
         {/* Cash flow */}
         <FormSection title="Cash flow">
-          {hasCashFlow ? (
-            <View style={styles.chartArea}>
-              {buckets.map((b) => (
-                <View key={b.label} style={styles.barGroup}>
-                  <View style={styles.barTrack}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: `${(b.income / maxBucket) * 100}%`,
-                          backgroundColor: colors.successEmerald,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: `${(b.expense / maxBucket) * 100}%`,
-                          backgroundColor: colors.warningAmber,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.barLabel, { color: colors.textMuted }]}>
-                    {b.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyBox}>
-              <Icon name="bar-chart" size={26} color={colors.outline} />
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                No cash flow this period yet
-              </Text>
-            </View>
-          )}
-
-          <View
-            style={[
-              styles.legendRow,
-              { borderTopColor: colors.surfaceVariant },
-            ]}
-          >
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.dot, { backgroundColor: colors.successEmerald }]}
-              />
-              <Text
-                style={[styles.legendText, { color: colors.onSurfaceVariant }]}
-              >
-                Income
-              </Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.dot, { backgroundColor: colors.warningAmber }]}
-              />
-              <Text
-                style={[styles.legendText, { color: colors.onSurfaceVariant }]}
-              >
-                Expenses
-              </Text>
-            </View>
-          </View>
+          <CashFlowGraph
+            key={customRange ? customRange.label : period}
+            buckets={buckets}
+            formatAmount={formatBase}
+          />
         </FormSection>
 
         {/* Spend categories */}
@@ -851,33 +786,6 @@ const styles = StyleSheet.create({
   },
   viewAllBtn: { marginTop: -Spacing.md },
   viewAll: { ...Typography.labelMd },
-
-  chartArea: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: 168,
-    paddingTop: 8,
-  },
-  barGroup: { flex: 1, alignItems: "center" },
-  barTrack: {
-    height: 140,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    gap: 4,
-  },
-  bar: { width: 9, borderRadius: 5, minHeight: 3 },
-  barLabel: { ...Typography.labelMd, marginTop: 8, fontSize: 11 },
-
-  legendRow: {
-    flexDirection: "row",
-    gap: Spacing.gutterMd,
-    marginTop: Spacing.gutterMd,
-    paddingTop: Spacing.stackMd,
-    borderTopWidth: 1,
-  },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendText: { ...Typography.labelMd },
 
   catRow: { flexDirection: "row", alignItems: "center", gap: Spacing.stackMd },
   catRowGap: { marginTop: Spacing.gutterMd },

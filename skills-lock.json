@@ -5,7 +5,7 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-simulator/SKILL.md",
-      "computedHash": "a4753aa73db3a69c0846fba4a626a34e3162a600e509a6a547e19b232eff54e7"
+      "computedHash": "46a5bd042e34890e57e03bfbcbe7acc39c0e3029d19cb047c42ae7f5e7b28209"
     },
     "eas-update-insights": {
       "source": "expo/skills",
@@ -35,7 +35,7 @@
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
-      "computedHash": "1296f039d37451301a774b06e082fe42fb51a05ef8c67070986ffcdd9b9588ec"
+      "computedHash": "132d7bea7b1f1d026d66efa3e2c252ba86b8fa9a468c97ed1bf3ca5415caec97"
     },
     "react-native-expert": {
       "source": "jeffallan/claude-skills",

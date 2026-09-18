@@ -21,6 +21,8 @@ const SHORTCUT_IMAGES = {
   shortcut_search: "./assets/images/shortcuts/shortcut_search_light.png",
   shortcut_service: "./assets/images/shortcuts/shortcut_service_light.png",
   shortcut_trip: "./assets/images/trips-icon.png",
+  shortcut_scan:
+    "./assets/images/shortcuts/shortcut_certificates_light.png",
   shortcut_certificates:
     "./assets/images/shortcuts/shortcut_certificates_light.png",
 } as const;
@@ -66,6 +68,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      NSCameraUsageDescription:
+        "GemFort uses the camera to scan gemstone certificate QR codes and barcodes.",
     },
     associatedDomains:
       env === "production" || env === "preview"
@@ -236,6 +240,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // Static iOS actions available before JS loads; replaced dynamically by role.
         // Use native system symbols for the public guest shortcuts.
         iosActions: [
+          {
+            id: "scan-certificate",
+            title: "Scan certificate",
+            subtitle: "Open a report QR or barcode",
+            icon: "symbol:qrcode",
+            params: { href: "/scan-certificate" },
+          },
           {
             id: "certificates",
             title: "Certificates",

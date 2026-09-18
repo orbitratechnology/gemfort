@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useMemo, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Pressable,
     RefreshControl,
@@ -59,6 +59,10 @@ import {
     resolvePartyPhotoUrl,
 } from "@/features/workspace/party-photo";
 import {
+    fetchGivenApPage,
+    fetchTakenApPage,
+} from "@/features/workspace/workspace-pagination";
+import {
     fetchContacts,
     fetchGem,
     fetchGems,
@@ -66,10 +70,6 @@ import {
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import {
-    fetchGivenApPage,
-    fetchTakenApPage,
-} from "@/features/workspace/workspace-pagination";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
@@ -776,15 +776,6 @@ export default function ApListScreen() {
               side === "given"
                 ? "Send gems on AP to a GemFort trader"
                 : "When a trader sends you stones, they appear here"
-            }
-            action={
-              side === "given" ? (
-                <Button
-                  title="Give on AP"
-                  icon="add"
-                  onPress={() => router.push("/(marketplace)/ap/add")}
-                />
-              ) : undefined
             }
           />
         }

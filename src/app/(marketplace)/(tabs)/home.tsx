@@ -18,6 +18,7 @@ import { HomeBannerCarousel } from "@/components/marketplace/home-banner-carouse
 import { HomeBusinessRail } from "@/components/marketplace/home-business-rail";
 import { HomeCurrencyRates } from "@/components/marketplace/home-currency-rates";
 import { ListingCard } from "@/components/marketplace/listing-card";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ProductGrid } from "@/components/ui/product-grid";
@@ -31,7 +32,6 @@ import {
     canAccessModule,
     resolveProfileRole,
 } from "@/constants/roles";
-import { filterBusinessesForViewer } from "@/features/workspace/contact-business-link";
 import { popularByRole } from "@/features/marketplace/home-feed";
 import {
     demoBusinesses,
@@ -41,17 +41,18 @@ import {
     fetchPublicListings,
     filterListings,
 } from "@/features/marketplace/marketplace-service";
+import { filterBusinessesForViewer } from "@/features/workspace/contact-business-link";
 import {
-  subscribeApRecordsForUser,
-  subscribeBills,
-  subscribeBusinessByOwnerUid,
-  subscribeCheques,
-  subscribeContacts,
-  subscribeGems,
-  subscribePublicListings,
-  subscribeServices,
-  subscribeTrips,
-  subscribeVerifiedBusinesses,
+    subscribeApRecordsForUser,
+    subscribeBills,
+    subscribeBusinessByOwnerUid,
+    subscribeCheques,
+    subscribeContacts,
+    subscribeGems,
+    subscribePublicListings,
+    subscribeServices,
+    subscribeTrips,
+    subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
     resolveBusinessPhotoById,
@@ -95,22 +96,14 @@ type QuickAction = {
   href: string;
 };
 
-const PORTAL_ACTION: QuickAction = {
-  id: "certificate-portals",
-  label: "Verify",
-  icon: "workspace-premium",
-  href: "/verify-certificate-portals",
-};
-
 function quickActionsForRole(
   role: ReturnType<typeof resolveProfileRole>,
   signedIn: boolean,
 ): QuickAction[] {
-  if (!signedIn) return [PORTAL_ACTION];
+  if (!signedIn) return [];
 
   if (role === "lapidary") {
     return [
-      PORTAL_ACTION,
       {
         id: "jobs",
         label: "Jobs",
@@ -143,7 +136,6 @@ function quickActionsForRole(
 
   // Trader (and admin treated as full trader tools on home)
   return [
-    PORTAL_ACTION,
     {
       id: "add-gem",
       label: "Gem",
@@ -187,6 +179,7 @@ export default function HomeScreen() {
   const { user, profile } = useAuth();
   const unread = useUnreadNotificationCount();
   const [chromeHeight, setChromeHeight] = useState(0);
+  const [verifySheetOpen, setVerifySheetOpen] = useState(false);
 
   const role = resolveProfileRole(profile);
   const quickActions = useMemo(
@@ -440,68 +433,70 @@ export default function HomeScreen() {
         ) : null}
 
         {/* Quick actions */}
-        <View style={styles.section}>
-          <View
-            style={[
-              styles.actionsCard,
-              { backgroundColor: colors.surfaceContainerLowest },
-            ]}
-          >
-            {quickActions.map((a, index) => (
-              <Pressable
-                key={a.id}
-                accessibilityRole="button"
-                accessibilityLabel={a.label}
-                onPress={() => pushFromHome(a.href)}
-                style={({ pressed }) => [
-                  styles.actionItem,
-                  index < quickActions.length - 1 && {
-                    borderRightWidth: StyleSheet.hairlineWidth,
-                    borderRightColor: colors.outlineVariant,
-                  },
-                  { opacity: pressed ? 0.88 : 1 },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.actionIcon,
-                    a.image
-                      ? null
-                      : {
-                          backgroundColor:
-                            index === 0
-                              ? colors.primaryContainer
-                              : colors.surfaceContainerHigh,
-                        },
+        {quickActions.length ? (
+          <View style={styles.section}>
+            <View
+              style={[
+                styles.actionsCard,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}
+            >
+              {quickActions.map((a, index) => (
+                <Pressable
+                  key={a.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={a.label}
+                  onPress={() => pushFromHome(a.href)}
+                  style={({ pressed }) => [
+                    styles.actionItem,
+                    index < quickActions.length - 1 && {
+                      borderRightWidth: StyleSheet.hairlineWidth,
+                      borderRightColor: colors.outlineVariant,
+                    },
+                    { opacity: pressed ? 0.88 : 1 },
                   ]}
                 >
-                  {a.image ? (
-                    <Image
-                      source={a.image}
-                      style={styles.actionImage}
-                      contentFit="cover"
-                      accessibilityIgnoresInvertColors
-                    />
-                  ) : (
-                    <Icon
-                      name={a.icon}
-                      size={20}
-                      color={
-                        index === 0 ? colors.onPrimaryContainer : colors.primary
-                      }
-                    />
-                  )}
-                </View>
-                <Text
-                  style={[styles.actionLabel, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {a.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <View
+                    style={[
+                      styles.actionIcon,
+                      a.image
+                        ? null
+                        : {
+                            backgroundColor:
+                              index === 0
+                                ? colors.primaryContainer
+                                : colors.surfaceContainerHigh,
+                          },
+                    ]}
+                  >
+                    {a.image ? (
+                      <Image
+                        source={a.image}
+                        style={styles.actionImage}
+                        contentFit="cover"
+                        accessibilityIgnoresInvertColors
+                      />
+                    ) : (
+                      <Icon
+                        name={a.icon}
+                        size={20}
+                        color={
+                          index === 0 ? colors.onPrimaryContainer : colors.primary
+                        }
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[styles.actionLabel, { color: colors.onSurface }]}
+                    numberOfLines={1}
+                  >
+                    {a.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         {/* Popular network */}
         {(
@@ -605,6 +600,89 @@ export default function HomeScreen() {
         </View>
       </ThemedScrollView>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Verify certificate"
+        accessibilityHint="Choose scanning or a verification portal"
+        onPress={() => setVerifySheetOpen(true)}
+        style={({ pressed }) => [
+          styles.verifyFab,
+          {
+            backgroundColor: colors.primary,
+            bottom: Math.max(insets.bottom, 12),
+            opacity: pressed ? 0.88 : 1,
+          },
+        ]}
+      >
+        <Icon name="workspace-premium" size={26} color={colors.onPrimary} />
+      </Pressable>
+
+      <BottomSheet
+        visible={verifySheetOpen}
+        onClose={() => setVerifySheetOpen(false)}
+        title="Verify a certificate"
+        scrollable={false}
+        fitToContents
+      >
+        <View style={styles.verifyOptions}>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="List verification portals"
+            onPress={() => {
+              setVerifySheetOpen(false);
+              router.push("/verify-certificate-portals");
+            }}
+            style={({ pressed }) => [
+              styles.verifyOption,
+              { backgroundColor: colors.surfaceContainerLow },
+              { opacity: pressed ? 0.72 : 1 },
+            ]}
+          >
+            <View
+              style={[
+                styles.verifyOptionIcon,
+                { backgroundColor: colors.surfaceContainerHigh },
+              ]}
+            >
+              <Icon name="list" size={24} color={colors.primary} />
+            </View>
+            <Text
+              style={[styles.verifyOptionTitle, { color: colors.onSurface }]}
+            >
+              List
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scan certificate"
+            onPress={() => {
+              setVerifySheetOpen(false);
+              router.push("/scan-certificate");
+            }}
+            style={({ pressed }) => [
+              styles.verifyOption,
+              { backgroundColor: colors.surfaceContainerLow },
+              { opacity: pressed ? 0.72 : 1 },
+            ]}
+          >
+            <View
+              style={[
+                styles.verifyOptionIcon,
+                { backgroundColor: colors.primaryContainer },
+              ]}
+            >
+              <Icon name="qr-code-scanner" size={24} color={colors.primary} />
+            </View>
+            <Text
+              style={[styles.verifyOptionTitle, { color: colors.onSurface }]}
+            >
+              Scan
+            </Text>
+          </Pressable>
+        </View>
+      </BottomSheet>
+
       <View
         pointerEvents="box-none"
         style={[styles.chrome, { backgroundColor: colors.background }]}
@@ -700,6 +778,17 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  verifyFab: {
+    position: "absolute",
+    right: Spacing.containerMargin,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    boxShadow: "0 5px 16px rgba(0, 0, 0, 0.2)",
+  },
   chrome: {
     position: "absolute",
     top: 0,
@@ -826,6 +915,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
+
+  verifyOptions: { flexDirection: "row", gap: Spacing.md },
+  verifyOption: {
+    flex: 1,
+    minHeight: 96,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.md,
+  },
+  verifyOptionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifyOptionTitle: { ...Typography.bodyMd, fontWeight: "700" },
 
   quietCard: {
     borderRadius: Radius.xl,

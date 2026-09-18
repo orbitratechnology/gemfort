@@ -19,12 +19,18 @@ describe("home-screen quick actions", () => {
     const actions = buildHomeScreenQuickActions(false, null);
 
     expect(actions.map((action) => action.id)).toEqual([
+      "scan-certificate",
       "certificates",
       "market",
       "search",
     ]);
     expect(actions).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          id: "scan-certificate",
+          title: "Scan certificate",
+          params: { href: "/scan-certificate" },
+        }),
         expect.objectContaining({
           id: "certificates",
           title: "Certificates",

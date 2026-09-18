@@ -545,17 +545,18 @@ export function PartyPickerSheet({
       subscribeBusinessByOwnerUid(user!.uid, onData, onError),
     enabled: visible && !!user && isFirebaseConfigured,
   });
+  const ownBusinessId = ownBusiness?.id;
 
   const businesses = useMemo(
-    () => filterBusinessesForViewer(marketBusinesses, ownBusiness?.id),
-    [marketBusinesses, ownBusiness?.id],
+    () => filterBusinessesForViewer(marketBusinesses, ownBusinessId),
+    [marketBusinesses, ownBusinessId],
   );
   const selectableContacts = useMemo(
     () =>
-      ownBusiness?.id
-        ? contacts.filter((contact) => contact.linkedBusinessId !== ownBusiness.id)
+      ownBusinessId
+        ? contacts.filter((contact) => contact.linkedBusinessId !== ownBusinessId)
         : contacts,
-    [contacts, ownBusiness?.id],
+    [contacts, ownBusinessId],
   );
 
   useEffect(() => {

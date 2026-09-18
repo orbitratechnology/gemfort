@@ -29,6 +29,8 @@ type BottomSheetProps = {
    * Defaults to true.
    */
   scrollable?: boolean;
+  /** Size the native sheet to its content instead of using the shared detents. */
+  fitToContents?: boolean;
   /** Disable focused-input auto-scrolling when the sheet already avoids the keyboard. */
   autoScrollToFocusedInput?: boolean;
 };
@@ -43,6 +45,7 @@ export function BottomSheet({
   children,
   footer,
   scrollable = true,
+  fitToContents = false,
   autoScrollToFocusedInput = true,
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
@@ -65,11 +68,12 @@ export function BottomSheet({
   return (
     <NativeBottomSheet
       index={visible ? 0 : -1}
-      snapPoints={SHEET_SNAP_POINTS}
+      snapPoints={fitToContents ? undefined : SHEET_SNAP_POINTS}
+      enableDynamicSizing={fitToContents}
       enablePanDownToClose
       backgroundStyle={{ backgroundColor: colors.surfaceContainerLowest }}
       onClose={handleNativeClose}>
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, fitToContents && styles.sheetFit]}>
         {title ? (
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
@@ -85,7 +89,7 @@ export function BottomSheet({
         ) : null}
         {scrollable ? (
           <KeyboardAwareScrollView
-            style={styles.body}
+            style={[styles.body, fitToContents && styles.bodyFit]}
             contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -94,7 +98,9 @@ export function BottomSheet({
             {children}
           </KeyboardAwareScrollView>
         ) : (
-          <View style={styles.bodyFlex}>{children}</View>
+          <View style={[styles.bodyFlex, fitToContents && styles.bodyFit]}>
+            {children}
+          </View>
         )}
         {footer ? <View style={styles.footer}>{footer}</View> : null}
       </View>
@@ -156,11 +162,13 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.gutterMd,
     flex: 1,
   },
+  sheetFit: { flex: 0 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   title: { ...Typography.headlineSm },
   closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  body: { flexGrow: 0 },
+  body: { flex: 1, minHeight: 0 },
   bodyFlex: { flex: 1, minHeight: 0 },
+  bodyFit: { flex: 0 },
   bodyContent: { gap: Spacing.lg, paddingBottom: Spacing.sm },
   listSeparator: { height: Spacing.stackSm },
   footer: { paddingTop: Spacing.md, gap: Spacing.sm },

@@ -88,11 +88,15 @@ export function useFirestoreInfiniteQuery<TItem, TError = Error>(
   const mapDocRef = useRef(mapDoc);
   const fetchPageRef = useRef(fetchPage);
   const getItemIdRef = useRef(getItemId);
+  const queryKeyRef = useRef(queryKey);
 
-  buildQueryRef.current = buildQuery;
-  mapDocRef.current = mapDoc;
-  fetchPageRef.current = fetchPage;
-  getItemIdRef.current = getItemId;
+  useEffect(() => {
+    buildQueryRef.current = buildQuery;
+    mapDocRef.current = mapDoc;
+    fetchPageRef.current = fetchPage;
+    getItemIdRef.current = getItemId;
+    queryKeyRef.current = queryKey;
+  }, [buildQuery, fetchPage, getItemId, mapDoc, queryKey]);
 
   const queryResult = useInfiniteQuery<
     FirestorePage<TItem>,
@@ -140,7 +144,7 @@ export function useFirestoreInfiniteQuery<TItem, TError = Error>(
       pageSize,
       onData: (page) => {
         queryClient.setQueryData<InfiniteQueryData<TItem>>(
-          queryKey,
+          queryKeyRef.current,
           (current) => {
             if (!current?.pages.length) return current;
 

@@ -1,7 +1,6 @@
 import { Image } from "expo-image";
-import * as WebBrowser from "expo-web-browser";
 import { useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FlatList } from "@/components/ui/gesture-lists";
@@ -17,6 +16,7 @@ import {
   websiteFaviconUrls,
   websiteHostname,
 } from "@/features/marketplace/business-links";
+import { openVerificationUrl } from "@/features/verification/verification-links";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 function LabFavicon({ lab }: { lab: VerificationLab }) {
@@ -56,14 +56,6 @@ function LabFavicon({ lab }: { lab: VerificationLab }) {
   );
 }
 
-async function openVerificationPortal(url: string) {
-  try {
-    await WebBrowser.openBrowserAsync(url);
-  } catch {
-    await Linking.openURL(url);
-  }
-}
-
 function VerificationListItemView({ item }: { item: VerificationListItem }) {
   const { colors } = useAppTheme();
 
@@ -98,7 +90,7 @@ function VerificationListItemView({ item }: { item: VerificationListItem }) {
         accessibilityRole="link"
         accessibilityLabel={`Open ${item.lab.name} verification portal`}
         accessibilityHint="Opens the laboratory verification page"
-        onPress={() => void openVerificationPortal(item.lab.url)}
+        onPress={() => void openVerificationUrl(item.lab.url)}
         style={({ pressed }) => [
           styles.labRow,
           !item.firstInGroup && {

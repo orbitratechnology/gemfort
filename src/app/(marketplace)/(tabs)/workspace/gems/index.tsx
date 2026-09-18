@@ -1,5 +1,6 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import {
   Pressable,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomSheet, FilterChipGroup } from '@/components/ui/bottom-sheet';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
@@ -19,7 +20,11 @@ import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { GemCard } from '@/components/workspace/gem-card';
-import { GEM_TYPES } from '@/constants/gem-options';
+import {
+  AttributePickerField,
+  GemTypePickerSheet,
+} from '@/components/workspace/gem-attribute-pickers';
+import { formatGemType, GEM_TYPES } from '@/constants/gem-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
@@ -46,7 +51,12 @@ export default function GemsListScreen() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [gemTypeSheetOpen, setGemTypeSheetOpen] = useState(false);
   const [draftType, setDraftType] = useState('all');
+  const draftTypeOption = useMemo(
+    () => GEM_TYPES.find((type) => type.value === draftType),
+    [draftType],
+  );
 
   const {
     items: gems,
@@ -256,16 +266,44 @@ export default function GemsListScreen() {
             />
           </>
         }>
-        <FilterChipGroup
-          label="Gem Type"
-          value={draftType}
-          onChange={setDraftType}
-          options={[
-            { id: 'all', label: 'All' },
-            ...GEM_TYPES.map((t) => ({ id: t.value, label: t.label })),
-          ]}
+        <AttributePickerField
+          label="Gem type"
+          valueLabel={
+            draftType === 'all' ? 'All types' : formatGemType(draftType)
+          }
+          onPress={() => setGemTypeSheetOpen(true)}
+          leading={
+            draftTypeOption ? (
+              <Image
+                source={draftTypeOption.image}
+                style={styles.gemTypeThumb}
+                contentFit="cover"
+              />
+            ) : (
+              <View
+                style={[
+                  styles.gemTypeThumb,
+                  {
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surfaceContainerHigh,
+                  },
+                ]}
+              >
+                <Icon name="diamond" size={18} color={colors.outline} />
+              </View>
+            )
+          }
         />
       </BottomSheet>
+
+      <GemTypePickerSheet
+        visible={gemTypeSheetOpen}
+        onClose={() => setGemTypeSheetOpen(false)}
+        value={draftType}
+        includeAll
+        onSelect={setDraftType}
+      />
     </SafeAreaView>
   );
 }
@@ -329,5 +367,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+  },
+  gemTypeThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
   },
 });

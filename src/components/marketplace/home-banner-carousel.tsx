@@ -165,6 +165,7 @@ export function HomeBannerCarousel() {
   const { user, profile } = useAuth();
   const role = resolveProfileRole(profile);
   const { width: windowWidth } = useWindowDimensions();
+  const sideInset = windowWidth < 360 ? 20 : SIDE_INSET;
   const scrollRef = useRef<ScrollView>(null);
   const pausedRef = useRef(false);
   const programmaticRef = useRef(false);
@@ -188,7 +189,7 @@ export function HomeBannerCarousel() {
   const countRef = useRef(count);
   const loopDataRef = useRef(loopData);
 
-  const slideWidth = windowWidth - SIDE_INSET * 2;
+  const slideWidth = windowWidth - sideInset * 2;
   const stride = slideWidth + GAP;
   const strideRef = useRef(stride);
 
@@ -288,7 +289,7 @@ export function HomeBannerCarousel() {
         nestedScrollEnabled
         contentOffset={{ x: startLoopIndex * stride, y: 0 }}
         contentContainerStyle={{
-          paddingHorizontal: SIDE_INSET,
+          paddingHorizontal: sideInset,
           paddingVertical: SHADOW_PAD,
         }}
         style={styles.list}
@@ -421,7 +422,7 @@ const styles = StyleSheet.create({
     boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
   },
   slide: {
-    height: BANNER_HEIGHT,
+    minHeight: BANNER_HEIGHT,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     paddingHorizontal: Spacing.lg,
@@ -438,7 +439,6 @@ const styles = StyleSheet.create({
     top: -50,
   },
   copy: {
-    flex: 1,
     maxWidth: '72%',
     gap: 6,
     zIndex: 1,

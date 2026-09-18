@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -169,6 +169,7 @@ export default function ContactsListScreen() {
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const openSwipeRef = useRef<{
     id: string;
     methods: SwipeableMethods;
@@ -196,10 +197,22 @@ export default function ContactsListScreen() {
     enabled: !!user,
   });
 
-  const contacts = useMemo(
-    () => syncContactBusinessLinks(loadedContacts, businesses),
-    [loadedContacts, businesses],
-  );
+  useEffect(() => {
+    let active = true;
+
+    void syncContactBusinessLinks(loadedContacts, businesses)
+      .then((syncedContacts) => {
+        if (active) setContacts(syncedContacts);
+      })
+      .catch(() => {
+        if (active) setContacts(loadedContacts);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loadedContacts, businesses]);
+
   const contactPhotoMap = buildContactPhotoMap(contacts, businesses);
   const filtered = filterContacts(contacts, debouncedQuery, typeFilter);
   const sections = groupContactsByLetter(filtered);
