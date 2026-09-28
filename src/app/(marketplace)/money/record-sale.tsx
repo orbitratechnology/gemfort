@@ -3,20 +3,20 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
-import { ChipSelect } from "@/components/ui/chip-select";
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
-import { type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import type { PartySelection } from "@/components/workspace/contact-picker-sheet";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
+import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { paymentMethodOptions } from "@/constants/payment-methods";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
 import {
   createGemTransferRequest,
@@ -35,13 +35,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
-type PaymentMethod = "transfer" | "cash" | "cheque";
-
-const METHODS: { value: PaymentMethod; label: string; icon: IconName }[] = [
-  { value: "transfer", label: "Transfer", icon: "account-balance" },
-  { value: "cash", label: "Cash", icon: "payments" },
-  { value: "cheque", label: "Cheque", icon: "cheque" },
-];
+const METHODS = paymentMethodOptions(["transfer", "cash", "cheque"] as const);
+type PaymentMethod = (typeof METHODS)[number]["value"];
 
 export default function RecordSaleScreen() {
   const { gemId: gemIdParam } = useLocalSearchParams<{ gemId?: string }>();
@@ -245,9 +240,8 @@ export default function RecordSaleScreen() {
             emptyHint="Select a Trader or Contact."
             error={errors.buyer}
           />
-          <ChipSelect
+          <PaymentMethodPicker
             label="Payment method"
-            layout="stack"
             options={METHODS}
             value={method}
             onChange={(v) => {

@@ -1,4 +1,5 @@
 import type { IconName } from '@/components/ui/icon';
+import { paymentMethodOptions } from '@/constants/payment-methods';
 import type { TripStatus, TripType } from '@/types';
 
 export const TRIP_TYPES: { id: TripType; label: string; subtitle: string; icon: IconName }[] = [
@@ -41,17 +42,21 @@ export function getExpenseCategoryIcon(id: string): IconName {
   return TRIP_EXPENSE_CATEGORIES.find((c) => c.id === id)?.icon ?? 'receipt';
 }
 
-export const TRIP_PAYMENT_METHODS: {
-  id: 'cash' | 'card' | 'transfer';
-  label: string;
-  icon: IconName;
-}[] = [
-  { id: 'cash', label: 'Cash', icon: 'payments' },
-  { id: 'card', label: 'Card', icon: 'credit-card' },
-  { id: 'transfer', label: 'Transfer', icon: 'account-balance' },
-];
+export const TRIP_PAYMENT_OPTIONS = paymentMethodOptions([
+  'cash',
+  'card',
+  'transfer',
+] as const);
 
-export type TripPaymentMethod = (typeof TRIP_PAYMENT_METHODS)[number]['id'];
+export const TRIP_PAYMENT_METHODS = TRIP_PAYMENT_OPTIONS.map(
+  ({ value, label, icon }) => ({
+    id: value,
+    label,
+    icon: icon ?? 'payments',
+  }),
+);
+
+export type TripPaymentMethod = (typeof TRIP_PAYMENT_OPTIONS)[number]['value'];
 
 export function getTripPaymentMethodLabel(id: string | null | undefined): string {
   if (!id) return '';

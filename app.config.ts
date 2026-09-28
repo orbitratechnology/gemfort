@@ -1,6 +1,13 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
+// RNFirebase SPM requires dynamic linkage. Notify Kit's NSE config plugin
+// reads this Podfile setting so the extension matches the host app target.
+process.env.USE_FRAMEWORKS = "dynamic";
+
 const env = process.env.EXPO_PUBLIC_APP_ENV ?? "development";
+const isIosPersonalTeamBuild =
+  env === "development" &&
+  process.env.EXPO_PUBLIC_IOS_PERSONAL_TEAM_BUILD === "1";
 
 // All EAS environments use the same native app and Firebase configuration.
 const bundleId = "app.gemfort";
@@ -72,9 +79,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "GemFort uses the camera to scan gemstone certificate QR codes and barcodes.",
     },
     associatedDomains:
-      env === "production" || env === "preview"
+      !isIosPersonalTeamBuild && (env === "production" || env === "preview")
         ? [`applinks:${appLinkHost}`]
-        : [],
+        : undefined,
     googleServicesFile:
       process.env.GOOGLE_SERVICES_PLIST ?? "GoogleService-Info.plist",
   },
@@ -131,7 +138,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-sharing",
       {
         ios: {
-          enabled: true,
+          // Personal Team provisioning cannot sign the share-in extension's App Group.
+          // Outbound Sharing.shareAsync remains available without this extension.
+          enabled: !isIosPersonalTeamBuild,
           activationRule: {
             supportsImageWithMaxCount: 10,
             supportsFileWithMaxCount: 5,
@@ -160,12 +169,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         locationWhenInUsePermission:
           "GemFort uses your location to place your business on its public profile.",
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
       },
     ],
     "expo-secure-store",
     "expo-status-bar",
     "expo-web-browser",
-    "expo-apple-authentication",
+    ...(!isIosPersonalTeamBuild ? ["expo-apple-authentication"] : []),
     [
       "expo-local-authentication",
       {
@@ -183,14 +195,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-build-properties",
       {
         ios: {
-          useFrameworks: "static",
-          forceStaticLinking: [
-            "RNFBApp",
-            "RNFBAuth",
-            "RNFBAppCheck",
-            "RNFBFirestore",
-            "RNFBStorage",
-          ],
+          enableSceneSupport: true,
         },
         android: {
           compileSdkVersion: 36,
@@ -214,16 +219,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
-    [
-      "expo-notifications",
-      {
-        // Android status-bar small icon must be white alpha silhouette
-        icon: "./assets/images/notification-icon.png",
-        color: "#64A0F7",
-        defaultChannel: "default",
-        enableBackgroundRemoteNotifications: true,
-      },
-    ],
+    ...(!isIosPersonalTeamBuild
+      ? [
+          [
+            "expo-notifications",
+            {
+              // Android status-bar small icon must be white alpha silhouette
+              icon: "./assets/images/notification-icon.png",
+              color: "#64A0F7",
+              defaultChannel: "default",
+              enableBackgroundRemoteNotifications: true,
+            },
+          ] as [string, Record<string, unknown>],
+        ]
+      : []),
     [
       "react-native-notify-kit",
       {
@@ -274,6 +283,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-image-picker",
       {
         photosPermission: "GemFort needs photo access to upload gem images.",
+        microphonePermission: false,
       },
     ],
     [
@@ -294,6 +304,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       projectId: "4ef3ea53-839b-47a2-9621-2875c6fa182d",
     },
     appEnv: env,
+    iosPersonalTeamBuild: isIosPersonalTeamBuild,
   },
   owner: "orbitratech",
 });

@@ -55,7 +55,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+            "value": "default-src \u0027none\u0027; style-src \u0027unsafe-inline\u0027; script-src \u0027unsafe-inline\u0027; base-uri \u0027none\u0027; form-action \u0027none\u0027; frame-ancestors \u0027none\u0027"
           }
         ]
       }

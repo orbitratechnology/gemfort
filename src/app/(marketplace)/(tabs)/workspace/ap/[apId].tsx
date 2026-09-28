@@ -7,7 +7,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { ChipSelect } from "@/components/ui/chip-select";
 import {
   FormSection,
   FormSectionLabel,
@@ -21,7 +20,9 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sale-split";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
+import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { paymentMethodOptions } from "@/constants/payment-methods";
 import {
   fetchBusinessByOwnerUid,
   fetchBusinesses,
@@ -85,15 +86,7 @@ import type {
   WorkspaceGem,
 } from "@/types";
 
-const PAY_METHODS: {
-  value: ApPaymentMethod;
-  label: string;
-  icon: "payments" | "account-balance" | "cheque";
-}[] = [
-  { value: "cash", label: "Cash", icon: "payments" },
-  { value: "transfer", label: "Transfer", icon: "account-balance" },
-  { value: "cheque", label: "Cheque", icon: "cheque" },
-];
+const PAY_METHODS = paymentMethodOptions(["cash", "transfer", "cheque"] as const);
 
 type StepState = "done" | "active" | "pending" | "overdue";
 
@@ -971,11 +964,11 @@ export default function ApDetailScreen() {
             </Text>
           </View>
 
-          <ChipSelect
+          <PaymentMethodPicker
+            label="Payment method"
             options={PAY_METHODS}
             value={payMethod}
             onChange={setPayMethod}
-            layout="stack"
           />
 
           <MaskedInput
@@ -995,12 +988,11 @@ export default function ApDetailScreen() {
                 : "Payment"}{" "}
               · {formatBase(ap.paymentAmount ?? owed)}
             </Text>
-            <ChipSelect
+            <PaymentMethodPicker
               label="How was it received?"
               options={PAY_METHODS}
               value={receiveMethod}
               onChange={setReceiveMethodOverride}
-              layout="split"
             />
             <Button
               title={

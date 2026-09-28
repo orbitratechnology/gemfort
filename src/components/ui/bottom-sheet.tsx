@@ -1,10 +1,12 @@
 import NativeBottomSheet from '@expo/ui/community/bottom-sheet';
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+    Platform,
     Pressable,
     StyleSheet,
     Text,
     View,
+    type LayoutChangeEvent,
 } from 'react-native';
 import {
     KeyboardAwareScrollView,
@@ -49,6 +51,8 @@ export function BottomSheet({
   autoScrollToFocusedInput = true,
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
+  const pinFooter = Platform.OS === 'android' && Boolean(footer) && !fitToContents;
+  const [footerHeight, setFooterHeight] = useState(0);
 
   const visibleRef = useRef(visible);
 
@@ -65,6 +69,13 @@ export function BottomSheet({
     onClose();
   }, [onClose]);
 
+  const handleFooterLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    setFooterHeight((currentHeight) =>
+      currentHeight === nextHeight ? currentHeight : nextHeight,
+    );
+  }, []);
+
   return (
     <NativeBottomSheet
       index={visible ? 0 : -1}
@@ -73,7 +84,12 @@ export function BottomSheet({
       enablePanDownToClose
       backgroundStyle={{ backgroundColor: colors.surfaceContainerLowest }}
       onClose={handleNativeClose}>
-      <View style={[styles.sheet, fitToContents && styles.sheetFit]}>
+      <View
+        style={[
+          styles.sheet,
+          fitToContents && styles.sheetFit,
+          pinFooter && styles.sheetPinnedFooter,
+        ]}>
         {title ? (
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
@@ -90,7 +106,10 @@ export function BottomSheet({
         {scrollable ? (
           <KeyboardAwareScrollView
             style={[styles.body, fitToContents && styles.bodyFit]}
-            contentContainerStyle={styles.bodyContent}
+            contentContainerStyle={[
+              styles.bodyContent,
+              pinFooter && { paddingBottom: footerHeight + Spacing.sm },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             enabled={autoScrollToFocusedInput}
@@ -98,11 +117,26 @@ export function BottomSheet({
             {children}
           </KeyboardAwareScrollView>
         ) : (
-          <View style={[styles.bodyFlex, fitToContents && styles.bodyFit]}>
+          <View
+            style={[
+              styles.bodyFlex,
+              fitToContents && styles.bodyFit,
+              pinFooter && { paddingBottom: footerHeight },
+            ]}>
             {children}
           </View>
         )}
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? (
+          <View
+            onLayout={pinFooter ? handleFooterLayout : undefined}
+            style={[
+              styles.footer,
+              pinFooter && styles.footerPinned,
+              pinFooter && { backgroundColor: colors.surfaceContainerLowest },
+            ]}>
+            {footer}
+          </View>
+        ) : null}
       </View>
     </NativeBottomSheet>
   );
@@ -158,20 +192,22 @@ export function FilterChipGroup<T extends string>({
 
 const styles = StyleSheet.create({
   sheet: {
-    paddingHorizontal: Spacing.containerMargin,
+    position: 'relative',
     paddingBottom: Spacing.gutterMd,
     flex: 1,
   },
+  sheetPinnedFooter: { paddingBottom: 0 },
   sheetFit: { flex: 0 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md, paddingHorizontal: Spacing.containerMargin },
   title: { ...Typography.headlineSm },
   closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, minHeight: 0 },
-  bodyFlex: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0, marginHorizontal: Spacing.containerMargin },
+  bodyFlex: { flex: 1, minHeight: 0, marginHorizontal: Spacing.containerMargin },
   bodyFit: { flex: 0 },
   bodyContent: { gap: Spacing.lg, paddingBottom: Spacing.sm },
   listSeparator: { height: Spacing.stackSm },
-  footer: { paddingTop: Spacing.md, gap: Spacing.sm },
+  footer: { paddingTop: Spacing.md, paddingHorizontal: Spacing.containerMargin, gap: Spacing.sm },
+  footerPinned: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Spacing.gutterMd },
   group: { gap: Spacing.sm },
   groupLabel: { ...Typography.labelMd, letterSpacing: 0.5, textTransform: 'uppercase' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },

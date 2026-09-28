@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/ui/button';
-import { ChipSelect } from '@/components/ui/chip-select';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
@@ -19,11 +18,12 @@ import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
+import { PaymentMethodPicker } from '@/components/workspace/payment-method-picker';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
 import {
   TRIP_EXPENSE_CATEGORIES,
-  TRIP_PAYMENT_METHODS,
+  TRIP_PAYMENT_OPTIONS,
   type TripPaymentMethod,
 } from '@/constants/trip-options';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
@@ -178,14 +178,9 @@ export default function AddTripExpenseScreen() {
           placeholder="Optional note"
           leftIcon="notes"
         />
-        <ChipSelect
+        <PaymentMethodPicker
           label="Payment method"
-          layout="wrap"
-          options={TRIP_PAYMENT_METHODS.map((m) => ({
-            value: m.id,
-            label: m.label,
-            icon: m.icon,
-          }))}
+          options={TRIP_PAYMENT_OPTIONS}
           value={paymentMethod}
           onChange={setPaymentMethod}
         />

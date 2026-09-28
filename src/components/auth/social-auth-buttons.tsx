@@ -1,4 +1,5 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
+import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -26,6 +27,9 @@ export function SocialAuthButtons({
   const { colors } = useAppTheme();
   const busy = useIsBusy();
   const isDisabled = disabled || busy;
+  const showApple =
+    Platform.OS === 'ios' &&
+    Constants.expoConfig?.extra?.iosPersonalTeamBuild !== true;
 
   return (
     <View style={styles.container}>
@@ -66,7 +70,7 @@ export function SocialAuthButtons({
           <Text style={[styles.googleText, { color: colors.text }]}>Continue with Google</Text>
         </Pressable>
       ) : null}
-      {Platform.OS === 'ios' ? (
+      {showApple ? (
         <AppleAuthentication.AppleAuthenticationButton
           buttonType={
             appleButtonType === 'signUp'

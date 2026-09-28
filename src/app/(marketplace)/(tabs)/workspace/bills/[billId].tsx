@@ -7,7 +7,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { ChipSelect } from "@/components/ui/chip-select";
 import {
   FormSection,
   ScreenInset,
@@ -20,8 +19,10 @@ import { StackHeader } from "@/components/ui/stack-header";
 import { JOB_STATUS_LABELS } from "@/components/workspace/job-picker-sheet";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
+import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
+import { paymentMethodOptions } from "@/constants/payment-methods";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import { fetchLapidaryJobs } from "@/features/marketplace/request-service";
 import {
@@ -71,15 +72,7 @@ import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ApPaymentMethod, Bill, BillStatus } from "@/types";
 
-const PAY_METHODS: {
-  value: ApPaymentMethod;
-  label: string;
-  icon: "payments" | "account-balance" | "cheque";
-}[] = [
-  { value: "cash", label: "Cash", icon: "payments" },
-  { value: "transfer", label: "Transfer", icon: "account-balance" },
-  { value: "cheque", label: "Cheque", icon: "cheque" },
-];
+const PAY_METHODS = paymentMethodOptions(["cash", "transfer", "cheque"] as const);
 
 type StepState = "done" | "active" | "pending" | "overdue";
 
@@ -1029,12 +1022,11 @@ export default function BillDetailScreen() {
           leftIcon="payments"
           error={paymentError ?? undefined}
         />
-        <ChipSelect
+        <PaymentMethodPicker
           label="How was it paid?"
           options={PAY_METHODS}
           value={payMethod}
           onChange={setPayMethod}
-          layout="split"
         />
         <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
       </BottomSheet>

@@ -1,4 +1,5 @@
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -13,6 +14,12 @@ export { ANDROID_CHANNEL_ID };
 
 export function canRegisterForPushNotifications(): boolean {
   if (Platform.OS === 'web') return false;
+  if (
+    Platform.OS === 'ios' &&
+    Constants.expoConfig?.extra?.iosPersonalTeamBuild === true
+  ) {
+    return false;
+  }
   if (Platform.OS === 'ios' && !Device.isDevice) return false;
   return true;
 }

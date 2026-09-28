@@ -266,6 +266,34 @@ bun run build:dev:android
 bun run build:dev:ios
 ```
 
+### Physical iPhone with a free Apple Account (Personal Team)
+
+A free Apple Account can sign a local development build for a connected iPhone. This is an Xcode-only development path; EAS device builds, TestFlight, App Store distribution, Apple Sign In, APNs push, and the iOS “share into GemFort” extension need capabilities unavailable to this project without paid provisioning. Free provisioning expires after seven days, so the app may need to be rebuilt and reinstalled weekly.
+
+The Personal Team variant keeps Firebase email/password, Google sign-in, and phone verification available. It omits the Apple Sign In and remote push entitlements, disables the share-in extension and associated-domain entitlement, and keeps outbound iOS share sheets. The normal simulator and paid-team configurations are unchanged.
+
+1. Add your Apple Account in Xcode under **Settings → Accounts**, connect and trust the iPhone, and enable Developer Mode on the device.
+2. Regenerate the ignored iOS project for this variant. `--clean` removes the existing generated `ios/` directory, so back up any manual native edits first:
+
+   ```bash
+   bun run prebuild:ios:personal-team
+   ```
+
+3. Open `ios/GemFort.xcworkspace` in Xcode. Select the **GemFort** app target and the **NotifyKitNSE** extension target; for each, choose your **Personal Team** under Signing & Capabilities and leave **Automatically manage signing** enabled.
+4. Start Metro and install/run the app on the iPhone from two terminals:
+
+   ```bash
+   bun run start:dev-client:personal-team
+   ```
+
+   ```bash
+   bun run ios:device:personal-team
+   ```
+
+For Google, enable Google in Firebase Authentication. The iOS app uses the matching public Web OAuth client ID from the current Android Firebase config; set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` if you use a different Firebase project. For phone-auth development, add a fictional phone number and six-digit code in **Firebase Console → Authentication → Sign-in method → Phone** and use those values in the app. Firebase uses reCAPTCHA when APNs is unavailable; ensure the Firebase API key allows the project's `*.firebaseapp.com` auth domain. If Firebase App Check enforcement is enabled, register the iOS development debug token shown by the development app in the Firebase Console; never use a debug token in production.
+
+The EAS `development` and `preview` iOS profiles intentionally remain simulator-only. Use the local Personal Team steps above for a physical device without paid membership. This project uses Expo SDK 57, whose versioned iOS toolchain guidance requires Xcode 26.4 or newer.
+
 ---
 
 ## Environments and builds

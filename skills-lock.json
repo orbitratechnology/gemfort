@@ -1,6 +1,42 @@
 {
   "version": 1,
   "skills": {
+    "agent-device": {
+      "source": "callstack/agent-device",
+      "sourceType": "github",
+      "skillPath": "skills/agent-device/SKILL.md",
+      "computedHash": "3187ae73a1a8b055e20630d64c86e5bb7576341b495c9a755f5e3ec7927c0302"
+    },
+    "animate-expo": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animate-expo/SKILL.md",
+      "computedHash": "5de09593d564091f9db60aabede7bed760251e118548272050a247c653c417d2"
+    },
+    "app-store-preflight-skills": {
+      "source": "truongduy2611/app-store-preflight-skills",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "5d37b39681aa2e325a95a882efcf710185a6a1826c4a7891c2969b4dde0e96e4"
+    },
+    "apple-appstore-reviewer": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/apple-appstore-reviewer/SKILL.md",
+      "computedHash": "25cb84d301e17fb5840a4d2409e9a7d341d6e195fb2272b110518512a7f0dbc3"
+    },
+    "apple-design": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design/SKILL.md",
+      "computedHash": "0190417d092a0df447b000154e39733ea6d97efad6d3bec8a6ce3845aeb88914"
+    },
+    "appllama-app-design-skill": {
+      "source": "appllama/appllama-skills",
+      "sourceType": "github",
+      "skillPath": "skills/appllama-app-design-skill/SKILL.md",
+      "computedHash": "023b25559a5e9a4ab85ccffc9612d0d0f650608eb7f281dce8408a32649b2340"
+    },
     "eas-simulator": {
       "source": "expo/skills",
       "sourceType": "github",
@@ -37,11 +73,29 @@
       "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
       "computedHash": "132d7bea7b1f1d026d66efa3e2c252ba86b8fa9a468c97ed1bf3ca5415caec97"
     },
+    "greenlight": {
+      "source": "revylai/greenlight",
+      "sourceType": "github",
+      "skillPath": "skills/greenlight/SKILL.md",
+      "computedHash": "58167a76e26a991b82d25e0cc4abca07f4294716bccc837b68bf42ac3893b0e2"
+    },
+    "modern-react-guidance": {
+      "source": "adhhamdev/modern-react-guidance",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "c70224dde294b20cc1b9fc80bdb5d66988ee6e2a17a1e9f7920a5fb754982a78"
+    },
     "react-native-expert": {
       "source": "jeffallan/claude-skills",
       "sourceType": "github",
       "skillPath": "skills/react-native-expert/SKILL.md",
       "computedHash": "9a44b99fc929ab8e470944b5c6c5955dea6ea0945778816680acfcaaccb5a622"
+    },
+    "security-audit": {
+      "source": "cloudflare/security-audit-skill",
+      "sourceType": "github",
+      "skillPath": "skills/security-audit/SKILL.md",
+      "computedHash": "98b97aad2873b3b9a8e064007c25e7827b493ba27fda8bfbdb41dab586767973"
     }
   }
 }

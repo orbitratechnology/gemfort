@@ -35,6 +35,7 @@ import {
     PartyPickerSheet,
     type PartySelection,
 } from "@/components/workspace/contact-picker-sheet";
+import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import {
     FontFamily,
     Radius,
@@ -50,6 +51,7 @@ import {
     formatTreatmentLabel,
 } from "@/constants/gem-options";
 import { ROLE_LABELS, resolveProfileRole } from "@/constants/roles";
+import { paymentMethodOptions } from "@/constants/payment-methods";
 import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
 import {
   fetchBusiness,
@@ -103,6 +105,13 @@ import type {
 } from "@/types";
 
 const INITIAL_HISTORY_COUNT = 4;
+const GEM_PAYMENT_METHODS = paymentMethodOptions([
+  "cash",
+  "bank_transfer",
+  "cheque",
+  "bill",
+  "other",
+] as const);
 
 const SPEC_ICONS: Record<string, IconName> = {
   Weight: "scale",
@@ -1394,29 +1403,12 @@ export default function GemDetailScreen() {
           }}
           error={soldError ?? undefined}
         />
-        <Text style={[styles.statusOptionLabel, { color: colors.onSurface }]}>Payment method</Text>
-        <View style={styles.paymentMethodRow}>
-          {([
-            ["cash", "Cash"],
-            ["bank_transfer", "Bank"],
-            ["cheque", "Cheque"],
-            ["bill", "Bill"],
-            ["other", "Other"],
-          ] as const).map(([value, label]) => {
-            const active = transferPaymentMethod === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => setTransferPaymentMethod(value)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: active }}
-                style={[styles.paymentMethod, { backgroundColor: active ? colors.primaryContainer : colors.surfaceContainerLow, borderColor: active ? colors.primary : colors.outlineVariant }]}
-              >
-                <Text style={[styles.paymentMethodText, { color: active ? colors.onPrimaryContainer : colors.onSurface }]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <PaymentMethodPicker
+          label="Payment method"
+          options={GEM_PAYMENT_METHODS}
+          value={transferPaymentMethod}
+          onChange={setTransferPaymentMethod}
+        />
       </BottomSheet>
 
       <PartyPickerSheet
@@ -1792,9 +1784,6 @@ const styles = StyleSheet.create({
   },
 
   statusSheetHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
-  paymentMethodRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  paymentMethod: { minHeight: 40, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.md, borderWidth: 1 },
-  paymentMethodText: { ...Typography.labelMd, fontWeight: "600" },
   statusOption: {
     flexDirection: "row",
     alignItems: "center",
