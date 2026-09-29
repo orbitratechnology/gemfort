@@ -19,6 +19,7 @@ import { Icon } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
@@ -29,6 +30,9 @@ import { resolveCurrencyCode } from "@/constants/currencies";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { createApRequest } from "@/features/workspace/ap-lifecycle-service";
+import { commitmentDeepLink } from "@/features/calendar-sync/links";
+import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
+import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
   subscribeContacts,
@@ -83,6 +87,8 @@ export default function AddApScreen() {
   const [days, setDays] = useState("30");
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
+  const [reminderSyncEnabled, setReminderSyncEnabled] = useState(true);
 
   const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
@@ -177,16 +183,47 @@ export default function AddApScreen() {
 
     try {
       await withLoading(async () => {
+        const expectedDurationDays =
+          (result.success ? result.data.days : parseInt(days, 10)) || 30;
+        const expectedReturnDate = new Date(
+          Date.now() + expectedDurationDays * 86400000,
+        );
         const id = await createApRequest({
           receiverContactId: holderId,
           receiverBusinessId: holder?.linkedBusinessId ?? null,
-          expectedDurationDays: (result.success ? result.data.days : parseInt(days, 10)) || 30,
+          expectedDurationDays,
           items: lines.map((l) => ({
             gemId: l.gemId,
             agreedPrice: parseFloat(l.price.amount),
             currency: l.price.currency,
           })),
         });
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "ap",
+            sourceId: id,
+            title: "AP return due",
+            date: expectedReturnDate,
+            url: commitmentDeepLink("ap", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("AP request sent, but its calendar entry could not be added.");
+          }
+        }
+        if (reminderSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "reminder",
+            sourceType: "ap",
+            sourceId: id,
+            title: "AP return due",
+            date: expectedReturnDate,
+            url: commitmentDeepLink("ap", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("AP request sent, but its reminder could not be added.");
+          }
+        }
         toast.success("AP request sent");
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
       }, "Sending AP…");
@@ -325,6 +362,21 @@ export default function AddApScreen() {
               from the market.
             </Text>
           ) : null}
+        </FormSection>
+
+        <FormSection>
+          <CalendarSyncToggle
+            surface="calendar"
+            value={calendarSyncEnabled}
+            onValueChange={setCalendarSyncEnabled}
+            colors={colors}
+          />
+          <CalendarSyncToggle
+            surface="reminder"
+            value={reminderSyncEnabled}
+            onValueChange={setReminderSyncEnabled}
+            colors={colors}
+          />
         </FormSection>
 
         <ScreenInset>

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
   ApSellPartyStep,
   ApSellStepRail,
@@ -42,6 +43,9 @@ import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
+import { commitmentDeepLink } from "@/features/calendar-sync/links";
+import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
+import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import { haptics } from "@/lib/haptics";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, sellApGemSchema } from "@/lib/validation/form-schemas";
@@ -72,6 +76,8 @@ export default function ApSellScreen() {
   const [receiverKeeps, setReceiverKeeps] = useState("");
   const [soldToName, setSoldToName] = useState("");
   const [paymentDueDays, setPaymentDueDays] = useState("14");
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
+  const [reminderSyncEnabled, setReminderSyncEnabled] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [didPrefill, setDidPrefill] = useState(false);
 
@@ -218,6 +224,32 @@ export default function ApSellScreen() {
           soldToName: result.data.soldToName,
           paymentDueDateIso: due.toISOString(),
         });
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "ap",
+            sourceId: ap.id,
+            title: "AP payment due",
+            date: due,
+            url: commitmentDeepLink("ap", ap.id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Sale recorded, but its calendar entry could not be added.");
+          }
+        }
+        if (reminderSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "reminder",
+            sourceType: "ap",
+            sourceId: ap.id,
+            title: "AP payment due",
+            date: due,
+            url: commitmentDeepLink("ap", ap.id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Sale recorded, but its reminder could not be added.");
+          }
+        }
         await queryClient.invalidateQueries({ queryKey: ["ap"] });
         await queryClient.invalidateQueries({ queryKey: ["gems"] });
         await queryClient.invalidateQueries({ queryKey: ["transactions"] });
@@ -438,6 +470,20 @@ export default function ApSellScreen() {
               keyboardType="number-pad"
               leftIcon="schedule"
               error={errors.paymentDueDays}
+            />
+          </FormSection>
+          <FormSection>
+            <CalendarSyncToggle
+              surface="calendar"
+              value={calendarSyncEnabled}
+              onValueChange={setCalendarSyncEnabled}
+              colors={colors}
+            />
+            <CalendarSyncToggle
+              surface="reminder"
+              value={reminderSyncEnabled}
+              onValueChange={setReminderSyncEnabled}
+              colors={colors}
             />
           </FormSection>
         </ThemedScrollView>

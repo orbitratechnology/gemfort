@@ -10,11 +10,8 @@ import {
     toDate as chequeToDate,
     isPendingCheque,
 } from "@/features/workspace/cheque-utils";
-import {
-    toTripDate,
-    tripScheduleProgressPercent,
-} from "@/features/workspace/trip-utils";
-import { formatCurrency, formatDate, formatRelativeDue } from "@/lib/utils";
+import { toTripDate } from "@/features/workspace/trip-utils";
+import { formatCurrency, formatRelativeDue } from "@/lib/utils";
 import type { ApRecord, Bill, Cheque, ServiceRecord, Trip } from "@/types";
 
 export type ActiveProgressKind = "trip" | "ap" | "cheque" | "bill" | "service";
@@ -27,14 +24,11 @@ export type ActiveProgressItem = {
   subtitle: string;
   /** When set, leading thumb is a country flag (trips). */
   country?: string;
-  /** Absolute date label, e.g. "22 Jul 2026" */
-  dateLabel: string;
-  /** Relative due, e.g. "in 3d" */
+  /** Relative due, e.g. "In 3 days" */
   when: string;
   /** Face money label for bill / cheque / AP strips. */
   amountLabel?: string;
   href: string;
-  progress: number;
   overdue: boolean;
   icon: IconName;
   sortAt: number;
@@ -43,14 +37,6 @@ export type ActiveProgressItem = {
   /** People/business = circle; gems = rounded. Default circle. */
   imageShape?: "circle" | "rounded";
 };
-
-function scheduleProgress(start: Date | null, end: Date | null): number {
-  if (!start || !end) return 0;
-  const totalMs = end.getTime() - start.getTime();
-  if (totalMs <= 0) return 100;
-  const elapsed = Date.now() - start.getTime();
-  return Math.min(100, Math.max(0, Math.round((elapsed / totalMs) * 100)));
-}
 
 function toJs(
   ts: { toDate?: () => Date } | Date | null | undefined,
@@ -115,10 +101,8 @@ export function buildActiveProgressItems(input: {
         .filter(Boolean)
         .join(", "),
       country: t.destinationCountry,
-      dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       href: `/(marketplace)/(tabs)/workspace/trips/${t.id}`,
-      progress: tripScheduleProgressPercent(t),
       overdue: !!endDay && endDay < today,
       icon: "trip",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
@@ -127,7 +111,6 @@ export function buildActiveProgressItems(input: {
 
   for (const r of input.apRecords) {
     if (!isApOngoing(r.status)) continue;
-    const start = toJs(r.dateGiven);
     const end = toJs(r.expectedReturnDate);
     const endDay = end ? startOfDay(end) : null;
     const overdue = !!endDay && endDay < today;
@@ -159,11 +142,9 @@ export function buildActiveProgressItems(input: {
       badge: overdue ? "AP overdue" : "AP out",
       title: partyName,
       subtitle: amountLabel ?? "AP",
-      dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       amountLabel,
       href: `/(marketplace)/(tabs)/workspace/ap/${r.id}`,
-      progress: scheduleProgress(start, end),
       overdue,
       icon: "ap",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
@@ -174,7 +155,6 @@ export function buildActiveProgressItems(input: {
 
   for (const c of input.cheques) {
     if (!isPendingCheque(c)) continue;
-    const start = chequeToDate(c.issueDate);
     const end = chequeToDate(c.maturityDate);
     const endDay = end ? startOfDay(end) : null;
     const overdue = !!endDay && endDay < today;
@@ -189,11 +169,9 @@ export function buildActiveProgressItems(input: {
       badge: overdue ? "Cheque due" : "Cheque",
       title: who,
       subtitle: amountLabel,
-      dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       amountLabel,
       href: `/(marketplace)/(tabs)/workspace/cheques/${c.id}`,
-      progress: scheduleProgress(start, end),
       overdue,
       icon: "cheque",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
@@ -216,11 +194,9 @@ export function buildActiveProgressItems(input: {
       badge: overdue ? "Bill overdue" : "Bill",
       title: who,
       subtitle: amountLabel,
-      dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       amountLabel,
       href: `/(marketplace)/(tabs)/workspace/bills/${b.id}`,
-      progress: scheduleProgress(toJs(b.createdAt), end),
       overdue,
       icon: "bill",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,
@@ -231,7 +207,6 @@ export function buildActiveProgressItems(input: {
 
   for (const s of input.services ?? []) {
     if (!OPEN_SERVICE_STATUSES.has(s.status)) continue;
-    const start = toJs(s.dateGiven);
     const end = toJs(s.expectedReturnDate);
     const endDay = end ? startOfDay(end) : null;
     const overdue = s.status === "overdue" || (!!endDay && endDay < today);
@@ -245,7 +220,9 @@ export function buildActiveProgressItems(input: {
       s.agreedPrice != null && s.agreedPrice > 0
         ? formatCurrency(s.agreedPrice, s.agreedPriceCurrency || "LKR")
         : null;
-    const serviceType = s.serviceType.replace(/_/g, " ");
+    const serviceType = s.serviceType
+      .replace(/_/g, " ")
+      .replace(/^\w/, (letter) => letter.toUpperCase());
     const gemName = input.gemTitle?.(s.gemId)?.trim() || "";
     const subtitle = gemName ? `${serviceType}: ${gemName}` : serviceType;
     items.push({
@@ -254,11 +231,9 @@ export function buildActiveProgressItems(input: {
       badge: overdue ? "Service overdue" : "Service",
       title: who,
       subtitle,
-      dateLabel: end ? formatDate(end) : "—",
       when: formatRelativeDue(end),
       amountLabel: price ?? undefined,
       href: `/(marketplace)/(tabs)/workspace/services/${s.id}`,
-      progress: scheduleProgress(start, end),
       overdue,
       icon: "service",
       sortAt: end?.getTime() ?? Number.MAX_SAFE_INTEGER,

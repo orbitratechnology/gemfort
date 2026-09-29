@@ -8,11 +8,11 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 import Animated, {
   Extrapolation,
   FadeIn,
   interpolate,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -206,24 +206,6 @@ const ProgressCardFace = memo(function ProgressCardFace({
         >
           {item.subtitle}
         </Text>
-        <View
-          style={{
-            height: 4,
-            borderRadius: 2,
-            overflow: "hidden",
-            width: "100%",
-            backgroundColor: colors.surfaceContainerHigh,
-          }}
-        >
-          <View
-            style={{
-              height: "100%",
-              borderRadius: 2,
-              width: `${item.progress}%`,
-              backgroundColor: tone,
-            }}
-          />
-        </View>
       </View>
       <View
         style={{
@@ -462,7 +444,7 @@ export function ActiveProgressStrip({
       const fly = dir === 1 ? -FLY_OUT : FLY_OUT;
       translateX.value = withTiming(fly, { duration: 140 }, (finished) => {
         if (!finished) return;
-        runOnJS(advance)(dir);
+        scheduleOnRN(advance, dir);
       });
     });
 
@@ -470,11 +452,11 @@ export function ActiveProgressStrip({
     .minDuration(400)
     .maxDistance(14)
     .onStart(() => {
-      runOnJS(openList)();
+      scheduleOnRN(openList);
     });
 
   const tap = Gesture.Tap().onEnd(() => {
-    runOnJS(openFront)();
+    scheduleOnRN(openFront);
   });
 
   const composed = Gesture.Exclusive(pan, longPress, tap);
@@ -500,7 +482,7 @@ export function ActiveProgressStrip({
         <View
           accessible
           accessibilityRole="button"
-          accessibilityLabel="Ongoing progress. Long press to see all."
+          accessibilityLabel="Ongoing items. Long press to see all."
           accessibilityHint="Swipe to browse. Long press for the full list."
           style={{ height: cardHeight + peekPad }}
         >

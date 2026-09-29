@@ -29,6 +29,7 @@ import {
     BranchSelectField,
 } from "@/components/workspace/bank-picker-sheet";
 import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
+import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import { Spacing, Typography } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
@@ -48,6 +49,9 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { commitmentDeepLink } from "@/features/calendar-sync/links";
+import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
+import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import { uploadReceipt } from "@/lib/firebase/receipt-service";
 import {
     extensionForMedia,
@@ -146,6 +150,7 @@ export default function AddChequeScreen() {
   );
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
 
@@ -224,9 +229,8 @@ export default function AddChequeScreen() {
       await withLoading(async () => {
         const data = result.data;
         const now = Timestamp.now();
-        const maturity = Timestamp.fromDate(
-          addDays(new Date(), data.maturityDays),
-        );
+        const maturityDate = addDays(new Date(), data.maturityDays);
+        const maturity = Timestamp.fromDate(maturityDate);
         const issuer =
           data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
 
@@ -259,6 +263,20 @@ export default function AddChequeScreen() {
           billId: paramBillId,
           notes: data.notes || null,
         });
+
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "cheque",
+            sourceId: id,
+            title: `Cheque maturity: ${data.chequeNumber || "Cheque"}`,
+            date: maturityDate,
+            url: commitmentDeepLink("cheque", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Cheque saved, but its calendar entry could not be added.");
+          }
+        }
 
         if (paramBillId) {
           const settle = parseFloat(settleAmount || String(data.amount));
@@ -513,6 +531,15 @@ export default function AddChequeScreen() {
                 maturityDateLabel={maturityPreview}
               />
             ) : null}
+
+            <FormSection>
+              <CalendarSyncToggle
+                surface="calendar"
+                value={calendarSyncEnabled}
+                onValueChange={setCalendarSyncEnabled}
+                colors={colors}
+              />
+            </FormSection>
           </ThemedScrollView>
 
           <FormFooter

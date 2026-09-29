@@ -21,6 +21,33 @@ const FALLBACK_ICONS = {
   service: require('../../../assets/images/lapidary-icon.png'),
 } as const;
 
+const TIMING_LABEL: Record<ActiveProgressItem['kind'], string> = {
+  trip: 'Trip ends',
+  ap: 'Return due',
+  cheque: 'Matures',
+  bill: 'Due',
+  service: 'Expected finish',
+};
+
+function notificationBody(item: ActiveProgressItem): string {
+  let timing: string | null = null;
+  if (item.when !== '—') {
+    if (item.when === 'Yesterday' || item.when.endsWith(' overdue')) {
+      const duration = item.when === 'Yesterday'
+        ? '1 day'
+        : item.when.replace(/ overdue$/, '');
+      timing = `Overdue by ${duration}`;
+    } else {
+      timing = `${TIMING_LABEL[item.kind]}: ${item.when}`;
+    }
+  }
+
+  return (
+    [item.subtitle, timing].filter(Boolean).join(' · ') ||
+    'Open GemFort to view details.'
+  );
+}
+
 function notificationId(item: ActiveProgressItem): string {
   return `${PREFIX}${item.id.replace(/[^a-zA-Z0-9._-]/g, '-')}`;
 }
@@ -54,7 +81,7 @@ export function syncActiveProgressNotifications(items: ActiveProgressItem[]): Pr
         notifee.displayNotification({
           id: notificationId(item),
           title: `${item.badge} · ${item.title}`,
-          body: [item.subtitle, item.when].filter(Boolean).join(' · '),
+          body: notificationBody(item),
           data: {
             referenceType: item.kind,
             referenceId: referenceId(item),
@@ -65,13 +92,9 @@ export function syncActiveProgressNotifications(items: ActiveProgressItem[]): Pr
             largeIcon: item.imageUrl?.trim() || FALLBACK_ICONS[item.kind],
             circularLargeIcon: item.kind !== 'trip',
             color: item.overdue ? '#B83A3A' : '#171717',
-            category: AndroidCategory.PROGRESS,
+            category: AndroidCategory.STATUS,
             visibility: AndroidVisibility.PRIVATE,
             importance: AndroidImportance.LOW,
-            progress: {
-              max: 100,
-              current: Math.min(100, Math.max(0, Math.round(item.progress))),
-            },
             groupId: GROUP_ID,
             ongoing: true,
             autoCancel: false,

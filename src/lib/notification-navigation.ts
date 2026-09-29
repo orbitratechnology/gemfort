@@ -57,6 +57,10 @@ export function navigateFromNotificationRef(
     );
     return;
   }
+  if (type === 'payable') {
+    go('/(marketplace)/(tabs)/money/payables' as Href, options);
+    return;
+  }
   if (type === 'verification') {
     go(
       notificationType === 'verification_approved'

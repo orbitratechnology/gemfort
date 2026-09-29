@@ -226,7 +226,12 @@ export function getOutstanding(receivables: Receivable[], payables: Payable[]) {
   return { toCollect, toPay };
 }
 
-export type CashFlowBucket = { label: string; income: number; expense: number };
+export type CashFlowBucket = {
+  key: string;
+  label: string;
+  income: number;
+  expense: number;
+};
 
 /** Weekly buckets for month periods, monthly buckets for the year period. */
 export function getCashFlowBuckets(
@@ -244,6 +249,7 @@ export function getCashFlowBuckets(
   const lastDay = range.end.getDate();
   const weekCount = Math.ceil(lastDay / 7);
   const buckets: CashFlowBucket[] = Array.from({ length: weekCount }, (_, i) => ({
+    key: `${format(range.start, 'yyyy-MM')}-W${i + 1}`,
     label: `W${i + 1}`,
     income: 0,
     expense: 0,
@@ -278,6 +284,7 @@ function accumulateInto(
 function getMonthlyBuckets(transactions: Transaction[], range: DateRange): CashFlowBucket[] {
   const months = eachMonthOfInterval({ start: range.start, end: range.end });
   const buckets = months.map((m) => ({
+    key: format(m, 'yyyy-MM'),
     label: format(m, months.length > 6 ? 'MMM' : 'MMM yy'),
     income: 0,
     expense: 0,
@@ -310,6 +317,7 @@ export function getCashFlowBucketsForRange(
       { weekStartsOn: 0 },
     );
     const buckets = weeks.map((w, i) => ({
+      key: format(w, 'yyyy-MM-dd'),
       label: `W${i + 1}`,
       income: 0,
       expense: 0,
@@ -329,6 +337,7 @@ export function getCashFlowBucketsForRange(
 
   const dayList = eachDayOfInterval({ start: range.start, end: range.end });
   const buckets = dayList.map((d) => ({
+    key: format(d, 'yyyy-MM-dd'),
     label: format(d, 'd'),
     income: 0,
     expense: 0,

@@ -86,7 +86,7 @@ export function formatRelativeTime(
 
 /**
  * Relative due / upcoming labels (AP, services, cheques, payables).
- * e.g. Today · Tomorrow · in 3d · 2d overdue · 12 Jan
+ * e.g. Today · Tomorrow · In 3 days · 2 days overdue · In 3 months
  */
 export function formatRelativeDue(
   ts: { toDate?: () => Date } | Date | null | undefined,
@@ -101,10 +101,39 @@ export function formatRelativeDue(
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
   if (days === -1) return 'Yesterday';
-  if (days < 0) return `${Math.abs(days)}d overdue`;
-  if (days <= 14) return `in ${days}d`;
-  if (day.getFullYear() === today.getFullYear()) return format(day, 'd MMM');
-  return format(day, 'd MMM yyyy');
+
+  if (days > 0) {
+    if (days <= 14) return `In ${days} day${days === 1 ? '' : 's'}`;
+
+    if (days >= 30) {
+      const months = Math.round(days / 30.4375);
+      if (months >= 12) {
+        const years = Math.round(days / 365.25);
+        return `In ${years} year${years === 1 ? '' : 's'}`;
+      }
+      return `In ${months} month${months === 1 ? '' : 's'}`;
+    }
+
+    const weeks = Math.max(1, Math.round(days / 7));
+    return `In ${weeks} week${weeks === 1 ? '' : 's'}`;
+  }
+
+  const overdueDays = Math.abs(days);
+  if (overdueDays <= 14) {
+    return `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`;
+  }
+
+  if (overdueDays >= 30) {
+    const months = Math.round(overdueDays / 30.4375);
+    if (months >= 12) {
+      const years = Math.round(overdueDays / 365.25);
+      return `${years} year${years === 1 ? '' : 's'} overdue`;
+    }
+    return `${months} month${months === 1 ? '' : 's'} overdue`;
+  }
+
+  const weeks = Math.max(1, Math.round(overdueDays / 7));
+  return `${weeks} week${weeks === 1 ? '' : 's'} overdue`;
 }
 
 /** True when the due date is before today (calendar). */

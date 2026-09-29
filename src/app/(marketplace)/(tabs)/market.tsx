@@ -65,26 +65,35 @@ type BusinessVerificationFilter =
   | Exclude<BusinessReputationBadge, "none">;
 const VALID_TABS: Tab[] = ["gems", "traders", "lapidaries"];
 
+const DEFAULT_QUICK_TYPE_IMAGE = require("@/assets/images/gems/sapphire.webp");
+
+function quickTypeImage(value: string) {
+  return (
+    GEM_TYPES.find((type) => type.value === value)?.image ??
+    DEFAULT_QUICK_TYPE_IMAGE
+  );
+}
+
 const QUICK_TYPES = [
   {
     id: "all",
     label: "All",
-    image: GEM_TYPES.find((type) => type.value === "diamond")!.image,
+    image: DEFAULT_QUICK_TYPE_IMAGE,
   },
   {
     id: "blue_sapphire",
     label: "Sapphires",
-    image: GEM_TYPES.find((type) => type.value === "blue_sapphire")!.image,
+    image: quickTypeImage("blue_sapphire"),
   },
   {
     id: "ruby",
     label: "Rubies",
-    image: GEM_TYPES.find((type) => type.value === "ruby")!.image,
+    image: quickTypeImage("ruby"),
   },
   {
     id: "emerald",
     label: "Emeralds",
-    image: GEM_TYPES.find((type) => type.value === "emerald")!.image,
+    image: quickTypeImage("emerald"),
   },
 ];
 
