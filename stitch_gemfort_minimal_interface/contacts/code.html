@@ -301,8 +301,10 @@
 
         // Add Contact FAB animation on scroll
         let lastScrollTop = 0;
+        let frameId = 0;
         const fab = document.querySelector('.fixed.bottom-28');
-        window.addEventListener('scroll', () => {
+        const updateFab = () => {
+            frameId = 0;
             let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
             if (scrollTop > lastScrollTop) {
                 fab.style.transform = 'scale(0.8) translateY(20px)';
@@ -312,6 +314,11 @@
                 fab.style.opacity = '1';
             }
             lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
-        }, false);
+        };
+        const onScroll = () => {
+            if (frameId) return;
+            frameId = requestAnimationFrame(updateFab);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
     </script>
 </body></html>

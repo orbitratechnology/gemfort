@@ -654,18 +654,21 @@ export default function ApListScreen() {
 
   async function onRespond(apId: string, action: "accepted" | "rejected") {
     setRespondingId(apId);
-    try {
-      await withLoading(async () => {
-        await respondApRequest(apId, action);
-        toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not respond to AP."));
-    } finally {
-      setRespondingId(null);
-    }
+    await Promise.resolve()
+      .then(() =>
+        withLoading(async () => {
+          await respondApRequest(apId, action);
+          toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
+          await queryClient.invalidateQueries({ queryKey: ["ap"] });
+          await queryClient.invalidateQueries({ queryKey: ["gems"] });
+        }, "Updating…"),
+      )
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not respond to AP."));
+      })
+      .finally(() => {
+        setRespondingId(null);
+      });
   }
 
   async function onDelete(apId: string) {
@@ -695,20 +698,23 @@ export default function ApListScreen() {
     action: "accepted" | "rejected",
   ) {
     setRespondingId(apId);
-    try {
-      await withLoading(async () => {
-        await respondApCancellation(apId, action);
-        toast.success(
-          action === "accepted" ? "AP cancelled" : "Cancellation declined",
-        );
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not respond to cancellation."));
-    } finally {
-      setRespondingId(null);
-    }
+    await Promise.resolve()
+      .then(() =>
+        withLoading(async () => {
+          await respondApCancellation(apId, action);
+          toast.success(
+            action === "accepted" ? "AP cancelled" : "Cancellation declined",
+          );
+          await queryClient.invalidateQueries({ queryKey: ["ap"] });
+          await queryClient.invalidateQueries({ queryKey: ["gems"] });
+        }, "Updating…"),
+      )
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not respond to cancellation."));
+      })
+      .finally(() => {
+        setRespondingId(null);
+      });
   }
 
   return (

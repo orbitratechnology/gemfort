@@ -65,17 +65,20 @@ export function TripBudgetCard({
     const parsed = parseAmountInput(draft.amount);
     if (!Number.isFinite(parsed) || parsed < 0) return;
     setSaving(true);
-    try {
-      await onSaveBudget({
-        budget: parsed,
-        budgetCurrency: draft.currency,
+    await Promise.resolve()
+      .then(async () => {
+        await onSaveBudget({
+          budget: parsed,
+          budgetCurrency: draft.currency,
+        });
+        setEditOpen(false);
+      })
+      .catch(() => {
+        // Parent surfaces the error toast.
+      })
+      .finally(() => {
+        setSaving(false);
       });
-      setEditOpen(false);
-    } catch {
-      // Parent surfaces the error toast.
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (

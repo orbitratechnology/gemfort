@@ -332,44 +332,47 @@ export default function BusinessProfileScreen() {
   async function handleLike() {
     if (!user || !myBusiness || !business || liked || liking) return;
     setLiking(true);
-    try {
-      await sendLike({
-        fromUid: user.uid,
-        fromBusinessId: myBusiness.id,
-        toBusinessId: business.id,
-      });
-      queryClient.setQueryData(
-        ["has-liked", myBusiness.id, business.id],
-        true,
-      );
-      queryClient.setQueryData(
-        ["business", businessId],
-        (prev: Business | null | undefined) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            badges: {
-              ...prev.badges,
-              likeCount: (prev.badges?.likeCount ?? 0) + 1,
-            },
-          };
-        },
-      );
-      toast.success(`You liked ${business.businessName}.`);
-    } catch (e) {
-      const msg = friendlyError(e, "Could not send like.");
-      if (msg.includes("PERMISSION") || msg.includes("already")) {
+    await Promise.resolve()
+      .then(async () => {
+        await sendLike({
+          fromUid: user.uid,
+          fromBusinessId: myBusiness.id,
+          toBusinessId: business.id,
+        });
         queryClient.setQueryData(
           ["has-liked", myBusiness.id, business.id],
           true,
         );
-        toast.show("You already liked this business.");
-      } else {
-        toast.error(msg);
-      }
-    } finally {
-      setLiking(false);
-    }
+        queryClient.setQueryData(
+          ["business", businessId],
+          (prev: Business | null | undefined) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              badges: {
+                ...prev.badges,
+                likeCount: (prev.badges?.likeCount ?? 0) + 1,
+              },
+            };
+          },
+        );
+        toast.success(`You liked ${business.businessName}.`);
+      })
+      .catch((e) => {
+        const msg = friendlyError(e, "Could not send like.");
+        if (msg.includes("PERMISSION") || msg.includes("already")) {
+          queryClient.setQueryData(
+            ["has-liked", myBusiness.id, business.id],
+            true,
+          );
+          toast.show("You already liked this business.");
+        } else {
+          toast.error(msg);
+        }
+      })
+      .finally(() => {
+        setLiking(false);
+      });
   }
 
   if (isLoading || !business) {

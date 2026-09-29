@@ -126,19 +126,22 @@ export function ProfileLocationPicker({
   async function handleUseCurrentLocation() {
     setLocating(true);
     setError(null);
-    try {
-      const next = await detectProfileLocation();
-      if (!next) {
-        setError("Location permission was not granted.");
-        return;
-      }
-      setDraft(next);
-      setRegion(regionFor(next));
-    } catch {
-      setError("Could not detect your location. You can still tap the map.");
-    } finally {
-      setLocating(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const next = await detectProfileLocation();
+        if (!next) {
+          setError("Location permission was not granted.");
+          return;
+        }
+        setDraft(next);
+        setRegion(regionFor(next));
+      })
+      .catch(() => {
+        setError("Could not detect your location. You can still tap the map.");
+      })
+      .finally(() => {
+        setLocating(false);
+      });
   }
 
   async function selectCoordinate(
@@ -150,12 +153,14 @@ export function ProfileLocationPicker({
     setResolving(true);
     setError(null);
     setDraft({ latitude, longitude, label: "Pinned location" });
-    try {
-      const next = await profileLocationFromCoordinates({ latitude, longitude });
-      if (selectionRef.current === selectionId) setDraft(next);
-    } finally {
-      if (selectionRef.current === selectionId) setResolving(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const next = await profileLocationFromCoordinates({ latitude, longitude });
+        if (selectionRef.current === selectionId) setDraft(next);
+      })
+      .finally(() => {
+        if (selectionRef.current === selectionId) setResolving(false);
+      });
   }
 
   return (

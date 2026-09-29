@@ -41,7 +41,6 @@ import {
   PRIVACY_URL,
   TERMS_URL,
 } from "@/constants/legal";
-import type { LegalAcceptance } from "@/constants/legal";
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReduceMotion } from "@/hooks/use-reduce-motion";
@@ -197,7 +196,18 @@ export default function RegisterScreen() {
       await finishPendingSocial();
       return;
     }
-    await handleSocialRegister(signInWithGoogle);
+    if (!requireLegalAcceptance()) return;
+    try {
+      await withLoading(async () => {
+        await signInWithGoogle(role!, CURRENT_LEGAL_ACCEPTANCE);
+        router.replace({
+          pathname: "/(auth)/complete-phone",
+          params: { afterRegistration: "1" },
+        });
+      }, "Creating account...");
+    } catch (error) {
+      toast.error(friendlyError(error, "Google Sign-In could not be completed."));
+    }
   }
 
   async function handleRegister() {
@@ -246,12 +256,7 @@ export default function RegisterScreen() {
     }
   }
 
-  async function handleSocialRegister(
-    signIn: (
-      selectedRole: UserRole,
-      legalAcceptance: LegalAcceptance,
-    ) => Promise<Awaited<ReturnType<typeof signInWithApple>>>,
-  ) {
+  async function handleSocialRegister(provider: "google" | "apple") {
     if (!role) {
       setErrors({ role: "Choose a role to continue." });
       toast.error("Choose a role to continue.");
@@ -260,7 +265,11 @@ export default function RegisterScreen() {
     if (!requireLegalAcceptance()) return;
     try {
       await withLoading(async () => {
-        await signIn(role, CURRENT_LEGAL_ACCEPTANCE);
+        if (provider === "google") {
+          await signInWithGoogle(role, CURRENT_LEGAL_ACCEPTANCE);
+        } else {
+          await signInWithApple(role, CURRENT_LEGAL_ACCEPTANCE);
+        }
         router.replace({
           pathname: "/(auth)/complete-phone",
           params: { afterRegistration: "1" },
@@ -446,7 +455,7 @@ export default function RegisterScreen() {
             <SocialAuthButtons
               appleButtonType="signUp"
               onGooglePress={handleGoogleRegister}
-              onApplePress={() => handleSocialRegister(signInWithApple)}
+              onApplePress={() => handleSocialRegister("apple")}
             />
           </View>
 

@@ -68,6 +68,7 @@ export function BusinessGalleryCarousel({
   const programmaticRef = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleAutoRef = useRef<(() => void) | null>(null);
   const [index, setIndex] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -88,6 +89,7 @@ export function BusinessGalleryCarousel({
     countRef.current = count;
     loopDataRef.current = loopData;
     strideRef.current = stride;
+    scheduleAutoRef.current = scheduleAuto;
   });
 
   function clearTimers() {
@@ -137,7 +139,7 @@ export function BusinessGalleryCarousel({
       settleTimer.current = setTimeout(() => {
         settle(next);
         programmaticRef.current = false;
-        scheduleAuto();
+        scheduleAutoRef.current?.();
       }, SCROLL_MS);
     }, autoMs);
   }

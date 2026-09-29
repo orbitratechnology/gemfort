@@ -126,26 +126,28 @@ export function ContactPicker({
     }
 
     setResolving(true);
-    try {
-      const business =
-        businesses.find((b) => b.id === selection.businessId) ??
-        (await fetchBusinesses()).find((b) => b.id === selection.businessId);
-      if (!business) {
-        onChange('');
-        return;
-      }
-      const { contactId } = await ensureContactForBusiness(
-        user.uid,
-        business,
-        contacts,
-      );
-      await queryClient.invalidateQueries({ queryKey: ['contacts', user.uid] });
-      onPartyChange?.({ ...selection, linkedContactId: contactId });
-      onChange(contactId);
-      onCustomNameChange?.('');
-    } finally {
-      setResolving(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const business =
+          businesses.find((b) => b.id === selection.businessId) ??
+          (await fetchBusinesses()).find((b) => b.id === selection.businessId);
+        if (!business) {
+          onChange('');
+          return;
+        }
+        const { contactId } = await ensureContactForBusiness(
+          user.uid,
+          business,
+          contacts,
+        );
+        await queryClient.invalidateQueries({ queryKey: ['contacts', user.uid] });
+        onPartyChange?.({ ...selection, linkedContactId: contactId });
+        onChange(contactId);
+        onCustomNameChange?.('');
+      })
+      .finally(() => {
+        setResolving(false);
+      });
   }
 
   const subtitle = selected
