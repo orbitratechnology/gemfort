@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { removeLegacyAndroidReminders } from '@/features/calendar-sync/remove-legacy-android-reminders';
 import { navigateFromNotificationRef } from '@/lib/notification-navigation';
 import { handleNotificationAction } from '@/lib/notifications/actions';
 import {
@@ -49,6 +50,7 @@ export function PushNotificationRegistrar() {
   usePushNotifications();
 
   useEffect(() => {
+    void removeLegacyAndroidReminders();
     void ensureAndroidNotificationChannels();
     void ensureNotifeeChannels();
     void registerNotificationCategories();

@@ -87,6 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: bundleId,
+    permissions: ["READ_CALENDAR", "WRITE_CALENDAR"],
     // Keep focused inputs visible above the keyboard (esp. with bottom tabs).
     softwareKeyboardLayoutMode: "pan",
     adaptiveIcon: {
@@ -175,6 +176,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-secure-store",
+    [
+      "expo-calendar",
+      {
+        writeOnlyAccess: true,
+        writeOnlyCalendarPermission:
+          "GemFort adds trip dates, cheque maturity dates, bill due dates, AP return and payment due dates, and service return dates to your device calendar.",
+        remindersPermission:
+          "GemFort adds due dates for your open bills, payments, returns, and services to your device reminders.",
+      },
+    ],
     "expo-status-bar",
     "expo-web-browser",
     ...(!isIosPersonalTeamBuild ? ["expo-apple-authentication"] : []),

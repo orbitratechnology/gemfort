@@ -91,14 +91,14 @@ export function CashFlowGraph({ buckets, formatAmount }: CashFlowGraphProps) {
   );
   const selectedBucket = buckets[resolvedIndex];
   const net = selectedBucket.income - selectedBucket.expense;
-  const axisLabels =
+  const axisBuckets =
     buckets.length > 2
       ? [
-          buckets[0].label,
-          buckets[Math.floor((buckets.length - 1) / 2)].label,
-          buckets[buckets.length - 1].label,
+          buckets[0],
+          buckets[Math.floor((buckets.length - 1) / 2)],
+          buckets[buckets.length - 1],
         ]
-      : buckets.map((bucket) => bucket.label);
+      : buckets;
 
   return (
     <View style={styles.container}>
@@ -156,11 +156,11 @@ export function CashFlowGraph({ buckets, formatAmount }: CashFlowGraphProps) {
       </View>
 
       <View style={styles.axisLabels}>
-        {axisLabels.map((label, index) => (
+        {axisBuckets.map((bucket) => (
           <Text
-            key={`${label}-${index}`}
+            key={bucket.key}
             style={[styles.axisLabel, { color: colors.textMuted }]}>
-            {label}
+            {bucket.label}
           </Text>
         ))}
       </View>

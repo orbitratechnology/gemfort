@@ -110,7 +110,7 @@ export async function ensureNotifeeChannels() {
   await notifee.createChannel({
     id: ANDROID_CHANNELS.progress,
     name: 'Ongoing activity',
-    description: 'Quiet progress for active trips, APs, cheques, bills, and services',
+    description: 'Quiet reminders for trips and items due or expected back',
     importance: AndroidImportance.LOW,
     vibration: false,
     badge: false,

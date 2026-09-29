@@ -1,11 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
+    Pressable,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
     PickerSelectField,
     ProviderPickerSheet,
@@ -23,6 +24,9 @@ import {
     GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
+import { commitmentDeepLink } from "@/features/calendar-sync/links";
+import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import {
     fetchBusiness,
     fetchBusinessByOwnerUid,
@@ -30,17 +34,17 @@ import {
 import {
     createServiceRequest,
 } from "@/features/marketplace/request-service";
-import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import {
     subscribeContacts,
     subscribeGems,
 } from "@/features/workspace/firestore-subscriptions";
+import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
+import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
     createService,
     fetchContacts,
     fetchGems,
 } from "@/features/workspace/workspace-service";
-import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
@@ -84,6 +88,8 @@ export default function AddServiceScreen() {
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [providerSheetOpen, setProviderSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
+  const [reminderSyncEnabled, setReminderSyncEnabled] = useState(true);
 
   const { data: gems = [] } = useFirestoreLiveQuery({
     queryKey: ["gems", user?.uid],
@@ -154,6 +160,9 @@ export default function AddServiceScreen() {
 
     try {
       await withLoading(async () => {
+        const expectedReturnDate = new Date(
+          Date.now() + result.data.daysUntilReturn * 86400000,
+        );
         if (provider.source === "business") {
           const [biz, senderBusiness] = await Promise.all([
             fetchBusiness(provider.businessId),
@@ -171,7 +180,7 @@ export default function AddServiceScreen() {
             gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
           const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
 
-          await createServiceRequest({
+          const id = await createServiceRequest({
             traderUid: user.uid,
             traderBusinessId: senderBusiness?.id ?? null,
             traderBusinessName: senderBusiness?.businessName ?? null,
@@ -187,13 +196,37 @@ export default function AddServiceScreen() {
             expectedReturnDays: result.data.daysUntilReturn,
             weightBefore: result.data.weightBefore,
           });
+          if (calendarSyncEnabled) {
+            const commitment = makeSyncCommitment({
+              surface: "calendar",
+              sourceType: "service",
+              sourceId: id,
+              title: "Service return due",
+              date: expectedReturnDate,
+              url: commitmentDeepLink("service", id),
+            });
+            if ((await writeCommitmentToDevice(commitment)) === false) {
+              toast.info("Service request sent, but its calendar entry could not be added.");
+            }
+          }
+          if (reminderSyncEnabled) {
+            const commitment = makeSyncCommitment({
+              surface: "reminder",
+              sourceType: "service",
+              sourceId: id,
+              title: "Service return due",
+              date: expectedReturnDate,
+              url: commitmentDeepLink("service", id),
+            });
+            if ((await writeCommitmentToDevice(commitment)) === false) {
+              toast.info("Service request sent, but its reminder could not be added.");
+            }
+          }
           toast.success("Service request sent");
           router.back();
           return;
         }
-        const expectedReturn = Timestamp.fromDate(
-          new Date(Date.now() + result.data.daysUntilReturn * 86400000),
-        );
+        const expectedReturn = Timestamp.fromDate(expectedReturnDate);
         const id = await createService(user.uid, {
           gemId: result.data.gemId,
           serviceType: result.data.serviceType,
@@ -212,6 +245,32 @@ export default function AddServiceScreen() {
           agreedPriceCurrency: null,
           advancePaid: 0,
         });
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "service",
+            sourceId: id,
+            title: "Service return due",
+            date: expectedReturnDate,
+            url: commitmentDeepLink("service", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Service saved, but its calendar entry could not be added.");
+          }
+        }
+        if (reminderSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "reminder",
+            sourceType: "service",
+            sourceId: id,
+            title: "Service return due",
+            date: expectedReturnDate,
+            url: commitmentDeepLink("service", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Service saved, but its reminder could not be added.");
+          }
+        }
         toast.success("Service record created");
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
       }, "Adding service…");
@@ -319,6 +378,7 @@ export default function AddServiceScreen() {
         </FormSection>
 
         <ScreenInset style={styles.footer}>
+         
           <PickerSelectField
             label="Provider"
             valueLabel={provider?.label ?? null}
@@ -343,6 +403,19 @@ export default function AddServiceScreen() {
             icon="service"
             onPress={() => setProviderSheetOpen(true)}
             error={errors.provider}
+          />
+
+           <CalendarSyncToggle
+            surface="calendar"
+            value={calendarSyncEnabled}
+            onValueChange={setCalendarSyncEnabled}
+            colors={colors}
+          />
+          <CalendarSyncToggle
+            surface="reminder"
+            value={reminderSyncEnabled}
+            onValueChange={setReminderSyncEnabled}
+            colors={colors}
           />
 
           <Button

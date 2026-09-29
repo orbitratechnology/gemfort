@@ -304,15 +304,14 @@ export default function AddGemScreen() {
     void handleSubmit();
   }
 
-  async function toggleOptional() {
+  function toggleOptional() {
+    const next = !showOptional;
+    revealDetailsOnLayout.current = next;
+    setShowOptional(next);
+
     if (process.env.EXPO_OS === "ios") {
-      await Haptics.selectionAsync();
+      void Haptics.selectionAsync();
     }
-    setShowOptional((prev) => {
-      const next = !prev;
-      revealDetailsOnLayout.current = next;
-      return next;
-    });
   }
 
   async function handleSubmit() {

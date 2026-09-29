@@ -16,10 +16,14 @@ import { Input } from '@/components/ui/input';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
+import { CalendarSyncToggle } from '@/components/workspace/calendar-sync-toggle';
 import { cityBelongsToCountry } from '@/constants/cities';
 import { Spacing } from '@/constants/design-tokens';
 import { TRIP_TYPES } from '@/constants/trip-options';
 import { createTrip } from '@/features/workspace/workspace-service';
+import { commitmentDeepLink } from '@/features/calendar-sync/links';
+import { makeSyncCommitment } from '@/features/calendar-sync/commitments';
+import { writeCommitmentToDevice } from '@/features/calendar-sync/sync-item';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
@@ -51,6 +55,7 @@ export default function AddTripScreen() {
   });
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
 
   const typeMeta = TRIP_TYPES.find((t) => t.id === tripType);
 
@@ -97,8 +102,10 @@ export default function AddTripScreen() {
     try {
       await withLoading(async () => {
         const data = result.data;
-        const start = Timestamp.now();
-        const end = Timestamp.fromDate(addDays(new Date(), data.durationDays));
+        const startDate = new Date();
+        const endDate = addDays(startDate, data.durationDays);
+        const start = Timestamp.fromDate(startDate);
+        const end = Timestamp.fromDate(endDate);
         const id = await createTrip(user.uid, {
           tripName: data.tripName,
           tripType: data.tripType,
@@ -112,6 +119,20 @@ export default function AddTripScreen() {
           cashCarriedCurrency: budget.currency,
           notes: data.notes || null,
         });
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "trip",
+            sourceId: id,
+            title: `Trip: ${data.tripName}`,
+            date: startDate,
+            endDate,
+            url: commitmentDeepLink("trip", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Trip saved, but its calendar entry could not be added.");
+          }
+        }
         toast.success('Trip created.');
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
       }, 'Creating trip…');
@@ -241,6 +262,14 @@ export default function AddTripScreen() {
                 placeholder="Optional"
                 leftIcon="notes"
                 error={errors.notes}
+              />
+            </FormSection>
+            <FormSection>
+              <CalendarSyncToggle
+                surface="calendar"
+                value={calendarSyncEnabled}
+                onValueChange={setCalendarSyncEnabled}
+                colors={colors}
               />
             </FormSection>
           </ThemedScrollView>

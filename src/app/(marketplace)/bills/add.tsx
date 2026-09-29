@@ -28,6 +28,7 @@ import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
+import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
     GemPickerSheet,
@@ -62,6 +63,9 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
+import { commitmentDeepLink } from "@/features/calendar-sync/links";
+import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
+import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import { uploadReceipt } from "@/lib/firebase/receipt-service";
 import type { LocalMedia } from "@/lib/firebase/storage-service";
 import { decodeShareParam } from "@/lib/incoming-share";
@@ -151,6 +155,8 @@ export default function AddBillScreen() {
   const [gemSheetOpen, setGemSheetOpen] = useState(false);
   const [jobSheetOpen, setJobSheetOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
+  const [reminderSyncEnabled, setReminderSyncEnabled] = useState(true);
 
   if (isLapidary && direction !== "receivable") {
     setDirection("receivable");
@@ -281,9 +287,8 @@ export default function AddBillScreen() {
     setErrors({});
     try {
       await withLoading(async () => {
-        const dueDate = Timestamp.fromDate(
-          addDays(new Date(), result.data.dueDays),
-        );
+        const dueDateValue = addDays(new Date(), result.data.dueDays);
+        const dueDate = Timestamp.fromDate(dueDateValue);
         const receiptUrl = await uploadReceipt(user.uid, receipt);
         const id = await createBill(user.uid, {
           direction: result.data.direction,
@@ -298,6 +303,32 @@ export default function AddBillScreen() {
           jobId: jobId || null,
           status: jobId ? "ongoing" : "open",
         });
+        if (calendarSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "calendar",
+            sourceType: "bill",
+            sourceId: id,
+            title: `Bill due: ${result.data.direction}`,
+            date: dueDateValue,
+            url: commitmentDeepLink("bill", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Bill saved, but its calendar entry could not be added.");
+          }
+        }
+        if (reminderSyncEnabled) {
+          const commitment = makeSyncCommitment({
+            surface: "reminder",
+            sourceType: "bill",
+            sourceId: id,
+            title: `Bill due: ${result.data.direction}`,
+            date: dueDateValue,
+            url: commitmentDeepLink("bill", id),
+          });
+          if ((await writeCommitmentToDevice(commitment)) === false) {
+            toast.info("Bill saved, but its reminder could not be added.");
+          }
+        }
         void queryClient.invalidateQueries({ queryKey: ["bills"] });
         toast.success(
           isLapidary
@@ -540,6 +571,20 @@ export default function AddBillScreen() {
                 multiline
               />
               <ReceiptField value={receipt} onChange={setReceipt} />
+            </FormSection>
+            <FormSection>
+              <CalendarSyncToggle
+                surface="calendar"
+                value={calendarSyncEnabled}
+                onValueChange={setCalendarSyncEnabled}
+                colors={colors}
+              />
+              <CalendarSyncToggle
+                surface="reminder"
+                value={reminderSyncEnabled}
+                onValueChange={setReminderSyncEnabled}
+                colors={colors}
+              />
             </FormSection>
           </ThemedScrollView>
 

@@ -371,13 +371,14 @@ export default function LapidaryJobDetailScreen() {
           ? colors.errorContainer
           : colors.surfaceContainerHighest;
   const steps = progressSteps(service);
-  const serviceTypes = (service.serviceTypes?.length
-    ? service.serviceTypes
-    : [service.serviceType]
-  ).filter(Boolean);
-  const serviceLabels = serviceTypes.map((type) =>
-    type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase()),
-  );
+  const serviceTypes = [
+    ...new Set(
+      (service.serviceTypes?.length
+        ? service.serviceTypes
+        : [service.serviceType]
+      ).filter(Boolean),
+    ),
+  ];
   const nextStatus =
     service.status === "given"
       ? "in_progress"
@@ -494,14 +495,16 @@ export default function LapidaryJobDetailScreen() {
 
         <FormSection title="Services">
           <View style={styles.serviceList}>
-            {serviceLabels.map((label, index) => (
-              <View key={`${label}-${index}`} style={styles.serviceChip}>
+            {serviceTypes.map((type) => (
+              <View key={type} style={styles.serviceChip}>
                 <Icon
-                  name={serviceIcon(serviceTypes[index] ?? service.serviceType)}
+                  name={serviceIcon(type)}
                   size={18}
                   color={colors.primary}
                 />
-                <Text style={[styles.serviceLabel, { color: colors.onSurface }]}>{label}</Text>
+                <Text style={[styles.serviceLabel, { color: colors.onSurface }]}>
+                  {type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase())}
+                </Text>
               </View>
             ))}
           </View>
