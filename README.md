@@ -217,27 +217,21 @@ bun install
 
 ### 2. Environment
 
-```bash
-cp .env.example .env
-```
-
-Fill in Firebase web config values:
+Local Expo commands load their environment from Doppler's `gemfort/dev_personal` config through the repository's `doppler.yaml`. Set up the directory once:
 
 ```bash
-EXPO_PUBLIC_APP_ENV=development
-EXPO_PUBLIC_FIREBASE_API_KEY=
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=gemfort.firebaseapp.com
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=gemfort
-EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=gemfort.firebasestorage.app
-EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=478360291449
-EXPO_PUBLIC_FIREBASE_APP_ID=
+doppler setup --no-interactive
 ```
+
+The normal Bun commands invoke Doppler automatically, so use `bun run start:dev-client`, `bun run prebuild`, `bun run ios`, or `bun run android` directly. The `EXPO_PUBLIC_*` values are public client configuration and must match the values maintained in Doppler.
+
+Cloud builds and updates use the EAS environment selected by the profile in `eas.json`; those values are maintained in EAS separately from local Doppler values.
 
 One Firebase project (`gemfort`) and one native app ID (`app.gemfort`) are used across development, preview, and production. The shared native config files are supplied through EAS or kept locally as ignored files.
 
 ### 3. Native Google Services
 
-Place the correct files for your environment (or set `GOOGLE_SERVICES_JSON` / `GOOGLE_SERVICES_PLIST` for EAS):
+Place the files locally, or refresh them from Firebase with `bun run firebase:sync`. Cloud builds receive `GOOGLE_SERVICES_JSON` and `GOOGLE_SERVICES_PLIST` as EAS file variables; update those with `bun run firebase:sync:eas` when Firebase native configuration changes:
 
 | Env | Android package / iOS bundle | Typical files |
 |-----|------------------------------|---------------|

@@ -118,7 +118,7 @@
     "test:ap-sale-emulator": "firebase emulators:exec --only firestore \"node scripts/test-ap-sale-emulator.cjs\"",
     "test:ap-payment-emulator": "firebase emulators:exec --only firestore \"node scripts/test-ap-payment-emulator.cjs\"",
     "test:functions": "npm --prefix functions run test",
-    "seed": "npx tsx scripts/seed-marketplace.ts",
+    "seed": "doppler run -- npx tsx scripts/seed-marketplace.ts",
     "seed:admin": "node scripts/seed-admin.mjs",
     "seed:qa": "node scripts/seed-qa.mjs",
     "update:dev": "eas update --channel development --environment development",

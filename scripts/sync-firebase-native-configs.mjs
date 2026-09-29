@@ -5,9 +5,17 @@ import { tmpdir } from "node:os";
 
 const root = resolve(import.meta.dirname, "..");
 const uploadToEas = process.argv.includes("--upload-eas");
-const requestedEnvironment = process.argv.find((arg) =>
-  ["development", "preview", "production"].includes(arg),
-);
+const environmentArgs = process.argv
+  .slice(2)
+  .filter((arg) => !arg.startsWith("--"));
+
+if (environmentArgs.length > 1) {
+  throw new Error(
+    `Expected at most one environment (development, preview, production), got: ${environmentArgs.join(", ")}`,
+  );
+}
+
+const requestedEnvironment = environmentArgs[0];
 
 const nativeConfig = {
   packageName: "app.gemfort",
@@ -21,6 +29,12 @@ const environments = {
   preview: nativeConfig,
   production: nativeConfig,
 };
+
+if (requestedEnvironment && !Object.hasOwn(environments, requestedEnvironment)) {
+  throw new Error(
+    `Unknown environment "${requestedEnvironment}". Use development, preview, or production.`,
+  );
+}
 
 const selected = requestedEnvironment
   ? { [requestedEnvironment]: environments[requestedEnvironment] }
@@ -108,7 +122,7 @@ try {
           "--type",
           "file",
           "--visibility",
-          "sensitive",
+          "secret",
           "--non-interactive",
         ]);
       }
@@ -120,6 +134,6 @@ try {
 
 console.log(
   uploadToEas
-    ? "Firebase native configs synced locally and uploaded to EAS as sensitive file variables."
+    ? "Firebase native configs synced locally and uploaded to EAS as secret file variables."
     : "Firebase native configs synced locally. Pass --upload-eas to update EAS file variables.",
 );
