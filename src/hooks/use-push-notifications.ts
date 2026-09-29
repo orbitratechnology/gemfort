@@ -94,16 +94,19 @@ export function usePushNotifications() {
       const uid = uidRef.current;
       if (cancelled || registeringRef.current || !uid) return;
       registeringRef.current = true;
-      try {
-        const token = await registerPushTokenForUser(uid, tokenRef.current.token);
-        if (token && tokenRef.current.uid === uid) {
-          tokenRef.current.token = token;
-        }
-      } catch {
-        // Registration is retried when the app becomes active.
-      } finally {
-        registeringRef.current = false;
-      }
+      await Promise.resolve()
+        .then(async () => {
+          const token = await registerPushTokenForUser(uid, tokenRef.current.token);
+          if (token && tokenRef.current.uid === uid) {
+            tokenRef.current.token = token;
+          }
+        })
+        .catch(() => {
+          // Registration is retried when the app becomes active.
+        })
+        .finally(() => {
+          registeringRef.current = false;
+        });
     };
 
     pushTokenSubscription = Notifications.addPushTokenListener((nextToken) => {

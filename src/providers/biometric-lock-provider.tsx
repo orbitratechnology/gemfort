@@ -102,18 +102,19 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
         setIsAuthenticating(true);
       }
 
-      try {
-        const result = await LocalAuthentication.authenticateAsync();
-        if (!result.success) return false;
-        await persistUnlock(user.uid);
-        if (mountedRef.current) setLocked(false);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        if (mountedRef.current) setIsAuthenticating(false);
-        authPromiseRef.current = null;
-      }
+      return Promise.resolve()
+        .then(async () => {
+          const result = await LocalAuthentication.authenticateAsync();
+          if (!result.success) return false;
+          await persistUnlock(user.uid);
+          if (mountedRef.current) setLocked(false);
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => {
+          if (mountedRef.current) setIsAuthenticating(false);
+          authPromiseRef.current = null;
+        });
     })();
 
     authPromiseRef.current = promise;
@@ -143,29 +144,32 @@ export function BiometricLockProvider({ children }: { children: ReactNode }) {
       }
       setIsLoading(true);
 
-      try {
-        const [capability, stored, storedUnlockedAt] = await Promise.all([
-          getAvailability(),
-          SecureStore.getItemAsync(storageKey(user.uid)),
-          SecureStore.getItemAsync(unlockedAtKey(user.uid)),
-        ]);
-        if (cancelled) return;
-        const parsed = storedUnlockedAt ? Number(storedUnlockedAt) : NaN;
-        const lastUnlockedAt = Number.isFinite(parsed) ? parsed : null;
-        unlockedAtRef.current = lastUnlockedAt;
-        setAvailable(capability.available);
-        setMethod(capability.label);
-        setEnabledState(stored === "1");
-        setLocked(stored === "1" && capability.available && !isWithinGracePeriod(lastUnlockedAt));
-      } catch {
-        if (!cancelled) {
-          setAvailable(false);
-          setEnabledState(false);
-          setLocked(false);
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
+      await Promise.resolve()
+        .then(async () => {
+          const [capability, stored, storedUnlockedAt] = await Promise.all([
+            getAvailability(),
+            SecureStore.getItemAsync(storageKey(user.uid)),
+            SecureStore.getItemAsync(unlockedAtKey(user.uid)),
+          ]);
+          if (cancelled) return;
+          const parsed = storedUnlockedAt ? Number(storedUnlockedAt) : NaN;
+          const lastUnlockedAt = Number.isFinite(parsed) ? parsed : null;
+          unlockedAtRef.current = lastUnlockedAt;
+          setAvailable(capability.available);
+          setMethod(capability.label);
+          setEnabledState(stored === "1");
+          setLocked(stored === "1" && capability.available && !isWithinGracePeriod(lastUnlockedAt));
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setAvailable(false);
+            setEnabledState(false);
+            setLocked(false);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false);
+        });
     }
 
     void loadPreference();

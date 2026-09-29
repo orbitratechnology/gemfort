@@ -136,16 +136,15 @@ export default function AccountSettingsScreen() {
 
   async function runDelete() {
     setDeleteErrors({});
+    const deletion = hasPasswordProvider
+      ? () => deleteAccount(deletePassword)
+      : socialProvider
+        ? () => deleteAccountWithProvider(socialProvider)
+        : () => Promise.reject(
+            new Error("Sign in again with your original provider to delete this account."),
+          );
     try {
-      if (hasPasswordProvider) {
-        await deleteAccount(deletePassword);
-      } else if (socialProvider) {
-        await deleteAccountWithProvider(socialProvider);
-      } else {
-        throw new Error(
-          "Sign in again with your original provider to delete this account.",
-        );
-      }
+      await deletion();
       toast.success("Your account has been deleted.");
       router.replace("/(marketplace)/(tabs)/home");
     } catch (error) {

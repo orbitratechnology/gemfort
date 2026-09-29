@@ -217,11 +217,14 @@ export default function NotificationsScreen() {
   const handleAction = useCallback(
     async (n: AppNotification, actionId: InboxActionId) => {
       const key = `${n.id}:${actionId}`;
-      try {
-        setBusyKey(key);
+      setBusyKey(key);
+      await Promise.resolve().then(async () => {
 
         if (actionId === "accept_ap" || actionId === "decline_ap") {
-          if (!n.referenceId) throw new Error("This notification is no longer available.");
+          if (!n.referenceId) {
+            await Promise.reject(new Error("This notification is no longer available."));
+            return;
+          }
           await respondApRequest(
             n.referenceId,
             actionId === "accept_ap" ? "accepted" : "rejected",
@@ -238,7 +241,10 @@ export default function NotificationsScreen() {
           actionId === "accept_ap_cancel" ||
           actionId === "decline_ap_cancel"
         ) {
-          if (!n.referenceId) throw new Error("This notification is no longer available.");
+          if (!n.referenceId) {
+            await Promise.reject(new Error("This notification is no longer available."));
+            return;
+          }
           await respondApCancellation(
             n.referenceId,
             actionId === "accept_ap_cancel" ? "accepted" : "rejected",
@@ -273,10 +279,14 @@ export default function NotificationsScreen() {
         }
 
         if (actionId === "add_service_bill") {
-          if (!n.referenceId) throw new Error("This notification is no longer available.");
+          if (!n.referenceId) {
+            await Promise.reject(new Error("This notification is no longer available."));
+            return;
+          }
           const service = await fetchService(n.referenceId);
           if (!service?.finalCost || !service.paymentDueDate) {
-            throw new Error("Completion details are not available yet.");
+            await Promise.reject(new Error("Completion details are not available yet."));
+            return;
           }
           await markRead(n);
           if (router.canDismiss()) router.dismiss();
@@ -325,11 +335,11 @@ export default function NotificationsScreen() {
           { fromInbox: true },
           n.type,
         );
-      } catch (e) {
+      }).catch((e) => {
         toast.error(friendlyError(e, "Could not complete that action."));
-      } finally {
+      }).finally(() => {
         setBusyKey(null);
-      }
+      });
     },
     [markRead, queryClient, toast],
   );

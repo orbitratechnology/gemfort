@@ -97,16 +97,19 @@ export default function ReportsScreen() {
 
   async function handleExport(type: FinancialReportType) {
     setExporting(type);
-    try {
-      const html = buildReportHtml(type, period, reportData);
-      const meta = REPORT_TYPES.find((r) => r.id === type);
-      await exportReportPdf(html, `GemFort-${meta?.label ?? type}.pdf`);
-      toast.success('Report ready to share.');
-    } catch (e) {
-      toast.error(friendlyError(e, 'Could not generate PDF.'));
-    } finally {
-      setExporting(null);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const html = buildReportHtml(type, period, reportData);
+        const meta = REPORT_TYPES.find((r) => r.id === type);
+        await exportReportPdf(html, `GemFort-${meta?.label ?? type}.pdf`);
+        toast.success('Report ready to share.');
+      })
+      .catch((e) => {
+        toast.error(friendlyError(e, 'Could not generate PDF.'));
+      })
+      .finally(() => {
+        setExporting(null);
+      });
   }
 
   return (

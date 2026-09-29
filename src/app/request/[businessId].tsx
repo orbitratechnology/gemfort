@@ -258,34 +258,37 @@ export default function RequestServiceScreen() {
     }
     setErrors({});
     setSubmitting(true);
-    try {
-      await withLoading(async () => {
-        const gemName = gemDisplayName(gem!);
-        await createServiceRequest({
-          traderUid: user.uid,
-          traderBusinessId: myBusiness?.id ?? null,
-          traderBusinessName: myBusiness?.businessName ?? null,
-          traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
-          lapidaryBusinessId: business.id,
-          providerName: business.businessName,
-          providerBusinessName: business.businessName,
-          providerBusinessLogoUrl: business.logoUrl,
-          gemId: gem!.id,
-          gemName,
-          gemPhotoUrl: gemPrimaryPhotoUrl(gem),
-          serviceTypes: selectedServiceTypes,
-          notes,
-          expectedReturnDays: 14,
-          weightBefore: gem!.currentWeight,
-        });
-        toast.success("Service request sent.");
-        router.back();
-      }, "Sending request…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not send request."));
-    } finally {
-      setSubmitting(false);
-    }
+    await Promise.resolve()
+      .then(() =>
+        withLoading(async () => {
+          const gemName = gemDisplayName(gem!);
+          await createServiceRequest({
+            traderUid: user.uid,
+            traderBusinessId: myBusiness?.id ?? null,
+            traderBusinessName: myBusiness?.businessName ?? null,
+            traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
+            lapidaryBusinessId: business.id,
+            providerName: business.businessName,
+            providerBusinessName: business.businessName,
+            providerBusinessLogoUrl: business.logoUrl,
+            gemId: gem!.id,
+            gemName,
+            gemPhotoUrl: gemPrimaryPhotoUrl(gem),
+            serviceTypes: selectedServiceTypes,
+            notes,
+            expectedReturnDays: 14,
+            weightBefore: gem!.currentWeight,
+          });
+          toast.success("Service request sent.");
+          router.back();
+        }, "Sending request…"),
+      )
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not send request."));
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
   }
 
   const placeLine = [business?.city, business?.district]

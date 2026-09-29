@@ -120,39 +120,45 @@ export default function SettingsScreen() {
   async function handlePushToggle(next: boolean) {
     if (!user || togglingPush) return;
     setTogglingPush(true);
-    try {
-      const nextPrefs = {
-        ...(profile?.notificationPreferences ?? {}),
-        pushEnabled: next,
-      };
-      await updateNotificationPreferences(user.uid, nextPrefs);
-      if (next) {
-        await registerPushTokenForUser(user.uid);
-      } else {
-        await updateFcmToken(user.uid, null);
-      }
-      await refreshProfile();
-      toast.success(
-        next ? "Notifications enabled." : "Notifications disabled.",
-      );
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not update notification settings."));
-    } finally {
-      setTogglingPush(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const nextPrefs = {
+          ...(profile?.notificationPreferences ?? {}),
+          pushEnabled: next,
+        };
+        await updateNotificationPreferences(user.uid, nextPrefs);
+        if (next) {
+          await registerPushTokenForUser(user.uid);
+        } else {
+          await updateFcmToken(user.uid, null);
+        }
+        await refreshProfile();
+        toast.success(
+          next ? "Notifications enabled." : "Notifications disabled.",
+        );
+      })
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not update notification settings."));
+      })
+      .finally(() => {
+        setTogglingPush(false);
+      });
   }
 
   async function handleBiometricToggle(next: boolean) {
     if (togglingBiometric) return;
     setTogglingBiometric(true);
-    try {
-      await biometric.setEnabled(next);
-      toast.success(next ? "Biometric lock enabled." : "Biometric lock disabled.");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not update biometric lock."));
-    } finally {
-      setTogglingBiometric(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        await biometric.setEnabled(next);
+        toast.success(next ? "Biometric lock enabled." : "Biometric lock disabled.");
+      })
+      .catch((error) => {
+        toast.error(friendlyError(error, "Could not update biometric lock."));
+      })
+      .finally(() => {
+        setTogglingBiometric(false);
+      });
   }
 
   return (

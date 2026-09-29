@@ -165,46 +165,49 @@ export function WorkspaceModules({ groups, colors }: WorkspaceModulesProps) {
   const visible = groups.filter((g) => g.items.length > 0);
   if (visible.length === 0) return null;
 
-  let tileIndex = 0;
-
   return (
     <View style={styles.section}>
-      {visible.map((group, groupIndex) => (
-        <Animated.View
-          key={group.id}
-          entering={FadeInDown.delay(groupIndex * 60)
-            .duration(320)
-            .springify()
-            .damping(20)}
-          style={styles.groupBlock}
-        >
-          <View style={styles.groupHeader}>
-            <View
-              style={[styles.groupAccent, { backgroundColor: colors.primary }]}
-            />
-            <Text
-              style={[styles.groupTitle, { color: colors.onSurfaceVariant }]}
-            >
-              {group.title}
-            </Text>
-          </View>
+      {visible.map((group, groupIndex) => {
+        const tileStart = visible
+          .slice(0, groupIndex)
+          .reduce((total, previousGroup) => total + previousGroup.items.length, 0);
 
-          <View style={styles.grid}>
-            {group.items.map((item) => {
-              const i = tileIndex++;
-              return (
-                <ModuleTile
-                  key={item.label}
-                  item={item}
-                  colors={colors}
-                  index={i}
-                  isDark={isDark}
-                />
-              );
-            })}
-          </View>
-        </Animated.View>
-      ))}
+        return (
+          <Animated.View
+            key={group.id}
+            entering={FadeInDown.delay(groupIndex * 60)
+              .duration(320)
+              .springify()
+              .damping(20)}
+            style={styles.groupBlock}
+          >
+            <View style={styles.groupHeader}>
+              <View
+                style={[styles.groupAccent, { backgroundColor: colors.primary }]}
+              />
+              <Text
+                style={[styles.groupTitle, { color: colors.onSurfaceVariant }]}
+              >
+                {group.title}
+              </Text>
+            </View>
+
+            <View style={styles.grid}>
+              {group.items.map((item, itemIndex) => {
+                return (
+                  <ModuleTile
+                    key={item.label}
+                    item={item}
+                    colors={colors}
+                    index={tileStart + itemIndex}
+                    isDark={isDark}
+                  />
+                );
+              })}
+            </View>
+          </Animated.View>
+        );
+      })}
     </View>
   );
 }

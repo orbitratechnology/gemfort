@@ -409,27 +409,32 @@ export default function PublicListingScreen() {
     }
     setOfferError(null);
     setOfferSaving(true);
-    try {
-      await withLoading(async () => {
-        await submitListingOffer({
-          listing: activeListing,
-          buyerUid: user.uid,
-          buyerName:
-            myBusiness?.businessName?.trim() ||
-            "Buyer",
-          buyerBusiness: myBusiness,
-          amount: result.data.amount,
-          currency: offerAmount.currency,
-          message: result.data.message ?? "",
-        });
-      }, "Sending offer…");
-      setOfferOpen(false);
-      toast.success("Offer sent. The seller was notified.");
-    } catch (e) {
-      setOfferError(friendlyError(e, "Could not send offer."));
-    } finally {
-      setOfferSaving(false);
-    }
+    await Promise.resolve()
+      .then(() =>
+        withLoading(async () => {
+          await submitListingOffer({
+            listing: activeListing,
+            buyerUid: user.uid,
+            buyerName:
+              myBusiness?.businessName?.trim() ||
+              "Buyer",
+            buyerBusiness: myBusiness,
+            amount: result.data.amount,
+            currency: offerAmount.currency,
+            message: result.data.message ?? "",
+          });
+        }, "Sending offer…"),
+      )
+      .then(() => {
+        setOfferOpen(false);
+        toast.success("Offer sent. The seller was notified.");
+      })
+      .catch((e) => {
+        setOfferError(friendlyError(e, "Could not send offer."));
+      })
+      .finally(() => {
+        setOfferSaving(false);
+      });
   }
 
   async function handleWithdrawMine() {

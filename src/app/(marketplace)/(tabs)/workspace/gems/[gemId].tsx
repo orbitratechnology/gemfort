@@ -396,54 +396,57 @@ export default function GemDetailScreen() {
       return;
     }
     setTransferSaving(true);
-    try {
-      await withLoading(async () => {
-        if (transferParty.source === "business") {
-          await createGemTransferRequest({
-            gemId: gem.id,
-            recipientBusinessId: transferParty.businessId,
-            recipientContactId: transferParty.linkedContactId ?? null,
-            recipientName: transferParty.label,
-            amount,
-            currency: soldAmount.currency,
-            paymentMethod: transferPaymentMethod,
-            sourceTripId: sell === "1" ? tripId : null,
-            sourceTripGemId: sell === "1" ? tripGemId : null,
-          });
-        } else {
-          await recordGemSale({
-            gemId: gem.id,
-            recipientContactId: transferParty.contactId,
-            recipientName: transferParty.label,
-            amount,
-            currency: soldAmount.currency,
-            paymentMethod: transferPaymentMethod,
-            sourceTripId: sell === "1" ? tripId : null,
-            sourceTripGemId: sell === "1" ? tripGemId : null,
-          });
-        }
-        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        setTransferOpen(false);
-        toast.success(
-          transferParty.source === "business"
-            ? "Sale request sent — waiting for the trader to accept"
-            : `Sale recorded to ${transferParty.label}.`,
+    await Promise.resolve()
+      .then(() =>
+        withLoading(async () => {
+          if (transferParty.source === "business") {
+            await createGemTransferRequest({
+              gemId: gem.id,
+              recipientBusinessId: transferParty.businessId,
+              recipientContactId: transferParty.linkedContactId ?? null,
+              recipientName: transferParty.label,
+              amount,
+              currency: soldAmount.currency,
+              paymentMethod: transferPaymentMethod,
+              sourceTripId: sell === "1" ? tripId : null,
+              sourceTripGemId: sell === "1" ? tripGemId : null,
+            });
+          } else {
+            await recordGemSale({
+              gemId: gem.id,
+              recipientContactId: transferParty.contactId,
+              recipientName: transferParty.label,
+              amount,
+              currency: soldAmount.currency,
+              paymentMethod: transferPaymentMethod,
+              sourceTripId: sell === "1" ? tripId : null,
+              sourceTripGemId: sell === "1" ? tripGemId : null,
+            });
+          }
+          await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+          await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+          setTransferOpen(false);
+          toast.success(
+            transferParty.source === "business"
+              ? "Sale request sent — waiting for the trader to accept"
+              : `Sale recorded to ${transferParty.label}.`,
+          );
+        }, transferParty.source === "business" ? "Sending sale request…" : "Recording sale…"),
+      )
+      .catch((e) => {
+        setSoldError(
+          friendlyError(
+            e,
+            transferParty.source === "business"
+              ? "Could not send the sale request."
+              : "Could not record the sale.",
+          ),
         );
-      }, transferParty.source === "business" ? "Sending sale request…" : "Recording sale…");
-    } catch (e) {
-      setSoldError(
-        friendlyError(
-          e,
-          transferParty.source === "business"
-            ? "Could not send the sale request."
-            : "Could not record the sale.",
-        ),
-      );
-    } finally {
-      setTransferSaving(false);
-    }
+      })
+      .finally(() => {
+        setTransferSaving(false);
+      });
   }
 
   async function handleMarkUnsold() {
@@ -456,16 +459,19 @@ export default function GemDetailScreen() {
       onConfirm: () => cancelGemTransferRequest(gem.saleTransferRequestId!),
     });
     if (!ok) return;
-    try {
-      setTransferSaving(true);
-      await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-      await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-      toast.success("Gem marked unsold");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not mark the gem unsold."));
-    } finally {
-      setTransferSaving(false);
-    }
+    setTransferSaving(true);
+    await Promise.resolve()
+      .then(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        toast.success("Gem marked unsold");
+      })
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not mark the gem unsold."));
+      })
+      .finally(() => {
+        setTransferSaving(false);
+      });
   }
 
   if (isLoading || !gem) {

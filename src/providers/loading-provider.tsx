@@ -74,17 +74,17 @@ export function LoadingProvider({ children }: { children: ReactNode }) {
         setOverlayDepth(overlayDepthRef.current);
       }
       setMessageState(opts.message);
-      try {
-        return await task();
-      } finally {
-        depthRef.current = Math.max(0, depthRef.current - 1);
-        setDepth(depthRef.current);
-        if (opts.overlay) {
-          overlayDepthRef.current = Math.max(0, overlayDepthRef.current - 1);
-          setOverlayDepth(overlayDepthRef.current);
-        }
-        if (depthRef.current === 0) setMessageState(DEFAULT_MESSAGE);
-      }
+      return Promise.resolve()
+        .then(task)
+        .finally(() => {
+          depthRef.current = Math.max(0, depthRef.current - 1);
+          setDepth(depthRef.current);
+          if (opts.overlay) {
+            overlayDepthRef.current = Math.max(0, overlayDepthRef.current - 1);
+            setOverlayDepth(overlayDepthRef.current);
+          }
+          if (depthRef.current === 0) setMessageState(DEFAULT_MESSAGE);
+        });
     },
     [],
   );

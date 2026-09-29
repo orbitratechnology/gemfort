@@ -76,41 +76,47 @@ export default function AddContactScreen() {
   async function handlePickFromPhone() {
     if (!user) return;
     setPicking(true);
-    try {
-      const device = await presentDeviceContactPicker();
-      if (!device) return;
+    await Promise.resolve()
+      .then(async () => {
+        const device = await presentDeviceContactPicker();
+        if (!device) return;
 
-      // Fast path: import straight into workspace and open detail
-      const { id } = await importDeviceContactToWorkspace(user.uid, device, {
-        contactTypes,
+        // Fast path: import straight into workspace and open detail
+        const { id } = await importDeviceContactToWorkspace(user.uid, device, {
+          contactTypes,
+        });
+        toast.success("Contact imported from phone.");
+        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
+      })
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not pick a phone contact."));
+      })
+      .finally(() => {
+        setPicking(false);
       });
-      toast.success("Contact imported from phone.");
-      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not pick a phone contact."));
-    } finally {
-      setPicking(false);
-    }
   }
 
   async function handlePrefillFromPhone() {
     setPicking(true);
-    try {
-      const device = await presentDeviceContactPicker();
-      if (!device) return;
-      setDisplayName(device.displayName);
-      setCompanyName(device.companyName ?? "");
-      setPhone(device.phone ?? "");
-      setWhatsapp(device.phone ?? "");
-      setEmail(device.email ?? "");
-      setDeviceContactId(device.id);
-      setLocalPhotoUri(device.imageUri);
-      toast.success("Filled from phone contact.");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not pick a phone contact."));
-    } finally {
-      setPicking(false);
-    }
+    await Promise.resolve()
+      .then(async () => {
+        const device = await presentDeviceContactPicker();
+        if (!device) return;
+        setDisplayName(device.displayName);
+        setCompanyName(device.companyName ?? "");
+        setPhone(device.phone ?? "");
+        setWhatsapp(device.phone ?? "");
+        setEmail(device.email ?? "");
+        setDeviceContactId(device.id);
+        setLocalPhotoUri(device.imageUri);
+        toast.success("Filled from phone contact.");
+      })
+      .catch((e) => {
+        toast.error(friendlyError(e, "Could not pick a phone contact."));
+      })
+      .finally(() => {
+        setPicking(false);
+      });
   }
 
   async function handleSubmit() {
