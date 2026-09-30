@@ -1,6 +1,7 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useTourTarget } from "guideway";
+import { useMemo, useRef, useState } from "react";
 import {
     Pressable,
     RefreshControl,
@@ -8,6 +9,7 @@ import {
     Text,
     View,
 } from "react-native";
+import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -18,6 +20,7 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import { TourHelpButton } from "@/components/onboarding/tour-help-button";
 import { CashFlowGraph } from "@/components/workspace/cash-flow-graph";
 import { DateRangeSheet } from "@/components/workspace/date-range-sheet";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
@@ -68,6 +71,10 @@ export default function MoneyDashboard() {
   const [period, setPeriod] = useState<MoneyPeriod>("this_month");
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const periodTourTarget = useTourTarget("money-period", { scrollRef });
+  const dateFilterTourTarget = useTourTarget("money-date-filter");
+  const recordSaleTourTarget = useTourTarget("money-record-sale");
 
   const txQuery = useFirestoreLiveQuery({
     queryKey: ["transactions", uid],
@@ -166,20 +173,23 @@ export default function MoneyDashboard() {
         showBack={false}
         left={
           <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Filter by date range"
-              hitSlop={8}
-              onPress={() => setCalendarOpen(true)}
-              style={styles.headerBtn}
-            >
-              <Icon
-                name="calendar-month"
-                size={24}
-                color={customRange ? colors.primary : colors.onSurface}
-              />
-            </Pressable>
+            ref={dateFilterTourTarget}
+            accessibilityRole="button"
+            accessibilityLabel="Filter by date range"
+            hitSlop={8}
+            onPress={() => setCalendarOpen(true)}
+            style={styles.headerBtn}
+          >
+            <Icon
+              name="calendar-month"
+              size={24}
+              color={customRange ? colors.primary : colors.onSurface}
+            />
+          </Pressable>
         }
         right={
+          <View style={styles.headerActions}>
+            <TourHelpButton tourId="money" />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="PDF Reports"
@@ -189,10 +199,12 @@ export default function MoneyDashboard() {
             >
               <Icon name="picture-as-pdf" size={24} color={colors.onSurface} />
             </Pressable>
+          </View>
         }
       />
 
       <ThemedScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -206,6 +218,8 @@ export default function MoneyDashboard() {
         <ScreenInset style={styles.inset}>
           {/* Period segmented control */}
           <View
+            ref={periodTourTarget}
+            collapsable={false}
             style={[
               styles.segment,
               { backgroundColor: colors.surfaceContainerLow },
@@ -614,6 +628,7 @@ export default function MoneyDashboard() {
       </ThemedScrollView>
 
       <Pressable
+        ref={recordSaleTourTarget}
         accessibilityRole="button"
         accessibilityLabel="Record a sale"
         style={({ pressed }) => [
@@ -657,7 +672,7 @@ const styles = StyleSheet.create({
     gap: Spacing.gutterMd,
   },
   inset: { gap: Spacing.gutterMd },
-  headerActions: { flexDirection: "row", alignItems: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerBtn: {
     width: 40,
     height: 40,

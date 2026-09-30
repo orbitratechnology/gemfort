@@ -1,6 +1,12 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { RefObject } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -164,14 +170,16 @@ export function QuickActionsSheet({
 
 type QuickActionsFabProps = {
   onPress: () => void;
+  targetRef?: RefObject<View | null>;
 };
 
-export function QuickActionsFab({ onPress }: QuickActionsFabProps) {
+export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   return (
     <Pressable
+      ref={targetRef}
       accessibilityRole="button"
       accessibilityLabel="Open quick actions"
       accessibilityHint="Add something or verify a certificate"

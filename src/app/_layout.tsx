@@ -19,6 +19,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ToastProvider } from "@/providers/toast-provider";
+import { AppTourProvider } from "@/providers/app-tour-provider";
 import {
     Poppins_400Regular,
     Poppins_500Medium,
@@ -192,9 +193,11 @@ export default function RootLayout() {
                     <BiometricLockProvider>
                       <PushNotificationRegistrar />
                       <QuickActionsRegistrar />
-                      <RootNavigator />
-                      <NetworkStatusIndicator />
-                      <KeyboardToolbar />
+                      <AppTourProvider>
+                        <RootNavigator />
+                        <NetworkStatusIndicator />
+                        <KeyboardToolbar />
+                      </AppTourProvider>
                     </BiometricLockProvider>
                   </AuthProvider>
                 </QueryProvider>
