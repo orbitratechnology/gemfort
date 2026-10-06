@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "expo": {
+        "type": "remote",
+        "url": "https://mcp.expo.dev/mcp"
+      },
+      "firebase": {
+        "type": "local",
+        "command": ["firebase", "mcp"],
+        "cwd": "."
+      }
+    }
+  }
+}
