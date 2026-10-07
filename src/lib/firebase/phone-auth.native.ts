@@ -1,19 +1,33 @@
 import {
-  linkWithCredential,
-  PhoneAuthProvider,
-  type PhoneAuthListener,
-  type User,
-  verifyPhoneNumber,
+    linkWithCredential,
+    PhoneAuthProvider,
+    verifyPhoneNumber,
+    type PhoneAuthListener,
+    type User,
 } from '@react-native-firebase/auth';
 
 import { callApi } from '@/lib/api/api-client';
 import { getFirebaseAuth } from '@/lib/firebase/config';
 import { normalizePhoneNumber } from '@/lib/firebase/phone-utils';
 
+/**
+ * Configure app verification settings for phone auth.
+ * In development, we can disable app verification to bypass reCAPTCHA and
+ * automatic verification for testing purposes.
+ */
+function configureAppVerification() {
+  const auth = getFirebaseAuth();
+  // Only disable app verification in development builds
+  if (__DEV__) {
+    auth.settings.appVerificationDisabledForTesting = true;
+  }
+}
+
 export function sendPhoneVerificationCode(
   phoneE164: string,
   forceResend = false,
 ): Promise<string> {
+  configureAppVerification();
   const listener = verifyPhoneNumber(getFirebaseAuth(), phoneE164, 60, forceResend);
   return verificationIdFromListener(listener);
 }
@@ -92,12 +106,22 @@ async function waitForExpectedPhone(user: User, expectedPhoneE164: string): Prom
 function verificationIdFromListener(listener: PhoneAuthListener): Promise<string> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timeoutHandle: NodeJS.Timeout | null = null;
 
     const finish = (callback: (value: string) => void, value: string) => {
       if (settled) return;
       settled = true;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       callback(value);
     };
+
+    // Set a timeout to handle cases where SMS doesn't arrive
+    timeoutHandle = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('Verification request timed out. SMS may not have been sent. Please try again.'));
+      }
+    }, 120000); // 2 minute timeout
 
     listener.on(
       'state_changed',
@@ -105,7 +129,20 @@ function verificationIdFromListener(listener: PhoneAuthListener): Promise<string
         if (snapshot.error) {
           if (!settled) {
             settled = true;
-            reject(snapshot.error);
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+            // Enhance error messages for common SMS delivery issues
+            const error = snapshot.error;
+            if (error.code === 'auth/quota-exceeded') {
+              reject(new Error('SMS quota exceeded. Please try again later.'));
+            } else if (error.code === 'auth/invalid-phone-number') {
+              reject(new Error('Invalid phone number format. Please check and try again.'));
+            } else if (error.code === 'auth/missing-phone-number') {
+              reject(new Error('Phone number is missing. Please enter a valid number.'));
+            } else if (error.code === 'auth/captcha-check-failed') {
+              reject(new Error('Security check failed. Please try again.'));
+            } else {
+              reject(error);
+            }
           }
           return;
         }
@@ -116,6 +153,7 @@ function verificationIdFromListener(listener: PhoneAuthListener): Promise<string
       (error) => {
         if (!settled) {
           settled = true;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
           reject(error);
         }
       },

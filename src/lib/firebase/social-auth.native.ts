@@ -6,6 +6,7 @@ import {
   isSuccessResponse,
 } from 'react-native-nitro-google-signin';
 
+import type { LegalAcceptance } from '@/constants/legal';
 import {
   AppleAuthProvider,
   GoogleAuthProvider,
@@ -13,7 +14,6 @@ import {
   signInWithCredential,
   signOut,
 } from '@/lib/firebase/auth';
-import type { LegalAcceptance } from '@/constants/legal';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from '@/lib/firebase/db';
 import type { UserProfile, UserRole } from '@/types';
@@ -148,6 +148,9 @@ export async function signInWithGoogle(
   configureGoogle();
   await GoogleOneTapSignIn.checkPlayServices(true);
 
+  // Clear cached credentials to show all available accounts in the picker
+  await GoogleOneTapSignIn.signOut();
+
   let response = await GoogleOneTapSignIn.signIn();
   if (isNoSavedCredentialFoundResponse(response)) {
     response = await GoogleOneTapSignIn.createAccount();
@@ -240,6 +243,10 @@ export async function completePendingSocialRegistration(
 export async function reauthenticateWithGoogle() {
   configureGoogle();
   await GoogleOneTapSignIn.checkPlayServices(true);
+
+  // Clear cached credentials to show all available accounts in the picker
+  await GoogleOneTapSignIn.signOut();
+
   let response = await GoogleOneTapSignIn.signIn();
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.presentExplicitSignIn();

@@ -60,9 +60,15 @@ export default function CompletePhoneScreen() {
       });
     } catch (error) {
       sendingRef.current = false;
-      toast.error(
-        friendlyError(error, "Could not send the verification code. Try again."),
-      );
+      const errorMessage = friendlyError(error, "Could not send the verification code. Try again.");
+      // Add specific guidance for SMS delivery issues
+      if (errorMessage.includes("timed out") || errorMessage.includes("SMS")) {
+        toast.error(
+          `${errorMessage} Make sure you have a stable internet connection and that your device can receive SMS messages.`,
+        );
+      } else {
+        toast.error(errorMessage);
+      }
     }
   }
 
