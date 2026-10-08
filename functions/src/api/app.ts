@@ -1,85 +1,84 @@
-import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 
 import { deleteMyAccountForApi, type DeleteAccountResult } from '../account/delete-account-api';
-import { syncPhoneProfileForApi } from '../auth/sync-phone-profile';
 import {
-  cancelApRequestForApi,
-  createApRequestForApi,
-  deleteApRecordForApi,
-  parseCreateApRequestInput,
-  parseRespondApRequestInput,
-  parseReturnApGemInput,
-  respondApRequestForApi,
-  returnApGemForApi,
-  type ApLifecycleResult,
-  type CreateApRequestInput,
-} from './ap-request-api';
-import {
-  requestApCancellationForApi,
-  respondApCancellationForApi,
-  type ApCancellationResult,
-} from '../gemtrack/ap-cancellation-api';
-import { validateIdempotencyKey } from '../gemtrack/mutation-contract';
-import {
-  parseRecordApGemSaleInput,
-  recordApGemSaleForApi,
-  type RecordApGemSaleResult,
-} from '../gemtrack/ap-sale-api';
-import {
-  apPaymentReceivedForApi,
-  apPaymentSentForApi,
-  parseApPaymentReceivedInput,
-  parseApPaymentSentInput,
-  type ApPaymentResult,
-} from '../gemtrack/ap-payment-api';
-import {
-  createFlightBookingLinkForApi,
-  getFlightPriceCalendarForApi,
-  searchFlightsForApi,
+    createFlightBookingLinkForApi,
+    getFlightPriceCalendarForApi,
+    searchFlightsForApi,
 } from '../flights';
 import {
-  requestServiceCancellationForApi,
-  respondServiceCancellationForApi,
-  type ServiceCancellationResult,
+    requestApCancellationForApi,
+    respondApCancellationForApi,
+    type ApCancellationResult,
+} from '../gemtrack/ap-cancellation-api';
+import {
+    apPaymentReceivedForApi,
+    apPaymentSentForApi,
+    parseApPaymentReceivedInput,
+    parseApPaymentSentInput,
+    type ApPaymentResult,
+} from '../gemtrack/ap-payment-api';
+import {
+    parseRecordApGemSaleInput,
+    recordApGemSaleForApi,
+    type RecordApGemSaleResult,
+} from '../gemtrack/ap-sale-api';
+import { validateIdempotencyKey } from '../gemtrack/mutation-contract';
+import {
+    requestServiceCancellationForApi,
+    respondServiceCancellationForApi,
+    type ServiceCancellationResult,
 } from '../gemtrack/service-cancellation-api';
 import {
-  createServiceRequestForApi,
-  completeLapidaryServiceForApi,
-  deleteLapidaryJobForApi,
-  parseCreateServiceRequestInput,
-  parseCompleteLapidaryServiceInput,
-  respondServiceRequestForApi,
-  updateLapidaryServiceStatusForApi,
-  type CreateServiceRequestInput,
+    completeLapidaryServiceForApi,
+    createServiceRequestForApi,
+    deleteLapidaryJobForApi,
+    parseCompleteLapidaryServiceInput,
+    parseCreateServiceRequestInput,
+    respondServiceRequestForApi,
+    updateLapidaryServiceStatusForApi,
+    type CreateServiceRequestInput,
 } from '../gemtrack/service-request-api';
 import {
-  parseSubmitListingOfferInput,
-  submitListingOfferForApi,
-  type SubmitListingOfferInput,
-} from './listing-offer-api';
+    cancelApRequestForApi,
+    createApRequestForApi,
+    deleteApRecordForApi,
+    parseCreateApRequestInput,
+    parseRespondApRequestInput,
+    parseReturnApGemInput,
+    respondApRequestForApi,
+    returnApGemForApi,
+    type ApLifecycleResult,
+    type CreateApRequestInput,
+} from './ap-request-api';
+import { ApiError, apiErrorResponse, toApiError } from './errors';
 import {
-  cancelGemTransferForApi,
-  createGemTransferForApi,
-  parseCreateGemTransferInput,
-  parseRecordGemSaleInput,
-  recordGemSaleForApi,
-  respondGemTransferForApi,
-  type CreateGemTransferInput,
-  type RecordGemSaleInput,
+    cancelGemTransferForApi,
+    createGemTransferForApi,
+    parseCreateGemTransferInput,
+    parseRecordGemSaleInput,
+    recordGemSaleForApi,
+    respondGemTransferForApi,
+    type CreateGemTransferInput,
+    type RecordGemSaleInput,
 } from './gem-transfer-api';
 import { executeIdempotent, type MutationExecutor } from './idempotency';
-import { apiErrorResponse, ApiError, toApiError } from './errors';
 import {
-  requireFirebaseAppCheck,
-  requireFirebaseAuth,
-  type AppCheckMode,
-  type VerifyAppCheckToken,
-  type VerifyIdToken,
+    parseSubmitListingOfferInput,
+    submitListingOfferForApi,
+    type SubmitListingOfferInput,
+} from './listing-offer-api';
+import {
+    requireFirebaseAppCheck,
+    requireFirebaseAuth,
+    type AppCheckMode,
+    type VerifyAppCheckToken,
+    type VerifyIdToken,
 } from './middleware';
 import type { ApiEnv } from './types';
 
@@ -145,7 +144,6 @@ export type ApiAppOptions = {
   cancelApRequest?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
   returnApGem?: (apId: string, uid: string, gemId: string) => Promise<ApLifecycleResult>;
   deleteApRecord?: (apId: string, uid: string) => Promise<ApLifecycleResult>;
-  syncPhoneProfile?: (uid: string) => Promise<{ phoneNumber: string }>;
   deleteMyAccount?: (uid: string, authTime: number | undefined) => Promise<DeleteAccountResult>;
   requestServiceCancellation?: (
     serviceId: string,
@@ -360,7 +358,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
   const cancelApRequest = options.cancelApRequest ?? cancelApRequestForApi;
   const returnApGem = options.returnApGem ?? returnApGemForApi;
   const deleteApRecord = options.deleteApRecord ?? deleteApRecordForApi;
-  const syncPhoneProfile = options.syncPhoneProfile ?? syncPhoneProfileForApi;
   const deleteMyAccount = options.deleteMyAccount ?? deleteMyAccountForApi;
   const requestServiceCancellation =
     options.requestServiceCancellation ?? requestServiceCancellationForApi;
@@ -549,10 +546,6 @@ export function createApiApp(options: ApiAppOptions = {}) {
       respondServiceCancellation(serviceId, uid, action),
     ));
   });
-
-  app.post('/v1/auth/phone/sync', auth, appCheck, async (c) =>
-    success(c, await mutation(c, null, (uid) => syncPhoneProfile(uid))),
-  );
 
   app.delete('/v1/account', auth, appCheck, async (c) => {
     const user = requireUser(c);

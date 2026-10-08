@@ -1,46 +1,48 @@
-import {
-  normalizePhoneForStorage,
-  normalizePhoneNumber,
-} from '@/lib/firebase/phone-utils';
+import { normalizePhoneNumber, normalizePhoneForStorage } from '../phone-utils';
 
 describe('normalizePhoneNumber', () => {
-  it('keeps E.164 with country code 94', () => {
+  it('handles empty input', () => {
+    expect(normalizePhoneNumber('')).toBe('');
+    expect(normalizePhoneNumber('   ')).toBe('');
+  });
+
+  it('handles Sri Lankan numbers with country code', () => {
     expect(normalizePhoneNumber('+94771234567')).toBe('+94771234567');
     expect(normalizePhoneNumber('94771234567')).toBe('+94771234567');
   });
 
-  it('converts local 0-prefix Sri Lankan numbers', () => {
+  it('handles Sri Lankan numbers with leading zero', () => {
     expect(normalizePhoneNumber('0771234567')).toBe('+94771234567');
-    expect(normalizePhoneNumber('077 035 5887')).toBe('+94770355887');
+    expect(normalizePhoneNumber('0711234567')).toBe('+94711234567');
   });
 
-  it('strips trunk 0 after country code (+9407…)', () => {
-    expect(normalizePhoneNumber('+940729067749')).toBe('+94729067749');
-    expect(normalizePhoneNumber('940729067749')).toBe('+94729067749');
-  });
-
-  it('treats bare 9-digit SL mobiles as +94', () => {
+  it('handles bare Sri Lankan mobile numbers', () => {
     expect(normalizePhoneNumber('771234567')).toBe('+94771234567');
+    expect(normalizePhoneNumber('711234567')).toBe('+94711234567');
   });
 
-  it('strips spaces and punctuation', () => {
-    expect(normalizePhoneNumber('+94 77 123 4567')).toBe('+94771234567');
+  it('handles trunk prefix bug (9407...)', () => {
+    expect(normalizePhoneNumber('940771234567')).toBe('+94771234567');
   });
 
-  it('returns empty string when empty digits', () => {
-    expect(normalizePhoneNumber('   ')).toBe('');
+  it('adds + to international numbers', () => {
+    expect(normalizePhoneNumber('11234567890')).toBe('+11234567890');
   });
 });
 
 describe('normalizePhoneForStorage', () => {
-  it('returns null for empty values', () => {
-    expect(normalizePhoneForStorage(null)).toBeNull();
-    expect(normalizePhoneForStorage(undefined)).toBeNull();
-    expect(normalizePhoneForStorage('')).toBeNull();
-    expect(normalizePhoneForStorage('   ')).toBeNull();
+  it('returns null for null/undefined', () => {
+    expect(normalizePhoneForStorage(null)).toBe(null);
+    expect(normalizePhoneForStorage(undefined)).toBe(null);
   });
 
-  it('returns E.164 for valid phones', () => {
-    expect(normalizePhoneForStorage('0769067749')).toBe('+94769067749');
+  it('returns null for empty/whitespace', () => {
+    expect(normalizePhoneForStorage('')).toBe(null);
+    expect(normalizePhoneForStorage('   ')).toBe(null);
+  });
+
+  it('normalizes valid numbers', () => {
+    expect(normalizePhoneForStorage('0771234567')).toBe('+94771234567');
+    expect(normalizePhoneForStorage('+94771234567')).toBe('+94771234567');
   });
 });

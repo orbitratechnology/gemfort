@@ -157,14 +157,13 @@ service cloud.firestore {
 
       // Push token / profile field updates — use resource.data (not get()) so
       // concurrent writes to the same user doc do not fail isNotSuspended().
-      // Phone identity and verification state are server-owned after Firebase Auth verification.
+      // Phone identity is a business contact field; server does not own verification state.
       allow update: if isOwner(userId)
         && resourceNotSuspended()
         && !request.resource.data.diff(resource.data)
            .affectedKeys().hasAny([
              'role', 'verificationStatus', 'isSuspended',
              'isActive', 'suspendedReason', 'suspendedAt',
-             'phone', 'phoneVerified',
              'nicVerified', 'recognizedBadge',
              'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid'
            ]);

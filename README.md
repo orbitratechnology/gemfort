@@ -128,7 +128,7 @@ Deals close on WhatsApp, phone, and in person. GemFort tracks the work around th
 
 | Surface | Path |
 |---------|------|
-| Onboarding / auth | `(auth)/onboarding`, `login`, `register`, `verify-otp` |
+| Onboarding / auth | `(auth)/onboarding`, `login`, `register`, `` |
 | Business profile | `business/[businessId]` |
 | Public listing | `listing/[slug]` |
 | Create listing | `listings/create` |

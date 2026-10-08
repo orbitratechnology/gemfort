@@ -1,6 +1,7 @@
-import { isRegisterableRole } from "@/constants/roles";
 import type { LegalAcceptance } from "@/constants/legal";
+import { isRegisterableRole } from "@/constants/roles";
 import { callApi } from "@/lib/api/api-client";
+import { safeUserMessage } from "@/lib/errors";
 import {
     createUserWithEmailAndPassword,
     deleteUser,
@@ -23,7 +24,6 @@ import {
 } from "@/lib/firebase/db";
 import { clearOnboardingState } from "@/lib/onboarding";
 import { clearThemePreference } from "@/lib/theme-preference";
-import { safeUserMessage } from "@/lib/errors";
 import type { UserProfile, UserRole } from "@/types";
 
 export type { AuthUser } from "@/lib/firebase/auth-types";
@@ -67,7 +67,6 @@ export async function registerUser(input: {
   } = {
     uid,
     email: input.email.trim().toLowerCase(),
-    phone: "",
     displayName,
     role: input.role,
     roleIntent: input.role,
@@ -80,7 +79,6 @@ export async function registerUser(input: {
     suspendedAt: null,
     companyId: null,
     fcmToken: null,
-    phoneVerified: false,
     legalConsent: {
       ...input.legalAcceptance,
       acceptedAt: serverTimestamp(),
@@ -103,7 +101,7 @@ export async function registerUser(input: {
     }
   }
 
-  return { user: credential.user, phone: "" };
+  return { user: credential.user };
 }
 
 export async function loginUser(email: string, password: string) {
@@ -230,10 +228,6 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(getFirebaseDb(), "users", uid));
   if (!snap.exists()) return null;
   return { uid, ...snap.data() } as UserProfile;
-}
-
-export function needsPhoneVerification(profile: UserProfile | null): boolean {
-  return !profile?.phone || profile.phoneVerified !== true;
 }
 
 export async function updateFcmToken(uid: string, token: string | null) {

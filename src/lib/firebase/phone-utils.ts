@@ -1,6 +1,6 @@
 /**
- * Normalize Sri Lankan and international numbers to E.164 for storage,
- * Firebase Phone Auth, and WhatsApp deep links.
+ * Normalize Sri Lankan and international numbers to E.164 for storage
+ * and business contact information.
  */
 export function normalizePhoneNumber(phone: string): string {
   const trimmed = phone.trim();

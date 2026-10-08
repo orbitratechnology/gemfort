@@ -9,9 +9,9 @@
  *   qa-lapidary@gemfort.test — verified lapidary
  *   qa-suspended@gemfort.test — suspended lockout (AC-AUTH-003)
  */
-import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 initializeApp({
   credential: applicationDefault(),
@@ -93,7 +93,6 @@ function userDoc(uid, p) {
     suspendedAt: null,
     companyId: null,
     fcmToken: null,
-    phoneVerified: true,
     notificationPreferences: {
       pushAnnouncements: true,
       pushChequeAlerts: true,

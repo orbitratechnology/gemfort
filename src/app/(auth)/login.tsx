@@ -23,14 +23,12 @@ import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { friendlyError } from "@/lib/errors";
 import {
-    getUserProfile,
-    loginUser,
-    needsPhoneVerification,
+    loginUser
 } from "@/lib/firebase/auth-service";
 import {
-  isSocialRegistrationRequired,
-  signInWithApple,
-  signInWithGoogle,
+    isSocialRegistrationRequired,
+    signInWithApple,
+    signInWithGoogle,
 } from "@/lib/firebase/social-auth";
 import { markOnboardingComplete } from "@/lib/onboarding";
 import { loginSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -70,19 +68,7 @@ export default function LoginScreen() {
           result.data.password,
         );
         await markOnboardingComplete();
-        const profile = await getUserProfile(loggedInUser.uid);
-        if (needsPhoneVerification(profile)) {
-          router.replace(
-            profile?.phone
-              ? {
-                  pathname: "/(auth)/complete-phone",
-                  params: { phone: profile.phone },
-                }
-              : "/(auth)/complete-phone",
-          );
-        } else {
-          router.replace("/(marketplace)/(tabs)/home");
-        }
+        router.replace("/(marketplace)/(tabs)/home");
       }, "Signing in…");
     } catch (e) {
       const msg = friendlyError(e, "Could not sign in. Please try again.");
@@ -98,11 +84,7 @@ export default function LoginScreen() {
       await withLoading(async () => {
         const { profile } = await signIn();
         await markOnboardingComplete();
-        if (needsPhoneVerification(profile)) {
-          router.replace("/(auth)/complete-phone");
-        } else {
-          router.replace("/(marketplace)/(tabs)/home");
-        }
+        router.replace("/(marketplace)/(tabs)/home");
       }, "Signing in...");
     } catch (error) {
       if (isSocialRegistrationRequired(error)) {

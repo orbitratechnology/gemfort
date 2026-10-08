@@ -1,21 +1,4 @@
 export {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithCredential,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile,
-  onAuthStateChanged,
-  linkWithCredential,
-  PhoneAuthProvider,
-  signInWithPhoneNumber,
-  getIdToken,
-  EmailAuthProvider,
-  GoogleAuthProvider,
-  AppleAuthProvider,
-  reauthenticateWithCredential,
-  updatePassword,
-  deleteUser,
-  getAdditionalUserInfo,
+    AppleAuthProvider, createUserWithEmailAndPassword, deleteUser, EmailAuthProvider, getAdditionalUserInfo, getAuth, getIdToken, GoogleAuthProvider, linkWithCredential, onAuthStateChanged, reauthenticateWithCredential, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signOut, updatePassword, updateProfile
 } from './auth.native';
+

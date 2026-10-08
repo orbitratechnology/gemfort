@@ -22,7 +22,6 @@ export type BusinessReputationBadge =
 export type UserProfile = {
   uid: string;
   email: string;
-  phone: string;
   displayName: string;
   role: UserRole;
   /** Legacy signup field; prefer `role` (set at registration). */
@@ -45,7 +44,6 @@ export type UserProfile = {
     pushPaymentAlerts?: boolean;
     pushBillAlerts?: boolean;
   };
-  phoneVerified?: boolean;
   /** ISO date `YYYY-MM-DD` — collected during verification. */
   dateOfBirth?: string | null;
   /** Set by the admin review flow after a NIC document is accepted. */

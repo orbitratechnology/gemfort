@@ -1,9 +1,6 @@
 /**
  * Pure auth helpers — mocked Firebase so Jest does not load native modules.
  */
-import { needsPhoneVerification } from '@/lib/firebase/auth-service';
-import type { UserProfile } from '@/types';
-
 jest.mock('@/lib/firebase/auth', () => ({
   createUserWithEmailAndPassword: jest.fn(),
   sendPasswordResetEmail: jest.fn(),
@@ -25,27 +22,3 @@ jest.mock('@/lib/firebase/db', () => ({
   updateDoc: jest.fn(),
   serverTimestamp: jest.fn(() => 'SERVER_TS'),
 }));
-
-describe('needsPhoneVerification', () => {
-  it('requires verification when phone present and not verified', () => {
-    expect(
-      needsPhoneVerification({
-        phone: '+94770000001',
-        phoneVerified: false,
-      } as UserProfile),
-    ).toBe(true);
-  });
-
-  it('skips when phoneVerified', () => {
-    expect(
-      needsPhoneVerification({
-        phone: '+94770000001',
-        phoneVerified: true,
-      } as UserProfile),
-    ).toBe(false);
-  });
-
-  it('requires completion when no phone is on the profile', () => {
-    expect(needsPhoneVerification({ phone: '', phoneVerified: false } as UserProfile)).toBe(true);
-  });
-});
