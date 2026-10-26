@@ -6,7 +6,6 @@ import {
     formSheetFitContentOptions,
     silkStackScreenOptions,
 } from "@/navigation/silk-stack-options";
-import { useAuth } from "@/providers/auth-provider";
 
 /**
  * Action screens are siblings of `(tabs)` so they push above NativeTabs.
@@ -28,7 +27,6 @@ const ACTION_SCREENS = [
 
 export default function MarketplaceLayout() {
   const { colors } = useAppTheme();
-  const { user } = useAuth();
 
   return (
     <Stack

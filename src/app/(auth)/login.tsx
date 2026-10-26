@@ -63,10 +63,7 @@ export default function LoginScreen() {
     setErrors({});
     try {
       await withLoading(async () => {
-        const loggedInUser = await loginUser(
-          result.data.email,
-          result.data.password,
-        );
+        await loginUser(result.data.email, result.data.password);
         await markOnboardingComplete();
         router.replace("/(marketplace)/(tabs)/home");
       }, "Signing in…");
@@ -82,7 +79,7 @@ export default function LoginScreen() {
   ) {
     try {
       await withLoading(async () => {
-        const { profile } = await signIn();
+        await signIn();
         await markOnboardingComplete();
         router.replace("/(marketplace)/(tabs)/home");
       }, "Signing in...");

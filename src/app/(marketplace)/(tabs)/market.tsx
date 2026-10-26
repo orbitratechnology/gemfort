@@ -547,11 +547,11 @@ export default function MarketScreen() {
         }
         ListEmptyComponent={
           isLoading ? (
-            <View style={styles.contentInset}>
+            <View style={styles.emptyInset}>
               <SkeletonList />
             </View>
           ) : tab === "gems" ? (
-            <View style={styles.contentInset}>
+            <View style={styles.emptyInset}>
               <EmptyState
                 icon="diamond"
                 title="No gems match"
@@ -563,7 +563,7 @@ export default function MarketScreen() {
               />
             </View>
           ) : (
-            <View style={styles.contentInset}>
+            <View style={styles.emptyInset}>
               <EmptyState
                 icon="business"
                 title={tab === "lapidaries" ? "No lapidaries yet" : "No traders match"}
@@ -713,18 +713,27 @@ export default function MarketScreen() {
   );
 }
 
+// Cells add stackSm / 2 on each side, so the grid's outer edge lands on containerMargin.
+const GRID_INSET = Spacing.containerMargin - Spacing.stackSm / 2;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingTop: Spacing.containerMargin,
     paddingBottom: 100,
+    paddingHorizontal: GRID_INSET,
   },
   headerBlock: {
     gap: Spacing.gutterMd,
     marginBottom: Spacing.stackSm,
+    // Header spans the full width; it insets its own rows.
+    marginHorizontal: -GRID_INSET,
   },
   contentInset: {
     marginHorizontal: Spacing.containerMargin,
+  },
+  emptyInset: {
+    marginHorizontal: Spacing.containerMargin - GRID_INSET,
   },
   searchRow: {
     flexDirection: "row",

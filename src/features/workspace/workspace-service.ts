@@ -31,10 +31,12 @@ import {
     limit,
     orderBy,
     query,
+    runTransaction,
     serverTimestamp,
     Timestamp,
     updateDoc,
     where,
+    writeBatch,
 } from "@/lib/firebase/db";
 import {
   forgetSync,
@@ -1626,7 +1628,7 @@ export async function deleteBill(billId: string, ownerUid: string) {
       where("billId", "==", billId),
     ),
   );
-  const batch = db.batch();
+  const batch = writeBatch(db);
   for (const d of paymentsSnap.docs) batch.delete(d.ref);
   batch.delete(doc(db, "gemtrack_bills", billId));
   await batch.commit();
@@ -1669,7 +1671,7 @@ export async function recordBillPayment(
   const txnRef = doc(collection(db, "gemtrack_transactions"));
   const paymentRef = doc(collection(db, "gemtrack_payments"));
 
-  await db.runTransaction(async (transaction) => {
+  await runTransaction(db, async (transaction) => {
     const currentSnap = await transaction.get(ref);
     if (!currentSnap.exists()) throw new Error("Bill not found");
     const data = currentSnap.data() as Bill;

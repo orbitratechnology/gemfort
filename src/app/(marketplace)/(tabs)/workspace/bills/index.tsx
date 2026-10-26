@@ -24,7 +24,6 @@ import {
     BILL_DIRECTION_LABELS,
     BILL_STATUS_LABELS,
     dueLabel,
-    getBillSummary,
     isOpenBill,
     remainingAmount,
 } from "@/features/workspace/bill-utils";
@@ -183,7 +182,6 @@ function BillRow({
 export default function BillsIndexScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
@@ -227,7 +225,6 @@ export default function BillsIndexScreen() {
     () => buildContactPhotoMap(contacts, businesses),
     [contacts, businesses],
   );
-  const summary = getBillSummary(bills);
   const sideBills = useMemo(
     () =>
       bills.filter((bill) =>
@@ -274,25 +271,6 @@ export default function BillsIndexScreen() {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={
-          <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCol}>
-                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>TO PAY</Text>
-                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                  {summary.payableCount} · {formatBase(summary.payableTotal)}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.onPrimary + "22" }]} />
-              <View style={styles.summaryCol}>
-                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>TO RECEIVE</Text>
-                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                  {summary.receivableCount} · {formatBase(summary.receivableTotal)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        }
         ListEmptyComponent={
           <EmptyState
             icon="receipt-long"
@@ -354,20 +332,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   subtitle: { ...Typography.bodySmall },
-  summaryCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-  },
-  summaryRow: { flexDirection: "row", alignItems: "center" },
-  summaryCol: { flex: 1, gap: 4 },
-  summaryDivider: { width: 1, alignSelf: "stretch", marginHorizontal: 12 },
-  summaryLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
-  summaryValue: { ...Typography.bodyMd, fontWeight: "700" },
   section: { gap: 8 },
   sectionTitle: { ...Typography.bodyLg, fontWeight: "700" },
   row: {

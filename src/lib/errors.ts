@@ -8,7 +8,16 @@ export function friendlyError(error: unknown, fallback = 'Something went wrong. 
     typeof error === 'object' && error !== null && 'code' in error
       ? String((error as { code?: unknown }).code ?? '')
       : '';
-  const message = error instanceof Error ? error.message : '';
+  // Firebase and API errors are usually Error subclasses, but plain
+  // `{ code, message }` objects carry the same information.
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' &&
+          error !== null &&
+          typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : '';
   const hay = `${code} ${message}`.toLowerCase();
   const normalizedCode = code.toLowerCase();
 
@@ -191,9 +200,8 @@ function isTechnicalMessage(value: string): boolean {
     normalized.includes('id token') ||
     normalized.includes('identity token') ||
     normalized.includes('credential') ||
-    normalized.includes('apid') ||
-    normalized.includes('gemid') ||
-    normalized.includes('serviceid') ||
+    // Whole words only: "apid" is also inside "lapidary".
+    /\b(?:apid|gemid|serviceid)\b/.test(normalized) ||
     normalized.includes('paymentduedate') ||
     normalized.includes('ownerreceives') ||
     normalized.includes('receiverkeeps') ||

@@ -125,7 +125,6 @@ export function ApSideTabs({
                   ...Typography.labelMd,
                   fontSize: 15,
                   color: selected ? colors.primary : colors.onSurfaceVariant,
-                  fontWeight: selected ? "700" : "500",
                 }}
               >
                 {tab.label}

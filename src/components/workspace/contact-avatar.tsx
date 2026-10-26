@@ -34,7 +34,7 @@ export function ContactAvatar({ name, photoUrl, size = 48 }: ContactAvatarProps)
     return (
       <Image
         source={{ uri: photoUrl }}
-        style={{ width: size, height: size, borderRadius: radius, borderCurve: 'continuous' }}
+        style={{ width: size, height: size, borderRadius: radius }}
         contentFit="cover"
         accessibilityLabel={`${name} photo`}
         onError={() => setFailedUrl(photoUrl)}

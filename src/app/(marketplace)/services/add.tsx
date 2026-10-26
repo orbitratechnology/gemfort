@@ -230,10 +230,8 @@ export default function AddServiceScreen() {
         const id = await createService(user.uid, {
           gemId: result.data.gemId,
           serviceType: result.data.serviceType,
-          providerContactId:
-            provider.source === "contact" ? provider.contactId : "",
-          providerBusinessId:
-            provider.source === "business" ? provider.businessId : null,
+          providerContactId: provider.contactId,
+          providerBusinessId: null,
           providerUid: null,
           providerName: provider.label,
           dateGiven: Timestamp.now(),

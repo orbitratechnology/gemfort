@@ -79,7 +79,7 @@ export function BusinessProfileOnboarding() {
   const [address, setAddress] = useState("");
   const [location, setLocation] = useState<ProfileLocation | null>(null);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
-  const [whatsapp, setWhatsapp] = useState(() => profile?.phone ?? "");
+  const [whatsapp, setWhatsapp] = useState("");
 
   if (!user) return <Redirect href="/(auth)/login" />;
 
@@ -134,7 +134,6 @@ export function BusinessProfileOnboarding() {
                 shortDescription.trim() ||
                 `Gem business in ${city.trim() || DEFAULT_CITY}.`,
               whatsapp: whatsapp || undefined,
-              phone: currentProfile.phone || undefined,
             },
           );
 

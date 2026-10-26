@@ -506,7 +506,7 @@ export function demoBusinesses(filters?: {
     verificationTier: "gem" as const,
     badges: {
       isVerified: true,
-      businessReputation: "gem",
+      businessReputation: "gem" as const,
       isNgjaRegistered: true,
       isPremium: false,
       verifiedSinceYear: 2010,

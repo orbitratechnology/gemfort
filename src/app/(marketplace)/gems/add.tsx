@@ -82,7 +82,7 @@ import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { GemCertificate, GemStoneStage, Trip } from "@/types";
+import type { GemCertificate, GemStatus, GemStoneStage, Trip } from "@/types";
 
 const STEPS = ["Details", "Photos", "Certificate", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
@@ -386,6 +386,7 @@ export default function AddGemScreen() {
         const colorLabel = data.colorPrimary
           ? formatColorLabel(data.colorPrimary)
           : "";
+        const gemStatus: GemStatus = selectedTripId ? "on_trip" : data.stoneStage;
         const gemPayload = {
           title: data.title,
           gemType: data.gemType,
@@ -404,7 +405,7 @@ export default function AddGemScreen() {
           isNatural: !data.treatment || data.treatment === "natural",
           treatmentStatus: data.treatment ?? "natural",
           stoneStage: data.stoneStage,
-          status: selectedTripId ? "on_trip" : data.stoneStage,
+          status: gemStatus,
           photoUrls,
           certificate: certificateData,
         };

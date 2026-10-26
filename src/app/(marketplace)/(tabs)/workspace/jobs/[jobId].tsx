@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   timelineSub: { ...Typography.caption },
   weightRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   metricCard: { flex: 1, minHeight: 112, borderRadius: Radius.xl, alignItems: "center", justifyContent: "center", gap: 5, padding: 10 },
-  metricLabel: { ...Typography.labelSm, letterSpacing: 0.8 },
+  metricLabel: { ...Typography.labelMd, letterSpacing: 0.8 },
   metricValue: { ...Typography.headlineSm, fontWeight: "800" },
   costRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   costTotalRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.md, marginTop: 2 },

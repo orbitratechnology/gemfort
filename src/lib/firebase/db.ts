@@ -18,5 +18,7 @@ export {
   Timestamp,
   increment,
   onSnapshot,
+  runTransaction,
+  writeBatch,
   getFirebaseDb,
 } from './db.native';

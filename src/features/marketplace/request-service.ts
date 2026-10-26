@@ -35,7 +35,7 @@ export async function createServiceRequest(input: {
 }): Promise<string> {
   const result = await callApi<
     { serviceId: string; status: 'pending' },
-    Omit<typeof input, 'traderUid'>
+    Omit<typeof input, 'traderUid' | 'notes'> & { notes: string | null }
   >('/v1/services/requests', {
     traderBusinessId: input.traderBusinessId,
     lapidaryBusinessId: input.lapidaryBusinessId,
@@ -222,11 +222,11 @@ export async function fetchLapidaryJobs(lapidaryUid: string): Promise<LapidaryJo
 
 export async function updateLapidaryJobStatus(
   jobId: string,
-  status: LapidaryJob['status'],
+  status: Extract<LapidaryJob['status'], 'in_progress' | 'ready' | 'returned'>,
 ): Promise<void> {
   await callApi<{ serviceId: string; status: 'in_progress' | 'ready' | 'received_back' }, { status: 'in_progress' | 'ready' | 'returned' }>(
     `/v1/services/${encodeURIComponent(jobId)}/status`,
-    { status: status === 'returned' ? 'returned' : status },
+    { status },
     {
       retryAuthOn401: true,
       idempotencyKey: `mobile-service-status-${status}-${jobId}-${Date.now().toString(36)}`.slice(0, 128),

@@ -83,3 +83,7 @@ goldie/out/
 
 # Temporary agent media
 .tmp-*
+
+# Python bytecode
+__pycache__/
+*.pyc

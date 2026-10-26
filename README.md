@@ -176,7 +176,7 @@ flowchart TB
 | Screens / navigation | `src/app/` | Expo Router file-based routes |
 | Domain logic | `src/features/marketplace/`, `src/features/workspace/` | Firestore services and business rules |
 | UI | `src/components/` | Brand, marketplace, workspace, shared UI |
-| Firebase | `src/lib/firebase/` | Auth, DB, storage, phone OTP, messaging |
+| Firebase | `src/lib/firebase/` | Auth, DB, storage, messaging |
 | State | `src/providers/` | Auth, React Query, theme, toast, push |
 | Backend | `functions/` | Scheduled jobs and Firestore triggers |
 | Security | `firestore.rules`, `storage.rules`, `firestore.indexes.json` | Access control and indexes |
@@ -264,7 +264,7 @@ bun run build:dev:ios
 
 A free Apple Account can sign a local development build for a connected iPhone. This is an Xcode-only development path; EAS device builds, TestFlight, App Store distribution, Apple Sign In, APNs push, and the iOS “share into GemFort” extension need capabilities unavailable to this project without paid provisioning. Free provisioning expires after seven days, so the app may need to be rebuilt and reinstalled weekly.
 
-The Personal Team variant keeps Firebase email/password, Google sign-in, and phone verification available. It omits the Apple Sign In and remote push entitlements, disables the share-in extension and associated-domain entitlement, and keeps outbound iOS share sheets. The normal simulator and paid-team configurations are unchanged.
+The Personal Team variant keeps Firebase email/password and Google sign-in available. It omits the Apple Sign In and remote push entitlements, disables the share-in extension and associated-domain entitlement, and keeps outbound iOS share sheets. The normal simulator and paid-team configurations are unchanged.
 
 1. Add your Apple Account in Xcode under **Settings → Accounts**, connect and trust the iPhone, and enable Developer Mode on the device.
 2. Regenerate the ignored iOS project for this variant. `--clean` removes the existing generated `ios/` directory, so back up any manual native edits first:
@@ -387,7 +387,7 @@ gemfort/
 ├── assets/                  # Icons, splash, images
 ├── scripts/                 # Seed and rules test tooling
 ├── plan/                    # Internal product & technical specs
-├── docs/qa/                 # Device QA evidence
+├── docs/                    # Architecture decisions, migration notes, legal copy
 ├── app.config.ts
 ├── eas.json
 ├── firestore.rules
@@ -399,10 +399,9 @@ gemfort/
 ## Auth model
 
 1. Guests can browse Home, Directory, and external certificate portals.
-2. Register with email/password and role (`trader` | `lapidary`).
-3. Optional phone OTP links the credential and marks the phone verified.
-4. Suspended accounts are signed out on login.
-5. Workspace modules require a signed-in profile; orphan Auth users without a Firestore profile are signed out.
+2. Register with email/password and role (`trader` | `lapidary`), or continue with Google or Apple and pick a role.
+3. Suspended accounts are signed out on login.
+4. Workspace modules require a signed-in profile; orphan Auth users without a Firestore profile are signed out.
 
 ---
 
@@ -428,8 +427,6 @@ This README is the product and contributor entry point. Deeper specifications li
 | [`plan/08-ranking-algorithm.md`](plan/08-ranking-algorithm.md) | Directory ranking |
 | [`plan/12-design-system.md`](plan/12-design-system.md) | Design system |
 | [`plan/14-acceptance-criteria.md`](plan/14-acceptance-criteria.md) | Acceptance criteria |
-
-Device QA artifacts (scorecard, findings, screenshots): [`docs/qa/`](docs/qa/).
 
 Brand copy used in the app: [`src/constants/brand-story.ts`](src/constants/brand-story.ts).
 
