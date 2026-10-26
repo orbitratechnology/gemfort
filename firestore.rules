@@ -91,15 +91,6 @@ service cloud.firestore {
         && isNotSuspended();
     }
 
-    // Legacy aliases
-    function isVerifiedSeller() {
-      return isVerifiedTrader();
-    }
-
-    function isVerifiedProvider() {
-      return isVerifiedLapidary();
-    }
-
     function isVerifiedMember() {
       return isVerifiedTrader() || isVerifiedLapidary();
     }
@@ -112,21 +103,21 @@ service cloud.firestore {
       return isSignedIn() && uid() == businessData.ownerUid;
     }
 
-    function isGemOwner(gemData) {
-      return isSignedIn() && uid() == gemData.ownerUid;
+    // A single public-profile counter bumped by exactly 1. Clients send
+    // increment(1); rules see the post-transform value, so any other delta,
+    // a reset, or touching a second key is rejected.
+    function isSingleAnalyticsTap() {
+      let before = resource.data.get('analytics', {});
+      let after = request.resource.data.get('analytics', null);
+      return after is map
+        && (isCounterTap(before, after, 'profileViewsTotal')
+            || isCounterTap(before, after, 'whatsappTapsTotal')
+            || isCounterTap(before, after, 'phoneTapsTotal'));
     }
 
-    // Fields that only admin can change on businesses
-    function isProtectedBusinessField(fieldName) {
-      return fieldName in [
-        'verificationStatus', 'verificationTier',
-        'verifiedAt', 'verifiedByAdminUid',
-        'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid',
-        'isFeatured', 'featuredUntil', 'featuredByAdminUid',
-        'badges.isVerified', 'badges.isNgjaRegistered',
-        'analytics', 'isActive', 'subscriptionPlan',
-        'subscriptionExpiry'
-      ];
+    function isCounterTap(before, after, key) {
+      return after.diff(before).affectedKeys().hasOnly([key])
+        && after.get(key, null) == before.get(key, 0) + 1;
     }
 
     // ═══════════════════════════════════════════════
@@ -236,10 +227,17 @@ service cloud.firestore {
       // Admin controls all fields
       allow update: if isAdmin();
 
-      // Guest/member analytics taps on public verified businesses (counters only)
-      allow update: if resource.data.verificationStatus == 'verified'
+      // Analytics taps on public verified businesses (trackBusinessAnalytics).
+      // Signed-in, non-suspended viewers only, so a tap is tied to an account;
+      // guests are skipped client-side. The write may bump exactly one known
+      // counter by 1 and stamp updatedAt with the server time — it cannot
+      // reset, inflate, or replace the analytics map.
+      allow update: if isAnySignedIn()
+        && resource.data.verificationStatus == 'verified'
         && resource.data.isActive == true
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['analytics', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['analytics', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && isSingleAnalyticsTap();
 
       allow delete: if isAdmin();
     }
@@ -267,10 +265,10 @@ service cloud.firestore {
                   && resource.data.visibility == 'contacts'
                   && isAnySignedIn();
 
-      // Legacy private / members_only stay link-readable while active
-      allow read: if resource.data.status == 'active'
-                  && (resource.data.visibility == 'private'
-                      || resource.data.visibility == 'members_only');
+      // Legacy 'private' / 'members_only' listings are no longer publicly
+      // link-readable: creates only allow 'public'/'contacts', and production
+      // holds no listings with the legacy values (checked 2026-10-27). Any
+      // that reappear are readable by their owner and admins only.
 
       // Owner reads all their own listings (incl. draft/paused/sold)
       allow read: if isOwner(resource.data.sellerUid);
@@ -486,24 +484,29 @@ service cloud.firestore {
     // SERVICE REQUESTS
     // ═══════════════════════════════════════════════
 
+    // Legacy collections. Service requests and lapidary jobs now live in
+    // gemtrack_services (serviceKind 'lapidary_request') and every transition
+    // goes through gemfortApi, so no client writes either collection.
+    // Participants keep read access for any leftover documents; writes are
+    // admin-only and the participant identities cannot be reassigned.
     match /service_requests/{id} {
       allow read: if isSignedIn()
         && (resource.data.traderUid == uid() || resource.data.lapidaryUid == uid() || isAdmin());
-      allow create: if isVerifiedTrader()
-        && request.resource.data.traderUid == uid()
-        && request.resource.data.status == 'pending';
-      allow update: if isSignedIn()
-        && (resource.data.lapidaryUid == uid() || resource.data.traderUid == uid() || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.get('traderUid', null) == resource.data.get('traderUid', null)
+        && request.resource.data.get('lapidaryUid', null) == resource.data.get('lapidaryUid', null);
       allow delete: if isAdmin();
     }
 
     match /lapidary_jobs/{id} {
       allow read: if isSignedIn()
         && (resource.data.lapidaryUid == uid() || resource.data.traderUid == uid() || isAdmin());
-      allow create: if isVerifiedLapidary()
-        && request.resource.data.lapidaryUid == uid();
-      allow update: if isSignedIn()
-        && (resource.data.lapidaryUid == uid() || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.get('traderUid', null) == resource.data.get('traderUid', null)
+        && request.resource.data.get('lapidaryUid', null) == resource.data.get('lapidaryUid', null)
+        && request.resource.data.get('serviceRequestId', null) == resource.data.get('serviceRequestId', null);
       allow delete: if isAdmin();
     }
 
@@ -785,43 +788,6 @@ service cloud.firestore {
       allow create: if isAnySignedIn()
         && isOwner(request.resource.data.ownerUid);
       allow read, write: if isAdmin();
-    }
-
-    // ═══════════════════════════════════════════════
-    // ENTERPRISE COLLECTIONS
-    // ═══════════════════════════════════════════════
-
-    match /companies/{companyId} {
-      allow read: if isAdmin()
-        || get(/databases/$(database)/documents/company_members/$(companyId + '_' + uid())).data.isActive == true;
-      allow write: if isAdmin();
-    }
-
-    match /company_members/{memberId} {
-      allow read: if isAdmin()
-        || resource.data.userUid == uid();
-      allow write: if isAdmin();
-    }
-
-    match /company_approvals/{approvalId} {
-      allow read: if isAdmin()
-        || resource.data.requestedByUid == uid()
-        || resource.data.approverUid == uid();
-      allow create: if isAnySignedIn()
-        && request.resource.data.requestedByUid == uid();
-      allow update: if isAdmin()
-        || resource.data.approverUid == uid();
-      allow delete: if isAdmin();
-    }
-
-    match /company_audit_logs/{logId} {
-      allow read: if isAdmin()
-        || get(/databases/$(database)/documents/company_members/$(resource.data.companyId + '_' + uid())).data.subRole in ['owner', 'manager'];
-      // Audit entries are server/admin-owned and immutable.
-      allow create: if isAdmin();
-      // Immutable
-      allow update: if false;
-      allow delete: if false;
     }
   }
 }

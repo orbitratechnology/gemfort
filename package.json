@@ -77,6 +77,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "4.0.1",
     "@types/jest": "29",
     "@types/react": "~19.2.2",
     "eas-build-cache-provider": "^20.0.0",
@@ -113,6 +114,7 @@
     "test": "jest",
     "test:unit": "jest",
     "test:rules": "node scripts/test-firestore-rules.mjs",
+    "test:rules:emulator": "firebase emulators:exec --only firestore --project demo-gemfort \"node --test scripts/test-firestore-rules-emulator.mjs\"",
     "test:service-emulator": "firebase emulators:exec --only firestore \"node scripts/test-service-cancellation-emulator.cjs\"",
     "test:ap-emulator": "firebase emulators:exec --only firestore \"node scripts/test-ap-cancellation-emulator.cjs\"",
     "test:ap-sale-emulator": "firebase emulators:exec --only firestore \"node scripts/test-ap-sale-emulator.cjs\"",

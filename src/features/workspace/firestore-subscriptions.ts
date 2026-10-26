@@ -773,16 +773,11 @@ export function subscribeListingBySlug(
     return () => undefined;
   }
 
-  const visibilities: (
-    | 'public'
-    | 'contacts'
-    | 'private'
-    | 'members_only'
-  )[] = ['public', 'private', 'members_only'];
+  const visibilities: ('public' | 'contacts')[] = ['public'];
   try {
     if (getFirebaseAuth().currentUser) visibilities.push('contacts');
   } catch {
-    // Auth unavailable — public + legacy link visibilities only.
+    // Auth unavailable — public listings only.
   }
 
   let fromSlug: MarketplaceListing | null = null;

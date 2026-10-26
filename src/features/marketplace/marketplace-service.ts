@@ -7,7 +7,7 @@ import {
     ROLE_LABELS,
 } from "@/constants/roles";
 import { callApi } from "@/lib/api/api-client";
-import { getFirebaseDb } from "@/lib/firebase/config";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
 import {
     collection,
     doc,
@@ -452,12 +452,16 @@ type BusinessAnalyticsField =
   | "whatsappTapsTotal"
   | "phoneTapsTotal";
 
-/** Best-effort analytics bump (guests allowed via Firestore rules for verified businesses). */
+/**
+ * Best-effort analytics bump on a verified business. Firestore rules accept a
+ * single `increment(1)` from signed-in viewers only, so guests are skipped.
+ */
 export async function trackBusinessAnalytics(
   businessId: string,
   field: BusinessAnalyticsField,
 ): Promise<void> {
   try {
+    if (!getFirebaseAuth().currentUser) return;
     queueDocUpdate("businesses", businessId, {
         [`analytics.${field}`]: increment(1),
         updatedAt: serverTimestamp(),

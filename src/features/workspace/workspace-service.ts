@@ -2307,19 +2307,14 @@ export async function fetchListingBySlug(slug: string) {
   if (!normalized) return null;
 
   // Constrain visibility so the query only matches docs the client may read.
-  const visibilities: (
-    | "public"
-    | "contacts"
-    | "private"
-    | "members_only"
-  )[] = ["public", "private", "members_only"];
+  const visibilities: ("public" | "contacts")[] = ["public"];
   try {
     const { getFirebaseAuth } = await import("@/lib/firebase/config");
     if (getFirebaseAuth().currentUser) {
       visibilities.push("contacts");
     }
   } catch {
-    // Auth unavailable — public + legacy link visibilities only.
+    // Auth unavailable — public listings only.
   }
 
   const q = query(
