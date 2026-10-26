@@ -14,8 +14,8 @@ This folder holds every GemFort doc other than the root [`README.md`](../README.
 
 | Information | Source of truth | Not this |
 |---|---|---|
-| Firestore access control | [`firestore.rules`](../firestore.rules) | `plan/07-security-rules.md` (stale copy, pending deletion) |
-| Firestore data model and queries | [`firestore.rules`](../firestore.rules), [`firestore.indexes.json`](../firestore.indexes.json), the types in [`src/types/`](../src/types/) | `plan/06-firestore-schema.md` (documents the dead `company_*` model, pending deletion) |
+| Firestore access control | [`firestore.rules`](../firestore.rules) | any prose copy of the rules (the old `plan/07-security-rules.md` copy was deleted) |
+| Firestore data model and queries | [`firestore.rules`](../firestore.rules), [`firestore.indexes.json`](../firestore.indexes.json), the types in [`src/types/`](../src/types/) | the old `plan/06-firestore-schema.md` (deleted; it described the dead `company_*` model) |
 | Storage access control | [`storage.rules`](../storage.rules) | — |
 | App identity, plugins, build-time env | [`app.config.ts`](../app.config.ts), [`eas.json`](../eas.json) | — |
 | Firebase deploy targets | [`firebase.json`](../firebase.json), [`.firebaserc`](../.firebaserc) | — |
@@ -37,7 +37,7 @@ Status key: **Current** = maintained and expected to match the code. **Reference
 
 | Doc | Status |
 |---|---|
-| [`00-contents.md`](product/00-contents.md) | Historical: the suite's original index. It still lists 06, 07 and 13, which are not in this folder (see *Pending decision*). |
+| [`00-contents.md`](product/00-contents.md) | Historical: the suite's original index. It still lists 06 and 07, which were deleted as stale, and 13, now in [`history/`](history/13-development-roadmap.md). |
 | [`02-prd.md`](product/02-prd.md) | Reference |
 | [`03-user-roles.md`](product/03-user-roles.md) | Reference |
 | [`04-navigation.md`](product/04-navigation.md) | Reference |
@@ -86,18 +86,7 @@ Status key: **Current** = maintained and expected to match the code. **Reference
 
 | Doc | Status |
 |---|---|
+| [`13-development-roadmap.md`](history/13-development-roadmap.md) | **Superseded:** the January 2025 Flutter roadmap. That app was never built. |
 | [`executor-plans/`](history/executor-plans/README.md) | Historical: animation-audit executor plans 001–005 and the Bills plan 006, all DONE |
 | [`phone-auth-fixes.md`](history/phone-auth-fixes.md) | Historical: phone-auth hardening notes. Phone auth has since been removed from the app. |
 | [`phone-auth-sms-debug.md`](history/phone-auth-sms-debug.md) | Historical: SMS-delivery debugging notes. It starts mid-document and was formerly the root file `.md`. |
-
-## Pending decision
-
-These three files are still in [`plan/`](../plan/) until the owner decides what to do with them:
-
-| File | Problem | Recommendation |
-|---|---|---|
-| `plan/06-firestore-schema.md` | Still documents the dead `company_*` model | Delete. The rules and indexes are the source of truth. |
-| `plan/07-security-rules.md` | A stale 483-line copy of `firestore.rules` | Delete |
-| `plan/13-development-roadmap.md` | Describes a Flutter app that was never built | Delete, or move to `history/` stamped "SUPERSEDED — Flutter, never built" |
-
-[`src/constants/transaction-categories.ts`](../src/constants/transaction-categories.ts) cites `plan/06-firestore-schema.md` for the transaction category taxonomy. Repoint or drop that comment when 06 goes.

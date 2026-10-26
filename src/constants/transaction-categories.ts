@@ -3,8 +3,8 @@ import type { IconName } from '@/components/ui/icon';
 export type CategoryMeta = { label: string; icon: IconName };
 
 /**
- * Maps the gemtrack transaction category taxonomy (plan/06-firestore-schema.md)
- * to human labels and Material icons. Unknown categories fall back to a
+ * Maps the gemtrack transaction `category` strings written by the app and
+ * Functions to human labels and Material icons. Unknown categories fall back to a
  * title-cased label so the UI always reflects real data.
  */
 const CATEGORY_META: Record<string, CategoryMeta> = {

@@ -1,3 +1,5 @@
+> **SUPERSEDED — Flutter, never built.** This January 2025 roadmap plans a Flutter app. GemFort was built with Expo / React Native instead, so none of the phases below describe the real app. Kept for history only.
+
 # DEVELOPMENT-ROADMAP.md
 ## Phased Build Plan
 
