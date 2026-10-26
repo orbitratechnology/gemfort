@@ -6,7 +6,7 @@ import { REGION } from '../config';
 import { createNotificationsBatch } from '../notifications/create';
 import { buildGemTrackCandidatesForOwner, loadOwnerContexts } from '../notifications/gemtrack-checks';
 
-/** Daily GemTrack alerts at 08:00 Asia/Colombo (plan/10-notifications.md). */
+/** Daily GemTrack alerts at 08:00 Asia/Colombo (docs/product/10-notifications.md). */
 export const dailyGemTrackNotifications = onSchedule(
   {
     schedule: '0 8 * * *',

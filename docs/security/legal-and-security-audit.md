@@ -7,7 +7,7 @@
 
 **Status: NOT READY FOR FINAL LEGAL PUBLICATION or unrestricted Play release.**
 
-The repository contains substantive draft documents in [privacy-policy.md](./privacy-policy.md) and [terms-and-conditions.md](./terms-and-conditions.md). They are intentionally still marked as drafts because the operator’s legal identity, registered address, official privacy/support contact, age rule, governing law, dispute process, fees, and liability position are not established in the codebase. Those facts must not be guessed.
+The repository contains substantive draft documents in [privacy-policy.md](../legal/privacy-policy.md) and [terms-and-conditions.md](../legal/terms-and-conditions.md). They are intentionally still marked as drafts because the operator’s legal identity, registered address, official privacy/support contact, age rule, governing law, dispute process, fees, and liability position are not established in the codebase. Those facts must not be guessed.
 
 The currently verifiable account-deletion URL is [https://gemfort.web.app/delete-account](https://gemfort.web.app/delete-account), which returned HTTP 200 during the audit. The custom `gemfort.app` domain was not DNS-resolvable from the audit environment. The Hono endpoint is an authenticated, App Check-protected API route and is not a valid Google Play web deletion resource:
 

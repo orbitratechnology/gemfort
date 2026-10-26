@@ -311,7 +311,7 @@ bun run update:play:beta
 bun run update:play:closed
 ```
 
-Play Store testing release commands and Play Console setup are documented in [`PLAY_STORE_TRACKS.md`](PLAY_STORE_TRACKS.md).
+Play Store testing release commands and Play Console setup are documented in [`docs/ops/PLAY_STORE_TRACKS.md`](docs/ops/PLAY_STORE_TRACKS.md).
 
 Runtime version follows app version (`app.config.ts`).
 
@@ -363,7 +363,7 @@ bun run firebase:deploy
 
 This deploys Firestore rules, indexes, Storage rules, and Functions.
 
-Schema and rules detail: [`plan/06-firestore-schema.md`](plan/06-firestore-schema.md), [`plan/07-security-rules.md`](plan/07-security-rules.md).
+Schema and rules detail: [`firestore.rules`](firestore.rules) and [`firestore.indexes.json`](firestore.indexes.json) are the source of truth; prose docs do not restate them.
 
 ---
 
@@ -386,8 +386,7 @@ gemfort/
 ├── google-services/         # Per-env Firebase native config
 ├── assets/                  # Icons, splash, images
 ├── scripts/                 # Seed and rules test tooling
-├── plan/                    # Internal product & technical specs
-├── docs/                    # Architecture decisions, migration notes, legal copy
+├── docs/                    # Product specs, architecture, security, legal, ops, history (index: docs/README.md)
 ├── app.config.ts
 ├── eas.json
 ├── firestore.rules
@@ -416,17 +415,17 @@ gemfort/
 
 ## Internal documentation
 
-This README is the product and contributor entry point. Deeper specifications live in the internal suite:
+This README is the product and contributor entry point. Everything else lives under [`docs/`](docs/README.md); start with the [docs index](docs/README.md), which marks each doc as current or historical and names the source of truth for each kind of information. Key product specs:
 
 | Doc | Contents |
 |-----|----------|
-| [`plan/00-contents.md`](plan/00-contents.md) | Index of the full suite |
-| [`plan/02-prd.md`](plan/02-prd.md) | Product requirements |
-| [`plan/03-user-roles.md`](plan/03-user-roles.md) | Roles and verification |
-| [`plan/06-firestore-schema.md`](plan/06-firestore-schema.md) | Data model |
-| [`plan/08-ranking-algorithm.md`](plan/08-ranking-algorithm.md) | Directory ranking |
-| [`plan/12-design-system.md`](plan/12-design-system.md) | Design system |
-| [`plan/14-acceptance-criteria.md`](plan/14-acceptance-criteria.md) | Acceptance criteria |
+| [`docs/README.md`](docs/README.md) | Index of all docs |
+| [`docs/product/02-prd.md`](docs/product/02-prd.md) | Product requirements |
+| [`docs/product/03-user-roles.md`](docs/product/03-user-roles.md) | Roles and verification |
+| [`docs/product/08-ranking-algorithm.md`](docs/product/08-ranking-algorithm.md) | Directory ranking |
+| [`docs/product/12-design-system.md`](docs/product/12-design-system.md) | Design system |
+| [`docs/product/14-acceptance-criteria.md`](docs/product/14-acceptance-criteria.md) | Acceptance criteria |
+| [`docs/architecture/adr-001-gemfort-api-consolidation.md`](docs/architecture/adr-001-gemfort-api-consolidation.md) | Hono API (`gemfortApi`) decision |
 
 Brand copy used in the app: [`src/constants/brand-story.ts`](src/constants/brand-story.ts).
 

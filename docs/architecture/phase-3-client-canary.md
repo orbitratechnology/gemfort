@@ -3,7 +3,7 @@
 **Status:** Canary transport and native App Check wiring complete; live API deployed; mobile canary disabled  
 **Date:** 2026-08-12  
 **Branch:** `codex/phase-1-api-contract`  
-**Related implementation:** [API client](../src/lib/api/api-client.ts) and [flight service](../src/features/flights/flights-service.ts)
+**Related implementation:** [API client](../../src/lib/api/api-client.ts) and [flight service](../../src/features/flights/flights-service.ts)
 
 ## Delivered
 
