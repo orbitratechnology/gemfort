@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   badgesToggleTitle: { ...Typography.labelMd, fontWeight: '700' },
-  badgesToggleSummary: { ...Typography.bodySm, lineHeight: 19 },
+  badgesToggleSummary: { ...Typography.bodySmall, lineHeight: 19 },
   tierList: {
     gap: Spacing.sm,
   },
@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tierDescription: {
-    ...Typography.bodySm,
+    ...Typography.bodySmall,
     lineHeight: 19,
   },
   fields: { gap: Spacing.lg },
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
   },
   documentIntroCopy: { flex: 1, gap: 2 },
   documentIntroTitle: { ...Typography.labelMd, fontWeight: '700' },
-  documentIntroText: { ...Typography.bodySm, lineHeight: 19 },
+  documentIntroText: { ...Typography.bodySmall, lineHeight: 19 },
   serviceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   serviceChip: {
     paddingHorizontal: 12,

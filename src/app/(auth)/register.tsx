@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-  Keyboard,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Keyboard,
+    Linking,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import Animated, {
     FadeInLeft,
@@ -37,9 +37,9 @@ import {
     Typography,
 } from "@/constants/design-tokens";
 import {
-  CURRENT_LEGAL_ACCEPTANCE,
-  PRIVACY_URL,
-  TERMS_URL,
+    CURRENT_LEGAL_ACCEPTANCE,
+    PRIVACY_URL,
+    TERMS_URL,
 } from "@/constants/legal";
 import { ROLE_LABELS } from "@/constants/roles";
 import { useAppTheme } from "@/hooks/use-app-theme";
@@ -176,10 +176,7 @@ export default function RegisterScreen() {
           role!,
           CURRENT_LEGAL_ACCEPTANCE,
         );
-        router.replace({
-          pathname: "/(auth)/complete-phone",
-          params: { afterRegistration: "1" },
-        });
+        router.replace("/(marketplace)/(tabs)/home");
       }, "Finishing your account...");
     } catch (error) {
       toast.error(friendlyError(error, "Could not finish creating your account."));
@@ -200,10 +197,7 @@ export default function RegisterScreen() {
     try {
       await withLoading(async () => {
         await signInWithGoogle(role!, CURRENT_LEGAL_ACCEPTANCE);
-        router.replace({
-          pathname: "/(auth)/complete-phone",
-          params: { afterRegistration: "1" },
-        });
+        router.replace("/(marketplace)/(tabs)/home");
       }, "Creating account...");
     } catch (error) {
       toast.error(friendlyError(error, "Google Sign-In could not be completed."));
@@ -245,10 +239,7 @@ export default function RegisterScreen() {
           legalAcceptance: CURRENT_LEGAL_ACCEPTANCE,
         });
         if (user) {
-          router.replace({
-            pathname: "/(auth)/complete-phone",
-            params: { afterRegistration: "1" },
-          });
+          router.replace("/(marketplace)/(tabs)/home");
         }
       }, "Creating account…");
     } catch (e) {
@@ -270,10 +261,7 @@ export default function RegisterScreen() {
         } else {
           await signInWithApple(role, CURRENT_LEGAL_ACCEPTANCE);
         }
-        router.replace({
-          pathname: "/(auth)/complete-phone",
-          params: { afterRegistration: "1" },
-        });
+        router.replace("/(marketplace)/(tabs)/home");
       }, "Creating account...");
     } catch (error) {
       toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));

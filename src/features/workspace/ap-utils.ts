@@ -1,6 +1,5 @@
 import {
   apAgreedTotal,
-  apOwnerOwedTotal,
   isApOngoing,
 } from '@/features/workspace/ap-normalize';
 import type { ApRecord, Contact, WorkspaceGem } from '@/types';
@@ -103,35 +102,6 @@ export function groupApByHolder(
       };
     })
     .sort((a, b) => a.holderName.localeCompare(b.holderName));
-}
-
-export function getApSummary(records: ApRecord[]) {
-  const now = Date.now();
-  const withHolder = records.filter((r) => isApOngoing(r.status));
-  const overdue = withHolder.filter(
-    (r) => r.expectedReturnDate.toDate().getTime() < now,
-  );
-  const pendingPayment = records.filter(
-    (r) =>
-      r.status === 'payment_sent' ||
-      r.status === 'sold' ||
-      (isApOngoing(r.status) &&
-        (r.items ?? []).some((i) => i.lineStatus === 'sold')),
-  );
-
-  return {
-    totalOut: withHolder.reduce(
-      (n, r) => n + (r.items?.filter((i) => i.lineStatus === 'held').length || 1),
-      0,
-    ),
-    totalValue: withHolder.reduce((sum, r) => sum + apAgreedTotal(r), 0),
-    overdueCount: overdue.length,
-    pendingPaymentTotal: pendingPayment.reduce(
-      (sum, r) => sum + apOwnerOwedTotal(r),
-      0,
-    ),
-    pendingRequests: records.filter((r) => r.status === 'pending').length,
-  };
 }
 
 export function findGemForAp(

@@ -20,7 +20,7 @@ describe('exchange-rates', () => {
 
     it('throws when rate missing', () => {
       expect(() => convertToBaseSync(5, 'THB', rates)).toThrow(
-        /Missing exchange rate/,
+        /Currency conversion is temporarily unavailable/,
       );
     });
   });

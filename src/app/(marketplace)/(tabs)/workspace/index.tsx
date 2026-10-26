@@ -1,14 +1,17 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useTourTarget } from "guideway";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import { TourHelpButton } from "@/components/onboarding/tour-help-button";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -180,6 +183,10 @@ export default function WorkspaceHub() {
   const { colors } = useAppTheme();
   const { formatBase, formatStored } = usePreferredMoney();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
+  const overviewTourTarget = useTourTarget("workspace-overview", { scrollRef });
+  const modulesTourTarget = useTourTarget("workspace-modules", { scrollRef });
+  const quickActionsTourTarget = useTourTarget("workspace-actions");
   const [chromeHeight, setChromeHeight] = useState(0);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const userId = user?.uid;
@@ -657,6 +664,7 @@ export default function WorkspaceHub() {
     >
       {/* First descendant must be ScrollView for NativeTabs scroll-to-top. */}
       <ThemedScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.content, { paddingTop: topPad }]}
         showsVerticalScrollIndicator={false}
       >
@@ -687,6 +695,7 @@ export default function WorkspaceHub() {
 
         {/* Hero */}
         <Pressable
+          ref={overviewTourTarget}
           onPress={() => router.push(heroRoute as never)}
           style={({ pressed }) => [
             styles.hero,
@@ -881,7 +890,9 @@ export default function WorkspaceHub() {
         ) : null}
 
         {/* Modules — gradient group panels + tiles */}
-        <WorkspaceModules groups={moduleGroups} colors={colors} />
+        <View ref={modulesTourTarget} collapsable={false}>
+          <WorkspaceModules groups={moduleGroups} colors={colors} />
+        </View>
 
         {/* Recent jobs — lapidary workshop feed */}
         {canAccessModule(role, "jobs") && jobs.length > 0 ? (
@@ -967,7 +978,10 @@ export default function WorkspaceHub() {
 
       </ThemedScrollView>
 
-      <QuickActionsFab onPress={() => setQuickActionsOpen(true)} />
+      <QuickActionsFab
+        onPress={() => setQuickActionsOpen(true)}
+        targetRef={quickActionsTourTarget}
+      />
       <QuickActionsSheet
         visible={quickActionsOpen}
         onClose={() => setQuickActionsOpen(false)}
@@ -980,7 +994,11 @@ export default function WorkspaceHub() {
         onLayout={(e) => setChromeHeight(e.nativeEvent.layout.height)}
       >
         <SafeAreaView edges={["top"]}>
-          <StackHeader title="Workspace" showBack={false} />
+          <StackHeader
+            title="Workspace"
+            showBack={false}
+            right={<TourHelpButton tourId="workspace" />}
+          />
         </SafeAreaView>
       </View>
     </View>

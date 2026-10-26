@@ -6,6 +6,18 @@
       "args": [
         "mcp"
       ]
+    },
+    "expo": {
+      "type": "http",
+      "url": "https://mcp.expo.dev/mcp"
+    },
+    "firebase": {
+      "type": "stdio",
+      "command": "firebase",
+      "args": [
+        "mcp"
+      ],
+      "cwd": "${workspaceFolder}"
     }
   }
 }

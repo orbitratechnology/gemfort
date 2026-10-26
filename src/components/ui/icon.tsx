@@ -23,18 +23,21 @@ type IconProps = {
   color?: string;
 };
 
+function isEntityKind(name: IconName): name is WorkspaceEntityKind {
+  return Object.prototype.hasOwnProperty.call(WORKSPACE_ENTITY_IMAGES, name);
+}
+
 /**
  * App-wide icon. Material Symbols by default; entity names resolve to artwork.
  */
 export function Icon({ name, size = 24, color }: IconProps) {
   const { colors } = useAppTheme();
   const resolved = color ?? colors.onSurface;
-  const entityImage = WORKSPACE_ENTITY_IMAGES[name as WorkspaceEntityKind];
 
-  if (entityImage) {
+  if (isEntityKind(name)) {
     return (
       <Image
-        source={entityImage}
+        source={WORKSPACE_ENTITY_IMAGES[name]}
         style={{ width: size, height: size }}
         contentFit="contain"
         accessibilityIgnoresInvertColors

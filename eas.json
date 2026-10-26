@@ -77,9 +77,7 @@
       "channel": "production",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
-        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
-        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi"
       }
     },
     "production-apk": {
@@ -89,9 +87,7 @@
       "channel": "production",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi",
-        "EXPO_PUBLIC_GEMFORT_API_CANARY": "false",
-        "EXPO_PUBLIC_GEMFORT_AP_API_CANARY": "false"
+        "EXPO_PUBLIC_GEMFORT_API_BASE_URL": "https://asia-south1-gemfort.cloudfunctions.net/gemfortApi"
       },
       "android": {
         "buildType": "apk"

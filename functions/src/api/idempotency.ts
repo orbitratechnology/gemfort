@@ -7,6 +7,12 @@ import { ApiError } from './errors';
 import { validateIdempotencyKey } from '../gemtrack/mutation-contract';
 
 const PENDING_RETRY_AFTER_MS = 10 * 60 * 1000;
+/** Retries arrive within minutes; a Firestore TTL policy on `expiresAt` purges older records. */
+const RECORD_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function expiresAtFrom(now: Timestamp): Timestamp {
+  return Timestamp.fromMillis(now.toMillis() + RECORD_TTL_MS);
+}
 
 type IdempotencyRecord = {
   uid: string;
@@ -17,6 +23,7 @@ type IdempotencyRecord = {
   response?: unknown;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  expiresAt: Timestamp;
 };
 
 export type IdempotentInput<T> = {
@@ -75,6 +82,7 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
         status: 'pending',
         createdAt: now,
         updatedAt: now,
+        expiresAt: expiresAtFrom(now),
       } satisfies IdempotencyRecord);
       return { kind: 'new' as const };
     }
@@ -101,7 +109,7 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
       );
     }
 
-    transaction.update(ref, { status: 'pending', updatedAt: now });
+    transaction.update(ref, { status: 'pending', updatedAt: now, expiresAt: expiresAtFrom(now) });
     return { kind: 'new' as const };
   });
 
@@ -115,7 +123,13 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
     await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) return;
-      transaction.update(ref, { status: 'succeeded', response, updatedAt: Timestamp.now() });
+      const completedAt = Timestamp.now();
+      transaction.update(ref, {
+        status: 'succeeded',
+        response,
+        updatedAt: completedAt,
+        expiresAt: expiresAtFrom(completedAt),
+      });
     });
     return response;
   } catch (error) {

@@ -91,8 +91,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Keep focused inputs visible above the keyboard (esp. with bottom tabs).
     softwareKeyboardLayoutMode: "pan",
     adaptiveIcon: {
-      // Black plate; foreground mark is inset (~52%) for circular / squircle masks
-      backgroundColor: "#000000",
+      // White plate; foreground mark stays within Android's adaptive safe area.
+      backgroundColor: "#FFFFFF",
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
@@ -219,13 +219,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#000000",
+        backgroundColor: "#FFFFFF",
         image: "./assets/images/splash-icon.png",
         // dp width of the splash icon box; mark itself is inset for Android's circular mask
         imageWidth: 200,
         resizeMode: "contain",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#FFFFFF",
           image: "./assets/images/splash-icon.png",
         },
       },

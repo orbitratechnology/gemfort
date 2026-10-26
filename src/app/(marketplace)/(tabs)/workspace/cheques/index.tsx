@@ -11,7 +11,6 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     CHEQUE_STATUS_LABELS,
-    getChequeSummary,
     getUpcomingCheques,
     maturityLabel,
 } from "@/features/workspace/cheque-utils";
@@ -188,7 +187,6 @@ function ChequeRow({
 export default function ChequesScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
@@ -241,7 +239,6 @@ export default function ChequesScreen() {
       ),
     [cheques, side],
   );
-  const summary = getChequeSummary(sideCheques);
   const upcoming = getUpcomingCheques(sideCheques);
   const bounced = sideCheques.filter((c) => c.status === "bounced");
 
@@ -297,56 +294,6 @@ export default function ChequesScreen() {
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
           <View style={styles.headerBlock}>
-            <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryCol}>
-                  <Text
-                    style={[
-                      styles.summaryLabel,
-                      { color: colors.onPrimary + "99" },
-                    ]}
-                  >
-                    HOLDING
-                  </Text>
-                  <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                    {summary.holdingCount} · {formatBase(summary.holdingTotal)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.summaryDivider,
-                    { backgroundColor: colors.onPrimary + "22" },
-                  ]}
-                />
-                <View style={styles.summaryCol}>
-                  <Text
-                    style={[
-                      styles.summaryLabel,
-                      { color: colors.onPrimary + "99" },
-                    ]}
-                  >
-                    THIS MONTH
-                  </Text>
-                  <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                    {formatBase(summary.clearingThisMonth)}
-                  </Text>
-                </View>
-              </View>
-              {summary.bouncedCount > 0 ? (
-                <View
-                  style={[
-                    styles.bouncedBanner,
-                    { backgroundColor: colors.error + "33" },
-                  ]}
-                >
-                  <Icon name="warning" size={16} color={colors.onPrimary} />
-                  <Text style={[styles.bouncedText, { color: colors.onPrimary }]}>
-                    {summary.bouncedCount} bounced · action required
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
             {bounced.length > 0 ? (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.error }]}>
@@ -369,9 +316,11 @@ export default function ChequesScreen() {
               </View>
             ) : null}
 
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-              Upcoming
-            </Text>
+            {upcoming.length > 0 ? (
+              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+                Upcoming
+              </Text>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -435,27 +384,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  summaryCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  summaryRow: { flexDirection: "row", alignItems: "center" },
-  summaryCol: { flex: 1, gap: 4 },
-  summaryDivider: { width: 1, height: 40, marginHorizontal: Spacing.md },
-  summaryLabel: { ...Typography.labelMd, letterSpacing: 1 },
-  summaryValue: { ...Typography.headlineMdMobile, fontWeight: "700" },
-  bouncedBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  bouncedText: { ...Typography.bodySmall, fontWeight: "600" },
   section: { gap: Spacing.sm },
   sectionTitle: {
     ...Typography.headlineMdMobile,

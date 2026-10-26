@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -35,6 +34,10 @@ import {
     PartyPickerSheet,
     type PartySelection,
 } from "@/components/workspace/contact-picker-sheet";
+import {
+  GemActionsSheet,
+  type GemActionItem,
+} from "@/components/workspace/gem-actions-sheet";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import {
     FontFamily,
@@ -291,6 +294,7 @@ export default function GemDetailScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [partyPickerOpen, setPartyPickerOpen] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
@@ -456,7 +460,9 @@ export default function GemDetailScreen() {
       message: "Cancel the pending trader request and return the gem to active inventory.",
       confirmLabel: "Mark unsold",
       tone: "destructive",
-      onConfirm: () => cancelGemTransferRequest(gem.saleTransferRequestId!),
+      onConfirm: async () => {
+        await cancelGemTransferRequest(gem.saleTransferRequestId!);
+      },
     });
     if (!ok) return;
     setTransferSaving(true);
@@ -550,6 +556,7 @@ export default function GemDetailScreen() {
   const gemDisplayId = shortGemId(gem.id);
   const gemSummary = `${gemTitle} · ${formatGemType(gem.gemType)} ${gem.currentWeight}ct`;
   const gemIdForShare = gem.id;
+  const listingIdForShare = gem.marketplaceListingId;
   const historyEvents = [...events].reverse();
   const visibleHistoryEvents = historyEvents.slice(0, INITIAL_HISTORY_COUNT);
   const costLines = [...costs].sort((a, b) => {
@@ -606,17 +613,22 @@ export default function GemDetailScreen() {
   const canMarkSold = actionAvailability.mark_sold || canSellFromTrip;
   const isListed =
     isOwnGem && (gem.isListedOnMarketplace || lifecycle.outcome === "listed");
-  const actionButtons = [
-    ...(canMarkSold ? [{ title: "Sold", icon: "price-check" as IconName, onPress: openSoldChooser, primary: true }] : []),
-    ...(actionAvailability.mark_unsold ? [{ title: "Mark unsold", icon: "undo" as IconName, onPress: () => void handleMarkUnsold(), primary: true }] : []),
-    ...(actionAvailability.send_for_cutting ? [{ title: cuttingServiceType === "recutting" ? "Recut" : "Cut", icon: "content-cut" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}` }] : []),
-    ...(actionAvailability.send_for_heating ? [{ title: heatingServiceType === "reheating" ? "Reheat" : "Heat", icon: "local-fire-department" as IconName, image: require("@/assets/images/lapidary-icon.png"), href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}` }] : []),
-    ...(actionAvailability.send_for_polishing ? [{ title: polishingServiceType === "repolishing" ? "Repolish" : "Polish", icon: "auto-awesome" as IconName, href: `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}` }] : []),
-    ...(actionAvailability.give_on_ap ? [{ title: "Give on AP", icon: "ap" as IconName, image: require("@/assets/images/ap-icon.png"), href: `/(marketplace)/ap/add?gemId=${gem.id}` }] : []),
-    ...(actionAvailability.list_on_market ? [{ title: "Sell on Market", icon: "storefront" as IconName, href: `/listings/create?workspaceGemId=${gem.id}` }] : []),
-    ...(actionAvailability.remove_from_market ? [{ title: "Remove from Market", icon: "remove-shopping-cart" as IconName, onPress: () => void handleRemoveFromMarket() }] : []),
+  const primaryAction: { title: string; icon: IconName; onPress: () => void } | null =
+    canMarkSold
+      ? { title: "Sold", icon: "price-check", onPress: openSoldChooser }
+      : actionAvailability.mark_unsold
+        ? { title: "Mark unsold", icon: "undo", onPress: () => void handleMarkUnsold() }
+        : null;
+  const openRoute = (href: string) => () => router.push(href as never);
+  const sheetActions: GemActionItem[] = [
+    ...(actionAvailability.send_for_cutting ? [{ id: "cut", group: "work" as const, title: cuttingServiceType === "recutting" ? "Recut" : "Cut", description: "Send to a cutter and track the job", icon: "content-cut" as IconName, onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}`) }] : []),
+    ...(actionAvailability.send_for_heating ? [{ id: "heat", group: "work" as const, title: heatingServiceType === "reheating" ? "Reheat" : "Heat", description: "Send for heat treatment", icon: "local-fire-department" as IconName, image: require("@/assets/images/lapidary-icon.png"), onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}`) }] : []),
+    ...(actionAvailability.send_for_polishing ? [{ id: "polish", group: "work" as const, title: polishingServiceType === "repolishing" ? "Repolish" : "Polish", description: "Send for polishing", icon: "auto-awesome" as IconName, onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}`) }] : []),
+    ...(actionAvailability.give_on_ap ? [{ id: "ap", group: "trade" as const, title: "Give on AP", description: "Hand it to a trader on approval", icon: "ap" as IconName, image: require("@/assets/images/ap-icon.png"), onPress: openRoute(`/(marketplace)/ap/add?gemId=${gem.id}`) }] : []),
+    ...(actionAvailability.list_on_market ? [{ id: "list", group: "trade" as const, title: "Sell on Market", description: "List it for buyers on GemFort Market", icon: "storefront" as IconName, onPress: openRoute(`/listings/create?workspaceGemId=${gem.id}`) }] : []),
+    ...(actionAvailability.remove_from_market ? [{ id: "unlist", group: "trade" as const, title: "Remove from Market", description: "Take the listing down", icon: "remove-shopping-cart" as IconName, destructive: true, onPress: () => void handleRemoveFromMarket() }] : []),
   ];
-  const hasBottomActions = isOwnGem && actionButtons.length > 0;
+  const hasBottomActions = isOwnGem && (primaryAction != null || sheetActions.length > 0);
 
   async function handleShareGem() {
     if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
@@ -630,8 +642,8 @@ export default function GemDetailScreen() {
     }
     await shareLink({
       message: `GemFort gem: ${gemSummary}`,
-      url: gem.marketplaceListingId
-        ? listingShareUrl(gem.marketplaceListingId)
+      url: listingIdForShare
+        ? listingShareUrl(listingIdForShare)
         : `gemfort://workspace/gems/${gemIdForShare}`,
       title: gemTitle,
     });
@@ -1278,52 +1290,43 @@ export default function GemDetailScreen() {
       </View>
 
       {hasBottomActions ? (
-          <View style={styles.actionBar}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.actionScrollContent}
-          >
-            {actionButtons.map((action) => (
-              <Pressable
-                key={action.title}
-                onPress={() => action.onPress ? void action.onPress() : router.push(action.href as never)}
-                accessibilityRole="button"
-                accessibilityLabel={action.title}
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  !action.primary && styles.secondaryBtn,
-                  {
-                    backgroundColor: action.primary ? colors.primary : colors.surfaceContainerLowest,
-                    borderColor: action.primary ? colors.primary : colors.outlineVariant,
-                    opacity: pressed || transferSaving ? 0.82 : 1,
-                  },
-                ]}
-              >
-                {action.image ? (
-                  <Image
-                    source={action.image}
-                    style={styles.actionImage}
-                    contentFit="contain"
-                    accessibilityIgnoresInvertColors
-                  />
-                ) : (
-                  <Icon name={action.icon} size={22} color={action.primary ? colors.onPrimary : colors.onSurface} />
-                )}
-                <Text
-                  style={[
-                    styles.actionBtnText,
-                    { color: action.primary ? colors.onPrimary : colors.onSurface },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {action.title}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+        <View
+          style={[
+            styles.actionBar,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.outlineVariant,
+              paddingBottom: bottomBarPad,
+            },
+          ]}
+        >
+          {primaryAction ? (
+            <Button
+              title={primaryAction.title}
+              icon={primaryAction.icon}
+              disabled={transferSaving}
+              onPress={primaryAction.onPress}
+              style={styles.actionBarBtn}
+            />
+          ) : null}
+          {sheetActions.length > 0 ? (
+            <Button
+              title={primaryAction ? "More actions" : "Gem actions"}
+              icon="more-horiz"
+              variant={primaryAction ? "secondary" : "primary"}
+              disabled={transferSaving}
+              onPress={() => setActionsOpen(true)}
+              style={styles.actionBarBtn}
+            />
+          ) : null}
         </View>
       ) : null}
+
+      <GemActionsSheet
+        visible={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        actions={sheetActions}
+      />
 
       <BottomSheet
         visible={historyOpen}
@@ -1337,7 +1340,6 @@ export default function GemDetailScreen() {
           style={styles.historyList}
           contentContainerStyle={styles.historyListContent}
           showsVerticalScrollIndicator={false}
-          estimatedItemSize={72}
           renderItem={({ item, index }) => (
             <GemHistoryRow
               event={item}
@@ -1764,30 +1766,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingVertical: Spacing.xs,
-  },
-  actionScrollContent: {
-    gap: 10,
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: 10,
-  },
-  actionBtn: {
-    minWidth: 96,
-    height: 56,
-    paddingHorizontal: 14,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    boxShadow: "0 5px 10px rgba(0, 0, 0, 0.18)",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  actionImage: { width: 28, height: 28 },
-  actionBtnText: { ...Typography.labelMd, fontWeight: "700", flexShrink: 0 },
-  secondaryBtn: {
-    borderWidth: 1.5,
-  },
+  actionBarBtn: { flex: 1 },
 
   statusSheetHint: { ...Typography.bodyMd, marginBottom: Spacing.stackSm },
   statusOption: {

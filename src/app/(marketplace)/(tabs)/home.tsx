@@ -1,6 +1,7 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useTourTarget } from "guideway";
 import { useMemo, useState } from "react";
 import {
     Pressable,
@@ -20,6 +21,7 @@ import { HomeCurrencyRates } from "@/components/marketplace/home-currency-rates"
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { TourHelpButton } from "@/components/onboarding/tour-help-button";
 import { ProductGrid } from "@/components/ui/product-grid";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { SkeletonList } from "@/components/ui/skeleton-list";
@@ -178,6 +180,9 @@ export default function HomeScreen() {
   const unread = useUnreadNotificationCount();
   const [chromeHeight, setChromeHeight] = useState(0);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+  const profileTourTarget = useTourTarget("home-profile");
+  const notificationsTourTarget = useTourTarget("home-notifications");
+  const quickActionsTourTarget = useTourTarget("home-actions");
 
   const role = resolveProfileRole(profile);
   const quickActions = useMemo(
@@ -532,7 +537,10 @@ export default function HomeScreen() {
         </View>
       </ThemedScrollView>
 
-      <QuickActionsFab onPress={() => setQuickActionsOpen(true)} />
+      <QuickActionsFab
+        onPress={() => setQuickActionsOpen(true)}
+        targetRef={quickActionsTourTarget}
+      />
       <QuickActionsSheet
         visible={quickActionsOpen}
         onClose={() => setQuickActionsOpen(false)}
@@ -548,6 +556,7 @@ export default function HomeScreen() {
         <SafeAreaView edges={["top"]}>
           <View style={styles.header}>
             <Pressable
+              ref={profileTourTarget}
               accessibilityRole="button"
               accessibilityLabel={`${displayName}, ${roleLabel}`}
               style={styles.headerLeft}
@@ -594,7 +603,9 @@ export default function HomeScreen() {
               </View>
             </Pressable>
             <View style={styles.headerActions}>
+              <TourHelpButton tourId="home" />
               <Pressable
+                ref={notificationsTourTarget}
                 accessibilityRole="button"
                 accessibilityLabel={
                   unread > 0

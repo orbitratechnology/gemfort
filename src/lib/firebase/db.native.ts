@@ -18,6 +18,8 @@ export {
   Timestamp,
   increment,
   onSnapshot,
+  runTransaction,
+  writeBatch,
 } from '@react-native-firebase/firestore';
 
 export { getFirestore as getFirebaseDb } from '@react-native-firebase/firestore';

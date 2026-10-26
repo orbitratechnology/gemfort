@@ -17,7 +17,7 @@ const mockForgetSync = jest.fn();
 const mockTransactionSet = jest.fn();
 const mockTransactionUpdate = jest.fn();
 const mockRunTransaction = jest.fn();
-const mockDb = { runTransaction: mockRunTransaction };
+const mockDb = {};
 
 jest.mock('@/lib/firebase/config', () => ({
   getFirebaseAuth: jest.fn(() => ({ currentUser: { uid: 'owner-1' } })),
@@ -32,6 +32,7 @@ jest.mock('@/lib/firebase/db', () => ({
   })),
   getDoc: jest.fn(),
   getDocs: jest.fn(),
+  runTransaction: jest.fn((_db, callback) => mockRunTransaction(callback)),
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
   serverTimestamp: jest.fn(() => 'SERVER_TS'),
@@ -40,6 +41,7 @@ jest.mock('@/lib/firebase/db', () => ({
   limit: jest.fn(),
   orderBy: jest.fn(),
   where: jest.fn(),
+  writeBatch: jest.fn(),
 }));
 
 jest.mock('@/lib/exchange-rates', () => ({

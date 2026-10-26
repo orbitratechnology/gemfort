@@ -41,7 +41,7 @@ import {
     apStatusLabel,
     isApOngoing,
 } from "@/features/workspace/ap-normalize";
-import { getApSummary, isApOverdue } from "@/features/workspace/ap-utils";
+import { isApOverdue } from "@/features/workspace/ap-utils";
 import {
     canDeleteAp,
     canRequestApCancellation,
@@ -464,7 +464,6 @@ function ApRow({
 export default function ApListScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
@@ -613,7 +612,6 @@ export default function ApListScreen() {
     [side, givenQ.items, takenQ.items],
   );
   const isRefetching = givenQ.isRefetching || takenQ.isRefetching;
-  const summary = useMemo(() => getApSummary(records), [records]);
   const takenPending = useMemo(
     () => takenQ.items.filter((r) => r.status === "pending").length,
     [takenQ.items],
@@ -747,33 +745,6 @@ export default function ApListScreen() {
           }
         }}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={
-          <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCol}>
-                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>
-                  {side === "given" ? "OUT" : "HOLDING"}
-                </Text>
-                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                  {summary.totalOut}
-                  {summary.pendingRequests > 0 ? ` · ${summary.pendingRequests} pending` : ""}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.onPrimary + "22" }]} />
-              <View style={styles.summaryCol}>
-                <Text style={[styles.summaryLabel, { color: colors.onPrimary + "99" }]}>AGREED</Text>
-                <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>
-                  {formatBase(summary.totalValue)}
-                </Text>
-              </View>
-            </View>
-            {summary.overdueCount > 0 ? (
-              <Text style={[styles.summaryHint, { color: colors.onPrimary + "CC" }]}>
-                {summary.overdueCount} overdue
-              </Text>
-            ) : null}
-          </View>
-        }
         ListEmptyComponent={
           <EmptyState
             icon={side === "given" ? "call-made" : "call-received"}
@@ -859,22 +830,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  summaryCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  summaryRow: { flexDirection: "row", alignItems: "center" },
-  summaryCol: { flex: 1, gap: 4 },
-  summaryDivider: { width: 1, alignSelf: "stretch", marginHorizontal: 12 },
-  summaryLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-  },
-  summaryValue: { ...Typography.bodyMd, fontWeight: "700" },
-  summaryHint: { ...Typography.caption, fontWeight: "600" },
   section: { gap: Spacing.md },
   sectionTitle: { ...Typography.bodyLg, fontWeight: "700" },
   list: { gap: Spacing.md },

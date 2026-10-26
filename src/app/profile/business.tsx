@@ -441,8 +441,8 @@ function BusinessProfileForm({
             address,
             location,
             shortDescription: shortDescription || "Gem business in Beruwala.",
-            whatsapp: whatsapp || profile?.phone || undefined,
-            phone: phone || profile?.phone || undefined,
+            whatsapp: whatsapp || undefined,
+            phone: phone || undefined,
             socialLinks,
           });
           const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};

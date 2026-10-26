@@ -1,17 +1,42 @@
 /**
  * QA seed — Auth users + Firestore profiles/businesses for personas.
  * Prereq: `gcloud auth application-default login` (or GOOGLE_APPLICATION_CREDENTIALS).
- * Usage: node scripts/seed-qa.mjs
  *
- * Accounts (password: QaTest123!):
+ * `gemfort` is the production project, so the script only runs against the
+ * Auth + Firestore emulators unless `--allow-production` is passed.
+ *
+ * Usage:
+ *   QA_SEED_PASSWORD=… FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
+ *     FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/seed-qa.mjs
+ *   QA_SEED_PASSWORD=… node scripts/seed-qa.mjs --allow-production
+ *
+ * Accounts (password: $QA_SEED_PASSWORD):
  *   qa-trader@gemfort.test   — verified trader (sender)
  *   qa-trader-b@gemfort.test — verified trader (AP holder / accept-sell)
  *   qa-lapidary@gemfort.test — verified lapidary
  *   qa-suspended@gemfort.test — suspended lockout (AC-AUTH-003)
  */
-import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { applicationDefault, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+
+const usingEmulators = Boolean(
+  process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST,
+);
+if (!usingEmulators && !process.argv.includes('--allow-production')) {
+  console.error(
+    'Refusing to seed QA accounts into the production project `gemfort`.\n' +
+      'Point FIRESTORE_EMULATOR_HOST and FIREBASE_AUTH_EMULATOR_HOST at the emulators, ' +
+      'or pass --allow-production if you really mean it.',
+  );
+  process.exit(1);
+}
+
+const QA_PASSWORD = process.env.QA_SEED_PASSWORD;
+if (!QA_PASSWORD || QA_PASSWORD.length < 8) {
+  console.error('Set QA_SEED_PASSWORD (at least 8 characters) for the QA accounts.');
+  process.exit(1);
+}
 
 initializeApp({
   credential: applicationDefault(),
@@ -21,7 +46,6 @@ initializeApp({
 const auth = getAuth();
 const db = getFirestore();
 const now = Timestamp.now();
-const QA_PASSWORD = 'QaTest123!';
 
 const PERSONAS = [
   {
@@ -93,7 +117,6 @@ function userDoc(uid, p) {
     suspendedAt: null,
     companyId: null,
     fcmToken: null,
-    phoneVerified: true,
     notificationPreferences: {
       pushAnnouncements: true,
       pushChequeAlerts: true,

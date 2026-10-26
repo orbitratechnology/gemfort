@@ -1,4 +1,4 @@
-"""Generate GemFort app icons / splash assets from brand masters."""
+"""Generate GemFort app icons / splash assets from erasebg-transformed.png."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ IMAGES = ROOT / "assets" / "images"
 ICON_DIR = ROOT / "assets" / "app-icon.icon"
 ICON_ASSETS = ICON_DIR / "Assets"
 
-# Near-black charcoal-teal from brand masters (sampled corners of gemfort-icon)
-BG = (0, 22, 24, 255)  # #001618
+# White icon plate
+BG = (255, 255, 255, 255)  # #FFFFFF
 BG_RGB = BG[:3]
-SPLASH_BG = "#001618"
+SPLASH_BG = "#FFFFFF"
 NOTIFICATION_TEAL = "#14b8a6"
 
 
@@ -24,6 +24,7 @@ NOTIFICATION_TEAL = "#14b8a6"
 SAFE_AREA_FRAC = 0.80
 CIRCLE_RADIUS_FRAC = 0.48  # 96% of inscribed-circle radius (canvas/2)
 ANDROID_SAFE_FRAC = 0.66
+ANDROID_MARK_FRAC = 0.50
 
 SCALE_IN_APP_MARK = 0.92
 SCALE_MARKETING = 0.76
@@ -213,7 +214,7 @@ def write_icon_composer(mark: Image.Image) -> None:
     icon_json.write_text(
         """{
   "fill": {
-    "solid": "display-p3:0.00000,0.08627,0.09412,1.00000"
+    "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
   },
   "groups": [
     {
@@ -250,21 +251,23 @@ def write_icon_composer(mark: Image.Image) -> None:
 
 
 def main() -> None:
-    for name in ["icon-transparent.png", "gemfort-icon.png", "logo.png"]:
-        inspect(IMAGES / name)
+    inspect(IMAGES / "erasebg-transformed.png")
 
-    transparent_src = IMAGES / "icon-transparent.png"
+    transparent_src = IMAGES / "erasebg-transformed.png"
     mark = ensure_true_transparent(transparent_src)
 
     store_scale = max_scale_for_guidelines(mark, 1024)
-    android_scale = max_scale_for_guidelines(mark, 1024, hard_cap=ANDROID_SAFE_FRAC)
+    android_scale = max_scale_for_guidelines(mark, 1024, hard_cap=ANDROID_MARK_FRAC)
     print(
-        f"Guideline scales — store/iOS: {store_scale:.3f}  android FG (cap {ANDROID_SAFE_FRAC}): {android_scale:.3f}"
+        f"Guideline scales — store/iOS: {store_scale:.3f}  android FG (cap {ANDROID_MARK_FRAC}): {android_scale:.3f}"
     )
 
     # In-app BrandMark master (slight padding only)
     fit_centered(mark, 1024, SCALE_IN_APP_MARK).save(
         IMAGES / "icon-transparent.png", "PNG", optimize=True
+    )
+    fit_centered(mark, 1024, SCALE_IN_APP_MARK).save(
+        IMAGES / "logo.png", "PNG", optimize=True
     )
     print("Saved cleaned icon-transparent.png")
 
@@ -276,17 +279,19 @@ def main() -> None:
     opaque_icon(mark, 1024).save(IMAGES / "ios-light.png", "PNG", optimize=True)
     opaque_icon(mark, 1024).save(IMAGES / "ios-dark.png", "PNG", optimize=True)
     mono = monochrome_mark(mark, 1024).convert("RGBA")
-    tinted_bg = Image.new("RGBA", (1024, 1024), (128, 128, 128, 255))
-    tinted_bg.alpha_composite(mono)
+    tinted_bg = Image.new("RGBA", (1024, 1024), (255, 255, 255, 255))
+    tinted_mark = Image.new("RGBA", mono.size, (0, 0, 0, 255))
+    tinted_mark.putalpha(mono.getchannel("A"))
+    tinted_bg.alpha_composite(tinted_mark)
     tinted_bg.convert("RGB").save(IMAGES / "ios-tinted.png", "PNG", optimize=True)
     print("Saved ios-light/dark/tinted.png")
 
-    # Android adaptive — hard-capped to 66% safe zone (circular/squircle masks)
-    fit_icon_guidelines(mark, 1024, hard_cap=ANDROID_SAFE_FRAC).save(
+    # Android adaptive — leave extra breathing room inside circular/squircle masks
+    fit_centered(mark, 1024, android_scale).save(
         IMAGES / "android-icon-foreground.png", "PNG", optimize=True
     )
     solid(BG_RGB).save(IMAGES / "android-icon-background.png", "PNG", optimize=True)
-    monochrome_mark(mark, 1024).save(
+    monochrome_mark(mark, 1024, android_scale).save(
         IMAGES / "android-icon-monochrome.png", "PNG", optimize=True
     )
     print("Saved android adaptive icons")
@@ -301,9 +306,6 @@ def main() -> None:
     opaque_icon(mark, 48, SCALE_FAVICON).save(IMAGES / "favicon.png", "PNG", optimize=True)
 
     opaque_icon(mark, 1024, SCALE_MARKETING).save(IMAGES / "gemfort-icon.png", "PNG", optimize=True)
-
-    logo = Image.open(IMAGES / "logo.png").convert("RGBA")
-    logo.save(IMAGES / "logo.png", "PNG", optimize=True)
 
     write_icon_composer(mark)
 

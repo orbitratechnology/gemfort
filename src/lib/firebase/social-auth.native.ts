@@ -1,19 +1,19 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import {
-  GoogleOneTapSignIn,
-  isNoSavedCredentialFoundResponse,
-  isSuccessResponse,
+    GoogleOneTapSignIn,
+    isNoSavedCredentialFoundResponse,
+    isSuccessResponse,
 } from 'react-native-nitro-google-signin';
 
-import {
-  AppleAuthProvider,
-  GoogleAuthProvider,
-  reauthenticateWithCredential,
-  signInWithCredential,
-  signOut,
-} from '@/lib/firebase/auth';
 import type { LegalAcceptance } from '@/constants/legal';
+import {
+    AppleAuthProvider,
+    GoogleAuthProvider,
+    reauthenticateWithCredential,
+    signInWithCredential,
+    signOut,
+} from '@/lib/firebase/auth';
 import { getFirebaseAuth, getFirebaseDb } from '@/lib/firebase/config';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from '@/lib/firebase/db';
 import type { UserProfile, UserRole } from '@/types';
@@ -112,7 +112,6 @@ async function finishSocialSignIn(
   } = {
     uid: user.uid,
     email,
-    phone: '',
     displayName: defaultDisplayName(identity, user.displayName),
     role,
     roleIntent: role,
@@ -125,7 +124,6 @@ async function finishSocialSignIn(
     suspendedAt: null,
     companyId: null,
     fcmToken: null,
-    phoneVerified: false,
     legalConsent: {
       ...legalAcceptance,
       acceptedAt: serverTimestamp(),
@@ -148,10 +146,10 @@ export async function signInWithGoogle(
   configureGoogle();
   await GoogleOneTapSignIn.checkPlayServices(true);
 
-  let response = await GoogleOneTapSignIn.signIn();
-  if (isNoSavedCredentialFoundResponse(response)) {
-    response = await GoogleOneTapSignIn.createAccount();
-  }
+  // Show all available accounts on the device (not just previously authorized accounts)
+  await GoogleOneTapSignIn.signOut();
+
+  let response = await GoogleOneTapSignIn.createAccount();
   if (isNoSavedCredentialFoundResponse(response)) {
     response = await GoogleOneTapSignIn.presentExplicitSignIn();
   }
@@ -240,8 +238,11 @@ export async function completePendingSocialRegistration(
 export async function reauthenticateWithGoogle() {
   configureGoogle();
   await GoogleOneTapSignIn.checkPlayServices(true);
-  let response = await GoogleOneTapSignIn.signIn();
-  if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
+
+  // Show all available accounts on the device (not just previously authorized accounts)
+  await GoogleOneTapSignIn.signOut();
+
+  let response = await GoogleOneTapSignIn.createAccount();
   if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.presentExplicitSignIn();
   if (!isSuccessResponse(response) || !response.data?.idToken) {
     throw new Error('Google sign-in was cancelled. Try again or choose another sign-in method.');
