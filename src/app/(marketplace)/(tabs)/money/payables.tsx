@@ -27,6 +27,7 @@ import { fetchPayablesPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { uploadReceipt } from '@/lib/firebase/receipt-service';
@@ -35,7 +36,6 @@ import { outstandingBase } from '@/lib/money';
 import { formatRelativeDue } from '@/lib/utils';
 import { parseForm, recordPaymentSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import type { Payable } from '@/types';
 
@@ -73,7 +73,7 @@ export default function PayablesScreen() {
   const summary = getPayableSummary(payables);
   const overdueItems = payables.filter((p) => effectivePayableStatus(p) === 'overdue');
 
-  async function handleRecordPayment(item: Payable) {
+  const [recordingPayment, handleRecordPayment] = usePendingAction(async (item: Payable) => {
     if (!user) return;
     const remaining = item.amount - item.amountPaid;
     const amountToValidate = paymentMoney.amount || String(remaining);
@@ -85,26 +85,24 @@ export default function PayablesScreen() {
     }
     setPaymentError(null);
     try {
-      await withLoading(async () => {
-        const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
-        await recordPayablePayment(user.uid, item.id, result.data.amount, {
-          currency: paymentMoney.currency,
-          paymentMethod: paymentMethod || null,
-          receiptUrl,
-        });
-        await queryClient.invalidateQueries({ queryKey: ['payables'] });
-        await queryClient.invalidateQueries({ queryKey: ['payments'] });
-        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast.success('Payment recorded');
-        setPayingId(null);
-        setPaymentMoney({ amount: '', currency: preferred });
-        setPaymentMethod('');
-        setPaymentReceipt(null);
-      }, 'Recording payment…');
+      const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
+      await recordPayablePayment(user.uid, item.id, result.data.amount, {
+        currency: paymentMoney.currency,
+        paymentMethod: paymentMethod || null,
+        receiptUrl,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['payables'] });
+      await queryClient.invalidateQueries({ queryKey: ['payments'] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success('Payment recorded');
+      setPayingId(null);
+      setPaymentMoney({ amount: '', currency: preferred });
+      setPaymentMethod('');
+      setPaymentReceipt(null);
     } catch (e) {
       toast.error(friendlyError(e, 'Payment could not be recorded.'));
     }
-  }
+  });
 
   function payableRemainingStored(item: Payable) {
     const remaining = item.amount - item.amountPaid;
@@ -192,8 +190,8 @@ export default function PayablesScreen() {
               />
               <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
               <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
-              <Button title="Confirm Payment" icon="check-circle" onPress={() => handleRecordPayment(item)} />
-              <Button title="Cancel" variant="ghost" onPress={() => setPayingId(null)} />
+              <Button title="Confirm Payment" icon="check-circle" loading={recordingPayment} onPress={() => handleRecordPayment(item)} />
+              <Button title="Cancel" variant="ghost" disabled={recordingPayment} onPress={() => setPayingId(null)} />
             </View>
           ) : (
             <View style={styles.payActions}>

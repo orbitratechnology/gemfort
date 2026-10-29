@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   RefreshControl,
   SectionList,
@@ -54,7 +55,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { friendlyError } from "@/lib/errors";
 import { runWithCleanup } from "@/lib/run-with-cleanup";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Contact } from "@/types";
 
@@ -169,6 +169,7 @@ export default function ContactsListScreen() {
   const debouncedQuery = useDebouncedValue(query, 300);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const openSwipeRef = useRef<{
     id: string;
@@ -272,20 +273,22 @@ export default function ContactsListScreen() {
         const deviceContact = await presentDeviceContactPicker();
         if (!deviceContact) return;
 
-        await withLoading(async () => {
-          const { created } = await importDeviceContactToWorkspace(
-            user.uid,
-            deviceContact,
-            { existing: contacts },
-          );
-          await invalidateContacts();
-          toast.success(
-            created
-              ? "Contact imported from phone."
-              : "Contact is already in GemFort.",
-          );
-        }, "Importing contact…");
-      }, () => setPicking(false));
+        setImporting(true);
+        const { created } = await importDeviceContactToWorkspace(
+          user.uid,
+          deviceContact,
+          { existing: contacts },
+        );
+        await invalidateContacts();
+        toast.success(
+          created
+            ? "Contact imported from phone."
+            : "Contact is already in GemFort.",
+        );
+      }, () => {
+        setPicking(false);
+        setImporting(false);
+      });
     } catch (e) {
       toast.error(friendlyError(e, "Could not import phone contact."));
     }
@@ -325,12 +328,17 @@ export default function ContactsListScreen() {
           <Pressable
             onPress={() => void handleImportFromPhone()}
             disabled={picking}
-            style={[styles.headerBtn, { opacity: picking ? 0.5 : 1 }]}
+            style={[styles.headerBtn, { opacity: picking && !importing ? 0.5 : 1 }]}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Import contacts from phone"
+            accessibilityState={{ disabled: picking, busy: importing }}
           >
-            <Icon name="people" size={24} color={colors.primary} />
+            {importing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon name="people" size={24} color={colors.primary} />
+            )}
           </Pressable>
         }
       />

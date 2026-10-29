@@ -98,7 +98,6 @@ import { listingShareUrl, shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     GemEvent,
@@ -401,43 +400,41 @@ export default function GemDetailScreen() {
     }
     setTransferSaving(true);
     await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
-          if (transferParty.source === "business") {
-            await createGemTransferRequest({
-              gemId: gem.id,
-              recipientBusinessId: transferParty.businessId,
-              recipientContactId: transferParty.linkedContactId ?? null,
-              recipientName: transferParty.label,
-              amount,
-              currency: soldAmount.currency,
-              paymentMethod: transferPaymentMethod,
-              sourceTripId: sell === "1" ? tripId : null,
-              sourceTripGemId: sell === "1" ? tripGemId : null,
-            });
-          } else {
-            await recordGemSale({
-              gemId: gem.id,
-              recipientContactId: transferParty.contactId,
-              recipientName: transferParty.label,
-              amount,
-              currency: soldAmount.currency,
-              paymentMethod: transferPaymentMethod,
-              sourceTripId: sell === "1" ? tripId : null,
-              sourceTripGemId: sell === "1" ? tripGemId : null,
-            });
-          }
-          await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-          await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-          setTransferOpen(false);
-          toast.success(
-            transferParty.source === "business"
-              ? "Sale request sent — waiting for the trader to accept"
-              : `Sale recorded to ${transferParty.label}.`,
-          );
-        }, transferParty.source === "business" ? "Sending sale request…" : "Recording sale…"),
-      )
+      .then(async () => {
+        if (transferParty.source === "business") {
+          await createGemTransferRequest({
+            gemId: gem.id,
+            recipientBusinessId: transferParty.businessId,
+            recipientContactId: transferParty.linkedContactId ?? null,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        } else {
+          await recordGemSale({
+            gemId: gem.id,
+            recipientContactId: transferParty.contactId,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        }
+        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        setTransferOpen(false);
+        toast.success(
+          transferParty.source === "business"
+            ? "Sale request sent — waiting for the trader to accept"
+            : `Sale recorded to ${transferParty.label}.`,
+        );
+      })
       .catch((e) => {
         setSoldError(
           friendlyError(

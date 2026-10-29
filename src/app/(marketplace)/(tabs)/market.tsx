@@ -21,7 +21,7 @@ import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { SkeletonList } from "@/components/ui/skeleton-list";
-import { verificationBadgeAssets } from "@/components/ui/verification-badge";
+import { VerificationSeal } from "@/components/ui/verification-badge";
 import {
     AttributePickerField,
     GemTypePickerSheet,
@@ -133,13 +133,9 @@ const BUSINESS_VERIFICATION_LEVELS = BUSINESS_VERIFICATION_OPTIONS.filter(
 
 type VerificationBadgeType = Exclude<BusinessVerificationFilter, "all">;
 
-function VerificationBadgeImage({ type }: { type: VerificationBadgeType }) {
+function VerificationBadgeIcon({ type }: { type: VerificationBadgeType }) {
   return (
-    <Image
-      source={verificationBadgeAssets[type]}
-      style={styles.verificationBadgeImage}
-      contentFit="contain"
-    />
+    <VerificationSeal type={type} size={18} />
   );
 }
 
@@ -505,7 +501,7 @@ export default function MarketScreen() {
                             },
                       ]}
                     >
-                      <VerificationBadgeImage type={option.id} />
+                      <VerificationBadgeIcon type={option.id} />
                       <Text
                         style={[
                           styles.filterText,
@@ -679,7 +675,7 @@ export default function MarketScreen() {
               options={BUSINESS_VERIFICATION_OPTIONS}
               renderLeading={(option) =>
                 option.id === "all" ? null : (
-                  <VerificationBadgeImage type={option.id} />
+                  <VerificationBadgeIcon type={option.id} />
                 )
               }
             />
@@ -805,10 +801,6 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderCurve: "continuous",
-  },
-  verificationBadgeImage: {
-    width: 20,
-    height: 20,
   },
   filterText: { ...Typography.labelMd },
   cell: {

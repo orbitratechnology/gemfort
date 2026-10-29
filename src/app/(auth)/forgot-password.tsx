@@ -9,11 +9,11 @@ import { authGreeting } from '@/components/auth/auth-screen-utils';
 import { Button } from '@/components/ui/button';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { resetPassword } from '@/lib/firebase/auth-service';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { forgotPasswordSchema, parseForm } from '@/lib/validation/form-schemas';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function ForgotPasswordScreen() {
@@ -23,7 +23,7 @@ export default function ForgotPasswordScreen() {
   const [sent, setSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function handleReset() {
+  const [sending, handleReset] = usePendingAction(async () => {
     Keyboard.dismiss();
     const result = parseForm(forgotPasswordSchema, { email });
     if (!result.success) {
@@ -33,16 +33,14 @@ export default function ForgotPasswordScreen() {
 
     setErrors({});
     try {
-      await withLoading(async () => {
-        await resetPassword(result.data.email);
-        setSent(true);
-        haptics.success();
-        toast.success('Check your inbox for reset instructions.');
-      }, 'Sending reset link…');
+      await resetPassword(result.data.email);
+      setSent(true);
+      haptics.success();
+      toast.success('Check your inbox for reset instructions.');
     } catch (e) {
       toast.error(friendlyError(e, 'Could not send reset email.'));
     }
-  }
+  });
 
   return (
     <AuthScreen safeTop>
@@ -90,6 +88,7 @@ export default function ForgotPasswordScreen() {
         <Button
           title={sent ? 'Resend link' : 'Send reset link'}
           onPress={handleReset}
+          loading={sending}
           style={styles.cta}
         />
         <Button title="Back to Sign In" variant="ghost" onPress={() => router.back()} />

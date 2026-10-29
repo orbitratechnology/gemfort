@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
     Keyboard,
     Linking,
@@ -54,7 +54,6 @@ import {
 } from "@/lib/firebase/social-auth";
 import { haptics } from "@/lib/haptics";
 import { parseForm, registerSchema } from "@/lib/validation/form-schemas";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { UserRole } from "@/types";
 
@@ -137,6 +136,26 @@ export default function RegisterScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const pendingSocialProvider =
     getPendingSocialRegistration()?.provider ?? null;
+  // Which control's request is in flight, so only that one shows a spinner.
+  const [pendingAction, setPendingAction] = useState<
+    "continue" | "register" | "google" | "apple" | null
+  >(null);
+  const pendingRef = useRef(false);
+
+  async function runPending(
+    kind: "continue" | "register" | "google" | "apple",
+    action: () => Promise<void>,
+  ) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingAction(kind);
+    try {
+      await action();
+    } finally {
+      pendingRef.current = false;
+      setPendingAction(null);
+    }
+  }
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -157,7 +176,7 @@ export default function RegisterScreen() {
     haptics.selection();
     if (pendingSocialProvider) {
       if (!requireLegalAcceptance()) return;
-      await finishPendingSocial();
+      await runPending("continue", finishPendingSocial);
       return;
     }
     setStep("form");
@@ -171,13 +190,11 @@ export default function RegisterScreen() {
   async function finishPendingSocial() {
     if (!requireLegalAcceptance()) return;
     try {
-      await withLoading(async () => {
-        await completePendingSocialRegistration(
-          role!,
-          CURRENT_LEGAL_ACCEPTANCE,
-        );
-        router.replace("/(marketplace)/(tabs)/home");
-      }, "Finishing your account...");
+      await completePendingSocialRegistration(
+        role!,
+        CURRENT_LEGAL_ACCEPTANCE,
+      );
+      router.replace("/(marketplace)/(tabs)/home");
     } catch (error) {
       toast.error(friendlyError(error, "Could not finish creating your account."));
     }
@@ -195,10 +212,8 @@ export default function RegisterScreen() {
     }
     if (!requireLegalAcceptance()) return;
     try {
-      await withLoading(async () => {
-        await signInWithGoogle(role!, CURRENT_LEGAL_ACCEPTANCE);
-        router.replace("/(marketplace)/(tabs)/home");
-      }, "Creating account...");
+      await signInWithGoogle(role!, CURRENT_LEGAL_ACCEPTANCE);
+      router.replace("/(marketplace)/(tabs)/home");
     } catch (error) {
       toast.error(friendlyError(error, "Google Sign-In could not be completed."));
     }
@@ -229,19 +244,17 @@ export default function RegisterScreen() {
 
     setErrors({});
     try {
-      await withLoading(async () => {
-        const data = result.data;
-        const user = await registerUser({
-          email: data.email,
-          password: data.password,
-          displayName: data.displayName,
-          role: data.role,
-          legalAcceptance: CURRENT_LEGAL_ACCEPTANCE,
-        });
-        if (user) {
-          router.replace("/(marketplace)/(tabs)/home");
-        }
-      }, "Creating account…");
+      const data = result.data;
+      const user = await registerUser({
+        email: data.email,
+        password: data.password,
+        displayName: data.displayName,
+        role: data.role,
+        legalAcceptance: CURRENT_LEGAL_ACCEPTANCE,
+      });
+      if (user) {
+        router.replace("/(marketplace)/(tabs)/home");
+      }
     } catch (e) {
       toast.error(friendlyError(e, "Could not create account. Try again."));
     }
@@ -255,14 +268,12 @@ export default function RegisterScreen() {
     }
     if (!requireLegalAcceptance()) return;
     try {
-      await withLoading(async () => {
-        if (provider === "google") {
-          await signInWithGoogle(role, CURRENT_LEGAL_ACCEPTANCE);
-        } else {
-          await signInWithApple(role, CURRENT_LEGAL_ACCEPTANCE);
-        }
-        router.replace("/(marketplace)/(tabs)/home");
-      }, "Creating account...");
+      if (provider === "google") {
+        await signInWithGoogle(role, CURRENT_LEGAL_ACCEPTANCE);
+      } else {
+        await signInWithApple(role, CURRENT_LEGAL_ACCEPTANCE);
+      }
+      router.replace("/(marketplace)/(tabs)/home");
     } catch (error) {
       toast.error(friendlyError(error, "Google or Apple Sign-In could not be completed."));
     }
@@ -320,6 +331,7 @@ export default function RegisterScreen() {
               title={continueTitle}
               icon="arrow-forward"
               onPress={goToForm}
+              loading={pendingAction === "continue"}
               disabled={!role}
               accessibilityLabel={
                 role
@@ -416,7 +428,7 @@ export default function RegisterScreen() {
               placeholder="Password"
               returnKeyType="done"
               blurOnSubmit
-              onSubmitEditing={handleRegister}
+              onSubmitEditing={() => void runPending("register", handleRegister)}
               error={errors.password}
               rightElement={
                 <PasswordVisibilityToggle
@@ -437,13 +449,23 @@ export default function RegisterScreen() {
 
             <Button
               title="Sign Up"
-              onPress={handleRegister}
+              onPress={() => void runPending("register", handleRegister)}
+              loading={pendingAction === "register"}
+              disabled={pendingAction === "google" || pendingAction === "apple"}
               style={styles.cta}
             />
             <SocialAuthButtons
               appleButtonType="signUp"
-              onGooglePress={handleGoogleRegister}
-              onApplePress={() => handleSocialRegister("apple")}
+              disabled={pendingAction === "register"}
+              pendingProvider={
+                pendingAction === "google" || pendingAction === "apple"
+                  ? pendingAction
+                  : null
+              }
+              onGooglePress={() => runPending("google", handleGoogleRegister)}
+              onApplePress={() =>
+                runPending("apple", () => handleSocialRegister("apple"))
+              }
             />
           </View>
 

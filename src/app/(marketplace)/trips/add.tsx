@@ -25,13 +25,13 @@ import { commitmentDeepLink } from '@/features/calendar-sync/links';
 import { makeSyncCommitment } from '@/features/calendar-sync/commitments';
 import { writeCommitmentToDevice } from '@/features/calendar-sync/sync-item';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { addTripSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import type { TripType } from '@/types';
 
@@ -74,7 +74,7 @@ export default function AddTripScreen() {
     setStep(1);
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) {
       toast.error('Sign in to create a trip.');
       return;
@@ -100,46 +100,44 @@ export default function AddTripScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        const data = result.data;
-        const startDate = new Date();
-        const endDate = addDays(startDate, data.durationDays);
-        const start = Timestamp.fromDate(startDate);
-        const end = Timestamp.fromDate(endDate);
-        const id = await createTrip(user.uid, {
-          tripName: data.tripName,
-          tripType: data.tripType,
-          destinationCountry: data.destinationCountry,
-          destinationCity: data.destinationCity,
-          startDate: start,
-          expectedEndDate: end,
-          budget: data.budget ?? 0,
-          budgetCurrency: budget.currency,
-          cashCarried: 0,
-          cashCarriedCurrency: budget.currency,
-          notes: data.notes || null,
+      const data = result.data;
+      const startDate = new Date();
+      const endDate = addDays(startDate, data.durationDays);
+      const start = Timestamp.fromDate(startDate);
+      const end = Timestamp.fromDate(endDate);
+      const id = await createTrip(user.uid, {
+        tripName: data.tripName,
+        tripType: data.tripType,
+        destinationCountry: data.destinationCountry,
+        destinationCity: data.destinationCity,
+        startDate: start,
+        expectedEndDate: end,
+        budget: data.budget ?? 0,
+        budgetCurrency: budget.currency,
+        cashCarried: 0,
+        cashCarriedCurrency: budget.currency,
+        notes: data.notes || null,
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "trip",
+          sourceId: id,
+          title: `Trip: ${data.tripName}`,
+          date: startDate,
+          endDate,
+          url: commitmentDeepLink("trip", id),
         });
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "trip",
-            sourceId: id,
-            title: `Trip: ${data.tripName}`,
-            date: startDate,
-            endDate,
-            url: commitmentDeepLink("trip", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Trip saved, but its calendar entry could not be added.");
-          }
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Trip saved, but its calendar entry could not be added.");
         }
-        toast.success('Trip created.');
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
-      }, 'Creating trip…');
+      }
+      toast.success('Trip created.');
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/trips/${id}` as never);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not create trip.'));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -277,6 +275,7 @@ export default function AddTripScreen() {
           <FormFooter
             title="Create trip"
             icon="add"
+            loading={submitting}
             onPress={handleSubmit}
             secondaryTitle="Back"
             onSecondaryPress={() => setStep(0)}

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import type { IconName } from '@/components/ui/icon';
 import { Spacing } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { useIsBusy } from '@/providers/loading-provider';
 
 type FormFooterProps = {
   title: string;
@@ -29,8 +28,7 @@ export function FormFooter({
 }: FormFooterProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const globalBusy = useIsBusy();
-  const isLoading = Boolean(loading || globalBusy);
+  const isLoading = Boolean(loading);
 
   return (
     <View

@@ -52,11 +52,11 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function TripDetailScreen() {
@@ -132,21 +132,21 @@ export default function TripDetailScreen() {
     addGems: `/(marketplace)/trips/${tripId}/add-gems`,
   };
 
-  async function handleStatus(next: "ongoing" | "completed" | "cancelled") {
+  const [updatingStatus, handleStatus] = usePendingAction(async (
+    next: "ongoing" | "completed" | "cancelled",
+  ) => {
     if (!trip) return;
     try {
-      await withLoading(async () => {
-        await updateTripStatus(trip.id, next);
-        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
-        await queryClient.invalidateQueries({ queryKey: ["trips"] });
-        toast.success(
-          `Trip marked as ${TRIP_STATUS_LABELS[next].toLowerCase()}.`,
-        );
-      }, "Updating…");
+      await updateTripStatus(trip.id, next);
+      await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+      await queryClient.invalidateQueries({ queryKey: ["trips"] });
+      toast.success(
+        `Trip marked as ${TRIP_STATUS_LABELS[next].toLowerCase()}.`,
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not update trip."));
     }
-  }
+  });
 
   async function handleSaveBudget(next: {
     budget: number;
@@ -154,12 +154,10 @@ export default function TripDetailScreen() {
   }) {
     if (!user || !trip) return;
     try {
-      await withLoading(async () => {
-        await updateTripBudget(trip.id, user.uid, next);
-        await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
-        await queryClient.invalidateQueries({ queryKey: ["trips"] });
-        toast.success("Budget updated.");
-      }, "Saving budget…");
+      await updateTripBudget(trip.id, user.uid, next);
+      await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+      await queryClient.invalidateQueries({ queryKey: ["trips"] });
+      toast.success("Budget updated.");
     } catch (e) {
       toast.error(friendlyError(e, "Could not update budget."));
       throw e;
@@ -371,6 +369,7 @@ export default function TripDetailScreen() {
           <Button
             title="Start trip"
             icon="flight"
+            loading={updatingStatus}
             onPress={() => handleStatus("ongoing")}
           />
         ) : null}

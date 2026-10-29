@@ -51,7 +51,6 @@ import { haptics } from "@/lib/haptics";
 import { profileLocationLabel } from "@/lib/location/profile-location";
 import { markBusinessProfileOnboardingComplete } from "@/lib/onboarding";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ProfileLocation } from "@/types";
 
@@ -70,6 +69,10 @@ export function BusinessProfileOnboarding() {
   const reduceMotion = useReduceMotion();
   const finishingRef = useRef(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  // Which control started finishing, so only that one shows the spinner.
+  const [finishTrigger, setFinishTrigger] = useState<"continue" | "skip">(
+    "continue",
+  );
   const [step, setStep] = useState<StepIndex>(0);
   const [businessName, setBusinessName] = useState<string | undefined>();
   const [shortDescription, setShortDescription] = useState("");
@@ -104,46 +107,45 @@ export function BusinessProfileOnboarding() {
   const exitMs = reduceMotion ? 100 : 140;
   const isLastStep = step === TOTAL_STEPS - 1;
 
-  async function finish() {
+  async function finish(trigger: "continue" | "skip") {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    setFinishTrigger(trigger);
     setIsFinishing(true);
     Keyboard.dismiss();
 
     try {
-      await withLoading(async () => {
-        if (businessNameValue.trim() && businessType) {
-          let logoUrl: string | null = null;
-          if (logo) {
-            logoUrl = await uploadLocalMedia(
-              logo,
-              `businesses/${signedInUser.uid}/logo.${extensionForMedia(logo)}`,
-            );
-          }
-
-          const businessId = await createBusinessProfile(
-            signedInUser.uid,
-            {
-              businessName: businessNameValue,
-              businessType,
-              city: city.trim() || DEFAULT_CITY,
-              country: country.trim() || DEFAULT_COUNTRY,
-              address,
-              location,
-              shortDescription:
-                shortDescription.trim() ||
-                `Gem business in ${city.trim() || DEFAULT_CITY}.`,
-              whatsapp: whatsapp || undefined,
-            },
+      if (businessNameValue.trim() && businessType) {
+        let logoUrl: string | null = null;
+        if (logo) {
+          logoUrl = await uploadLocalMedia(
+            logo,
+            `businesses/${signedInUser.uid}/logo.${extensionForMedia(logo)}`,
           );
-
-          if (logoUrl) {
-            await updateBusinessProfile(businessId, { logoUrl });
-          }
         }
 
-        await markBusinessProfileOnboardingComplete();
-      }, "Setting up your profile…");
+        const businessId = await createBusinessProfile(
+          signedInUser.uid,
+          {
+            businessName: businessNameValue,
+            businessType,
+            city: city.trim() || DEFAULT_CITY,
+            country: country.trim() || DEFAULT_COUNTRY,
+            address,
+            location,
+            shortDescription:
+              shortDescription.trim() ||
+              `Gem business in ${city.trim() || DEFAULT_CITY}.`,
+            whatsapp: whatsapp || undefined,
+          },
+        );
+
+        if (logoUrl) {
+          await updateBusinessProfile(businessId, { logoUrl });
+        }
+      }
+
+      await markBusinessProfileOnboardingComplete();
 
       haptics.success();
       router.replace("/(marketplace)/(tabs)/home");
@@ -157,7 +159,7 @@ export function BusinessProfileOnboarding() {
   function moveForward() {
     Keyboard.dismiss();
     if (isLastStep) {
-      void finish();
+      void finish("continue");
       return;
     }
     setStep((current) => Math.min(TOTAL_STEPS - 1, current + 1) as StepIndex);
@@ -166,7 +168,7 @@ export function BusinessProfileOnboarding() {
   function skipStep() {
     haptics.selection();
     if (isLastStep) {
-      void finish();
+      void finish("skip");
       return;
     }
     setStep((current) => Math.min(TOTAL_STEPS - 1, current + 1) as StepIndex);
@@ -193,7 +195,11 @@ export function BusinessProfileOnboarding() {
             { opacity: pressed ? 0.65 : 1 },
           ]}
         >
-          <Text style={[styles.skipText, { color: colors.primary }]}>Skip</Text>
+          {isFinishing && finishTrigger === "skip" ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (
+            <Text style={[styles.skipText, { color: colors.primary }]}>Skip</Text>
+          )}
         </Pressable>
       </View>
 
@@ -381,7 +387,8 @@ export function BusinessProfileOnboarding() {
           title={isLastStep ? "Finish" : "Continue"}
           icon={isLastStep ? "check" : "arrow-forward"}
           haptic={isLastStep ? "commit" : "selection"}
-          loading={isFinishing}
+          loading={isFinishing && finishTrigger === "continue"}
+          disabled={isFinishing}
           onPress={moveForward}
           style={styles.cta}
         />

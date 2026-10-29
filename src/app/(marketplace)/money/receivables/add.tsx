@@ -22,12 +22,12 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { addReceivableSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddReceivableScreen() {
@@ -61,7 +61,7 @@ export default function AddReceivableScreen() {
     });
   }
 
-  async function handleAdd() {
+  const [adding, handleAdd] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addReceivableSchema, {
       contactId,
@@ -76,23 +76,21 @@ export default function AddReceivableScreen() {
 
     setErrors({});
     try {
-      await withLoading(async () => {
-        const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
-        await createReceivable(user.uid, {
-          contactId: result.data.contactId ?? null,
-          amount: result.data.amount,
-          currency: money.currency,
-          title: result.data.title,
-          dueDate: due,
-        });
-        await queryClient.invalidateQueries({ queryKey: ['receivables'] });
-        toast.success('Receivable added');
-        router.back();
-      }, 'Adding…');
+      const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
+      await createReceivable(user.uid, {
+        contactId: result.data.contactId ?? null,
+        amount: result.data.amount,
+        currency: money.currency,
+        title: result.data.title,
+        dueDate: due,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['receivables'] });
+      toast.success('Receivable added');
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save receivable.'));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -152,7 +150,7 @@ export default function AddReceivableScreen() {
           error={errors.title}
         />
       </ThemedScrollView>
-      <FormFooter title="Add Receivable" icon="add" onPress={handleAdd} />
+      <FormFooter title="Add Receivable" icon="add" loading={adding} onPress={handleAdd} />
     </KeyboardAvoidingView>
   );
 }

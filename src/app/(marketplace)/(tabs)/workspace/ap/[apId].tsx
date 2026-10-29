@@ -1,7 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -80,7 +86,6 @@ import { haptics } from "@/lib/haptics";
 import { formatDate, formatRelativeDue } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
   ApLifecycleStatus,
@@ -203,6 +208,9 @@ export default function ApDetailScreen() {
   const [receivedReceipt, setReceivedReceipt] = useState<LocalMedia | null>(null);
   const [receiveMethodOverride, setReceiveMethodOverride] =
     useState<ApPaymentMethod | null>(null);
+  // Key of the action in flight, so only the tapped control spins.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const pendingRef = useRef(false);
 
   const { data: records = [], isLoading } = useFirestoreLiveQuery({
     queryKey: ["ap", "detail", user?.uid],
@@ -295,17 +303,22 @@ export default function ApDetailScreen() {
     await queryClient.invalidateQueries({ queryKey: ["money"] });
   }
 
-  async function run(action: () => Promise<unknown>, ok: string) {
+  async function run(key: string, action: () => Promise<unknown>, ok: string) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingKey(key);
     try {
-      await withLoading(async () => {
-        await action();
-        toast.success(ok);
-        await invalidate();
-      }, "Updating…");
+      await action();
+      toast.success(ok);
+      await invalidate();
     } catch (e) {
       toast.error(friendlyError(e, "Could not update AP."));
+    } finally {
+      pendingRef.current = false;
+      setPendingKey(null);
     }
   }
+  const busy = pendingKey !== null;
 
   if (isLoading || !ap) {
     return (
@@ -757,8 +770,11 @@ export default function ApDetailScreen() {
                       title="Return"
                       variant="secondary"
                       icon="undo"
+                      loading={pendingKey === `return:${line.gemId}`}
+                      disabled={busy}
                       onPress={() =>
                         run(
+                          `return:${line.gemId}`,
                           () => returnApGem(ap.id, line.gemId),
                           "Gem returned",
                         )
@@ -778,8 +794,10 @@ export default function ApDetailScreen() {
               title="Cancel request"
               variant="secondary"
               icon="cancel"
+              loading={pendingKey === "cancel-request"}
+              disabled={busy}
               onPress={() =>
-                run(async () => {
+                run("cancel-request", async () => {
                   await cancelApRequest(ap.id);
                   router.back();
                 }, "AP cancelled")
@@ -795,8 +813,11 @@ export default function ApDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
+                loading={pendingKey === "accept"}
+                disabled={busy}
                 onPress={() =>
                   run(
+                    "accept",
                     () => respondApRequest(ap.id, "accepted"),
                     "AP accepted",
                   )
@@ -807,8 +828,10 @@ export default function ApDetailScreen() {
                 title="Reject"
                 variant="secondary"
                 icon="close"
+                loading={pendingKey === "reject"}
+                disabled={busy}
                 onPress={() =>
-                  run(async () => {
+                  run("reject", async () => {
                     await respondApRequest(ap.id, "rejected");
                     router.back();
                   }, "AP rejected")
@@ -825,8 +848,11 @@ export default function ApDetailScreen() {
               title="Request cancellation"
               variant="secondary"
               icon="cancel"
+              loading={pendingKey === "request-cancel"}
+              disabled={busy}
               onPress={() =>
                 run(
+                  "request-cancel",
                   () => requestApCancellation(ap.id),
                   "Cancellation requested",
                 )
@@ -842,8 +868,11 @@ export default function ApDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
+                loading={pendingKey === "cancel-accept"}
+                disabled={busy}
                 onPress={() =>
                   run(
+                    "cancel-accept",
                     () => respondApCancellation(ap.id, "accepted"),
                     "AP cancelled",
                   )
@@ -854,8 +883,11 @@ export default function ApDetailScreen() {
                 title="Decline"
                 variant="secondary"
                 icon="close"
+                loading={pendingKey === "cancel-decline"}
+                disabled={busy}
                 onPress={() =>
                   run(
+                    "cancel-decline",
                     () => respondApCancellation(ap.id, "rejected"),
                     "Cancellation declined",
                   )
@@ -895,6 +927,8 @@ export default function ApDetailScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Pay owner ${formatFace(balanceDue, settlementCurrency)}`}
+              accessibilityState={{ busy: pendingKey === "pay-sent" }}
+              disabled={busy}
               onPress={haptics.wrap("light", () => {
                 setPayAmount(String(balanceDue));
                 setPaySheetOpen(true);
@@ -929,7 +963,11 @@ export default function ApDetailScreen() {
                   { backgroundColor: colors.onPrimary + "22" },
                 ]}
               >
-                <Icon name="payments" size={22} color={colors.onPrimary} />
+                {pendingKey === "pay-sent" ? (
+                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                ) : (
+                  <Icon name="payments" size={22} color={colors.onPrimary} />
+                )}
               </View>
             </Pressable>
           </ScreenInset>
@@ -946,6 +984,8 @@ export default function ApDetailScreen() {
                   : "Payment Sent"
               }
               icon={payMethod === "cheque" ? "cheque" : "send"}
+              loading={pendingKey === "pay-sent"}
+              disabled={busy}
               onPress={() => {
                 const amountToValidate =
                   payAmount || (balanceDue > 0 ? String(balanceDue) : "");
@@ -979,6 +1019,7 @@ export default function ApDetailScreen() {
                   return;
                 }
                 run(
+                  "pay-sent",
                   async () =>
                     apPaymentSent({
                       apId: ap.id,
@@ -1054,6 +1095,8 @@ export default function ApDetailScreen() {
                   ? "cheque"
                   : "check-circle"
               }
+              loading={pendingKey === "pay-received"}
+              disabled={busy}
               onPress={() => {
                 if (receiveMethod === "cheque") {
                   router.push({
@@ -1071,6 +1114,7 @@ export default function ApDetailScreen() {
                   return;
                 }
                 run(
+                  "pay-received",
                   async () =>
                     apPaymentReceived(ap.id, {
                       method: receiveMethod,
@@ -1117,8 +1161,10 @@ export default function ApDetailScreen() {
               title="Delete AP"
               variant="secondary"
               icon="delete"
+              loading={pendingKey === "delete"}
+              disabled={busy}
               onPress={() =>
-                run(async () => {
+                run("delete", async () => {
                   await deleteApRecord(ap.id);
                   router.back();
                 }, "AP deleted")

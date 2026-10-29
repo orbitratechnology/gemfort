@@ -3,6 +3,7 @@ import { Link, router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Linking,
     Pressable,
     StyleSheet,
@@ -66,6 +67,7 @@ import {
 } from "@/features/workspace/firestore-subscriptions";
 import { fetchListingBySlug } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
@@ -75,7 +77,6 @@ import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { listingOfferSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ListingOffer } from "@/types";
 
@@ -122,6 +123,11 @@ export default function PublicListingScreen() {
     () => params.offers === "1",
   );
   const [offerSaving, setOfferSaving] = useState(false);
+  // Declared before the early returns; the withdraw handler is passed in at
+  // press time because it needs the loaded listing's pending offer.
+  const [withdrawing, runWithdraw] = usePendingAction(
+    (withdraw: () => Promise<void>) => withdraw(),
+  );
   const [offerAmount, setOfferAmount] = useState<CurrencyAmountValue>({
     amount: "",
     currency: "USD",
@@ -411,19 +417,17 @@ export default function PublicListingScreen() {
     setOfferSaving(true);
     await Promise.resolve()
       .then(() =>
-        withLoading(async () => {
-          await submitListingOffer({
-            listing: activeListing,
-            buyerUid: user.uid,
-            buyerName:
-              myBusiness?.businessName?.trim() ||
-              "Buyer",
-            buyerBusiness: myBusiness,
-            amount: result.data.amount,
-            currency: offerAmount.currency,
-            message: result.data.message ?? "",
-          });
-        }, "Sending offer…"),
+        submitListingOffer({
+          listing: activeListing,
+          buyerUid: user.uid,
+          buyerName:
+            myBusiness?.businessName?.trim() ||
+            "Buyer",
+          buyerBusiness: myBusiness,
+          amount: result.data.amount,
+          currency: offerAmount.currency,
+          message: result.data.message ?? "",
+        }),
       )
       .then(() => {
         setOfferOpen(false);
@@ -440,9 +444,7 @@ export default function PublicListingScreen() {
   async function handleWithdrawMine() {
     if (!pendingMine) return;
     try {
-      await withLoading(async () => {
-        await withdrawListingOffer(pendingMine.id);
-      }, "Withdrawing…");
+      await withdrawListingOffer(pendingMine.id);
       toast.success("Offer withdrawn.");
     } catch (e) {
       toast.error(friendlyError(e, "Could not withdraw offer."));
@@ -852,18 +854,24 @@ export default function PublicListingScreen() {
           </Pressable>
         ) : pendingMine ? (
           <Pressable
-            onPress={() => void handleWithdrawMine()}
+            onPress={() => void runWithdraw(handleWithdrawMine)}
+            disabled={withdrawing}
             accessibilityRole="button"
             accessibilityLabel="Withdraw offer"
+            accessibilityState={{ disabled: withdrawing, busy: withdrawing }}
             style={({ pressed }) => [
               styles.offerBtn,
               {
                 backgroundColor: colors.surfaceContainerHigh,
-                opacity: pressed ? 0.9 : 1,
+                opacity: withdrawing ? 0.7 : pressed ? 0.9 : 1,
               },
             ]}
           >
-            <Icon name="undo" size={18} color={colors.onSurface} />
+            {withdrawing ? (
+              <ActivityIndicator size="small" color={colors.onSurface} />
+            ) : (
+              <Icon name="undo" size={18} color={colors.onSurface} />
+            )}
             <Text style={[styles.offerBtnText, { color: colors.onSurface }]}>
               Withdraw offer
             </Text>

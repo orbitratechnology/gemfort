@@ -47,12 +47,12 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
 import { addServiceSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const SERVICE_TYPES = [
@@ -136,7 +136,7 @@ export default function AddServiceScreen() {
   const weightBeforeValue =
     weightBefore || (selectedGem ? String(selectedGem.currentWeight) : "");
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addServiceSchema, {
       gemId,
@@ -159,89 +159,41 @@ export default function AddServiceScreen() {
     setErrors({});
 
     try {
-      await withLoading(async () => {
-        const expectedReturnDate = new Date(
-          Date.now() + result.data.daysUntilReturn * 86400000,
-        );
-        if (provider.source === "business") {
-          const [biz, senderBusiness] = await Promise.all([
-            fetchBusiness(provider.businessId),
-            fetchBusinessByOwnerUid(user.uid),
-          ]);
-          if (!biz) {
-            throw new Error("This lapidary profile is unavailable.");
-          }
-
-          const gem = selectedGem;
-          if (!gem) {
-            throw new Error("The selected gem is unavailable.");
-          }
-          const gemName =
-            gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
-          const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
-
-          const id = await createServiceRequest({
-            traderUid: user.uid,
-            traderBusinessId: senderBusiness?.id ?? null,
-            traderBusinessName: senderBusiness?.businessName ?? null,
-            traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
-            lapidaryBusinessId: provider.businessId,
-            providerName: biz.businessName,
-            providerBusinessName: biz.businessName,
-            providerBusinessLogoUrl: biz.logoUrl,
-            gemId: result.data.gemId,
-            gemName,
-            gemPhotoUrl,
-            serviceTypes: [result.data.serviceType],
-            expectedReturnDays: result.data.daysUntilReturn,
-            weightBefore: result.data.weightBefore,
-          });
-          if (calendarSyncEnabled) {
-            const commitment = makeSyncCommitment({
-              surface: "calendar",
-              sourceType: "service",
-              sourceId: id,
-              title: "Service return due",
-              date: expectedReturnDate,
-              url: commitmentDeepLink("service", id),
-            });
-            if ((await writeCommitmentToDevice(commitment)) === false) {
-              toast.info("Service request sent, but its calendar entry could not be added.");
-            }
-          }
-          if (reminderSyncEnabled) {
-            const commitment = makeSyncCommitment({
-              surface: "reminder",
-              sourceType: "service",
-              sourceId: id,
-              title: "Service return due",
-              date: expectedReturnDate,
-              url: commitmentDeepLink("service", id),
-            });
-            if ((await writeCommitmentToDevice(commitment)) === false) {
-              toast.info("Service request sent, but its reminder could not be added.");
-            }
-          }
-          toast.success("Service request sent");
-          router.back();
-          return;
+      const expectedReturnDate = new Date(
+        Date.now() + result.data.daysUntilReturn * 86400000,
+      );
+      if (provider.source === "business") {
+        const [biz, senderBusiness] = await Promise.all([
+          fetchBusiness(provider.businessId),
+          fetchBusinessByOwnerUid(user.uid),
+        ]);
+        if (!biz) {
+          throw new Error("This lapidary profile is unavailable.");
         }
-        const expectedReturn = Timestamp.fromDate(expectedReturnDate);
-        const id = await createService(user.uid, {
+
+        const gem = selectedGem;
+        if (!gem) {
+          throw new Error("The selected gem is unavailable.");
+        }
+        const gemName =
+          gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
+        const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
+
+        const id = await createServiceRequest({
+          traderUid: user.uid,
+          traderBusinessId: senderBusiness?.id ?? null,
+          traderBusinessName: senderBusiness?.businessName ?? null,
+          traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
+          lapidaryBusinessId: provider.businessId,
+          providerName: biz.businessName,
+          providerBusinessName: biz.businessName,
+          providerBusinessLogoUrl: biz.logoUrl,
           gemId: result.data.gemId,
-          serviceType: result.data.serviceType,
-          providerContactId: provider.contactId,
-          providerBusinessId: null,
-          providerUid: null,
-          providerName: provider.label,
-          dateGiven: Timestamp.now(),
-          expectedReturnDate: expectedReturn,
+          gemName,
+          gemPhotoUrl,
+          serviceTypes: [result.data.serviceType],
+          expectedReturnDays: result.data.daysUntilReturn,
           weightBefore: result.data.weightBefore,
-          photoBeforeUrls: [],
-          instructions: null,
-          agreedPrice: null,
-          agreedPriceCurrency: null,
-          advancePaid: 0,
         });
         if (calendarSyncEnabled) {
           const commitment = makeSyncCommitment({
@@ -253,7 +205,7 @@ export default function AddServiceScreen() {
             url: commitmentDeepLink("service", id),
           });
           if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Service saved, but its calendar entry could not be added.");
+            toast.info("Service request sent, but its calendar entry could not be added.");
           }
         }
         if (reminderSyncEnabled) {
@@ -266,16 +218,62 @@ export default function AddServiceScreen() {
             url: commitmentDeepLink("service", id),
           });
           if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Service saved, but its reminder could not be added.");
+            toast.info("Service request sent, but its reminder could not be added.");
           }
         }
-        toast.success("Service record created");
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
-      }, "Adding service…");
+        toast.success("Service request sent");
+        router.back();
+        return;
+      }
+      const expectedReturn = Timestamp.fromDate(expectedReturnDate);
+      const id = await createService(user.uid, {
+        gemId: result.data.gemId,
+        serviceType: result.data.serviceType,
+        providerContactId: provider.contactId,
+        providerBusinessId: null,
+        providerUid: null,
+        providerName: provider.label,
+        dateGiven: Timestamp.now(),
+        expectedReturnDate: expectedReturn,
+        weightBefore: result.data.weightBefore,
+        photoBeforeUrls: [],
+        instructions: null,
+        agreedPrice: null,
+        agreedPriceCurrency: null,
+        advancePaid: 0,
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "service",
+          sourceId: id,
+          title: "Service return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("service", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Service saved, but its calendar entry could not be added.");
+        }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "service",
+          sourceId: id,
+          title: "Service return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("service", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Service saved, but its reminder could not be added.");
+        }
+      }
+      toast.success("Service record created");
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not create service."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -419,6 +417,7 @@ export default function AddServiceScreen() {
           <Button
             title={provider?.source === "business" ? "Send Request" : "Add Service"}
             icon="service"
+            loading={submitting}
             onPress={handleSubmit}
           />
         </ScreenInset>

@@ -23,10 +23,10 @@ import { subscribeGems, subscribeTripGems } from '@/features/workspace/firestore
 import { addGemsToSellingTrip, fetchGems, fetchTripGems } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { formatCurrency } from '@/lib/utils';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddGemsToTripScreen() {
@@ -74,7 +74,7 @@ export default function AddGemsToTripScreen() {
     });
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !tripId) return;
     if (selected.size === 0) {
       toast.error('Select at least one gem for the parcel.');
@@ -82,19 +82,17 @@ export default function AddGemsToTripScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        await addGemsToSellingTrip(user.uid, tripId, [...selected]);
-        await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trips'] });
-        await queryClient.invalidateQueries({ queryKey: ['gems'] });
-        toast.success(`${selected.size} gem${selected.size === 1 ? '' : 's'} added to trip parcel.`);
-        router.back();
-      }, 'Adding gems…');
+      await addGemsToSellingTrip(user.uid, tripId, [...selected]);
+      await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+      await queryClient.invalidateQueries({ queryKey: ['gems'] });
+      toast.success(`${selected.size} gem${selected.size === 1 ? '' : 's'} added to trip parcel.`);
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not add gems to trip.'));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -183,6 +181,7 @@ export default function AddGemsToTripScreen() {
           <Button
             title={selected.size > 0 ? `Add ${selected.size} gem${selected.size === 1 ? '' : 's'}` : 'Select gems'}
             disabled={selected.size === 0}
+            loading={submitting}
             onPress={handleSubmit}
           />
           </ScreenInset>

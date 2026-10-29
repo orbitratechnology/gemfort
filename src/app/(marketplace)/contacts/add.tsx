@@ -25,12 +25,12 @@ import {
     updateContact,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
@@ -119,71 +119,69 @@ export default function AddContactScreen() {
       });
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !displayName.trim()) {
       toast.error("Contact name is required.");
       return;
     }
     try {
-      await withLoading(async () => {
-        if (deviceContactId) {
-          const { id } = await importDeviceContactToWorkspace(
-            user.uid,
-            {
-              id: deviceContactId,
-              displayName: displayName.trim(),
-              companyName: companyName || null,
-              phone: phone || null,
-              email: email || null,
-              imageUri: localPhotoUri,
-            },
-            { contactTypes },
-          );
-          // Apply edited fields that import may not have overridden (whatsapp/notes/roles)
-          await updateContact(id, {
-            whatsapp: whatsapp || phone || null,
-            notes: notes || null,
-            contactTypes,
+      if (deviceContactId) {
+        const { id } = await importDeviceContactToWorkspace(
+          user.uid,
+          {
+            id: deviceContactId,
+            displayName: displayName.trim(),
             companyName: companyName || null,
-          });
-          toast.success("Contact saved");
-          replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
-          return;
-        }
-
-        const id = await createContact(user.uid, {
-          displayName: displayName.trim(),
-          companyName: companyName || null,
-          phone: phone || null,
-          whatsapp: whatsapp || null,
-          email: email || null,
-          contactTypes,
+            phone: phone || null,
+            email: email || null,
+            imageUri: localPhotoUri,
+          },
+          { contactTypes },
+        );
+        // Apply edited fields that import may not have overridden (whatsapp/notes/roles)
+        await updateContact(id, {
+          whatsapp: whatsapp || phone || null,
           notes: notes || null,
-          isFavourite: false,
-          photoUrl: null,
-          deviceContactId: null,
-          linkedBusinessId: null,
-          linkedBusinessName: null,
-          linkedBusinessType: null,
+          contactTypes,
+          companyName: companyName || null,
         });
-        if (localPhotoUri) {
-          const ext =
-            localPhotoUri.split("?")[0]?.split(".").pop()?.toLowerCase() ??
-            "jpg";
-          const safeExt = ext.length <= 5 ? ext : "jpg";
-          const photoUrl = await uploadBlobToStorage(
-            localPhotoUri,
-            `users/${user.uid}/contacts/${id}.${safeExt}`,
-          );
-          await updateContact(id, { photoUrl });
-        }
-        toast.success("Contact added");
+        toast.success("Contact saved");
         replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
-      }, "Adding contact…");
+        return;
+      }
+
+      const id = await createContact(user.uid, {
+        displayName: displayName.trim(),
+        companyName: companyName || null,
+        phone: phone || null,
+        whatsapp: whatsapp || null,
+        email: email || null,
+        contactTypes,
+        notes: notes || null,
+        isFavourite: false,
+        photoUrl: null,
+        deviceContactId: null,
+        linkedBusinessId: null,
+        linkedBusinessName: null,
+        linkedBusinessType: null,
+      });
+      if (localPhotoUri) {
+        const ext =
+          localPhotoUri.split("?")[0]?.split(".").pop()?.toLowerCase() ??
+          "jpg";
+        const safeExt = ext.length <= 5 ? ext : "jpg";
+        const photoUrl = await uploadBlobToStorage(
+          localPhotoUri,
+          `users/${user.uid}/contacts/${id}.${safeExt}`,
+        );
+        await updateContact(id, { photoUrl });
+      }
+      toast.success("Contact added");
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/contacts/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not add contact."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -354,6 +352,7 @@ export default function AddContactScreen() {
           <Button
             title="Add Contact"
             icon="person-add"
+            loading={submitting}
             onPress={handleSubmit}
           />
         </ScreenInset>

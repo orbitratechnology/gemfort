@@ -44,6 +44,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -53,7 +54,6 @@ import {
 } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -152,7 +152,7 @@ export default function AddApScreen() {
     );
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addApSchema, {
       holderId,
@@ -182,55 +182,53 @@ export default function AddApScreen() {
     setErrors({});
 
     try {
-      await withLoading(async () => {
-        const expectedDurationDays =
-          (result.success ? result.data.days : parseInt(days, 10)) || 30;
-        const expectedReturnDate = new Date(
-          Date.now() + expectedDurationDays * 86400000,
-        );
-        const id = await createApRequest({
-          receiverContactId: holderId,
-          receiverBusinessId: holder?.linkedBusinessId ?? null,
-          expectedDurationDays,
-          items: lines.map((l) => ({
-            gemId: l.gemId,
-            agreedPrice: parseFloat(l.price.amount),
-            currency: l.price.currency,
-          })),
+      const expectedDurationDays =
+        (result.success ? result.data.days : parseInt(days, 10)) || 30;
+      const expectedReturnDate = new Date(
+        Date.now() + expectedDurationDays * 86400000,
+      );
+      const id = await createApRequest({
+        receiverContactId: holderId,
+        receiverBusinessId: holder?.linkedBusinessId ?? null,
+        expectedDurationDays,
+        items: lines.map((l) => ({
+          gemId: l.gemId,
+          agreedPrice: parseFloat(l.price.amount),
+          currency: l.price.currency,
+        })),
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "ap",
+          sourceId: id,
+          title: "AP return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("ap", id),
         });
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "ap",
-            sourceId: id,
-            title: "AP return due",
-            date: expectedReturnDate,
-            url: commitmentDeepLink("ap", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("AP request sent, but its calendar entry could not be added.");
-          }
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("AP request sent, but its calendar entry could not be added.");
         }
-        if (reminderSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "reminder",
-            sourceType: "ap",
-            sourceId: id,
-            title: "AP return due",
-            date: expectedReturnDate,
-            url: commitmentDeepLink("ap", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("AP request sent, but its reminder could not be added.");
-          }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "ap",
+          sourceId: id,
+          title: "AP return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("ap", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("AP request sent, but its reminder could not be added.");
         }
-        toast.success("AP request sent");
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
-      }, "Sending AP…");
+      }
+      toast.success("AP request sent");
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/ap/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not send AP request."));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -383,6 +381,7 @@ export default function AddApScreen() {
           <Button
             title="Send AP request"
             icon="ap"
+            loading={submitting}
             onPress={handleSubmit}
           />
         </ScreenInset>

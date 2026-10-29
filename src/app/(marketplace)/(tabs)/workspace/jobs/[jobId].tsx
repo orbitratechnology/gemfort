@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format as formatCalendarDate } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -54,7 +54,6 @@ import {
 } from "@/lib/validation/form-schemas";
 import { pushWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ServiceRecord } from "@/types";
 
@@ -154,6 +153,22 @@ export default function LapidaryJobDetailScreen() {
   const [finalCost, setFinalCost] = useState("");
   const [paymentDueDays, setPaymentDueDays] = useState("7");
   const [completionErrors, setCompletionErrors] = useState<Record<string, string>>({});
+  // Action in flight, so only the tapped button spins.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const pendingRef = useRef(false);
+  const busy = pendingKey !== null;
+
+  async function track(key: string, work: () => Promise<void>) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingKey(key);
+    try {
+      await work();
+    } finally {
+      pendingRef.current = false;
+      setPendingKey(null);
+    }
+  }
 
   const { data: service, isLoading } = useFirestoreLiveQuery({
     queryKey: ["service", jobId],
@@ -222,23 +237,23 @@ export default function LapidaryJobDetailScreen() {
 
   async function handleRequestDecision(action: "accepted" | "rejected") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track(`request-${action}`, async () => {
+      try {
         await respondServiceRequest(service.id, action);
         await invalidate(service.id, service.gemId);
         toast.success(
           action === "accepted" ? "Job accepted." : "Request declined.",
         );
-      }, action === "accepted" ? "Accepting…" : "Declining…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not respond to request."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not respond to request."));
+      }
+    });
   }
 
   async function handleStatus(status: "in_progress" | "ready" | "returned") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track("status", async () => {
+      try {
         await updateLapidaryJobStatus(service.id, status);
         await invalidate(service.id, service.gemId);
         toast.success(
@@ -248,10 +263,10 @@ export default function LapidaryJobDetailScreen() {
               ? "Job marked ready."
               : "Job started.",
         );
-      }, "Updating…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not update job."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not update job."));
+      }
+    });
   }
 
   async function handleComplete() {
@@ -267,8 +282,8 @@ export default function LapidaryJobDetailScreen() {
       return;
     }
     setCompletionErrors({});
-    try {
-      await withLoading(async () => {
+    await track("complete", async () => {
+      try {
         await completeLapidaryJob(service.id, {
           weightAfter: result.data.weightAfter,
           finalCost: result.data.finalCost,
@@ -277,10 +292,10 @@ export default function LapidaryJobDetailScreen() {
         });
         await invalidate(service.id, service.gemId);
         toast.success("Completion details sent to sender.");
-      }, "Sending…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not send completion details."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not send completion details."));
+      }
+    });
   }
 
   function openReceiveBill() {
@@ -301,8 +316,8 @@ export default function LapidaryJobDetailScreen() {
 
   async function handleCancellation(action: "accepted" | "rejected") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track(`cancel-${action}`, async () => {
+      try {
         await respondServiceCancellation(service.id, action);
         await invalidate(service.id, service.gemId);
         toast.success(
@@ -310,10 +325,10 @@ export default function LapidaryJobDetailScreen() {
             ? "Service cancellation accepted."
             : "Cancellation declined.",
         );
-      }, "Updating…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not respond to cancellation."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not respond to cancellation."));
+      }
+    });
   }
 
   if (!service) {
@@ -633,6 +648,7 @@ export default function LapidaryJobDetailScreen() {
             <Button
               title="Send to sender"
               icon="send"
+              loading={pendingKey === "complete"}
               onPress={() => void handleComplete()}
             />
           </FormSection>
@@ -664,6 +680,8 @@ export default function LapidaryJobDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
+                loading={pendingKey === "request-accepted"}
+                disabled={busy}
                 onPress={() => void handleRequestDecision("accepted")}
                 style={styles.flex}
               />
@@ -671,6 +689,8 @@ export default function LapidaryJobDetailScreen() {
                 title="Reject"
                 icon="close"
                 variant="destructive"
+                loading={pendingKey === "request-rejected"}
+                disabled={busy}
                 onPress={() => void handleRequestDecision("rejected")}
                 style={styles.flex}
               />
@@ -680,8 +700,23 @@ export default function LapidaryJobDetailScreen() {
           <FormSection title="Cancellation request">
             <Text style={[styles.notes, { color: colors.textMuted }]}>The sender asked to cancel this service.</Text>
             <View style={styles.actionRow}>
-              <Button title="Accept" icon="check" onPress={() => void handleCancellation("accepted")} style={styles.flex} />
-              <Button title="Decline" icon="close" variant="secondary" onPress={() => void handleCancellation("rejected")} style={styles.flex} />
+              <Button
+                title="Accept"
+                icon="check"
+                loading={pendingKey === "cancel-accepted"}
+                disabled={busy}
+                onPress={() => void handleCancellation("accepted")}
+                style={styles.flex}
+              />
+              <Button
+                title="Decline"
+                icon="close"
+                variant="secondary"
+                loading={pendingKey === "cancel-rejected"}
+                disabled={busy}
+                onPress={() => void handleCancellation("rejected")}
+                style={styles.flex}
+              />
             </View>
           </FormSection>
         ) : nextStatus && !(nextStatus === "ready" && canCompleteJob) ? (
@@ -690,6 +725,7 @@ export default function LapidaryJobDetailScreen() {
               title={nextStatus === "in_progress" ? "Start job" : nextStatus === "ready" ? "Mark ready" : "Mark returned"}
               icon={nextStatus === "in_progress" ? "play-arrow" : nextStatus === "ready" ? "check" : "done-all"}
               variant={nextStatus === "returned" ? "secondary" : "primary"}
+              loading={pendingKey === "status"}
               onPress={() => void handleStatus(nextStatus)}
             />
           </ScreenInset>

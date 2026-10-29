@@ -42,6 +42,7 @@ import {
 import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
 import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
@@ -50,7 +51,6 @@ import { haptics } from "@/lib/haptics";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, sellApGemSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
@@ -194,7 +194,7 @@ export default function ApSellScreen() {
     }
   }
 
-  async function handleConfirm() {
+  const [confirming, handleConfirm] = usePendingAction(async () => {
     if (!ap || !line || !user) return;
     const keepValue = receiverKeeps.trim() === "" ? "0" : receiverKeeps;
     const result = parseForm(sellApGemSchema, {
@@ -215,53 +215,51 @@ export default function ApSellScreen() {
     due.setDate(due.getDate() + result.data.paymentDueDays);
 
     try {
-      await withLoading(async () => {
-        await recordApGemSale({
-          apId: ap.id,
-          gemId: line.gemId,
-          soldPrice,
-          ownerReceives: result.data.ownerReceives,
-          soldToName: result.data.soldToName,
-          paymentDueDateIso: due.toISOString(),
+      await recordApGemSale({
+        apId: ap.id,
+        gemId: line.gemId,
+        soldPrice,
+        ownerReceives: result.data.ownerReceives,
+        soldToName: result.data.soldToName,
+        paymentDueDateIso: due.toISOString(),
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "ap",
+          sourceId: ap.id,
+          title: "AP payment due",
+          date: due,
+          url: commitmentDeepLink("ap", ap.id),
         });
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "ap",
-            sourceId: ap.id,
-            title: "AP payment due",
-            date: due,
-            url: commitmentDeepLink("ap", ap.id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Sale recorded, but its calendar entry could not be added.");
-          }
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Sale recorded, but its calendar entry could not be added.");
         }
-        if (reminderSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "reminder",
-            sourceType: "ap",
-            sourceId: ap.id,
-            title: "AP payment due",
-            date: due,
-            url: commitmentDeepLink("ap", ap.id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Sale recorded, but its reminder could not be added.");
-          }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "ap",
+          sourceId: ap.id,
+          title: "AP payment due",
+          date: due,
+          url: commitmentDeepLink("ap", ap.id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Sale recorded, but its reminder could not be added.");
         }
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        await queryClient.invalidateQueries({ queryKey: ["money"] });
-        haptics.success();
-        toast.success("Sale recorded");
-        router.back();
-      }, "Recording sale…");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["money"] });
+      haptics.success();
+      toast.success("Sale recorded");
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, "Could not record sale."));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -503,6 +501,7 @@ export default function ApSellScreen() {
           <FormFooter
             title="Confirm sale"
             icon="check"
+            loading={confirming}
             onPress={handleConfirm}
             secondaryTitle="Back"
             onSecondaryPress={goBack}

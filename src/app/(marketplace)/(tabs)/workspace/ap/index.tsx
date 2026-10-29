@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -75,7 +76,6 @@ import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     ApLifecycleStatus,
@@ -86,6 +86,14 @@ import type {
 } from "@/types";
 
 type ApSide = "given" | "taken";
+
+/** Which row action is in flight, so only the tapped control spins. */
+type ApRowAction =
+  | "accepted"
+  | "rejected"
+  | "cancel-accepted"
+  | "cancel-rejected"
+  | "request-cancel";
 
 type SectionKey = "pending" | "accepted" | "payment_sent" | "done" | "closed";
 
@@ -269,7 +277,7 @@ function ApRow({
   gemPhotoUrl,
   partyPhotoUrl,
   onRespond,
-  responding,
+  pendingAction,
   uid,
   onDelete,
   onRequestCancellation,
@@ -281,7 +289,7 @@ function ApRow({
   gemPhotoUrl: string | null;
   partyPhotoUrl: string | null;
   onRespond?: (action: "accepted" | "rejected") => void;
-  responding?: boolean;
+  pendingAction?: ApRowAction | null;
   uid?: string | null;
   onDelete: (apId: string) => void | Promise<void>;
   onRequestCancellation: (apId: string) => void | Promise<void>;
@@ -420,7 +428,11 @@ function ApRow({
                   {dueLabel ? ` · ${dueLabel}` : ""}
                 </Text>
               </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
+              {pendingAction === "request-cancel" ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Icon name="chevron-right" size={20} color={colors.outline} />
+              )}
             </View>
         )}
       </ContextActionsLink>
@@ -430,14 +442,16 @@ function ApRow({
           <Button
             title="Accept"
             icon="check"
-            loading={responding}
+            loading={pendingAction === "accepted"}
+            disabled={!!pendingAction}
             onPress={() => onRespond!("accepted")}
             style={styles.actionBtn}
           />
           <Button
             title="Reject"
             variant="secondary"
-            loading={responding}
+            loading={pendingAction === "rejected"}
+            disabled={!!pendingAction}
             onPress={() => onRespond!("rejected")}
             style={styles.actionBtn}
           />
@@ -449,14 +463,16 @@ function ApRow({
           <Button
             title="Accept cancellation"
             icon="check"
-            loading={responding}
+            loading={pendingAction === "cancel-accepted"}
+            disabled={!!pendingAction}
             onPress={() => onRespondCancellation(record.id, "accepted")}
             style={styles.actionBtn}
           />
           <Button
             title="Decline"
             variant="secondary"
-            loading={responding}
+            loading={pendingAction === "cancel-rejected"}
+            disabled={!!pendingAction}
             onPress={() => onRespondCancellation(record.id, "rejected")}
             style={styles.actionBtn}
           />
@@ -472,7 +488,28 @@ export default function ApListScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
-  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [rowPending, setRowPending] = useState<{
+    id: string;
+    action: ApRowAction;
+  } | null>(null);
+  const rowPendingRef = useRef(false);
+
+  /** Runs one row action with local loading; ignores taps while one is in flight. */
+  async function runRowAction(
+    apId: string,
+    action: ApRowAction,
+    work: () => Promise<void>,
+  ) {
+    if (rowPendingRef.current) return;
+    rowPendingRef.current = true;
+    setRowPending({ id: apId, action });
+    try {
+      await work();
+    } finally {
+      rowPendingRef.current = false;
+      setRowPending(null);
+    }
+  }
 
   const givenQ = useFirestoreInfiniteQuery({
     queryKey: ["ap", "given", user?.uid, "infinite"],
@@ -656,22 +693,16 @@ export default function ApListScreen() {
   }
 
   async function onRespond(apId: string, action: "accepted" | "rejected") {
-    setRespondingId(apId);
-    await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
-          await respondApRequest(apId, action);
-          toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
-          await queryClient.invalidateQueries({ queryKey: ["ap"] });
-          await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        }, "Updating…"),
-      )
-      .catch((e) => {
+    await runRowAction(apId, action, async () => {
+      try {
+        await respondApRequest(apId, action);
+        toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+        await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      } catch (e) {
         toast.error(friendlyError(e, "Could not respond to AP."));
-      })
-      .finally(() => {
-        setRespondingId(null);
-      });
+      }
+    });
   }
 
   async function onDelete(apId: string) {
@@ -685,39 +716,37 @@ export default function ApListScreen() {
   }
 
   async function onRequestCancellation(apId: string) {
-    try {
-      await withLoading(async () => {
+    await runRowAction(apId, "request-cancel", async () => {
+      try {
         await requestApCancellation(apId);
         toast.success("Cancellation requested");
         await queryClient.invalidateQueries({ queryKey: ["ap"] });
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not request cancellation."));
-    }
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not request cancellation."));
+      }
+    });
   }
 
   async function onRespondCancellation(
     apId: string,
     action: "accepted" | "rejected",
   ) {
-    setRespondingId(apId);
-    await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
+    await runRowAction(
+      apId,
+      action === "accepted" ? "cancel-accepted" : "cancel-rejected",
+      async () => {
+        try {
           await respondApCancellation(apId, action);
           toast.success(
             action === "accepted" ? "AP cancelled" : "Cancellation declined",
           );
           await queryClient.invalidateQueries({ queryKey: ["ap"] });
           await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        }, "Updating…"),
-      )
-      .catch((e) => {
-        toast.error(friendlyError(e, "Could not respond to cancellation."));
-      })
-      .finally(() => {
-        setRespondingId(null);
-      });
+        } catch (e) {
+          toast.error(friendlyError(e, "Could not respond to cancellation."));
+        }
+      },
+    );
   }
 
   return (
@@ -794,7 +823,9 @@ export default function ApListScreen() {
                 logoByOwnerUid,
                 businesses,
               )}
-              responding={respondingId === record.id}
+              pendingAction={
+                rowPending?.id === record.id ? rowPending.action : null
+              }
               onRespond={
                 side === "taken"
                   ? (action) => onRespond(record.id, action)

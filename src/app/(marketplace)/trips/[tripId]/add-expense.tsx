@@ -29,6 +29,7 @@ import {
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { addTripExpense } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import {
   extensionForMedia,
@@ -38,7 +39,6 @@ import {
 import { friendlyError } from '@/lib/errors';
 import { addTripExpenseSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddTripExpenseScreen() {
@@ -60,7 +60,7 @@ export default function AddTripExpenseScreen() {
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !tripId) return;
     const result = parseForm(addTripExpenseSchema, {
       category,
@@ -76,35 +76,33 @@ export default function AddTripExpenseScreen() {
     setErrors({});
 
     try {
-      await withLoading(async () => {
-        let receiptPhotoUrl: string | null = null;
-        if (receipt) {
-          const ext = extensionForMedia(receipt);
-          receiptPhotoUrl = await uploadLocalMedia(
-            receipt,
-            `trips/${user.uid}/${Date.now()}.${ext}`,
-          );
-        }
+      let receiptPhotoUrl: string | null = null;
+      if (receipt) {
+        const ext = extensionForMedia(receipt);
+        receiptPhotoUrl = await uploadLocalMedia(
+          receipt,
+          `trips/${user.uid}/${Date.now()}.${ext}`,
+        );
+      }
 
-        await addTripExpense(user.uid, tripId, {
-          category: result.data.category,
-          amount: result.data.amount,
-          currency: money.currency,
-          description: result.data.description ?? null,
-          paymentMethod: result.data.paymentMethod,
-          receiptPhotoUrl,
-        });
-        await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trips'] });
-        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-        toast.success('Expense logged on trip.');
-        router.back();
-      }, 'Adding expense…');
+      await addTripExpense(user.uid, tripId, {
+        category: result.data.category,
+        amount: result.data.amount,
+        currency: money.currency,
+        description: result.data.description ?? null,
+        paymentMethod: result.data.paymentMethod,
+        receiptPhotoUrl,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['trip-expenses', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success('Expense logged on trip.');
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save expense.'));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -193,7 +191,7 @@ export default function AddTripExpenseScreen() {
           emptyTitle="Add receipt photo"
         />
 
-        <Button title="Save expense" icon="shield" onPress={handleSubmit} />
+        <Button title="Save expense" icon="shield" loading={submitting} onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </View>

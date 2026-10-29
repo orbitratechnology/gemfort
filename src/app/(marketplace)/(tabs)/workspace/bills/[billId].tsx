@@ -55,6 +55,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { uploadReceipt } from "@/lib/firebase/receipt-service";
@@ -68,7 +69,6 @@ import {
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ApPaymentMethod, Bill, BillStatus } from "@/types";
 
@@ -231,7 +231,7 @@ export default function BillDetailScreen() {
     });
   }
 
-  async function handleRecordPayment() {
+  const [recordingPayment, handleRecordPayment] = usePendingAction(async () => {
     if (!user || !bill) return;
     const remaining = remainingAmount(bill);
     const amountToValidate = paymentAmount || String(remaining);
@@ -253,28 +253,26 @@ export default function BillDetailScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
-        await recordBillPayment(user.uid, bill.id, result.data.amount, {
-          currency: bill.currency,
-          paymentMethod: payMethod,
-          receiptUrl,
-        });
-        await invalidate();
-        toast.success(
-          bill.direction === "receivable"
-            ? "Payment received"
-            : "Payment recorded",
-        );
-        setPaySheetOpen(false);
-        setPaymentAmount("");
-        setPayMethod("cash");
-        setPaymentReceipt(null);
-      }, "Recording payment…");
+      const receiptUrl = await uploadReceipt(user.uid, paymentReceipt);
+      await recordBillPayment(user.uid, bill.id, result.data.amount, {
+        currency: bill.currency,
+        paymentMethod: payMethod,
+        receiptUrl,
+      });
+      await invalidate();
+      toast.success(
+        bill.direction === "receivable"
+          ? "Payment received"
+          : "Payment recorded",
+      );
+      setPaySheetOpen(false);
+      setPaymentAmount("");
+      setPayMethod("cash");
+      setPaymentReceipt(null);
     } catch (e) {
       toast.error(friendlyError(e, "Payment could not be recorded."));
     }
-  }
+  });
 
   function handleCancel() {
     if (!bill) return;
@@ -984,6 +982,7 @@ export default function BillDetailScreen() {
             icon={
               payMethod === "cheque" ? "cheque" : "check-circle"
             }
+            loading={recordingPayment}
             onPress={handleRecordPayment}
           />
         }

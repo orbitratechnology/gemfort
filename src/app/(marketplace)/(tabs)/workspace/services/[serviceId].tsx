@@ -1,7 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -70,7 +77,6 @@ import {
 } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ServiceRecord } from "@/types";
 
@@ -188,6 +194,9 @@ export default function ServiceDetailScreen() {
   const [finalCost, setFinalCost] = useState("");
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Action in flight, so only the tapped control spins.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const pendingRef = useRef(false);
 
   const { data: services = [], isLoading: servicesLoading } = useFirestoreLiveQuery({
     queryKey: ["services", user?.uid],
@@ -347,6 +356,20 @@ export default function ServiceDetailScreen() {
     ]);
   }
 
+  const busy = pendingKey !== null;
+
+  async function track(key: string, work: () => Promise<void>) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingKey(key);
+    try {
+      await work();
+    } finally {
+      pendingRef.current = false;
+      setPendingKey(null);
+    }
+  }
+
   async function handleComplete() {
     if (!user) return;
     const result = parseForm(completeServiceSchema, { weightAfter, finalCost });
@@ -356,8 +379,8 @@ export default function ServiceDetailScreen() {
       return;
     }
     setErrors({});
-    try {
-      await withLoading(async () => {
+    await track("complete", async () => {
+      try {
         await completeService(serviceId!, user.uid, {
           weightAfter: result.data.weightAfter,
           finalCost: result.data.finalCost,
@@ -367,27 +390,27 @@ export default function ServiceDetailScreen() {
         await invalidate();
         toast.success("Service marked complete");
         router.back();
-      }, "Saving…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not update service."));
-    }
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not update service."));
+      }
+    });
   }
 
   async function handleRequestCancel() {
-    try {
-      await withLoading(async () => {
+    await track("request-cancel", async () => {
+      try {
         await requestServiceCancellation(service!.id);
         await invalidate();
         toast.success("Cancellation requested");
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not request cancellation."));
-    }
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not request cancellation."));
+      }
+    });
   }
 
   async function handleRespondCancel(action: "accepted" | "rejected") {
-    try {
-      await withLoading(async () => {
+    await track(`cancel-${action}`, async () => {
+      try {
         await respondServiceCancellation(service!.id, action);
         await invalidate();
         toast.success(
@@ -395,10 +418,10 @@ export default function ServiceDetailScreen() {
             ? "Cancellation accepted"
             : "Cancellation declined",
         );
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not respond to cancellation."));
-    }
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not respond to cancellation."));
+      }
+    });
   }
 
   function handleDelete() {
@@ -882,6 +905,7 @@ export default function ServiceDetailScreen() {
             <Button
               title="Mark Received & Complete"
               icon="check-circle"
+              loading={pendingKey === "complete"}
               onPress={handleComplete}
             />
           </FormSection>
@@ -896,6 +920,8 @@ export default function ServiceDetailScreen() {
               <Button
                 title="Accept"
                 icon="check"
+                loading={pendingKey === "cancel-accepted"}
+                disabled={busy}
                 onPress={() => handleRespondCancel("accepted")}
                 style={styles.flex}
               />
@@ -903,6 +929,8 @@ export default function ServiceDetailScreen() {
                 title="Decline"
                 variant="secondary"
                 icon="close"
+                loading={pendingKey === "cancel-rejected"}
+                disabled={busy}
                 onPress={() => handleRespondCancel("rejected")}
                 style={styles.flex}
               />
@@ -915,6 +943,7 @@ export default function ServiceDetailScreen() {
             {isOwner && canRequestServiceCancellation(service) ? (
               <Pressable
                 onPress={handleRequestCancel}
+                disabled={busy}
                 style={({ pressed }) => [
                   styles.actionBtn,
                   {
@@ -925,6 +954,10 @@ export default function ServiceDetailScreen() {
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Request cancellation"
+                accessibilityState={{
+                  disabled: busy,
+                  busy: pendingKey === "request-cancel",
+                }}
               >
                 <View
                   style={[
@@ -932,7 +965,11 @@ export default function ServiceDetailScreen() {
                     { backgroundColor: colors.warningAmber + "22" },
                   ]}
                 >
-                  <Icon name="cancel" size={20} color={colors.warningAmber} />
+                  {pendingKey === "request-cancel" ? (
+                    <ActivityIndicator size="small" color={colors.warningAmber} />
+                  ) : (
+                    <Icon name="cancel" size={20} color={colors.warningAmber} />
+                  )}
                 </View>
                 <View style={styles.actionTextCol}>
                   <Text
@@ -950,6 +987,7 @@ export default function ServiceDetailScreen() {
             {isOwner && canDeleteService(service) ? (
               <Pressable
                 onPress={handleDelete}
+                disabled={busy}
                 style={({ pressed }) => [
                   styles.actionBtn,
                   {

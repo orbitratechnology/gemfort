@@ -38,13 +38,13 @@ import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query'
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { uploadReceipt } from '@/lib/firebase/receipt-service';
 import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function TransactionsScreen() {
@@ -100,7 +100,7 @@ export default function TransactionsScreen() {
   const sections = useMemo(() => groupTransactionsByDate(filteredTransactions), [filteredTransactions]);
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
 
-  async function handleAdd() {
+  const [adding, handleAdd] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addTransactionSchema, {
       type,
@@ -114,31 +114,29 @@ export default function TransactionsScreen() {
     }
     setErrors({});
     try {
-      await withLoading(async () => {
-        const receiptUrl = await uploadReceipt(user.uid, receipt);
-        await createTransaction(user.uid, {
-          type: result.data.type,
-          amount: result.data.amount,
-          currency: money.currency,
-          category: 'general',
-          description:
-            result.data.description ||
-            (type === 'income' ? 'Income' : 'Expense'),
-          gemId: null,
-          contactId: null,
-          receiptUrl,
-          date: Timestamp.now(),
-        });
-        setMoney({ amount: '', currency: preferred });
-        setDescription('');
-        setReceipt(null);
-        setShowForm(false);
-        await queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      }, 'Adding…');
+      const receiptUrl = await uploadReceipt(user.uid, receipt);
+      await createTransaction(user.uid, {
+        type: result.data.type,
+        amount: result.data.amount,
+        currency: money.currency,
+        category: 'general',
+        description:
+          result.data.description ||
+          (type === 'income' ? 'Income' : 'Expense'),
+        gemId: null,
+        contactId: null,
+        receiptUrl,
+        date: Timestamp.now(),
+      });
+      setMoney({ amount: '', currency: preferred });
+      setDescription('');
+      setReceipt(null);
+      setShowForm(false);
+      await queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save entry.'));
     }
-  }
+  });
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -199,7 +197,7 @@ export default function TransactionsScreen() {
             />
             <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
             <ReceiptField value={receipt} onChange={setReceipt} />
-            <Button title="Add Transaction" icon="add" onPress={handleAdd} style={{ marginTop: 8 }} />
+            <Button title="Add Transaction" icon="add" loading={adding} onPress={handleAdd} style={{ marginTop: 8 }} />
           </View>
         )}
 

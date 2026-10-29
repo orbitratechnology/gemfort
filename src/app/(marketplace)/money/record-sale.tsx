@@ -26,13 +26,13 @@ import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import { fetchContacts, fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { convertToBaseSync } from "@/lib/exchange-rates";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const METHODS = paymentMethodOptions(["transfer", "cash", "cheque"] as const);
@@ -126,7 +126,7 @@ export default function RecordSaleScreen() {
     });
   }
 
-  async function handleConfirm() {
+  const [confirming, handleConfirm] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(recordSaleSchema, {
       gemId: selectedGemId ?? "",
@@ -155,42 +155,40 @@ export default function RecordSaleScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        const data = result.data;
-        const paymentMethod =
-          data.method === "transfer" ? "bank_transfer" : data.method;
-        if (buyerParty?.source === "business") {
-          await createGemTransferRequest({
-            gemId: gem.id,
-            recipientBusinessId: buyerParty.businessId,
-            recipientContactId: selectedBuyerContactId,
-            recipientName: buyerLabel,
-            amount: data.price,
-            currency: price.currency,
-            paymentMethod,
-          });
-        } else {
-          await recordGemSale({
-            gemId: gem.id,
-            recipientContactId: selectedBuyerContactId,
-            recipientName: buyerLabel,
-            amount: data.price,
-            currency: price.currency,
-            paymentMethod,
-          });
-        }
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        toast.success(
-          isTraderProfile
-            ? `${gem.sku} sale recorded — waiting for trader acceptance.`
-            : `${gem.sku} sale recorded to ${buyerLabel}.`,
-        );
-        router.back();
-      }, isTraderProfile ? "Recording trader sale…" : "Recording sale…");
+      const data = result.data;
+      const paymentMethod =
+        data.method === "transfer" ? "bank_transfer" : data.method;
+      if (buyerParty?.source === "business") {
+        await createGemTransferRequest({
+          gemId: gem.id,
+          recipientBusinessId: buyerParty.businessId,
+          recipientContactId: selectedBuyerContactId,
+          recipientName: buyerLabel,
+          amount: data.price,
+          currency: price.currency,
+          paymentMethod,
+        });
+      } else {
+        await recordGemSale({
+          gemId: gem.id,
+          recipientContactId: selectedBuyerContactId,
+          recipientName: buyerLabel,
+          amount: data.price,
+          currency: price.currency,
+          paymentMethod,
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      toast.success(
+        isTraderProfile
+          ? `${gem.sku} sale recorded — waiting for trader acceptance.`
+          : `${gem.sku} sale recorded to ${buyerLabel}.`,
+      );
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, "Could not record the sale."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -332,6 +330,7 @@ export default function RecordSaleScreen() {
       <FormFooter
         title="Record sale"
         icon="price-check"
+        loading={confirming}
         onPress={handleConfirm}
       />
     </View>

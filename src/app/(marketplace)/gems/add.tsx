@@ -69,6 +69,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import {
@@ -80,7 +81,6 @@ import { formatCurrency } from "@/lib/utils";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { GemCertificate, GemStatus, GemStoneStage, Trip } from "@/types";
 
@@ -314,7 +314,7 @@ export default function AddGemScreen() {
     }
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
     const data = validateDetails();
     if (!data) {
@@ -322,168 +322,166 @@ export default function AddGemScreen() {
       return;
     }
     try {
-      await withLoading(async () => {
-        const stamp = Date.now();
-        let photoUrls: string[] = [];
-        let photosDeferred = false;
-        let uploadTask: Promise<string[]> | null = null;
-        let certificateData: GemCertificate | null = null;
-        let certificateDeferred = false;
-        let certificateUploadTask: Promise<string> | null = null;
+      const stamp = Date.now();
+      let photoUrls: string[] = [];
+      let photosDeferred = false;
+      let uploadTask: Promise<string[]> | null = null;
+      let certificateData: GemCertificate | null = null;
+      let certificateDeferred = false;
+      let certificateUploadTask: Promise<string> | null = null;
 
-        if (photos.length > 0) {
-          uploadTask = Promise.all(
-            photos.map((photo, index) => {
-              const ext = extensionForMedia(photo);
-              return uploadLocalMedia(
-                photo,
-                `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+      if (photos.length > 0) {
+        uploadTask = Promise.all(
+          photos.map((photo, index) => {
+            const ext = extensionForMedia(photo);
+            return uploadLocalMedia(
+              photo,
+              `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+            );
+          }),
+        );
+        try {
+          photoUrls = await Promise.race([
+            uploadTask,
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error("photo-upload-timeout")),
+                45_000,
               );
             }),
-          );
-          try {
-            photoUrls = await Promise.race([
-              uploadTask,
-              new Promise<never>((_, reject) => {
-                setTimeout(
-                  () => reject(new Error("photo-upload-timeout")),
-                  45_000,
-                );
-              }),
-            ]);
-          } catch {
-            // Storage needs network — save gem now; attach URLs when upload finishes.
-            photosDeferred = true;
-            photoUrls = [];
-          }
+          ]);
+        } catch {
+          // Storage needs network — save gem now; attach URLs when upload finishes.
+          photosDeferred = true;
+          photoUrls = [];
         }
-        if (certificate) {
-          certificateUploadTask = uploadLocalMedia(
-            certificate,
-            `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
-          );
-          try {
-            const certificateUrl = await Promise.race([
-              certificateUploadTask,
-              new Promise<never>((_, reject) => {
-                setTimeout(
-                  () => reject(new Error("certificate-upload-timeout")),
-                  45_000,
-                );
-              }),
-            ]);
-            certificateData = {
-              url: certificateUrl,
+      }
+      if (certificate) {
+        certificateUploadTask = uploadLocalMedia(
+          certificate,
+          `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
+        );
+        try {
+          const certificateUrl = await Promise.race([
+            certificateUploadTask,
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error("certificate-upload-timeout")),
+                45_000,
+              );
+            }),
+          ]);
+          certificateData = {
+            url: certificateUrl,
+            kind: certificate.kind === "image" ? "image" : "file",
+            fileName: certificate.fileName ?? null,
+            mimeType: certificate.mimeType ?? null,
+          };
+        } catch {
+          // Save the gem now; attach the certificate when Storage is available.
+          certificateDeferred = true;
+        }
+      }
+      const colorLabel = data.colorPrimary
+        ? formatColorLabel(data.colorPrimary)
+        : "";
+      const gemStatus: GemStatus = selectedTripId ? "on_trip" : data.stoneStage;
+      const gemPayload = {
+        title: data.title,
+        gemType: data.gemType,
+        originCountry: data.originCountry ?? "",
+        roughWeight: data.roughWeight,
+        acquisitionCost: data.acquisitionCost,
+        acquisitionCurrency: acquisition.currency,
+        colorPrimary: colorLabel || data.colorPrimary || null,
+        clarity: data.clarity
+          ? formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity
+          : null,
+        cutType: null,
+        shape: data.shape
+          ? formatOptionLabel(GEM_SHAPES, data.shape) || data.shape
+          : null,
+        isNatural: !data.treatment || data.treatment === "natural",
+        treatmentStatus: data.treatment ?? "natural",
+        stoneStage: data.stoneStage,
+        status: gemStatus,
+        photoUrls,
+        certificate: certificateData,
+      };
+
+      const gem = selectedTripId
+        ? await createGemOnSourcingTrip(user.uid, selectedTripId, gemPayload)
+        : await createGem(user.uid, gemPayload);
+
+      if (photosDeferred && uploadTask) {
+        void uploadTask
+          .then((urls) => {
+            queueGemPhotoUrls(gem.id, urls);
+            queryClient.setQueryData(["gem", gem.id], {
+              ...gem,
+              photoUrls: urls,
+            });
+            void queryClient.invalidateQueries({ queryKey: ["gems"] });
+            void queryClient.invalidateQueries({
+              queryKey: ["gem", gem.id],
+            });
+          })
+          .catch(() => {
+            // Still offline — gem row exists without photos.
+          });
+      }
+      if (certificateDeferred && certificateUploadTask && certificate) {
+        void certificateUploadTask
+          .then((url) => {
+            const uploadedCertificate: GemCertificate = {
+              url,
               kind: certificate.kind === "image" ? "image" : "file",
               fileName: certificate.fileName ?? null,
               mimeType: certificate.mimeType ?? null,
             };
-          } catch {
-            // Save the gem now; attach the certificate when Storage is available.
-            certificateDeferred = true;
-          }
-        }
-        const colorLabel = data.colorPrimary
-          ? formatColorLabel(data.colorPrimary)
-          : "";
-        const gemStatus: GemStatus = selectedTripId ? "on_trip" : data.stoneStage;
-        const gemPayload = {
-          title: data.title,
-          gemType: data.gemType,
-          originCountry: data.originCountry ?? "",
-          roughWeight: data.roughWeight,
-          acquisitionCost: data.acquisitionCost,
-          acquisitionCurrency: acquisition.currency,
-          colorPrimary: colorLabel || data.colorPrimary || null,
-          clarity: data.clarity
-            ? formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity
-            : null,
-          cutType: null,
-          shape: data.shape
-            ? formatOptionLabel(GEM_SHAPES, data.shape) || data.shape
-            : null,
-          isNatural: !data.treatment || data.treatment === "natural",
-          treatmentStatus: data.treatment ?? "natural",
-          stoneStage: data.stoneStage,
-          status: gemStatus,
-          photoUrls,
-          certificate: certificateData,
-        };
-
-        const gem = selectedTripId
-          ? await createGemOnSourcingTrip(user.uid, selectedTripId, gemPayload)
-          : await createGem(user.uid, gemPayload);
-
-        if (photosDeferred && uploadTask) {
-          void uploadTask
-            .then((urls) => {
-              queueGemPhotoUrls(gem.id, urls);
-              queryClient.setQueryData(["gem", gem.id], {
-                ...gem,
-                photoUrls: urls,
-              });
-              void queryClient.invalidateQueries({ queryKey: ["gems"] });
-              void queryClient.invalidateQueries({
-                queryKey: ["gem", gem.id],
-              });
-            })
-            .catch(() => {
-              // Still offline — gem row exists without photos.
+            queueGemCertificate(gem.id, uploadedCertificate);
+            queryClient.setQueryData(
+              ["gem", gem.id],
+              (prev: typeof gem | null | undefined) =>
+                prev ? { ...prev, certificate: uploadedCertificate } : prev,
+            );
+            void queryClient.invalidateQueries({ queryKey: ["gems"] });
+            void queryClient.invalidateQueries({
+              queryKey: ["gem", gem.id],
             });
-        }
-        if (certificateDeferred && certificateUploadTask && certificate) {
-          void certificateUploadTask
-            .then((url) => {
-              const uploadedCertificate: GemCertificate = {
-                url,
-                kind: certificate.kind === "image" ? "image" : "file",
-                fileName: certificate.fileName ?? null,
-                mimeType: certificate.mimeType ?? null,
-              };
-              queueGemCertificate(gem.id, uploadedCertificate);
-              queryClient.setQueryData(
-                ["gem", gem.id],
-                (prev: typeof gem | null | undefined) =>
-                  prev ? { ...prev, certificate: uploadedCertificate } : prev,
-              );
-              void queryClient.invalidateQueries({ queryKey: ["gems"] });
-              void queryClient.invalidateQueries({
-                queryKey: ["gem", gem.id],
-              });
-            })
-            .catch(() => {
-              // Still offline — the gem remains available without a certificate.
-            });
-        }
-
-        // Seed detail cache so navigation skips the Loading flash.
-        queryClient.setQueryData(["gem", gem.id], gem);
-        void queryClient.invalidateQueries({ queryKey: ["gems"] });
-        if (selectedTripId) {
-          void queryClient.invalidateQueries({
-            queryKey: ["trip-gems", selectedTripId],
+          })
+          .catch(() => {
+            // Still offline — the gem remains available without a certificate.
           });
-          void queryClient.invalidateQueries({
-            queryKey: ["trip", selectedTripId],
-          });
-          void queryClient.invalidateQueries({ queryKey: ["trips"] });
-        }
+      }
 
-        toast.success(
-          photosDeferred || certificateDeferred
-            ? "Gem saved — attachments still uploading in the background"
-            : photos.length === 0
-              ? "Gem added — photos optional, add anytime"
-              : selectedTripId
-                ? "Gem added and linked to trip"
-                : "Gem added to your inventory",
-        );
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}`);
-      }, "Adding gem…");
+      // Seed detail cache so navigation skips the Loading flash.
+      queryClient.setQueryData(["gem", gem.id], gem);
+      void queryClient.invalidateQueries({ queryKey: ["gems"] });
+      if (selectedTripId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["trip-gems", selectedTripId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["trip", selectedTripId],
+        });
+        void queryClient.invalidateQueries({ queryKey: ["trips"] });
+      }
+
+      toast.success(
+        photosDeferred || certificateDeferred
+          ? "Gem saved — attachments still uploading in the background"
+          : photos.length === 0
+            ? "Gem added — photos optional, add anytime"
+            : selectedTripId
+              ? "Gem added and linked to trip"
+              : "Gem added to your inventory",
+      );
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not add gem."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -936,6 +934,7 @@ export default function AddGemScreen() {
               : "Continue"
         }
         icon={step === 3 ? "shield" : "arrow-forward"}
+        loading={submitting}
         onPress={handleNext}
         secondaryTitle={step > 0 ? "Back" : undefined}
         onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}

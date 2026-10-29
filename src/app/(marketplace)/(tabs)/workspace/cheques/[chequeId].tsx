@@ -1,8 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -54,8 +61,6 @@ import {
   openWhatsApp,
 } from "@/lib/utils";
 import { confirm } from "@/providers/confirm-bridge";
-import { useIsBusy } from "@/providers/loading-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque, ChequeStatus } from "@/types";
 
@@ -153,7 +158,12 @@ export default function ChequeDetailScreen() {
   const { formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const busy = useIsBusy();
+  // Status update in flight, so only the tapped action spins.
+  const [pendingStatus, setPendingStatus] = useState<ChequeStatus | null>(
+    null,
+  );
+  const pendingRef = useRef(false);
+  const busy = pendingStatus !== null;
   const [bounceReason, setBounceReason] = useState("");
   const [showBounceForm, setShowBounceForm] = useState(false);
 
@@ -235,25 +245,28 @@ export default function ChequeDetailScreen() {
   }
 
   async function applyStatus(status: ChequeStatus, reason?: string) {
-    if (!cheque) return;
+    if (!cheque || pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingStatus(status);
     try {
-      await withLoading(async () => {
-        await updateChequeStatus(
-          cheque.id,
-          status,
-          reason ? { bouncedReason: reason } : undefined,
-        );
-        await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-        await queryClient.invalidateQueries({
-          queryKey: ["cheque", chequeId],
-        });
-        await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        toast.success(
-          `Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`,
-        );
-      }, "Updating…");
+      await updateChequeStatus(
+        cheque.id,
+        status,
+        reason ? { bouncedReason: reason } : undefined,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["cheque", chequeId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(
+        `Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`,
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not update status."));
+    } finally {
+      pendingRef.current = false;
+      setPendingStatus(null);
     }
   }
 
@@ -878,11 +891,13 @@ export default function ChequeDetailScreen() {
               <Button
                 title="Cancel"
                 variant="ghost"
+                disabled={busy}
                 onPress={() => setShowBounceForm(false)}
               />
               <Button
                 title="Confirm bounce"
                 icon="cancel"
+                loading={pendingStatus === "bounced"}
                 onPress={() => {
                   if (!bounceReason.trim()) {
                     toast.error("Enter a reason for the bounce.");
@@ -918,6 +933,10 @@ export default function ChequeDetailScreen() {
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={a.label}
+                  accessibilityState={{
+                    disabled: busy,
+                    busy: pendingStatus === a.status,
+                  }}
                 >
                   <View
                     style={[
@@ -930,13 +949,22 @@ export default function ChequeDetailScreen() {
                       },
                     ]}
                   >
-                    <Icon
-                      name={a.icon}
-                      size={20}
-                      color={
-                        a.tone === "danger" ? colors.error : colors.primary
-                      }
-                    />
+                    {pendingStatus === a.status ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={
+                          a.tone === "danger" ? colors.error : colors.primary
+                        }
+                      />
+                    ) : (
+                      <Icon
+                        name={a.icon}
+                        size={20}
+                        color={
+                          a.tone === "danger" ? colors.error : colors.primary
+                        }
+                      />
+                    )}
                   </View>
                   <View style={styles.actionTextCol}>
                     <Text

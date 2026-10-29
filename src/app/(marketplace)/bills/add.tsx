@@ -60,6 +60,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
@@ -73,7 +74,6 @@ import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { BillDirection, LapidaryJob, WorkspaceGem } from "@/types";
 
@@ -270,7 +270,7 @@ export default function AddBillScreen() {
     setJobSheetOpen(false);
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !direction) return;
     const result = parseForm(addBillSchema, {
       direction,
@@ -286,63 +286,61 @@ export default function AddBillScreen() {
     }
     setErrors({});
     try {
-      await withLoading(async () => {
-        const dueDateValue = addDays(new Date(), result.data.dueDays);
-        const dueDate = Timestamp.fromDate(dueDateValue);
-        const receiptUrl = await uploadReceipt(user.uid, receipt);
-        const id = await createBill(user.uid, {
-          direction: result.data.direction,
-          amount: result.data.amount,
-          currency: money.currency,
-          counterpartyContactId: result.data.contactId,
-          receiptUrl,
-          dueDate,
-          commissionPercent: isLapidary ? null : result.data.commissionPercent,
-          notes: result.data.notes,
-          gemIds: isLapidary ? [] : gemIds,
-          jobId: jobId || null,
-          status: jobId ? "ongoing" : "open",
+      const dueDateValue = addDays(new Date(), result.data.dueDays);
+      const dueDate = Timestamp.fromDate(dueDateValue);
+      const receiptUrl = await uploadReceipt(user.uid, receipt);
+      const id = await createBill(user.uid, {
+        direction: result.data.direction,
+        amount: result.data.amount,
+        currency: money.currency,
+        counterpartyContactId: result.data.contactId,
+        receiptUrl,
+        dueDate,
+        commissionPercent: isLapidary ? null : result.data.commissionPercent,
+        notes: result.data.notes,
+        gemIds: isLapidary ? [] : gemIds,
+        jobId: jobId || null,
+        status: jobId ? "ongoing" : "open",
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "bill",
+          sourceId: id,
+          title: `Bill due: ${result.data.direction}`,
+          date: dueDateValue,
+          url: commitmentDeepLink("bill", id),
         });
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "bill",
-            sourceId: id,
-            title: `Bill due: ${result.data.direction}`,
-            date: dueDateValue,
-            url: commitmentDeepLink("bill", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Bill saved, but its calendar entry could not be added.");
-          }
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Bill saved, but its calendar entry could not be added.");
         }
-        if (reminderSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "reminder",
-            sourceType: "bill",
-            sourceId: id,
-            title: `Bill due: ${result.data.direction}`,
-            date: dueDateValue,
-            url: commitmentDeepLink("bill", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Bill saved, but its reminder could not be added.");
-          }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "bill",
+          sourceId: id,
+          title: `Bill due: ${result.data.direction}`,
+          date: dueDateValue,
+          url: commitmentDeepLink("bill", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Bill saved, but its reminder could not be added.");
         }
-        void queryClient.invalidateQueries({ queryKey: ["bills"] });
-        toast.success(
-          isLapidary
-            ? "Bill started — ongoing until due date"
-            : "Bill saved",
-        );
-        replaceWithAnchor(
-          `/(marketplace)/(tabs)/workspace/bills/${id}` as never,
-        );
-      }, "Adding bill…");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["bills"] });
+      toast.success(
+        isLapidary
+          ? "Bill started — ongoing until due date"
+          : "Bill saved",
+      );
+      replaceWithAnchor(
+        `/(marketplace)/(tabs)/workspace/bills/${id}` as never,
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not save bill."));
     }
-  }
+  });
 
   const contactName =
     contacts.find((c) => c.id === selectedContactId)?.displayName ?? "them";
@@ -591,6 +589,7 @@ export default function AddBillScreen() {
           <FormFooter
             title="Add bill"
             onPress={handleSubmit}
+            loading={submitting}
             icon="check"
             secondaryTitle={canChangeDirection ? "Back" : undefined}
             onSecondaryPress={canChangeDirection ? () => setStep(0) : undefined}

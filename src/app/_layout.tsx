@@ -13,7 +13,6 @@ import {
 import { AuthProvider } from "@/providers/auth-provider";
 import { BiometricLockProvider } from "@/providers/biometric-lock-provider";
 import { ConfirmProvider } from "@/providers/confirm-provider";
-import { LoadingProvider } from "@/providers/loading-provider";
 import { PushNotificationRegistrar } from "@/providers/push-notification-registrar";
 import { QueryProvider } from "@/providers/query-provider";
 import { QuickActionsRegistrar } from "@/providers/quick-actions-registrar";
@@ -186,23 +185,21 @@ export default function RootLayout() {
       <KeyboardProvider>
         <ThemeProvider>
           <ToastProvider>
-            <LoadingProvider>
-              <ConfirmProvider>
-                <QueryProvider>
-                  <AuthProvider>
-                    <BiometricLockProvider>
-                      <PushNotificationRegistrar />
-                      <QuickActionsRegistrar />
-                      <AppTourProvider>
-                        <RootNavigator />
-                        <NetworkStatusIndicator />
-                        <KeyboardToolbar />
-                      </AppTourProvider>
-                    </BiometricLockProvider>
-                  </AuthProvider>
-                </QueryProvider>
-              </ConfirmProvider>
-            </LoadingProvider>
+            <ConfirmProvider>
+              <QueryProvider>
+                <AuthProvider>
+                  <BiometricLockProvider>
+                    <PushNotificationRegistrar />
+                    <QuickActionsRegistrar />
+                    <AppTourProvider>
+                      <RootNavigator />
+                      <NetworkStatusIndicator />
+                      <KeyboardToolbar />
+                    </AppTourProvider>
+                  </BiometricLockProvider>
+                </AuthProvider>
+              </QueryProvider>
+            </ConfirmProvider>
           </ToastProvider>
         </ThemeProvider>
       </KeyboardProvider>

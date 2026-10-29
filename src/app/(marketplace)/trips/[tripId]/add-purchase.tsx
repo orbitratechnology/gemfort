@@ -24,12 +24,12 @@ import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { GEM_TYPES } from '@/constants/gem-options';
 import { createGemOnSourcingTrip } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { friendlyError } from '@/lib/errors';
 import { addTripPurchaseSchema, parseForm } from '@/lib/validation/form-schemas';
 import { replaceWithAnchor } from '@/navigation/tab-stack-nav';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 
 export default function AddTripPurchaseScreen() {
@@ -51,7 +51,7 @@ export default function AddTripPurchaseScreen() {
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !tripId) return;
     const result = parseForm(addTripPurchaseSchema, {
       gemType,
@@ -68,27 +68,25 @@ export default function AddTripPurchaseScreen() {
     setErrors({});
 
     try {
-      await withLoading(async () => {
-        const gem = await createGemOnSourcingTrip(user.uid, tripId, {
-          gemType: result.data.gemType,
-          originCountry: result.data.originCountry,
-          roughWeight: result.data.roughWeight,
-          acquisitionCost: result.data.acquisitionCost,
-          acquisitionCurrency: acquisition.currency,
-          notes: result.data.notes ?? null,
-        });
-        queryClient.setQueryData(['gem', gem.id], gem);
-        await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
-        await queryClient.invalidateQueries({ queryKey: ['trips'] });
-        await queryClient.invalidateQueries({ queryKey: ['gems'] });
-        toast.success('Gem purchased and linked to trip.');
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}` as never);
-      }, 'Recording purchase…');
+      const gem = await createGemOnSourcingTrip(user.uid, tripId, {
+        gemType: result.data.gemType,
+        originCountry: result.data.originCountry,
+        roughWeight: result.data.roughWeight,
+        acquisitionCost: result.data.acquisitionCost,
+        acquisitionCurrency: acquisition.currency,
+        notes: result.data.notes ?? null,
+      });
+      queryClient.setQueryData(['gem', gem.id], gem);
+      await queryClient.invalidateQueries({ queryKey: ['trip-gems', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+      await queryClient.invalidateQueries({ queryKey: ['trips'] });
+      await queryClient.invalidateQueries({ queryKey: ['gems'] });
+      toast.success('Gem purchased and linked to trip.');
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/gems/${gem.id}` as never);
     } catch (e) {
       toast.error(friendlyError(e, 'Could not record purchase.'));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -168,7 +166,7 @@ export default function AddTripPurchaseScreen() {
         />
         <Input label="Notes" value={notes} onChangeText={setNotes} placeholder="Mine, dealer, lot…" multiline leftIcon="notes" />
 
-        <Button title="Add to trip" icon="add" onPress={handleSubmit} />
+        <Button title="Add to trip" icon="add" loading={submitting} onPress={handleSubmit} />
         </ScreenInset>
       </ThemedScrollView>
     </View>
