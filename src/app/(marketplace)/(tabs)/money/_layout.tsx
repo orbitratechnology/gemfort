@@ -15,7 +15,6 @@ export const unstable_settings = {
    * @see https://docs.expo.dev/router/basics/navigation/#initial-routes
    */
   anchor: 'index',
-  initialRouteName: 'index',
 };
 
 export default function MoneyLayout() {
