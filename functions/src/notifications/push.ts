@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/logger';
 
 import { db, messaging } from '../admin';
@@ -24,8 +25,15 @@ function prefAllowsPush(type: NotificationType, prefs: UserNotificationPreferenc
   return true;
 }
 
+/** Unique device tokens for a user: the multi-device list plus the legacy field. */
+export function pushTokensFor(user: UserDoc | undefined): string[] {
+  if (!user) return [];
+  const tokens = [...(Array.isArray(user.fcmTokens) ? user.fcmTokens : []), user.fcmToken];
+  return [...new Set(tokens.filter((token): token is string => typeof token === 'string' && token.length > 0))];
+}
+
 export function shouldSendPush(type: NotificationType, user: UserDoc | undefined): boolean {
-  if (!user?.fcmToken) return false;
+  if (!user || pushTokensFor(user).length === 0) return false;
   if (user.isActive === false) return false;
   const prefs = user.notificationPreferences ?? {};
   if (prefs.pushEnabled === false) return false;
@@ -83,7 +91,7 @@ export async function sendPushForNotification(
     return { sent: false, media };
   }
 
-  const token = user!.fcmToken!;
+  const tokens = pushTokensFor(user);
   const priority = notification.priority ?? 'medium';
   const channelId = pushChannelForType(notification.type, priority);
   const categoryId = pushCategoryForType(notification.type);
@@ -113,53 +121,67 @@ export async function sendPushForNotification(
     largeIconUrl: media.actorPhotoUrl ?? '',
   };
 
-  try {
-    await messaging.send({
-      token,
-      data,
-      android: {
-        // Data-only on Android so notify-kit can render profile largeIcon + gem BigPicture.
-        // High priority wakes the device to run the background presentation task.
-        priority: 'high',
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: priority === 'high' ? 'default' : undefined,
-            category: categoryId,
-            'thread-id': threadId,
-            ...(richImage ? { 'mutable-content': 1 } : {}),
-            alert: {
-              title: nativeTitle,
-              ...(subtitle ? { subtitle } : {}),
-              body: notification.message,
-            },
+  const message = {
+    data,
+    android: {
+      // Data-only on Android so notify-kit can render profile largeIcon + gem BigPicture.
+      // High priority wakes the device to run the background presentation task.
+      priority: 'high' as const,
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: priority === 'high' ? 'default' : undefined,
+          category: categoryId,
+          'thread-id': threadId,
+          ...(richImage ? { 'mutable-content': 1 } : {}),
+          alert: {
+            title: nativeTitle,
+            ...(subtitle ? { subtitle } : {}),
+            body: notification.message,
           },
         },
-        ...(richImage
-          ? {
-              fcmOptions: {
-                imageUrl: richImage,
-              },
-            }
-          : {}),
       },
+      ...(richImage
+        ? {
+            fcmOptions: {
+              imageUrl: richImage,
+            },
+          }
+        : {}),
+    },
+  };
+
+  try {
+    const result = await messaging.sendEach(tokens.map((token) => ({ ...message, token })));
+    const deadTokens = result.responses.flatMap((response, index) => {
+      const code = response.error?.code ?? '';
+      return code.includes('registration-token-not-registered') ||
+        code.includes('invalid-registration-token')
+        ? [tokens[index]!]
+        : [];
     });
-    return { sent: true, media };
-  } catch (error: unknown) {
-    const code =
-      typeof error === 'object' && error && 'code' in error
-        ? String((error as { code: string }).code)
-        : '';
-
-    if (
-      code.includes('registration-token-not-registered') ||
-      code.includes('invalid-registration-token')
-    ) {
-      await db.collection('users').doc(recipientUid).update({ fcmToken: null });
+    if (deadTokens.length > 0) {
+      await db
+        .collection('users')
+        .doc(recipientUid)
+        .update({
+          fcmTokens: FieldValue.arrayRemove(...deadTokens),
+          ...(user?.fcmToken && deadTokens.includes(user.fcmToken) ? { fcmToken: null } : {}),
+        })
+        .catch(() => undefined);
     }
-
-    logger.warn('FCM send failed', { recipientUid, type: notification.type, code, error });
+    if (result.failureCount > 0) {
+      logger.warn('FCM send partially failed', {
+        recipientUid,
+        type: notification.type,
+        failures: result.failureCount,
+        removedTokens: deadTokens.length,
+      });
+    }
+    return { sent: result.successCount > 0, media };
+  } catch (error: unknown) {
+    logger.warn('FCM send failed', { recipientUid, type: notification.type, error });
     return { sent: false, media };
   }
 }

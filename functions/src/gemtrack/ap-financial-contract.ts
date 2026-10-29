@@ -30,19 +30,33 @@ export function apSaleTransactionId(apId: string, gemId: string): string {
   return deterministicApEventId('sale', apId, gemId);
 }
 
+/**
+ * An AP can be settled over several payments. Payment 1 keeps the IDs used
+ * before instalments existed so earlier events still reconcile on retry;
+ * later payments add the sequence number to the discriminator.
+ */
+function paymentDiscriminator(base: string, seq: number): string {
+  return seq <= 1 ? base : `${base}:${seq}`;
+}
+
 export function apPaymentEventId(
   apId: string,
   type: 'sent' | 'received',
+  seq = 1,
 ): string {
-  return deterministicApEventId(type === 'sent' ? 'payment-sent' : 'payment-received', apId);
+  return deterministicApEventId(
+    type === 'sent' ? 'payment-sent' : 'payment-received',
+    apId,
+    paymentDiscriminator('', seq),
+  );
 }
 
-export function apPaymentIncomeTransactionId(apId: string): string {
-  return deterministicApEventId('income', apId, 'payment-received');
+export function apPaymentIncomeTransactionId(apId: string, seq = 1): string {
+  return deterministicApEventId('income', apId, paymentDiscriminator('payment-received', seq));
 }
 
-export function apPaymentExpenseTransactionId(apId: string): string {
-  return deterministicApEventId('expense', apId, 'payment-received');
+export function apPaymentExpenseTransactionId(apId: string, seq = 1): string {
+  return deterministicApEventId('expense', apId, paymentDiscriminator('payment-received', seq));
 }
 
 export function apSaleFingerprint(input: {

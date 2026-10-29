@@ -17,6 +17,8 @@ export {
   serverTimestamp,
   Timestamp,
   increment,
+  arrayUnion,
+  arrayRemove,
   onSnapshot,
   runTransaction,
   writeBatch,

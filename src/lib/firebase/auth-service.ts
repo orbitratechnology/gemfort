@@ -16,6 +16,8 @@ import {
 } from "@/lib/firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
 import {
+    arrayRemove,
+    arrayUnion,
     doc,
     getDoc,
     serverTimestamp,
@@ -128,10 +130,15 @@ export async function logoutUser() {
   const uid = auth.currentUser?.uid;
   if (uid) {
     try {
+      // Stop pushes to this device only; other signed-in devices keep theirs.
       await updateDoc(doc(getFirebaseDb(), "users", uid), {
         fcmToken: null,
+        ...(registeredDeviceToken
+          ? { fcmTokens: arrayRemove(registeredDeviceToken) }
+          : {}),
         updatedAt: serverTimestamp(),
       });
+      registeredDeviceToken = null;
     } catch {
       // Non-blocking
     }
@@ -214,9 +221,17 @@ async function deleteAuthenticatedAccount() {
     idempotencyKey: `mobile-account-delete-${user.uid}-${Date.now().toString(36)}`.slice(0, 128),
     method: "DELETE",
   });
-  // React Native Firebase requires a recent sign-in before deleteUser. The
-  // caller has just completed password, Google, or Apple reauthentication.
-  await deleteUser(user);
+  // The API deletes the Auth user after wiping data. deleteUser remains as a
+  // fallback for older servers; user-not-found/token errors mean it is gone.
+  try {
+    await deleteUser(user);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code ?? "";
+    if (!["auth/user-not-found", "auth/user-token-expired", "auth/no-current-user"].includes(code)) {
+      throw error;
+    }
+    await signOut(getFirebaseAuth()).catch(() => undefined);
+  }
   try {
     await Promise.all([clearOnboardingState(), clearThemePreference()]);
   } catch {
@@ -230,6 +245,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   return { uid, ...snap.data() } as UserProfile;
 }
 
+/** FCM token this device registered, so sign-out removes only this device. */
+let registeredDeviceToken: string | null = null;
+
 export async function updateFcmToken(uid: string, token: string | null) {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
@@ -240,10 +258,18 @@ export async function updateFcmToken(uid: string, token: string | null) {
   // permission-denied when push registration races auth restore on Android).
   await getIdToken(current);
 
+  // fcmTokens holds every signed-in device so push reaches all of them;
+  // fcmToken stays as the latest device for older servers.
   await updateDoc(doc(getFirebaseDb(), "users", uid), {
     fcmToken: token,
+    ...(token
+      ? { fcmTokens: arrayUnion(token) }
+      : registeredDeviceToken
+        ? { fcmTokens: arrayRemove(registeredDeviceToken) }
+        : {}),
     updatedAt: serverTimestamp(),
   });
+  registeredDeviceToken = token;
 }
 
 export async function updatePreferredCurrency(

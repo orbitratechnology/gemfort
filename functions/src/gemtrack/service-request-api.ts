@@ -179,6 +179,20 @@ export function parseCreateServiceRequestInput(value: unknown): CreateServiceReq
   };
 }
 
+function stringField(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function gemDisplayName(gem: Record<string, unknown>, gemId: string): string {
+  return (
+    stringField(gem.title) ??
+    stringField(gem.variety) ??
+    stringField(typeof gem.gemType === 'string' ? gem.gemType.replace(/_/g, ' ') : null) ??
+    stringField(gem.sku) ??
+    gemId.slice(0, 8)
+  );
+}
+
 function gemStage(data: Record<string, unknown>): string {
   const candidate = data.stoneStage ?? data.status;
   if (typeof candidate === 'string' && STONE_STAGES.has(candidate)) return candidate;
@@ -285,6 +299,11 @@ export async function createServiceRequestForApi(
   );
 
   let providerUid = '';
+  let traderIdentity: { name: string | null; logoUrl: string | null } = { name: null, logoUrl: null };
+  let gemSnapshot: { gemName: string; gemPhotoUrl: string | null } = {
+    gemName: input.gemName,
+    gemPhotoUrl: null,
+  };
   await db.runTransaction(async (transaction) => {
     const [gemSnap, providerSnap] = await transaction.getAll(gemRef, providerRef);
     if (!gemSnap.exists) throw new ApiError('not-found', 'Gem not found.');
@@ -326,10 +345,43 @@ export async function createServiceRequestForApi(
       throw new ApiError('failed-precondition', 'Remove this gem from the market before requesting service.');
     }
 
+    // Both parties rely on this snapshot, so names, logos, gem identity, and
+    // the pre-service weight come from the stored records, not the request.
+    let traderBusinessSnap = input.traderBusinessId
+      ? await transaction.get(db.collection('businesses').doc(input.traderBusinessId))
+      : null;
+    if (traderBusinessSnap && (!traderBusinessSnap.exists || traderBusinessSnap.data()?.ownerUid !== uid)) {
+      throw new ApiError('permission-denied', 'You can only request service as your own business.');
+    }
+    if (!traderBusinessSnap) {
+      const owned = await transaction.get(
+        db.collection('businesses').where('ownerUid', '==', uid).limit(1),
+      );
+      traderBusinessSnap = owned.docs[0] ?? null;
+    }
+    const traderBusiness = traderBusinessSnap?.exists ? traderBusinessSnap.data() ?? {} : {};
+    const photoUrls = Array.isArray(gem.photoUrls) ? gem.photoUrls : [];
+    const gemPhotoUrl = typeof photoUrls[0] === 'string' ? photoUrls[0] : null;
+    const currentWeight = Number(gem.currentWeight ?? gem.roughWeight ?? 0);
+    traderIdentity = {
+      name: stringField(traderBusiness.businessName),
+      logoUrl: stringField(traderBusiness.logoUrl),
+    };
+    gemSnapshot = { gemName: gemDisplayName(gem, input.gemId), gemPhotoUrl };
+
     const previousStoneStage = gemStage(gem);
     const custody = serviceCustody(input.serviceTypes);
     const data: ServiceRequestDoc = {
       ...input,
+      gemName: gemSnapshot.gemName,
+      gemPhotoUrl,
+      weightBefore: Number.isFinite(currentWeight) && currentWeight > 0 ? currentWeight : 0,
+      traderBusinessId: traderBusinessSnap?.exists ? traderBusinessSnap.id : null,
+      traderBusinessName: traderIdentity.name,
+      traderBusinessLogoUrl: traderIdentity.logoUrl,
+      providerName: stringField(provider.businessName),
+      providerBusinessName: stringField(provider.businessName),
+      providerBusinessLogoUrl: stringField(provider.logoUrl),
       ownerUid: uid,
       traderUid: uid,
       providerUid,
@@ -341,7 +393,7 @@ export async function createServiceRequestForApi(
       providerContactId: '',
       dateGiven: now,
       expectedReturnDate,
-      photoBeforeUrls: input.gemPhotoUrl ? [input.gemPhotoUrl] : [],
+      photoBeforeUrls: gemPhotoUrl ? [gemPhotoUrl] : [],
       instructions: input.notes,
       agreedPrice: null,
       agreedPriceCurrency: null,
@@ -380,11 +432,11 @@ export async function createServiceRequestForApi(
     recipientUid: providerUid,
     type: 'service_request_received',
     title: 'New service request',
-    message: notificationMessage(input),
+    message: notificationMessage({ ...input, gemName: gemSnapshot.gemName }),
     serviceId: serviceRef.id,
-    actorName: input.traderBusinessName,
-    actorPhotoUrl: input.traderBusinessLogoUrl,
-    imageUrl: input.gemPhotoUrl,
+    actorName: traderIdentity.name,
+    actorPhotoUrl: traderIdentity.logoUrl,
+    imageUrl: gemSnapshot.gemPhotoUrl,
   });
 
   return { serviceId: serviceRef.id, status: 'pending' };

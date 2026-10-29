@@ -2,12 +2,13 @@ import { logger } from 'firebase-functions/logger';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import { REGION } from '../config';
-import { createNotificationDoc } from '../notifications/create';
+import { ensureDeterministicNotificationDoc } from '../notifications/create';
 
 export const onReportResolved = onDocumentUpdated(
   {
     document: 'reports/{reportId}',
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const before = event.data?.before.data();
@@ -23,13 +24,14 @@ export const onReportResolved = onDocumentUpdated(
         ? 'Your fraud report has been reviewed and resolved.'
         : 'Your fraud report was reviewed. No further action was taken.';
 
-    await createNotificationDoc({
+    await ensureDeterministicNotificationDoc({
       recipientUid: after.reporterUid as string,
       type,
       title,
       message,
       referenceType: 'report',
       referenceId: event.params.reportId,
+      dedupeKey: `report:${event.params.reportId}:${after.status}`,
     });
 
     logger.info('Report resolution notification', { reportId: event.params.reportId, status: after.status });

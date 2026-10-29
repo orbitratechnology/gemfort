@@ -374,3 +374,159 @@ describe('removed enterprise collections', () => {
     );
   });
 });
+
+describe('users: server-owned profile fields', () => {
+  test('owner can edit allowlisted profile fields', async () => {
+    await assertSucceeds(
+      updateDoc(doc(authedDb(TRADER), 'users', TRADER), {
+        preferredCurrency: 'USD',
+        notificationPreferences: { pushEnabled: false },
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  test('owner can register multiple device tokens', async () => {
+    await assertSucceeds(
+      updateDoc(doc(authedDb(TRADER), 'users', TRADER), {
+        fcmToken: 'device-b',
+        fcmTokens: ['device-a', 'device-b'],
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  for (const [field, value] of [
+    ['verificationTier', 'gem'],
+    ['verifiedAt', Timestamp.now()],
+    ['verifiedByAdminUid', ADMIN],
+    ['email', 'spoof@example.com'],
+    ['phoneVerified', true],
+    ['badges', { isVerified: true }],
+    ['role', 'admin'],
+  ]) {
+    test(`owner cannot self-set ${field}`, async () => {
+      await assertFails(updateDoc(doc(authedDb(TRADER), 'users', TRADER), { [field]: value }));
+    });
+  }
+
+  test('new profile cannot carry server-owned verification fields', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('new-uid'), 'users', 'new-uid'), {
+        role: 'trader',
+        isSuspended: false,
+        verificationStatus: 'none',
+        verificationTier: 'gem',
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(authedDb('new-uid'), 'users', 'new-uid'), {
+        role: 'trader',
+        isSuspended: false,
+        verificationStatus: 'none',
+      }),
+    );
+  });
+});
+
+describe('gemtrack_ap_records: creation only through gemfortApi', () => {
+  test('sender cannot create an AP directly, even a well-formed one', async () => {
+    await assertFails(
+      setDoc(doc(authedDb(TRADER), 'gemtrack_ap_records', 'ap-direct'), {
+        ownerUid: TRADER,
+        senderUid: TRADER,
+        receiverUid: OWNER,
+        status: 'pending',
+        items: [{ gemId: 'someone-elses-gem' }],
+      }),
+    );
+  });
+});
+
+describe('likes: one per business pair', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'businesses', 'biz-trader'), business({ ownerUid: TRADER }));
+    });
+  });
+
+  const like = { fromUid: TRADER, fromBusinessId: 'biz-trader', toBusinessId: 'biz-verified' };
+
+  test('like with the composite pair id succeeds once', async () => {
+    await assertSucceeds(setDoc(doc(authedDb(TRADER), 'likes', 'biz-trader_biz-verified'), like));
+  });
+
+  test('like under a random id is rejected', async () => {
+    await assertFails(setDoc(doc(authedDb(TRADER), 'likes', 'random-id'), like));
+  });
+
+  test('cannot like as a business you do not own', async () => {
+    await assertFails(
+      setDoc(doc(authedDb(TRADER), 'likes', 'biz-pending_biz-verified'), {
+        ...like,
+        fromBusinessId: 'biz-pending',
+      }),
+    );
+  });
+});
+
+describe('gemtrack_gems: creation starts in the owner\'s hands', () => {
+  const newGem = (extra = {}) => ({
+    ownerUid: TRADER,
+    status: 'rough',
+    stoneStage: 'rough',
+    custody: null,
+    outcome: null,
+    isListedOnMarketplace: false,
+    saleStatus: 'unsold',
+    soldPrice: null,
+    soldDate: null,
+    currentApId: null,
+    saleTransferRequestId: null,
+    ...extra,
+  });
+
+  test('owner can create a normal inventory gem', async () => {
+    await assertSucceeds(setDoc(doc(authedDb(TRADER), 'gemtrack_gems', 'g-ok'), newGem()));
+  });
+
+  test('owner can create a gem bought on a trip', async () => {
+    await assertSucceeds(
+      setDoc(doc(authedDb(TRADER), 'gemtrack_gems', 'g-trip'), newGem({ status: 'on_trip', custody: 'on_trip' })),
+    );
+  });
+
+  for (const [label, extra] of [
+    ['pre-sold', { status: 'sold', outcome: 'sold', soldPrice: 100 }],
+    ['already on AP', { status: 'on_ap', custody: 'on_ap', currentApId: 'ap-x' }],
+    ['already listed', { status: 'listed', outcome: 'listed', isListedOnMarketplace: true }],
+    ['mid-transfer', { saleStatus: 'pending', saleTransferRequestId: 'req-x' }],
+  ]) {
+    test(`cannot create a gem that is ${label}`, async () => {
+      await assertFails(setDoc(doc(authedDb(TRADER), 'gemtrack_gems', `g-${label}`), newGem(extra)));
+    });
+  }
+});
+
+describe('gemtrack_gem_costs / events: tied to a gem the writer owns', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, 'gemtrack_gems', 'mine'), { ownerUid: TRADER, status: 'rough' });
+      await setDoc(doc(db, 'gemtrack_gems', 'theirs'), { ownerUid: OWNER, status: 'rough' });
+    });
+  });
+
+  test('cost on own gem succeeds; on another user\'s gem or negative fails', async () => {
+    const db = authedDb(TRADER);
+    await assertSucceeds(setDoc(doc(db, 'gemtrack_gem_costs', 'c1'), { ownerUid: TRADER, gemId: 'mine', amount: 500 }));
+    await assertFails(setDoc(doc(db, 'gemtrack_gem_costs', 'c2'), { ownerUid: TRADER, gemId: 'theirs', amount: 500 }));
+    await assertFails(setDoc(doc(db, 'gemtrack_gem_costs', 'c3'), { ownerUid: TRADER, gemId: 'mine', amount: -1 }));
+  });
+
+  test('event on own gem succeeds; on another user\'s gem fails', async () => {
+    const db = authedDb(TRADER);
+    await assertSucceeds(setDoc(doc(db, 'gemtrack_gem_events', 'e1'), { ownerUid: TRADER, gemId: 'mine', eventType: 'note' }));
+    await assertFails(setDoc(doc(db, 'gemtrack_gem_events', 'e2'), { ownerUid: TRADER, gemId: 'theirs', eventType: 'note' }));
+  });
+});

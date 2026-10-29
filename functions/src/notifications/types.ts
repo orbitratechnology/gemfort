@@ -213,7 +213,10 @@ export type UserNotificationPreferences = {
 };
 
 export type UserDoc = {
+  /** Most recently registered device (legacy single-device field). */
   fcmToken?: string | null;
+  /** Every signed-in device's FCM token. */
+  fcmTokens?: string[] | null;
   isActive?: boolean;
   isSuspended?: boolean;
   notificationPreferences?: UserNotificationPreferences;

@@ -103,7 +103,7 @@ const SECTION_ORDER: SectionKey[] = [
 
 const SECTION_TITLE: Record<SectionKey, string> = {
   pending: "Pending",
-  accepted: "Accepted",
+  accepted: "With holder",
   payment_sent: "Payment sent",
   done: "Done",
   closed: "Closed",
@@ -137,7 +137,11 @@ function statusTone(
       icon: "hourglass-top",
     };
   }
-  if (record.status === "payment_sent" || record.status === "sold") {
+  if (
+    record.status === "payment_sent" ||
+    record.status === "partial" ||
+    record.status === "sold"
+  ) {
     return {
       bg: colors.primaryContainer,
       fg: colors.onPrimaryContainer,
@@ -145,11 +149,12 @@ function statusTone(
       icon: "payments",
     };
   }
+  // Same amber "waiting on the other party" tone the AP detail screen uses.
   if (record.status === "cancellation_requested") {
     return {
-      bg: colors.errorContainer,
-      fg: colors.error,
-      accent: colors.error,
+      bg: colors.warningAmber + "22",
+      fg: colors.warningAmber,
+      accent: colors.warningAmber,
       icon: "hourglass-top",
     };
   }

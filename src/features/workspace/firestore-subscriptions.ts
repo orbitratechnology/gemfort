@@ -1,4 +1,4 @@
-import { normalizeApRecord } from '@/features/workspace/ap-normalize';
+import { normalizeApRecord, visibleApRecords } from '@/features/workspace/ap-normalize';
 import { pickPrimaryBusiness } from '@/features/marketplace/marketplace-service';
 import {
   mapServiceToLapidaryJob,
@@ -301,15 +301,15 @@ export function subscribeGivenApRecords(
     // Match fetchGivenApRecords: prefer senderUid results when non-empty;
     // otherwise fall back to legacy ownerUid docs.
     if (!senderFailed && senderDocs !== null && senderDocs.length > 0) {
-      onData(senderDocs);
+      onData(visibleApRecords(senderDocs, uid));
       return;
     }
     if (ownerDocs !== null) {
-      onData(ownerDocs);
+      onData(visibleApRecords(ownerDocs, uid));
       return;
     }
     if (!senderFailed && senderDocs !== null) {
-      onData(senderDocs);
+      onData(visibleApRecords(senderDocs, uid));
     }
   };
 
@@ -358,8 +358,9 @@ export function subscribeTakenApRecords(
       limit(OWNER_LIST_LIMIT),
     ),
     (docs) =>
-      docs.map((d) =>
-        normalizeApRecord({ id: d.id, ...d.data() } as ApRecord),
+      visibleApRecords(
+        docs.map((d) => normalizeApRecord({ id: d.id, ...d.data() } as ApRecord)),
+        uid,
       ),
     onData,
     onError,

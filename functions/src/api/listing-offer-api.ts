@@ -6,6 +6,62 @@ import { convertToBaseServer, loadServerRates } from '../gemtrack/exchange-rates
 
 const OFFER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const MAX_OFFERS_PER_DAY = 5;
+/** Daily counters and cooldown guards are purged by a TTL policy on expiresAt. */
+const RATE_LIMIT_DOC_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+type BuyerIdentity = {
+  buyerName: string;
+  buyerBusinessId: string | null;
+  buyerBusinessName: string | null;
+  buyerLogoUrl: string | null;
+  buyerCountry: string | null;
+  buyerBusinessVerified: boolean;
+};
+
+function nonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * The seller relies on the buyer's name and business shown on an offer, so
+ * both come from the buyer's own records, never from the request body. A
+ * business id in the request is honoured only if the buyer owns it and it is
+ * active; otherwise the buyer's first active business (if any) is used.
+ */
+async function resolveBuyerIdentity(
+  buyerUid: string,
+  requestedBusinessId: string | null | undefined,
+  fallbackName: string,
+): Promise<BuyerIdentity> {
+  let businessSnap = requestedBusinessId
+    ? await db.collection('businesses').doc(requestedBusinessId).get()
+    : null;
+  if (businessSnap && (!businessSnap.exists || businessSnap.data()?.ownerUid !== buyerUid)) {
+    throw new ApiError('permission-denied', 'You can only make offers as your own business.');
+  }
+  if (!businessSnap) {
+    const owned = await db.collection('businesses').where('ownerUid', '==', buyerUid).limit(1).get();
+    businessSnap = owned.docs[0] ?? null;
+  }
+  const business = businessSnap?.exists ? businessSnap.data() ?? {} : null;
+  const usable = business && business.isActive !== false && business.isSuspended !== true;
+
+  const userSnap = await db.collection('users').doc(buyerUid).get();
+  const displayName = nonEmpty(userSnap.data()?.displayName);
+  const businessName = usable ? nonEmpty(business.businessName) : null;
+
+  return {
+    buyerName: businessName ?? displayName ?? fallbackName,
+    buyerBusinessId: usable ? businessSnap!.id : null,
+    buyerBusinessName: businessName,
+    buyerLogoUrl: usable ? nonEmpty(business.logoUrl) : null,
+    buyerCountry: usable ? nonEmpty(business.country) : null,
+    buyerBusinessVerified:
+      !!usable &&
+      business.verificationStatus === 'verified' &&
+      (business.badges as { isVerified?: unknown } | undefined)?.isVerified === true,
+  };
+}
 
 const SUPPORTED_CURRENCIES = new Set([
   'LKR',
@@ -128,7 +184,9 @@ export async function submitListingOfferForApi(
   const listingId = listingIdOf(listingIdInput);
   const rates = await loadServerRates();
   const amountBase = convertToBaseServer(input.amount, input.currency, rates);
+  const buyer = await resolveBuyerIdentity(buyerUid, input.buyerBusiness?.id, input.buyerName);
   const now = Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(now.toMillis() + RATE_LIMIT_DOC_TTL_MS);
   const listingRef = db.collection('gems').doc(listingId);
   const offerRef = db.collection('listing_offers').doc();
   const guardRef = db.collection('listing_offer_guards').doc(guardId(buyerUid, listingId));
@@ -186,11 +244,7 @@ export async function submitListingOfferForApi(
       sellerUid,
       businessId: typeof listing.businessId === 'string' ? listing.businessId : '',
       buyerUid,
-      buyerName: input.buyerName,
-      buyerBusinessId: input.buyerBusiness?.id ?? null,
-      buyerBusinessName: input.buyerBusiness?.businessName ?? null,
-      buyerLogoUrl: input.buyerBusiness?.logoUrl ?? null,
-      buyerCountry: input.buyerBusiness?.country ?? null,
+      ...buyer,
       amount: input.amount,
       currency: input.currency,
       amountBase,
@@ -207,12 +261,14 @@ export async function submitListingOfferForApi(
       offerId: offerRef.id,
       lastOfferAt: now,
       updatedAt: now,
+      expiresAt,
     });
     transaction.set(dailyRef, {
       buyerUid,
       dayKey,
       count: offersToday + 1,
       updatedAt: now,
+      expiresAt,
     });
   });
 

@@ -48,7 +48,9 @@ export const apiRequestListener: ApiRequestListener = (request, response) => {
 export const gemfortApi = onRequest(
   {
     region: REGION,
-    timeoutSeconds: 540,
+    // Routes finish in seconds; the ceiling only bounds stuck upstream calls.
+    // Account deletion (the slowest route) wipes in batches well under this.
+    timeoutSeconds: 300,
     memory: '1GiB',
     cpu: 1,
     minInstances: 0,

@@ -83,3 +83,13 @@ jobs:
 
       # Runs against the demo-gemfort project, so nothing reaches production.
       - run: bun run test:rules:emulator
+
+      # Domain flows (AP payments/sales/cancellation, services, account wipe)
+      # run the compiled functions against the emulators.
+      - run: npm ci && npm run build
+        working-directory: functions
+      - run: bun run test:ap-payment-emulator
+      - run: bun run test:ap-sale-emulator
+      - run: bun run test:ap-emulator
+      - run: bun run test:service-emulator
+      - run: bun run test:account-wipe-emulator

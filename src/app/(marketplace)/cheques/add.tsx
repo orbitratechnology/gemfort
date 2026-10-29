@@ -94,6 +94,7 @@ export default function AddChequeScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const raw = useLocalSearchParams<{
     amount?: string;
+    currency?: string;
     gemId?: string;
     apRecordId?: string;
     billId?: string;
@@ -107,6 +108,8 @@ export default function AddChequeScreen() {
   }>();
 
   const paramAmount = firstParam(raw.amount);
+  // An AP payment cheque must be in the AP's settlement currency.
+  const paramCurrency = firstParam(raw.currency).toUpperCase();
   const paramContactId = firstParam(raw.contactId);
   const paramGemId = firstParam(raw.gemId) || null;
   const paramApRecordId = firstParam(raw.apRecordId) || null;
@@ -132,7 +135,7 @@ export default function AddChequeScreen() {
   const [branch, setBranch] = useState("");
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
-    currency: preferred,
+    currency: (paramCurrency || preferred) as CurrencyAmountValue["currency"],
   });
   const [contactId, setContactId] = useState(paramContactId);
   const [issuedBy, setIssuedBy] = useState("");

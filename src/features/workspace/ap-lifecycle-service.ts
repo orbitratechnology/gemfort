@@ -1,4 +1,4 @@
-import { normalizeApRecord } from "@/features/workspace/ap-normalize";
+import { normalizeApRecord, visibleApRecords } from "@/features/workspace/ap-normalize";
 import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
 import { convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/config";
@@ -51,8 +51,9 @@ export async function fetchGivenApRecords(uid: string): Promise<ApRecord[]> {
   try {
     const snap = await getDocs(bySender);
     if (!snap.empty) {
-      return snap.docs.map((d) =>
-        normalizeApRecord({ id: d.id, ...d.data() } as ApRecord),
+      return visibleApRecords(
+        snap.docs.map((d) => normalizeApRecord({ id: d.id, ...d.data() } as ApRecord)),
+        uid,
       );
     }
   } catch {
@@ -66,8 +67,9 @@ export async function fetchGivenApRecords(uid: string): Promise<ApRecord[]> {
     limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(byOwner);
-  return snap.docs.map((d) =>
-    normalizeApRecord({ id: d.id, ...d.data() } as ApRecord),
+  return visibleApRecords(
+    snap.docs.map((d) => normalizeApRecord({ id: d.id, ...d.data() } as ApRecord)),
+    uid,
   );
 }
 
@@ -80,8 +82,9 @@ export async function fetchTakenApRecords(uid: string): Promise<ApRecord[]> {
       limit(OWNER_LIST_LIMIT),
     ),
   );
-  return snap.docs.map((d) =>
-    normalizeApRecord({ id: d.id, ...d.data() } as ApRecord),
+  return visibleApRecords(
+    snap.docs.map((d) => normalizeApRecord({ id: d.id, ...d.data() } as ApRecord)),
+    uid,
   );
 }
 

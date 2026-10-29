@@ -10,6 +10,7 @@ export const onNotificationCreated = onDocumentCreated(
   {
     document: 'notifications/{notifId}',
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const snap = event.data;

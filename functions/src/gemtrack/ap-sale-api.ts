@@ -6,6 +6,13 @@ import { ensureDeterministicNotificationDoc, formatCurrency } from '../notificat
 import { convertToBaseServer, loadServerRates } from './exchange-rates';
 import { canActOnAp } from './mutation-contract';
 import { apSaleFingerprint, apSaleTransactionId } from './ap-financial-contract';
+import {
+  ACTIVE_AP_STATUSES,
+  apBalance,
+  apOwedAmount,
+  apPaymentStatus,
+  apSettlementStatus,
+} from './ap-balance';
 
 type ApGemLine = {
   gemId: string;
@@ -32,6 +39,9 @@ type ApDoc = {
   senderName?: string | null;
   receiverName?: string | null;
   items?: ApGemLine[];
+  soldDate?: Timestamp | null;
+  paymentCurrency?: string | null;
+  amountPaid?: number | null;
 };
 
 export type RecordApGemSaleInput = {
@@ -137,8 +147,13 @@ export async function recordApGemSaleForApi(
     ) {
       throw new ApiError('permission-denied', 'Only the AP holder can record a sale.');
     }
-    if (ap.status !== 'accepted') {
-      throw new ApiError('failed-precondition', 'AP must be accepted to record sales.');
+    if (!ACTIVE_AP_STATUSES.has(ap.status)) {
+      throw new ApiError(
+        'failed-precondition',
+        ap.status === 'payment_sent'
+          ? 'Wait for the pending payment to be confirmed before recording another sale.'
+          : 'AP must be accepted to record sales.',
+      );
     }
 
     const items = [...(ap.items ?? [])];
@@ -223,9 +238,25 @@ export async function recordApGemSaleForApi(
       paymentDueDate,
     };
 
-    transaction.update(apRef, { items, updatedAt: now });
+    // AP-level settlement fields: the daily overdue check queries soldDate,
+    // and the balance/status reflect what is still owed to the sender.
+    const settlementCurrency = (ap.paymentCurrency?.trim() || saleCurrency).toUpperCase();
+    const owed = apOwedAmount(items, settlementCurrency, rates);
+    const amountPaid = typeof ap.amountPaid === 'number' ? ap.amountPaid : 0;
+    const earliestSoldDate =
+      ap.soldDate && ap.soldDate.toMillis() < now.toMillis() ? ap.soldDate : now;
+    transaction.update(apRef, {
+      items,
+      status: apSettlementStatus({ lines: items, owed, amountPaid }),
+      soldDate: earliestSoldDate,
+      paymentCurrency: settlementCurrency,
+      balance: apBalance(owed, amountPaid),
+      paymentStatus: apPaymentStatus(owed, amountPaid),
+      updatedAt: now,
+    });
     transaction.update(gemRef, {
       status: 'sold',
+      outcome: 'sold',
       custody: 'on_ap',
       currentLocation: 'AP',
       soldPrice: ownerReceives,

@@ -3,11 +3,14 @@ import { createHash } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { db } from '../admin';
+import { mapWithConcurrency } from '../utils/concurrency';
 import {
   notificationGroupKeyForType,
   priorityForType,
   type NotificationInput,
 } from './types';
+
+const NOTIFICATION_WRITE_CONCURRENCY = 25;
 
 export async function notificationExists(
   recipientUid: string,
@@ -133,8 +136,15 @@ export async function ensureDeterministicNotificationDoc(
   }
 }
 
+/**
+ * Create many notifications with bounded concurrency. Inputs carrying a
+ * dedupeKey get a deterministic document ID, so a retried scheduler run cannot
+ * create duplicates.
+ */
 export async function createNotificationsBatch(inputs: NotificationInput[]): Promise<number> {
-  const ids = await Promise.all(inputs.map((input) => createNotificationDoc(input)));
+  const ids = await mapWithConcurrency(inputs, NOTIFICATION_WRITE_CONCURRENCY, (input) =>
+    input.dedupeKey ? ensureDeterministicNotificationDoc(input) : createNotificationDoc(input),
+  );
   return ids.filter((id): id is string => id !== null).length;
 }
 

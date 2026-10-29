@@ -1,7 +1,7 @@
 import type { DocumentData, Query } from '@react-native-firebase/firestore';
 
 import { normalizeContactTypes } from '@/constants/contact-types';
-import { normalizeApRecord } from '@/features/workspace/ap-normalize';
+import { normalizeApRecord, visibleApRecords } from '@/features/workspace/ap-normalize';
 import { filterGems } from '@/features/workspace/gem-utils';
 import {
   collection,
@@ -317,7 +317,7 @@ export function fetchGivenApPage(
     cursor,
     pageSize,
     (doc) => normalizeApRecord(mapRecord<ApRecord>(doc)),
-  );
+  ).then((result) => ({ ...result, items: visibleApRecords(result.items, uid) }));
 }
 
 export function fetchTakenApPage(
@@ -334,5 +334,5 @@ export function fetchTakenApPage(
     cursor,
     pageSize,
     (doc) => normalizeApRecord(mapRecord<ApRecord>(doc)),
-  );
+  ).then((result) => ({ ...result, items: visibleApRecords(result.items, uid) }));
 }

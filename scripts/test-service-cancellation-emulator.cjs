@@ -5,7 +5,10 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 }
 
 const { db } = require('../functions/lib/admin');
+// Same firebase-admin instance as functions/lib, so Timestamps are accepted.
+const { Timestamp } = require('../functions/node_modules/firebase-admin/lib/firestore');
 const {
+  autoCancelStaleServiceCancellations,
   requestServiceCancellationForApi,
   respondServiceCancellationForApi,
 } = require('../functions/lib/gemtrack/service-cancellation-api');
@@ -46,6 +49,9 @@ async function seedService(serviceId, gemId, provider) {
     providerUid: provider ? providerUid : null,
     providerName: provider ? 'Phase 6 Provider' : null,
     status: 'in_progress',
+    // Recorded by createServiceRequestForApi when the gem was locked.
+    previousGemStatus: 'ready_for_sale',
+    previousStoneStage: 'polished',
     updatedAt: now,
   });
 }
@@ -65,8 +71,10 @@ async function run() {
   const providerGemId = 'phase6-gem-provider';
   const rejectServiceId = 'phase6-service-reject';
   const rejectGemId = 'phase6-gem-reject';
-  const serviceIds = [localServiceId, providerServiceId, rejectServiceId];
-  const gemIds = [localGemId, providerGemId, rejectGemId];
+  const staleServiceId = 'phase6-service-stale';
+  const staleGemId = 'phase6-gem-stale';
+  const serviceIds = [localServiceId, providerServiceId, rejectServiceId, staleServiceId];
+  const gemIds = [localGemId, providerGemId, rejectGemId, staleGemId];
 
   try {
     await Promise.all(serviceIds.map(clearNotifications));
@@ -122,6 +130,19 @@ async function run() {
       await countNotifications(rejectServiceId, 'service_cancellation_rejected'),
       1,
     );
+
+    // M10: an unanswered request auto-cancels after its deadline and
+    // releases the gem; one still inside its window is left alone.
+    await seedService(staleServiceId, staleGemId, true);
+    await requestServiceCancellationForApi(staleServiceId, ownerUid);
+    assert.equal(await autoCancelStaleServiceCancellations(), 0);
+    const eightDaysLater = Timestamp.fromMillis(Date.now() + 8 * 24 * 60 * 60 * 1000);
+    assert.equal(await autoCancelStaleServiceCancellations(eightDaysLater), 1);
+    const staleState = await readStatus(staleServiceId, staleGemId);
+    assert.equal(staleState.service.status, 'cancelled');
+    assert.equal(staleState.service.cancelledBy, 'timeout');
+    assert.equal(staleState.gem.status, 'ready_for_sale');
+    assert.equal(await autoCancelStaleServiceCancellations(eightDaysLater), 0);
 
     console.log('Phase 6 service cancellation emulator tests passed.');
   } finally {

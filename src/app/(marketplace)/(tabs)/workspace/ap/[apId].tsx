@@ -29,8 +29,11 @@ import {
 } from "@/features/marketplace/marketplace-service";
 import {
   apAgreedTotal,
-  apOwnerOwedTotal,
+  apAmountPaid,
+  apBalanceDue,
+  apSettlementCurrency,
   apStatusLabel,
+  isApActive,
   isApOngoing,
 } from "@/features/workspace/ap-normalize";
 import {
@@ -99,18 +102,20 @@ function apStatusMeta(
   }
   switch (status) {
     case "pending":
-      return { label: "Pending", icon: "schedule", tone: "neutral" };
+      return { label: apStatusLabel(status), icon: "hourglass-top", tone: "neutral" };
     case "accepted":
     case "with_holder":
-      return { label: "With holder", icon: "ap", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "ap", tone: "warning" };
     case "payment_sent":
-      return { label: "Payment sent", icon: "send", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "payments", tone: "warning" };
+    case "partial":
+      return { label: apStatusLabel(status), icon: "payments", tone: "warning" };
     case "done":
     case "sold":
     case "returned":
-      return { label: "Done", icon: "check-circle", tone: "success" };
+      return { label: apStatusLabel(status), icon: "check-circle", tone: "success" };
     case "cancellation_requested":
-      return { label: "Cancel requested", icon: "hourglass-top", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "hourglass-top", tone: "warning" };
     case "cancelled":
     case "rejected":
       return {
@@ -131,6 +136,7 @@ function apTimelineSteps(
   const settled = status === "done" || status === "sold" || status === "returned";
   const withHolder =
     status === "accepted" ||
+    status === "partial" ||
     status === "with_holder" ||
     status === "cancellation_requested" ||
     status === "payment_sent" ||
@@ -156,6 +162,7 @@ function apTimelineSteps(
         overdue && withHolder && !settled
           ? "overdue"
           : status === "accepted" ||
+              status === "partial" ||
               status === "with_holder" ||
               status === "cancellation_requested" ||
               status === "payment_sent"
@@ -172,7 +179,11 @@ function apTimelineSteps(
         : settled
           ? "Complete"
           : "Awaiting settlement",
-      state: settled ? "done" : status === "payment_sent" ? "active" : "pending",
+      state: settled
+        ? "done"
+        : status === "payment_sent" || status === "partial"
+          ? "active"
+          : "pending",
     },
   ];
 }
@@ -181,7 +192,7 @@ export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase, formatStored, preferred } = usePreferredMoney();
+  const { formatBase, formatStored, formatFace, rates } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -210,7 +221,11 @@ export default function ApDetailScreen() {
     void ensureApReceiverPayoutExpense(ap).catch(() => {});
   }, [ap, isReceiver]);
 
-  const owed = useMemo(() => (ap ? apOwnerOwedTotal(ap) : 0), [ap]);
+  // Everything the holder pays is in the AP's settlement currency, so the
+  // prefilled amount, the label, and the request all use the same currency.
+  const settlementCurrency = ap ? apSettlementCurrency(ap) : "LKR";
+  const balanceDue = useMemo(() => (ap ? apBalanceDue(ap, rates) : 0), [ap, rates]);
+  const amountPaid = ap ? apAmountPaid(ap) : 0;
 
   const gemIds = useMemo(
     () => [...new Set((ap?.items ?? []).map((i) => i.gemId).filter(Boolean))],
@@ -724,7 +739,7 @@ export default function ApDetailScreen() {
                 ) : null}
 
                 {isReceiver &&
-                isApOngoing(ap.status) &&
+                isApActive(ap.status) &&
                 line.lineStatus === "held" ? (
                   <View style={styles.row}>
                     <Button
@@ -851,15 +866,37 @@ export default function ApDetailScreen() {
           </>
         ) : null}
 
-        {isReceiver &&
-        isApOngoing(ap.status) &&
-        items.some((i) => i.lineStatus === "sold") ? (
+        {ap.partyDeleted ? (
+          <ScreenInset>
+            <View style={styles.waitRow}>
+              <Icon name="info-outline" size={18} color={colors.textMuted} />
+              <Text style={{ color: colors.textMuted, flex: 1 }}>
+                {counterpartyName} deleted their GemFort account. This record is
+                kept for your history.
+              </Text>
+            </View>
+          </ScreenInset>
+        ) : null}
+
+        {amountPaid > 0 && !done ? (
+          <FormSection title="Payments">
+            <View style={styles.waitRow}>
+              <Icon name="payments" size={18} color={colors.textMuted} />
+              <Text style={{ color: colors.textMuted, flex: 1 }}>
+                {formatFace(amountPaid, settlementCurrency)} paid ·{" "}
+                {formatFace(balanceDue, settlementCurrency)} still owed
+              </Text>
+            </View>
+          </FormSection>
+        ) : null}
+
+        {isReceiver && isApActive(ap.status) && balanceDue > 0 ? (
           <ScreenInset>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Pay owner ${formatBase(owed)}`}
+              accessibilityLabel={`Pay owner ${formatFace(balanceDue, settlementCurrency)}`}
               onPress={haptics.wrap("light", () => {
-                if (!payAmount && owed > 0) setPayAmount(String(owed));
+                setPayAmount(String(balanceDue));
                 setPaySheetOpen(true);
               })}
               style={({ pressed }) => [
@@ -883,7 +920,7 @@ export default function ApDetailScreen() {
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
-                  {formatBase(owed)}
+                  {formatFace(balanceDue, settlementCurrency)}
                 </Text>
               </View>
               <View
@@ -911,7 +948,7 @@ export default function ApDetailScreen() {
               icon={payMethod === "cheque" ? "cheque" : "send"}
               onPress={() => {
                 const amountToValidate =
-                  payAmount || (owed > 0 ? String(owed) : "");
+                  payAmount || (balanceDue > 0 ? String(balanceDue) : "");
                 const result = parseForm(recordPaymentSchema, {
                   amount: amountToValidate,
                 });
@@ -920,12 +957,19 @@ export default function ApDetailScreen() {
                   return;
                 }
                 const amount = result.data.amount;
+                if (amount - balanceDue > 0.005) {
+                  toast.error(
+                    `Payment cannot exceed ${formatFace(balanceDue, settlementCurrency)}.`,
+                  );
+                  return;
+                }
                 setPaySheetOpen(false);
                 if (payMethod === "cheque") {
                   router.push({
                     pathname: "/(marketplace)/cheques/add",
                     params: {
                       amount: String(amount),
+                      currency: settlementCurrency,
                       apRecordId: ap.id,
                       gemId: items[0]?.gemId,
                       direction: "given",
@@ -940,10 +984,10 @@ export default function ApDetailScreen() {
                       apId: ap.id,
                       method: payMethod,
                       amount,
-                      currency: preferred,
+                      currency: settlementCurrency,
                       receiptUrl: await uploadReceipt(user!.uid, sentReceipt),
                     }),
-                  "Payment marked sent",
+                  amount < balanceDue ? "Part payment marked sent" : "Payment marked sent",
                 );
               }}
             />
@@ -960,7 +1004,11 @@ export default function ApDetailScreen() {
               style={[styles.payHeroAmount, { color: colors.primary }]}
               selectable={false}
             >
-              {formatBase(owed)}
+              {formatFace(balanceDue, settlementCurrency)}
+            </Text>
+            <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
+              {amountPaid > 0 ? "Balance owed" : "Owed to sender"} · pay all or part,
+              in {settlementCurrency}
             </Text>
           </View>
 
@@ -973,8 +1021,9 @@ export default function ApDetailScreen() {
 
           <MaskedInput
             mode="currency"
-            value={payAmount || (owed > 0 ? String(owed) : "")}
+            value={payAmount || (balanceDue > 0 ? String(balanceDue) : "")}
             onChangeText={setPayAmount}
+            label={`Amount (${settlementCurrency})`}
             leftIcon="payments"
           />
           <ReceiptField value={sentReceipt} onChange={setSentReceipt} />
@@ -986,7 +1035,7 @@ export default function ApDetailScreen() {
               {ap.paymentMethod
                 ? `Marked sent as ${ap.paymentMethod}`
                 : "Payment"}{" "}
-              · {formatBase(ap.paymentAmount ?? owed)}
+              · {formatFace(ap.paymentAmount ?? balanceDue, settlementCurrency)}
             </Text>
             <PaymentMethodPicker
               label="How was it received?"
@@ -1010,7 +1059,8 @@ export default function ApDetailScreen() {
                   router.push({
                     pathname: "/(marketplace)/cheques/add",
                     params: {
-                      amount: String(ap.paymentAmount ?? owed),
+                      amount: String(ap.paymentAmount ?? balanceDue),
+                      currency: settlementCurrency,
                       contactId: ap.receiverContactId,
                       apRecordId: ap.id,
                       gemId: items[0]?.gemId,
@@ -1026,7 +1076,7 @@ export default function ApDetailScreen() {
                       method: receiveMethod,
                       receiptUrl: await uploadReceipt(user!.uid, receivedReceipt),
                     }),
-                  "Payment confirmed — done",
+                  "Payment confirmed",
                 );
               }}
             />

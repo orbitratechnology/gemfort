@@ -1,8 +1,12 @@
+import { createHash } from 'node:crypto';
+
+import { Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/logger';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { z } from 'zod';
 
+import { db } from './admin';
 import { REGION } from './config';
 import { normalizeFlightOffer } from './flights-utils';
 
@@ -32,8 +36,61 @@ type CacheEntry = { expiresAt: number; value: unknown };
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
 const CACHE_MS = 60_000;
+/** Shared across API instances so ten instances do not each pay for the same fare. */
+const SHARED_CACHE_MS = 10 * 60_000;
+const SHARED_CACHE_MAX_BYTES = 900_000;
 const MAX_CACHE_ENTRIES = 100;
 const UPSTREAM_TIMEOUT_MS = 8_000;
+/** Open the circuit after this many consecutive upstream failures. */
+const BREAKER_FAILURE_THRESHOLD = 5;
+const BREAKER_OPEN_MS = 60_000;
+
+let consecutiveFailures = 0;
+let breakerOpenUntil = 0;
+
+function assertBreakerClosed() {
+  if (Date.now() < breakerOpenUntil) {
+    throw new HttpsError('unavailable', 'Flight data is temporarily unavailable. Please try again shortly.');
+  }
+}
+
+function recordUpstreamResult(ok: boolean) {
+  if (ok) {
+    consecutiveFailures = 0;
+    return;
+  }
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= BREAKER_FAILURE_THRESHOLD) {
+    breakerOpenUntil = Date.now() + BREAKER_OPEN_MS;
+    consecutiveFailures = 0;
+    logger.warn('Travelpayouts circuit opened', { openForMs: BREAKER_OPEN_MS });
+  }
+}
+
+function sharedCacheRef(key: string) {
+  return db.collection('flight_cache').doc(createHash('sha256').update(key).digest('hex').slice(0, 40));
+}
+
+async function readSharedCache<T>(key: string): Promise<T | undefined> {
+  try {
+    const snap = await sharedCacheRef(key).get();
+    const data = snap.data() as { payload?: string; expiresAt?: Timestamp } | undefined;
+    if (!data?.payload || !data.expiresAt || data.expiresAt.toMillis() <= Date.now()) return undefined;
+    return JSON.parse(data.payload) as T;
+  } catch (error) {
+    logger.warn('Flight shared cache read failed', { error });
+    return undefined;
+  }
+}
+
+async function writeSharedCache(key: string, value: unknown): Promise<void> {
+  const payload = JSON.stringify(value);
+  if (payload.length > SHARED_CACHE_MAX_BYTES) return;
+  // TTL policy on expiresAt purges stale entries.
+  await sharedCacheRef(key)
+    .set({ payload, expiresAt: Timestamp.fromMillis(Date.now() + SHARED_CACHE_MS) })
+    .catch((error) => logger.warn('Flight shared cache write failed', { error }));
+}
 
 function usableSecret(name: string, value: string) {
   if (!value.trim() || value.startsWith('YOUR_') || value === 'placeholder-set-me') {
@@ -79,19 +136,33 @@ async function fetchWithTimeout(
 }
 
 async function api(path: string, params: Record<string, string>, token: string) {
+  assertBreakerClosed();
   const url = new URL(`https://api.travelpayouts.com${path}`);
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetchWithTimeout(url, {
-    headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },
-  }, 'Flight data is temporarily unavailable.');
-  if (response.status === 429) throw new HttpsError('resource-exhausted', 'Flight data is busy. Please try again shortly.');
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {
+      headers: { 'X-Access-Token': token, 'Accept-Encoding': 'gzip, deflate' },
+    }, 'Flight data is temporarily unavailable.');
+  } catch (error) {
+    recordUpstreamResult(false);
+    throw error;
+  }
+  if (response.status === 429) {
+    recordUpstreamResult(false);
+    throw new HttpsError('resource-exhausted', 'Flight data is busy. Please try again shortly.');
+  }
   if (!response.ok) {
+    recordUpstreamResult(response.status < 500);
     logger.warn('Travelpayouts request failed', { status: response.status, path });
     throw new HttpsError('unavailable', 'Flight data is temporarily unavailable.');
   }
   try {
-    return await response.json() as { success?: boolean; data?: unknown; error?: string };
+    const body = await response.json() as { success?: boolean; data?: unknown; error?: string };
+    recordUpstreamResult(true);
+    return body;
   } catch {
+    recordUpstreamResult(false);
     throw new HttpsError('unavailable', 'Flight data is temporarily unavailable.');
   }
 }
@@ -106,8 +177,13 @@ function cached<T>(key: string, request: () => Promise<T>): Promise<T> {
   const pending = inFlight.get(key);
   if (pending) return pending as Promise<T>;
 
-  const requestPromise = Promise.resolve()
-    .then(request)
+  const requestPromise = readSharedCache<T>(key)
+    .then(async (shared) => {
+      if (shared !== undefined) return shared;
+      const fresh = await request();
+      await writeSharedCache(key, fresh);
+      return fresh;
+    })
     .then((value) => {
       cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
       while (cache.size > MAX_CACHE_ENTRIES) {

@@ -13,6 +13,7 @@ export const onListingOfferCreated = onDocumentCreated(
   {
     document: 'listing_offers/{offerId}',
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const data = event.data?.data();

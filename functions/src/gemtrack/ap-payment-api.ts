@@ -1,7 +1,12 @@
-import { Timestamp } from 'firebase-admin/firestore';
+import {
+  Timestamp,
+  type DocumentReference,
+  type Transaction,
+} from 'firebase-admin/firestore';
 
 import { ApiError } from '../api/errors';
 import { db } from '../admin';
+import { isLiveUid } from '../account/deleted-uid';
 import { ensureDeterministicNotificationDoc, formatCurrency } from '../notifications/create';
 import { canActOnAp } from './mutation-contract';
 import {
@@ -11,19 +16,20 @@ import {
   apPaymentReceivedFingerprint,
   apPaymentSentFingerprint,
 } from './ap-financial-contract';
+import {
+  ACTIVE_AP_STATUSES,
+  MONEY_EPSILON,
+  apBalance,
+  apOwedAmount,
+  apPaymentStatus,
+  apSettlementStatus,
+  type ApBalanceLine,
+} from './ap-balance';
 import { convertToBaseServer, loadServerRates, type ServerRates } from './exchange-rates';
 
 type ApPaymentMethod = 'cash' | 'transfer' | 'cheque';
 
-type ApLine = {
-  gemId: string;
-  lineStatus: 'held' | 'sold' | 'returned';
-  soldPrice?: number | null;
-  ownerReceives?: number | null;
-  ownerReceivesBase?: number | null;
-  agreedPrice: number;
-  currency?: string | null;
-};
+type ApLine = ApBalanceLine & { gemId: string };
 
 type ApDoc = {
   ownerUid: string;
@@ -41,6 +47,13 @@ type ApDoc = {
   paymentReceivedAt?: Timestamp | null;
   paymentChequeId?: string | null;
   paymentReceiptUrl?: string | null;
+  /** Sequence number of the latest payment (pending or confirmed). */
+  paymentSeq?: number | null;
+  /** Confirmed payments so far, in paymentCurrency. */
+  amountPaid?: number | null;
+  amountPaidBase?: number | null;
+  /** Status to return to if the pending payment's cheque bounces. */
+  statusBeforePayment?: string | null;
 };
 
 export type ApPaymentSentInput = {
@@ -59,7 +72,9 @@ export type ApPaymentReceivedInput = {
 
 export type ApPaymentResult = {
   ok: true;
-  status: 'payment_sent' | 'done';
+  status: 'payment_sent' | 'accepted' | 'partial' | 'done';
+  amountPaid?: number;
+  balance?: number;
 };
 
 function assertApId(apId: string): string {
@@ -132,47 +147,71 @@ function paymentCurrency(ap: ApDoc): string {
   );
 }
 
-function soldAmount(ap: ApDoc, rates: ServerRates, targetCurrency = paymentCurrency(ap)): number {
-  const baseAmount = (ap.items ?? [])
-    .filter((item) => item.lineStatus === 'sold')
-    .reduce((sum, item) => {
-      const amount = Number(item.ownerReceives ?? item.agreedPrice);
-      if (!Number.isFinite(amount) || amount < 0) {
-        throw new ApiError('failed-precondition', 'The AP contains an invalid sold amount.');
-      }
-      const currency = normalizeCurrency(item.currency);
-      const amountBase =
-        item.ownerReceivesBase != null && Number.isFinite(item.ownerReceivesBase)
-          ? item.ownerReceivesBase
-          : convertToBaseServer(amount, currency, rates);
-      return sum + amountBase;
-    }, 0);
-
-  if (targetCurrency === 'LKR') return Number(baseAmount.toFixed(2));
-  const foreignPerBase = rates[targetCurrency];
-  if (!foreignPerBase || foreignPerBase <= 0) {
-    throw new ApiError('failed-precondition', `Exchange rate for ${targetCurrency} is unavailable.`);
+function owedAmount(ap: ApDoc, rates: ServerRates, currency: string): number {
+  try {
+    return apOwedAmount(ap.items ?? [], currency, rates);
+  } catch (error) {
+    throw new ApiError('failed-precondition', error instanceof Error ? error.message : 'Invalid AP amount.');
   }
-  return Number((baseAmount * foreignPerBase).toFixed(2));
 }
 
-async function ensurePaymentNotification(input: {
-  recipientUid: string;
-  apId: string;
-  type: 'ap_payment_sent' | 'ap_payment_received';
-  title: string;
-  message: string;
-  direction: 'given' | 'taken';
-}) {
-  await ensureDeterministicNotificationDoc({
-    recipientUid: input.recipientUid,
-    type: input.type,
-    title: input.title,
-    message: input.message,
-    direction: input.direction,
-    referenceType: 'ap',
-    referenceId: input.apId,
-  });
+/**
+ * APs settled before instalments existed have no amountPaid; a legacy `done`
+ * AP was paid in a single payment of paymentAmount.
+ */
+function confirmedAmountPaid(ap: ApDoc): number {
+  if (typeof ap.amountPaid === 'number' && Number.isFinite(ap.amountPaid)) return ap.amountPaid;
+  return ap.status === 'done' && ap.paymentReceivedAt ? Number(ap.paymentAmount ?? 0) : 0;
+}
+
+/**
+ * A cheque payment must point at a real cheque the actor recorded for this
+ * AP, so a bounce reaches the cheque lifecycle (onChequeBounced) and can be
+ * reconciled against this AP payment.
+ */
+async function loadPaymentCheque(
+  transaction: Transaction,
+  input: {
+    chequeId: string | null | undefined;
+    uid: string;
+    apId: string;
+    direction: 'given' | 'received';
+    amount: number;
+    currency: string;
+  },
+): Promise<DocumentReference> {
+  if (!input.chequeId) {
+    throw new ApiError('invalid-argument', 'Record the cheque first, then attach it to this payment.');
+  }
+  if (input.chequeId.includes('/')) throw new ApiError('invalid-argument', 'chequeId is invalid.');
+  const ref = db.collection('gemtrack_cheques').doc(input.chequeId);
+  const snap = await transaction.get(ref);
+  const cheque = snap.data() as Record<string, unknown> | undefined;
+  if (!snap.exists || cheque?.ownerUid !== input.uid) {
+    throw new ApiError('permission-denied', 'Cheque not found.');
+  }
+  if (cheque.direction !== input.direction) {
+    throw new ApiError(
+      'failed-precondition',
+      input.direction === 'given'
+        ? 'Attach a cheque you issued.'
+        : 'Attach the cheque you received.',
+    );
+  }
+  if (!['holding', 'deposited', 'cleared'].includes(String(cheque.status))) {
+    throw new ApiError('failed-precondition', 'This cheque has bounced, been replaced, or been cancelled.');
+  }
+  if (cheque.apRecordId != null && cheque.apRecordId !== input.apId) {
+    throw new ApiError('failed-precondition', 'This cheque is linked to a different AP.');
+  }
+  const chequeCurrency = normalizeCurrency(cheque.currency ?? 'LKR');
+  if (chequeCurrency !== input.currency) {
+    throw new ApiError('failed-precondition', `The cheque must be in ${input.currency}.`);
+  }
+  if (Math.abs(Number(cheque.amount) - input.amount) > MONEY_EPSILON) {
+    throw new ApiError('failed-precondition', 'The cheque amount must match the payment amount.');
+  }
+  return ref;
 }
 
 export async function apPaymentSentForApi(
@@ -185,7 +224,6 @@ export async function apPaymentSentForApi(
   const rates = await loadServerRates();
 
   const apRef = db.collection('gemtrack_ap_records').doc(id);
-  const paymentRef = db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'sent'));
 
   const result = await db.runTransaction(async (transaction) => {
     const apSnap = await transaction.get(apRef);
@@ -195,18 +233,24 @@ export async function apPaymentSentForApi(
       throw new ApiError('permission-denied', 'Only the AP holder can mark payment sent.');
     }
 
-    const currency = input.currency ? normalizeCurrency(input.currency) : paymentCurrency(ap);
-    const owed = soldAmount(ap, rates, currency);
+    const amountPaid = confirmedAmountPaid(ap);
+    // The first payment fixes the AP's settlement currency; later instalments
+    // must use it so the balance never mixes currencies.
+    const lockedCurrency = amountPaid > 0 && ap.paymentCurrency ? normalizeCurrency(ap.paymentCurrency) : null;
+    const currency = input.currency ? normalizeCurrency(input.currency) : lockedCurrency ?? paymentCurrency(ap);
+    if (lockedCurrency && currency !== lockedCurrency) {
+      throw new ApiError('failed-precondition', `Further payments on this AP must be in ${lockedCurrency}.`);
+    }
+    const owed = owedAmount(ap, rates, currency);
+    const balance = apBalance(owed, amountPaid);
     const amount =
       input.amount != null && Number.isFinite(Number(input.amount))
         ? Number(input.amount)
-        : owed;
+        : balance;
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new ApiError('invalid-argument', 'Payment amount must be positive.');
     }
-    if (amount > owed) {
-      throw new ApiError('invalid-argument', 'Payment amount cannot exceed the amount owed.');
-    }
+
     const fingerprint = apPaymentSentFingerprint({
       method: input.method,
       amount,
@@ -214,16 +258,12 @@ export async function apPaymentSentForApi(
       chequeId: input.chequeId,
       receiptUrl: input.receiptUrl,
     });
-    const paymentSnap = await transaction.get(paymentRef);
-    const notification = {
-      recipientUid: ap.senderUid,
-      type: 'ap_payment_sent' as const,
-      title: 'AP payment sent',
-      message: `${ap.receiverName || 'Trader'} sent ${formatCurrency(amount, currency)} via ${input.method}. Confirm when received.`,
-      direction: 'given' as const,
-    };
 
     if (ap.status === 'payment_sent') {
+      const seq = ap.paymentSeq ?? 1;
+      const paymentSnap = await transaction.get(
+        db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'sent', seq)),
+      );
       if (!paymentSnap.exists) {
         throw new ApiError(
           'failed-precondition',
@@ -231,36 +271,65 @@ export async function apPaymentSentForApi(
         );
       }
       if (paymentSnap.data()?.mutationFingerprint !== fingerprint) {
-        throw new ApiError('failed-precondition', 'This AP payment already exists with different details.');
+        throw new ApiError('failed-precondition', 'A payment is already waiting for confirmation.');
       }
-      return { status: 'payment_sent' as const, notification };
+      return { status: 'payment_sent' as const, seq, amount, currency, amountPaid, balance, ap };
     }
 
-    if (ap.status !== 'accepted') {
+    if (!ACTIVE_AP_STATUSES.has(ap.status)) {
       throw new ApiError('failed-precondition', 'AP must be accepted with sales before payment.');
     }
-    if (owed <= 0) {
-      throw new ApiError('failed-precondition', 'Sell at least one gem before sending payment.');
+    if (balance <= 0) {
+      throw new ApiError(
+        'failed-precondition',
+        owed <= 0 ? 'Sell at least one gem before sending payment.' : 'Nothing is owed on this AP.',
+      );
     }
+    if (amount - balance > MONEY_EPSILON) {
+      throw new ApiError(
+        'invalid-argument',
+        `Payment cannot exceed the balance of ${formatCurrency(balance, currency)}.`,
+      );
+    }
+
+    const seq = (ap.paymentSeq ?? (amountPaid > 0 ? 1 : 0)) + 1;
+    const paymentRef = db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'sent', seq));
+    const paymentSnap = await transaction.get(paymentRef);
     if (paymentSnap.exists) {
       throw new ApiError('failed-precondition', 'An AP payment event already exists.');
     }
+    const chequeRef = input.method === 'cheque'
+      ? await loadPaymentCheque(transaction, {
+          chequeId: input.chequeId,
+          uid,
+          apId: id,
+          direction: 'given',
+          amount,
+          currency,
+        })
+      : null;
 
     const now = Timestamp.now();
     transaction.update(apRef, {
       status: 'payment_sent',
+      statusBeforePayment: ap.status,
+      paymentSeq: seq,
       paymentMethod: input.method,
       paymentCurrency: currency,
       paymentAmount: amount,
       paymentSentAt: now,
+      paymentReceivedAt: null,
       paymentChequeId: input.chequeId ?? null,
       paymentReceiptUrl: input.receiptUrl ?? null,
+      amountPaid,
+      balance,
       updatedAt: now,
     });
     transaction.create(paymentRef, {
       eventKind: 'ap_payment',
       mutationFingerprint: fingerprint,
       apId: id,
+      seq,
       ownerUid: ap.ownerUid,
       senderUid: ap.senderUid,
       receiverUid: ap.receiverUid,
@@ -268,15 +337,34 @@ export async function apPaymentSentForApi(
       type: 'sent',
       method: input.method,
       amount,
+      currency,
+      chequeId: input.chequeId ?? null,
       receiptUrl: input.receiptUrl ?? null,
       createdAt: now,
     });
+    if (chequeRef) {
+      transaction.update(chequeRef, { apRecordId: id, apPaymentSeq: seq, updatedAt: now });
+    }
 
-    return { status: 'payment_sent' as const, notification };
+    return { status: 'payment_sent' as const, seq, amount, currency, amountPaid, balance, ap };
   });
 
-  await ensurePaymentNotification({ ...result.notification, apId: id });
-  return { ok: true, status: result.status };
+  const remainingAfter = Math.max(0, result.balance - result.amount);
+  if (isLiveUid(result.ap.senderUid)) {
+    await ensureDeterministicNotificationDoc({
+      recipientUid: result.ap.senderUid,
+      type: 'ap_payment_sent',
+      title: 'AP payment sent',
+      message: `${result.ap.receiverName || 'Trader'} sent ${formatCurrency(result.amount, result.currency)} via ${input.method}.${
+        remainingAfter > 0 ? ` ${formatCurrency(remainingAfter, result.currency)} will remain.` : ''
+      } Confirm when received.`,
+      direction: 'given',
+      referenceType: 'ap',
+      referenceId: id,
+      ...(result.seq > 1 ? { dedupeKey: `ap-payment-sent:${id}:${result.seq}` } : {}),
+    });
+  }
+  return { ok: true, status: result.status, amountPaid: result.amountPaid, balance: result.balance };
 }
 
 export async function apPaymentReceivedForApi(
@@ -289,9 +377,6 @@ export async function apPaymentReceivedForApi(
 
   const rates = await loadServerRates();
   const apRef = db.collection('gemtrack_ap_records').doc(id);
-  const paymentRef = db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'received'));
-  const incomeRef = db.collection('gemtrack_transactions').doc(apPaymentIncomeTransactionId(id));
-  const expenseRef = db.collection('gemtrack_transactions').doc(apPaymentExpenseTransactionId(id));
 
   const result = await db.runTransaction(async (transaction) => {
     const apSnap = await transaction.get(apRef);
@@ -300,6 +385,11 @@ export async function apPaymentReceivedForApi(
     if (!canActOnAp('payment-received', apFixture(ap), uid)) {
       throw new ApiError('permission-denied', 'Only the sender can confirm payment.');
     }
+
+    const seq = ap.paymentSeq ?? 1;
+    const paymentRef = db.collection('gemtrack_ap_payments').doc(apPaymentEventId(id, 'received', seq));
+    const incomeRef = db.collection('gemtrack_transactions').doc(apPaymentIncomeTransactionId(id, seq));
+    const expenseRef = db.collection('gemtrack_transactions').doc(apPaymentExpenseTransactionId(id, seq));
 
     const amount = ap.paymentAmount ?? 0;
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -325,42 +415,65 @@ export async function apPaymentReceivedForApi(
       incomeRef,
       expenseRef,
     );
-    const notification = {
-      recipientUid: ap.receiverUid,
-      type: 'ap_payment_received' as const,
-      title: 'AP payment confirmed',
-      message: `${ap.senderName || 'Trader'} confirmed receipt of ${formatCurrency(amount, currency)}. AP complete (sold ${formatCurrency(soldAmount(ap, rates, currency), currency)}).`,
-      direction: 'taken' as const,
-    };
+    const owed = owedAmount(ap, rates, currency);
 
-    if (ap.status === 'done') {
-      if (!paymentSnap.exists || !incomeSnap.exists || !expenseSnap.exists) {
+    if (ap.status !== 'payment_sent') {
+      // Replay of the confirmation that already settled this payment.
+      if (paymentSnap.exists && incomeSnap.exists && expenseSnap.exists) {
+        const fingerprints = [paymentSnap, incomeSnap, expenseSnap].map(
+          (snapshot) => snapshot.data()?.mutationFingerprint,
+        );
+        if (fingerprints.some((value) => value !== fingerprint)) {
+          throw new ApiError('failed-precondition', 'This AP payment already exists with different details.');
+        }
+        const paid = confirmedAmountPaid(ap);
+        return {
+          status: ap.status as ApPaymentResult['status'],
+          amount,
+          currency,
+          amountPaid: paid,
+          balance: apBalance(owed, paid),
+          owed,
+          replay: true,
+        };
+      }
+      if (ap.status === 'done') {
         throw new ApiError(
           'failed-precondition',
           'This AP completion was created by the legacy path and needs reconciliation before API retry.',
         );
       }
-      const fingerprints = [paymentSnap, incomeSnap, expenseSnap].map(
-        (snapshot) => snapshot.data()?.mutationFingerprint,
-      );
-      if (fingerprints.some((value) => value !== fingerprint)) {
-        throw new ApiError('failed-precondition', 'This AP payment already exists with different details.');
-      }
-      return { status: 'done' as const, notification };
-    }
-
-    if (ap.status !== 'payment_sent') {
       throw new ApiError('failed-precondition', 'Waiting for payment sent first.');
     }
     if (paymentSnap.exists || incomeSnap.exists || expenseSnap.exists) {
       throw new ApiError('failed-precondition', 'AP payment events are inconsistent and need reconciliation.');
     }
 
+    const chequeRef = method === 'cheque'
+      ? await loadPaymentCheque(transaction, {
+          chequeId,
+          uid,
+          apId: id,
+          direction: 'received',
+          amount,
+          currency,
+        })
+      : null;
+
+    const previousPaid = confirmedAmountPaid(ap);
+    const amountPaid = Number((previousPaid + amount).toFixed(2));
+    const balance = apBalance(owed, amountPaid);
+    const status = apSettlementStatus({ lines: ap.items ?? [], owed, amountPaid });
     const amountBase = convertToBaseServer(amount, currency, rates);
     const now = Timestamp.now();
     transaction.update(apRef, {
-      status: 'done',
+      status,
       paymentReceivedAt: now,
+      amountPaid,
+      amountPaidBase: Number(((ap.amountPaidBase ?? 0) + amountBase).toFixed(2)),
+      balance,
+      paymentStatus: apPaymentStatus(owed, amountPaid),
+      statusBeforePayment: null,
       ...(input.method ? { paymentMethod: input.method } : {}),
       ...(input.chequeId !== undefined ? { paymentChequeId: chequeId } : {}),
       ...(input.receiptUrl !== undefined ? { paymentReceiptUrl: receiptUrl } : {}),
@@ -370,6 +483,7 @@ export async function apPaymentReceivedForApi(
       eventKind: 'ap_payment',
       mutationFingerprint: fingerprint,
       apId: id,
+      seq,
       ownerUid: ap.ownerUid,
       senderUid: ap.senderUid,
       receiverUid: ap.receiverUid,
@@ -377,6 +491,10 @@ export async function apPaymentReceivedForApi(
       type: 'received',
       method,
       amount,
+      currency,
+      amountPaidAfter: amountPaid,
+      balanceAfter: balance,
+      chequeId,
       receiptUrl,
       createdAt: now,
     });
@@ -389,7 +507,7 @@ export async function apPaymentReceivedForApi(
       currency,
       amountBase,
       category: 'ap_income',
-      description: `AP payment from ${ap.receiverName || 'Trader'}`,
+      description: `AP payment from ${ap.receiverName || 'Trader'}${seq > 1 ? ` (payment ${seq})` : ''}`,
       gemId: null,
       contactId: ap.receiverContactId ?? null,
       sourceType: 'ap',
@@ -407,7 +525,7 @@ export async function apPaymentReceivedForApi(
       currency,
       amountBase,
       category: 'other_expense',
-      description: `AP payout to ${ap.senderName || 'Trader'}`,
+      description: `AP payout to ${ap.senderName || 'Trader'}${seq > 1 ? ` (payment ${seq})` : ''}`,
       gemId: null,
       contactId: null,
       sourceType: 'ap',
@@ -415,12 +533,30 @@ export async function apPaymentReceivedForApi(
       date: now,
       createdAt: now,
     });
+    if (chequeRef) {
+      transaction.update(chequeRef, { apRecordId: id, apPaymentSeq: seq, updatedAt: now });
+    }
 
-    return { status: 'done' as const, notification };
+    return { status, amount, currency, amountPaid, balance, owed, replay: false, seq, ap };
   });
 
-  await ensurePaymentNotification({ ...result.notification, apId: id });
-  return { ok: true, status: result.status };
+  if (!result.replay && 'ap' in result && result.ap && isLiveUid(result.ap.receiverUid)) {
+    const ap = result.ap;
+    const settled = result.status === 'done';
+    await ensureDeterministicNotificationDoc({
+      recipientUid: ap.receiverUid,
+      type: 'ap_payment_received',
+      title: settled ? 'AP payment confirmed' : 'AP instalment confirmed',
+      message: settled
+        ? `${ap.senderName || 'Trader'} confirmed receipt of ${formatCurrency(result.amount, result.currency)}. AP complete.`
+        : `${ap.senderName || 'Trader'} confirmed ${formatCurrency(result.amount, result.currency)}. Balance ${formatCurrency(result.balance, result.currency)}.`,
+      direction: 'taken',
+      referenceType: 'ap',
+      referenceId: id,
+      ...((result.seq ?? 1) > 1 ? { dedupeKey: `ap-payment-received:${id}:${result.seq}` } : {}),
+    });
+  }
+  return { ok: true, status: result.status, amountPaid: result.amountPaid, balance: result.balance };
 }
 
 export function parseApPaymentSentInput(input: unknown): ApPaymentSentInput {

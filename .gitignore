@@ -75,3 +75,6 @@ goldie/out/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Written by scripts/ops/deploy-backend.sh at deploy time.
+functions/.env.*
