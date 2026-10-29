@@ -205,9 +205,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-build-properties",
       {
-        ios: {
-          enableSceneSupport: true,
-        },
         android: {
           compileSdkVersion: 36,
           targetSdkVersion: 36,
