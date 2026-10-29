@@ -1,4 +1,3 @@
-import type { ImageSourcePropType } from "react-native";
 
 import type { IconName } from "@/components/ui/icon";
 
@@ -7,7 +6,8 @@ export type PaymentMethodOption<T extends string = string> = {
   label: string;
   subtitle?: string;
   icon?: IconName;
-  image?: ImageSourcePropType;
+  /** Bundled asset (Metro module id from require()). */
+  image?: number;
   tone?: "primary" | "success" | "warning";
 };
 
@@ -56,7 +56,8 @@ const PAYMENT_METHOD_PRESENTATION = {
     label: string;
     subtitle?: string;
     icon?: IconName;
-    image?: ImageSourcePropType;
+    /** Bundled asset (Metro module id from require()). */
+    image?: number;
     tone?: "primary" | "success" | "warning";
   }
 >;

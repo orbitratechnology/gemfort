@@ -344,7 +344,7 @@ export default function ContactsListScreen() {
         keyboardShouldPersistTaps="handled"
         renderScrollComponent={(props) => <ScrollView {...props} />}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();

@@ -9,6 +9,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,7 +64,7 @@ export function BusinessGalleryCarousel({
   const { colors } = useAppTheme();
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const pausedRef = useRef(false);
   const programmaticRef = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

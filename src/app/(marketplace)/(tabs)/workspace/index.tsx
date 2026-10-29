@@ -1,7 +1,7 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image, type ImageSource } from "expo-image";
 import { router } from "expo-router";
-import { useTourTarget } from "guideway";
+import { useTourTarget } from "@/lib/tour-target";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";

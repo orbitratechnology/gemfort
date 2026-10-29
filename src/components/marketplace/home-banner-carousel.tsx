@@ -8,6 +8,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -166,7 +167,7 @@ export function HomeBannerCarousel() {
   const role = resolveProfileRole(profile);
   const { width: windowWidth } = useWindowDimensions();
   const sideInset = windowWidth < 360 ? 20 : SIDE_INSET;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const pausedRef = useRef(false);
   const programmaticRef = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

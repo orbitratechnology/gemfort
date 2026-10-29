@@ -3,7 +3,7 @@ import { BlurTargetView, BlurView } from "expo-blur";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, type HostInstance } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ export default function TripDetailScreen() {
   const queryClient = useQueryClient();
   const [expensesOpen, setExpensesOpen] = useState(false);
   const [gemsOpen, setGemsOpen] = useState(false);
-  const flagBlurTargetRef = useRef<View | null>(null);
+  const flagBlurTargetRef = useRef<HostInstance | null>(null);
 
   const { data: trip, isLoading } = useFirestoreLiveQuery({
     queryKey: ["trip", tripId],

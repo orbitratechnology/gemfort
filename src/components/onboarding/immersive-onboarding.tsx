@@ -5,6 +5,7 @@ import {
   type NativeSyntheticEvent,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
@@ -18,7 +19,7 @@ type ExitPath = '/(auth)/register' | '/(auth)/login' | '/(marketplace)/(tabs)/ho
 export function ImmersiveOnboarding() {
   const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const total = OnboardingChapters.length;
 
   const onMomentumEnd = useCallback(

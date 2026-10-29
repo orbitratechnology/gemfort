@@ -318,7 +318,7 @@ export default function ServicesListScreen() {
         data={filtered}
         keyExtractor={(s) => s.id}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

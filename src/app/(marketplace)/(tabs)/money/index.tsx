@@ -1,6 +1,6 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { router } from "expo-router";
-import { useTourTarget } from "guideway";
+import { useTourTarget } from "@/lib/tour-target";
 import { useMemo, useRef, useState } from "react";
 import {
     Pressable,

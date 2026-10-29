@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 
 /** Android channels — must match Cloud Functions `pushChannelForType`. */
@@ -26,27 +27,27 @@ export async function ensureAndroidNotificationChannels() {
 
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNELS.default, {
     name: 'GemFort updates',
-    importance: Notifications.AndroidImportance.DEFAULT,
+    importance: AndroidImportance.DEFAULT,
     description: 'General marketplace and workspace updates',
   });
 
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNELS.alerts, {
     name: 'Due dates & reminders',
-    importance: Notifications.AndroidImportance.HIGH,
+    importance: AndroidImportance.HIGH,
     description: 'Cheques, bills, AP returns, and payment reminders',
     vibrationPattern: [0, 250, 120, 250],
   });
 
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNELS.urgent, {
     name: 'Urgent alerts',
-    importance: Notifications.AndroidImportance.MAX,
+    importance: AndroidImportance.MAX,
     description: 'Bounced cheques, overdues, and account security',
     vibrationPattern: [0, 400, 200, 400],
   });
 
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNELS.progress, {
     name: 'Ongoing activity',
-    importance: Notifications.AndroidImportance.LOW,
+    importance: AndroidImportance.LOW,
     description: 'Quiet progress for active trips, APs, cheques, bills, and services',
     showBadge: false,
   });

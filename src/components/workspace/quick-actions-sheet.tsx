@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type HostInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -170,7 +171,7 @@ export function QuickActionsSheet({
 
 type QuickActionsFabProps = {
   onPress: () => void;
-  targetRef?: RefObject<View | null>;
+  targetRef?: RefObject<HostInstance | null>;
 };
 
 export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {

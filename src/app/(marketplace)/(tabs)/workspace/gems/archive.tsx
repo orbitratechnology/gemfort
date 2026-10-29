@@ -147,7 +147,7 @@ export default function GemsArchiveScreen() {
         masonry
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();

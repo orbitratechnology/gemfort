@@ -466,7 +466,7 @@ export default function NotificationsScreen() {
           />
         )}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();

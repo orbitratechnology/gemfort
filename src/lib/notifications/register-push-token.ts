@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import { IosAuthorizationStatus } from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { updateFcmToken } from '@/lib/firebase/auth-service';
@@ -46,7 +47,7 @@ async function requestPushPermission(): Promise<boolean> {
     const iosStatus = (await Notifications.getPermissionsAsync()).ios?.status;
     return (
       finalStatus === 'granted' ||
-      iosStatus === Notifications.IosAuthorizationStatus.PROVISIONAL
+      iosStatus === IosAuthorizationStatus.PROVISIONAL
     );
   }
 

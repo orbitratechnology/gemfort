@@ -16,6 +16,7 @@ import {
   View,
   type StyleProp,
   type ViewStyle,
+  type ScrollViewInstance,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -75,8 +76,8 @@ export function ImagePager({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const pagerRef = useRef<PagerRef | null>(null);
-  const webScrollRef = useRef<ScrollView>(null);
-  const stripScrollRef = useRef<ScrollView>(null);
+  const webScrollRef = useRef<ScrollViewInstance>(null);
+  const stripScrollRef = useRef<ScrollViewInstance>(null);
   const pageWidth = edgeToEdge
     ? windowWidth
     : windowWidth - Spacing.containerMargin * 2;

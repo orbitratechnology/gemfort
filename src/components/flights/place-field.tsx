@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
@@ -35,7 +36,7 @@ export function PlaceField({
 }) {
   const { colors } = useAppTheme();
   const reduceMotion = useReduceMotion();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const debounced = useDebouncedValue(term, 250);
