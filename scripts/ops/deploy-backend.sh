@@ -17,6 +17,16 @@ printf 'RELEASE_SHA=%s\n' "$SHA" > "functions/.env.${PROJECT}"
 
 npm --prefix functions ci
 npm --prefix functions test
-firebase deploy --project "$PROJECT" \
+# --force confirms trigger retry policies non-interactively (every retried
+# handler is idempotent). It would also delete live functions that are no
+# longer exported, so refuse if any exist rather than deleting silently.
+LIVE_ONLY="$(comm -13 \
+  <(grep -oE '\b(on[A-Z][A-Za-z]+|daily[A-Za-z]+|sync[A-Za-z]+|gemfortApi)\b' functions/src/index.ts | sort -u) \
+  <(firebase functions:list --project "$PROJECT" | awk -F'│' 'NR>3{gsub(/ /,"",$2); if($2!="") print $2}' | sort -u))"
+if [[ -n "$LIVE_ONLY" ]]; then
+  echo "Refusing to deploy: live functions missing from source would be deleted: ${LIVE_ONLY}" >&2
+  exit 1
+fi
+firebase deploy --project "$PROJECT" --force \
   --only firestore:rules,firestore:indexes,storage,functions
 echo "Deployed ${SHA} to ${PROJECT}."
