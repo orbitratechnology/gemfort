@@ -31,13 +31,20 @@ import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
-import { subscribeContacts } from '@/features/workspace/firestore-subscriptions';
+import {
+  subscribeContacts,
+  subscribeOpenReceivables,
+} from '@/features/workspace/firestore-subscriptions';
 import {
   effectiveReceivableStatus,
   getReceivableSummary,
 } from '@/features/workspace/payment-utils';
-import { fetchContacts, recordReceivablePayment } from '@/features/workspace/workspace-service';
-import { fetchReceivablesPage } from '@/features/workspace/workspace-pagination';
+import {
+  fetchContacts,
+  fetchOpenReceivables,
+  recordReceivablePayment,
+} from '@/features/workspace/workspace-service';
+import { fetchSettledReceivablesPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
@@ -71,7 +78,7 @@ const STATUS_ACCENT: Record<Receivable['status'], string> = {
 };
 
 type Entry =
-  | { kind: 'header'; key: string; title: string; accent: string; count: number; trailing: string | null }
+  | { kind: 'header'; key: string; title: string; accent: string; count?: number; trailing: string | null }
   | { kind: 'row'; key: string; item: Receivable; isLast: boolean };
 
 function remainingOf(item: Receivable) {
@@ -113,20 +120,38 @@ export default function ReceivablesScreen() {
   });
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // Every open item is loaded live so totals and due buckets are complete;
+  // only the settled history is paginated.
+  const openQuery = useFirestoreLiveQuery({
+    queryKey: ['receivables', user?.uid, 'open'],
+    queryFn: () => fetchOpenReceivables(user!.uid),
+    subscribe: (onData, onError) => subscribeOpenReceivables(user!.uid, onData, onError),
+    enabled: !!user,
+  });
   const {
-    items: receivables,
-    refetch,
-    isRefetching,
+    items: settled,
+    refetch: refetchSettled,
+    isRefetching: isRefetchingSettled,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
     fetchNextPage,
   } = useFirestoreInfiniteQuery({
-    queryKey: ['receivables', user?.uid, 'infinite'],
+    queryKey: ['receivables', user?.uid, 'settled'],
     fetchPage: (cursor, pageSize) =>
-      fetchReceivablesPage(user!.uid, cursor, pageSize),
+      fetchSettledReceivablesPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
+  const receivables = useMemo(() => {
+    const open = openQuery.data ?? [];
+    const openIds = new Set(open.map((item) => item.id));
+    return [...open, ...settled.filter((item) => !openIds.has(item.id))];
+  }, [openQuery.data, settled]);
+  const refetch = () => {
+    void openQuery.refetch();
+    void refetchSettled();
+  };
+  const isRefetching = openQuery.isRefetching || isRefetchingSettled;
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
@@ -160,7 +185,8 @@ export default function ReceivablesScreen() {
         key: `h-${bucket.id}`,
         title: bucket.title,
         accent: bucket.accent,
-        count: items.length,
+        // Settled history is paginated, so its count is only known once fully loaded.
+        count: bucket.id === 'settled' && hasNextPage ? undefined : items.length,
         trailing: bucket.id === 'settled' ? null : formatBase(open),
       });
       items.forEach((item, i) =>
@@ -173,15 +199,14 @@ export default function ReceivablesScreen() {
       dueThisWeekCount: groups.week.length,
       openCount: receivables.length - groups.settled.length,
     };
-  }, [receivables, formatBase]);
+  }, [receivables, formatBase, hasNextPage]);
 
   const payingItem = payingId ? receivables.find((p) => p.id === payingId) ?? null : null;
 
   const [recordingPayment, handleRecordPayment] = usePendingAction(async (item: Receivable) => {
     if (!user) return;
-    const remaining = item.amount - item.amountReceived;
-    const amountToValidate = paymentMoney.amount || String(remaining);
-    const result = parseForm(recordPaymentSchema, { amount: amountToValidate });
+    // No silent default: an empty amount must not settle the whole balance.
+    const result = parseForm(recordPaymentSchema, { amount: paymentMoney.amount });
     if (!result.success) {
       setPaymentError(result.errors.amount ?? 'Enter a valid payment amount');
       toast.error(result.errors.amount ?? 'Enter a valid payment amount');
@@ -236,7 +261,7 @@ export default function ReceivablesScreen() {
   }
 
   function startPayment(item: Receivable, mode: 'full' | 'partial', resetCommission = false) {
-    const remaining = item.amount - item.amountReceived;
+    const remaining = Math.round((item.amount - item.amountReceived) * 100) / 100;
     const currency = resolveCurrencyCode(item.currency, preferred);
     setPayingId(item.id);
     setPaymentMoney({ amount: mode === 'full' ? String(remaining) : '', currency });
@@ -287,7 +312,9 @@ export default function ReceivablesScreen() {
     );
   }
 
-  const sheetRemaining = payingItem ? payingItem.amount - payingItem.amountReceived : 0;
+  const sheetRemaining = payingItem
+    ? Math.round((payingItem.amount - payingItem.amountReceived) * 100) / 100
+    : 0;
   const sheetStatus = payingItem ? effectiveReceivableStatus(payingItem) : null;
   const sheetParty = payingItem ? contactName(payingItem.contactId) : null;
   const sheetMode = paymentMoney.amount === String(sheetRemaining) ? 'full' : 'partial';

@@ -186,7 +186,8 @@ export function fetchTransactionsPage(
   );
 }
 
-export function fetchReceivablesPage(
+/** Settled receivables only; open ones come from `subscribeOpenReceivables`. */
+export function fetchSettledReceivablesPage(
   ownerUid: string,
   cursor: FirestoreCursor | undefined,
   pageSize: number,
@@ -195,6 +196,7 @@ export function fetchReceivablesPage(
     query(
       collection(getFirebaseDb(), 'gemtrack_receivables'),
       where('ownerUid', '==', ownerUid),
+      where('status', '==', 'paid'),
     ),
     cursor,
     pageSize,
@@ -202,7 +204,8 @@ export function fetchReceivablesPage(
   );
 }
 
-export function fetchPayablesPage(
+/** Settled payables only; open ones come from `subscribeOpenPayables`. */
+export function fetchSettledPayablesPage(
   ownerUid: string,
   cursor: FirestoreCursor | undefined,
   pageSize: number,
@@ -211,6 +214,7 @@ export function fetchPayablesPage(
     query(
       collection(getFirebaseDb(), 'gemtrack_payables'),
       where('ownerUid', '==', ownerUid),
+      where('status', '==', 'paid'),
     ),
     cursor,
     pageSize,

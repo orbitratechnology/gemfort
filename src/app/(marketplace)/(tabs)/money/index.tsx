@@ -1,3 +1,4 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { router } from "expo-router";
 import { useTourTarget } from "@/lib/tour-target";
@@ -28,14 +29,15 @@ import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
 import {
     subscribeCheques,
-    subscribePayables,
-    subscribeReceivables,
-    subscribeTransactions,
+    subscribeOpenPayables,
+    subscribeOpenReceivables,
+    subscribeTransactionsInRange,
 } from "@/features/workspace/firestore-subscriptions";
 import {
     getCashFlowBuckets,
     getCashFlowBucketsForRange,
     getCategoryBreakdown,
+    getComparisonWindow,
     getNetTrend,
     getNetTrendForRange,
     getOutstanding,
@@ -52,9 +54,9 @@ import {
 } from "@/features/workspace/payment-source";
 import {
     fetchCheques,
-    fetchPayables,
-    fetchReceivables,
-    fetchTransactions,
+    fetchOpenPayables,
+    fetchOpenReceivables,
+    fetchTransactionsInRange,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
@@ -76,22 +78,30 @@ export default function MoneyDashboard() {
   const dateFilterTourTarget = useTourTarget("money-date-filter");
   const recordSaleTourTarget = useTourTarget("money-record-sale");
 
+  // Load exactly the selected range plus the span its trend compares with —
+  // uncapped, so totals never silently drop older transactions.
+  const txWindow = useMemo(
+    () => getComparisonWindow(period, customRange),
+    [period, customRange],
+  );
   const txQuery = useFirestoreLiveQuery({
-    queryKey: ["transactions", uid],
-    queryFn: () => fetchTransactions(uid!),
-    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
+    queryKey: ["transactions", uid, "range", txWindow.start.getTime(), txWindow.end.getTime()],
+    queryFn: () => fetchTransactionsInRange(uid!, txWindow.start, txWindow.end),
+    subscribe: (onData, onError) =>
+      subscribeTransactionsInRange(uid!, txWindow.start, txWindow.end, onData, onError),
     enabled: !!uid,
+    placeholderData: keepPreviousData,
   });
   const recQuery = useFirestoreLiveQuery({
-    queryKey: ["receivables", uid],
-    queryFn: () => fetchReceivables(uid!),
-    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
+    queryKey: ["receivables", uid, "open"],
+    queryFn: () => fetchOpenReceivables(uid!),
+    subscribe: (onData, onError) => subscribeOpenReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
   const payQuery = useFirestoreLiveQuery({
-    queryKey: ["payables", uid],
-    queryFn: () => fetchPayables(uid!),
-    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
+    queryKey: ["payables", uid, "open"],
+    queryFn: () => fetchOpenPayables(uid!),
+    subscribe: (onData, onError) => subscribeOpenPayables(uid!, onData, onError),
     enabled: !!uid,
   });
   const chequeQuery = useFirestoreLiveQuery({

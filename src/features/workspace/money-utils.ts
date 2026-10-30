@@ -136,6 +136,25 @@ function getPreviousRange(period: MoneyPeriod, ref = new Date()): DateRange {
   }
 }
 
+/**
+ * Date span a dashboard must load: the selected range plus the equivalent
+ * previous span its trend compares against.
+ */
+export function getComparisonWindow(
+  period: MoneyPeriod,
+  customRange: DateRange | null,
+  ref = new Date(),
+): { start: Date; end: Date } {
+  const current = customRange ?? getPeriodRange(period, ref);
+  const previous = customRange
+    ? getPreviousCustomRange(customRange)
+    : getPreviousRange(period, ref);
+  return {
+    start: previous.start < current.start ? previous.start : current.start,
+    end: current.end,
+  };
+}
+
 export function getRangeTotals(transactions: Transaction[], range: DateRange) {
   let income = 0;
   let expense = 0;

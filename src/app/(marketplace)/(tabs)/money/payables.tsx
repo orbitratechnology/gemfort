@@ -31,10 +31,17 @@ import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { resolveCurrencyCode } from '@/constants/currencies';
 import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
-import { subscribeContacts } from '@/features/workspace/firestore-subscriptions';
+import {
+  subscribeContacts,
+  subscribeOpenPayables,
+} from '@/features/workspace/firestore-subscriptions';
 import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
-import { fetchContacts, recordPayablePayment } from '@/features/workspace/workspace-service';
-import { fetchPayablesPage } from '@/features/workspace/workspace-pagination';
+import {
+  fetchContacts,
+  fetchOpenPayables,
+  recordPayablePayment,
+} from '@/features/workspace/workspace-service';
+import { fetchSettledPayablesPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
@@ -68,7 +75,7 @@ const STATUS_ACCENT: Record<Payable['status'], string> = {
 };
 
 type Entry =
-  | { kind: 'header'; key: string; title: string; accent: string; count: number; trailing: string | null }
+  | { kind: 'header'; key: string; title: string; accent: string; count?: number; trailing: string | null }
   | { kind: 'row'; key: string; item: Payable; isLast: boolean };
 
 function remainingOf(item: Payable) {
@@ -106,20 +113,38 @@ export default function PayablesScreen() {
   const [paymentReceipt, setPaymentReceipt] = useState<LocalMedia | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // Every open item is loaded live so totals and due buckets are complete;
+  // only the settled history is paginated.
+  const openQuery = useFirestoreLiveQuery({
+    queryKey: ['payables', user?.uid, 'open'],
+    queryFn: () => fetchOpenPayables(user!.uid),
+    subscribe: (onData, onError) => subscribeOpenPayables(user!.uid, onData, onError),
+    enabled: !!user,
+  });
   const {
-    items: payables,
-    refetch,
-    isRefetching,
+    items: settled,
+    refetch: refetchSettled,
+    isRefetching: isRefetchingSettled,
     hasNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
     fetchNextPage,
   } = useFirestoreInfiniteQuery({
-    queryKey: ['payables', user?.uid, 'infinite'],
+    queryKey: ['payables', user?.uid, 'settled'],
     fetchPage: (cursor, pageSize) =>
-      fetchPayablesPage(user!.uid, cursor, pageSize),
+      fetchSettledPayablesPage(user!.uid, cursor, pageSize),
     enabled: !!user,
   });
+  const payables = useMemo(() => {
+    const open = openQuery.data ?? [];
+    const openIds = new Set(open.map((item) => item.id));
+    return [...open, ...settled.filter((item) => !openIds.has(item.id))];
+  }, [openQuery.data, settled]);
+  const refetch = () => {
+    void openQuery.refetch();
+    void refetchSettled();
+  };
+  const isRefetching = openQuery.isRefetching || isRefetchingSettled;
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ['contacts', user?.uid],
@@ -153,7 +178,8 @@ export default function PayablesScreen() {
         key: `h-${bucket.id}`,
         title: bucket.title,
         accent: bucket.accent,
-        count: items.length,
+        // Settled history is paginated, so its count is only known once fully loaded.
+        count: bucket.id === 'settled' && hasNextPage ? undefined : items.length,
         trailing: bucket.id === 'settled' ? null : formatBase(open),
       });
       items.forEach((item, i) =>
@@ -166,15 +192,14 @@ export default function PayablesScreen() {
       dueThisWeekCount: groups.week.length,
       openCount: payables.length - groups.settled.length,
     };
-  }, [payables, formatBase]);
+  }, [payables, formatBase, hasNextPage]);
 
   const payingItem = payingId ? payables.find((p) => p.id === payingId) ?? null : null;
 
   const [recordingPayment, handleRecordPayment] = usePendingAction(async (item: Payable) => {
     if (!user) return;
-    const remaining = item.amount - item.amountPaid;
-    const amountToValidate = paymentMoney.amount || String(remaining);
-    const result = parseForm(recordPaymentSchema, { amount: amountToValidate });
+    // No silent default: an empty amount must not settle the whole balance.
+    const result = parseForm(recordPaymentSchema, { amount: paymentMoney.amount });
     if (!result.success) {
       setPaymentError(result.errors.amount ?? 'Enter a valid payment amount');
       toast.error(result.errors.amount ?? 'Enter a valid payment amount');
@@ -227,7 +252,7 @@ export default function PayablesScreen() {
   }
 
   function startPayment(item: Payable, mode: 'full' | 'partial') {
-    const remaining = item.amount - item.amountPaid;
+    const remaining = Math.round((item.amount - item.amountPaid) * 100) / 100;
     setPayingId(item.id);
     setPaymentMoney({
       amount: mode === 'full' ? String(remaining) : '',
@@ -279,7 +304,9 @@ export default function PayablesScreen() {
     );
   }
 
-  const sheetRemaining = payingItem ? payingItem.amount - payingItem.amountPaid : 0;
+  const sheetRemaining = payingItem
+    ? Math.round((payingItem.amount - payingItem.amountPaid) * 100) / 100
+    : 0;
   const sheetStatus = payingItem ? effectivePayableStatus(payingItem) : null;
   const sheetParty = payingItem ? contactName(payingItem.contactId) : null;
   const sheetMode = paymentMoney.amount === String(sheetRemaining) ? 'full' : 'partial';

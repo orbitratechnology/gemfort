@@ -9,6 +9,7 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
+  getPeriodRange,
   MONEY_PERIODS,
   type MoneyPeriod,
 } from '@/features/workspace/money-utils';
@@ -20,16 +21,16 @@ import {
 import {
   subscribeCheques,
   subscribeGems,
-  subscribePayables,
-  subscribeReceivables,
-  subscribeTransactions,
+  subscribeOpenPayables,
+  subscribeOpenReceivables,
+  subscribeTransactionsInRange,
 } from '@/features/workspace/firestore-subscriptions';
 import {
   fetchCheques,
   fetchGems,
-  fetchPayables,
-  fetchReceivables,
-  fetchTransactions,
+  fetchOpenPayables,
+  fetchOpenReceivables,
+  fetchTransactionsInRange,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
@@ -46,10 +47,13 @@ export default function ReportsScreen() {
   const [period, setPeriod] = useState<MoneyPeriod>('this_month');
   const [exporting, setExporting] = useState<FinancialReportType | null>(null);
 
+  // Every transaction in the report period — uncapped, so a busy year is not truncated.
+  const range = useMemo(() => getPeriodRange(period), [period]);
   const txQuery = useFirestoreLiveQuery({
-    queryKey: ['transactions', uid],
-    queryFn: () => fetchTransactions(uid!),
-    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
+    queryKey: ['transactions', uid, 'range', range.start.getTime(), range.end.getTime()],
+    queryFn: () => fetchTransactionsInRange(uid!, range.start, range.end),
+    subscribe: (onData, onError) =>
+      subscribeTransactionsInRange(uid!, range.start, range.end, onData, onError),
     enabled: !!uid,
   });
   const gemsQuery = useFirestoreLiveQuery({
@@ -59,15 +63,15 @@ export default function ReportsScreen() {
     enabled: !!uid,
   });
   const recQuery = useFirestoreLiveQuery({
-    queryKey: ['receivables', uid],
-    queryFn: () => fetchReceivables(uid!),
-    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
+    queryKey: ['receivables', uid, 'open'],
+    queryFn: () => fetchOpenReceivables(uid!),
+    subscribe: (onData, onError) => subscribeOpenReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
   const payQuery = useFirestoreLiveQuery({
-    queryKey: ['payables', uid],
-    queryFn: () => fetchPayables(uid!),
-    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
+    queryKey: ['payables', uid, 'open'],
+    queryFn: () => fetchOpenPayables(uid!),
+    subscribe: (onData, onError) => subscribeOpenPayables(uid!, onData, onError),
     enabled: !!uid,
   });
   const chequeQuery = useFirestoreLiveQuery({

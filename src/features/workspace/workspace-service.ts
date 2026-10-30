@@ -18,8 +18,11 @@ import {
   resolveGemLifecycle,
   type GemLifecycle,
 } from "@/features/workspace/gem-lifecycle";
-import { OWNER_LIST_LIMIT } from "@/features/workspace/firestore-subscriptions";
-import { convertToBase } from "@/lib/exchange-rates";
+import {
+  OPEN_ITEM_STATUSES,
+  OWNER_LIST_LIMIT,
+} from "@/features/workspace/firestore-subscriptions";
+import { convertFromBase, convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import { listingShareUrl } from "@/lib/public-links";
 import {
@@ -1191,6 +1194,23 @@ export async function fetchTransactions(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction);
 }
 
+/** Uncapped transactions dated within `[start, end]`, newest first. */
+export async function fetchTransactionsInRange(
+  ownerUid: string,
+  start: Date,
+  end: Date,
+): Promise<Transaction[]> {
+  const q = query(
+    collection(getFirebaseDb(), "gemtrack_transactions"),
+    where("ownerUid", "==", ownerUid),
+    where("date", ">=", Timestamp.fromDate(start)),
+    where("date", "<=", Timestamp.fromDate(end)),
+    orderBy("date", "desc"),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction);
+}
+
 export async function createTransaction(
   ownerUid: string,
   input: Omit<Transaction, "id" | "ownerUid" | "createdAt" | "amountBase"> & {
@@ -1221,23 +1241,25 @@ export async function createTransaction(
 
 // ─── Receivables / Payables ───────────────────────
 
-export async function fetchReceivables(
+export async function fetchOpenReceivables(
   ownerUid: string,
 ): Promise<Receivable[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_receivables"),
     where("ownerUid", "==", ownerUid),
-    limit(OWNER_LIST_LIMIT),
+    where("status", "in", OPEN_ITEM_STATUSES),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Receivable);
 }
 
-export async function fetchPayables(ownerUid: string): Promise<Payable[]> {
+export async function fetchOpenPayables(
+  ownerUid: string,
+): Promise<Payable[]> {
   const q = query(
     collection(getFirebaseDb(), "gemtrack_payables"),
     where("ownerUid", "==", ownerUid),
-    limit(OWNER_LIST_LIMIT),
+    where("status", "in", OPEN_ITEM_STATUSES),
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Payable);
@@ -1303,163 +1325,150 @@ export async function createPayable(
   return id;
 }
 
-export async function recordReceivablePayment(
+type OpenItemPaymentOptions = {
+  currency?: string;
+  paymentMethod?: string | null;
+  commission?: number | null;
+  notes?: string | null;
+  receiptUrl?: string | null;
+};
+
+const OPEN_ITEM_PAYMENT = {
+  receivable: {
+    collection: "gemtrack_receivables",
+    settledField: "amountReceived",
+    label: "Receivable",
+    txnType: "income",
+    category: "other_income",
+    describe: (label: string) => `Payment received: ${label}`,
+    direction: "in",
+  },
+  payable: {
+    collection: "gemtrack_payables",
+    settledField: "amountPaid",
+    label: "Payable",
+    txnType: "expense",
+    category: "other_expense",
+    describe: (label: string) => `Payment made: ${label}`,
+    direction: "out",
+  },
+} as const;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Settle part or all of a receivable / payable.
+ *
+ * The payment may be in a different currency than the record, so it is
+ * converted into the record's currency before it touches the balance. FX runs
+ * before any write, and the balance update, ledger transaction and payment are
+ * committed together — a failed conversion or write leaves nothing behind.
+ */
+async function recordOpenItemPayment(
+  kind: keyof typeof OPEN_ITEM_PAYMENT,
+  ownerUid: string,
+  itemId: string,
+  paymentAmount: number,
+  options?: OpenItemPaymentOptions,
+) {
+  if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
+  const cfg = OPEN_ITEM_PAYMENT[kind];
+  const db = getFirebaseDb();
+  const ref = doc(db, cfg.collection, itemId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error(`${cfg.label} not found`);
+  const initial = snap.data() as Receivable | Payable;
+
+  const recordCurrency = initial.currency ?? "LKR";
+  const currency = options?.currency ?? recordCurrency;
+  const amountBase = await convertToBase(paymentAmount, currency);
+  const applied =
+    currency === recordCurrency
+      ? paymentAmount
+      : round2(await convertFromBase(amountBase, recordCurrency));
+
+  const txnRef = doc(collection(db, "gemtrack_transactions"));
+  const paymentRef = doc(collection(db, "gemtrack_payments"));
+  const now = Timestamp.now();
+
+  await runTransaction(db, async (transaction) => {
+    const current = await transaction.get(ref);
+    if (!current.exists()) throw new Error(`${cfg.label} not found`);
+    const data = current.data() as Record<string, unknown> & (Receivable | Payable);
+    if (data.ownerUid !== ownerUid) throw new Error(`${cfg.label} not found`);
+    const settled = Number(data[cfg.settledField] ?? 0);
+    const remaining = round2(data.amount - settled);
+    if (round2(applied - remaining) > 0) {
+      throw new Error(
+        `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
+      );
+    }
+    const newSettled = round2(Math.min(data.amount, settled + applied));
+    const status =
+      newSettled >= data.amount ? "paid" : newSettled > 0 ? "partial" : "pending";
+    const label = data.title || data.description || cfg.label;
+
+    transaction.update(ref, {
+      [cfg.settledField]: newSettled,
+      status,
+      updatedAt: now,
+    });
+    transaction.set(txnRef, {
+      ownerUid,
+      type: cfg.txnType,
+      amount: paymentAmount,
+      currency,
+      amountBase,
+      category: cfg.category,
+      description: cfg.describe(label),
+      gemId: null,
+      contactId: data.contactId ?? null,
+      sourceType: kind,
+      sourceId: itemId,
+      receiptUrl: options?.receiptUrl ?? null,
+      date: now,
+      createdAt: now,
+    });
+    transaction.set(paymentRef, {
+      ownerUid,
+      direction: cfg.direction,
+      amount: paymentAmount,
+      currency,
+      amountBase,
+      paymentMethod: options?.paymentMethod ?? null,
+      commission: options?.commission ?? null,
+      receivableId: kind === "receivable" ? itemId : null,
+      payableId: kind === "payable" ? itemId : null,
+      billId: null,
+      gemId: null,
+      contactId: data.contactId ?? null,
+      transactionId: txnRef.id,
+      sourceType: kind,
+      sourceId: itemId,
+      notes: options?.notes ?? null,
+      receiptUrl: options?.receiptUrl ?? null,
+      paymentDate: now,
+      createdAt: now,
+    });
+  });
+}
+
+export function recordReceivablePayment(
   ownerUid: string,
   receivableId: string,
   paymentAmount: number,
-  options?: {
-    currency?: string;
-    paymentMethod?: string | null;
-    commission?: number | null;
-    notes?: string | null;
-    receiptUrl?: string | null;
-  },
+  options?: OpenItemPaymentOptions,
 ) {
-  if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
-  const ref = doc(getFirebaseDb(), "gemtrack_receivables", receivableId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Receivable not found");
-  const data = snap.data() as Receivable;
-  const remaining = Math.round((data.amount - data.amountReceived) * 100) / 100;
-  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
-    throw new Error(
-      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
-    );
-  }
-  const newReceived = Math.min(
-    data.amount,
-    data.amountReceived + paymentAmount,
-  );
-  const status =
-    newReceived >= data.amount
-      ? "paid"
-      : newReceived > 0
-        ? "partial"
-        : "pending";
-  const now = Timestamp.now();
-  const currency = options?.currency ?? data.currency ?? "LKR";
-
-  forgetSync(
-    updateDoc(ref, {
-      amountReceived: newReceived,
-      status,
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  const amountBase = await convertToBase(paymentAmount, currency);
-  const txnId = await createTransaction(ownerUid, {
-    type: "income",
-    amount: paymentAmount,
-    currency,
-    amountBase,
-    category: "other_income",
-    description: `Payment received: ${data.title || data.description || "Receivable"}`,
-    gemId: null,
-    contactId: data.contactId,
-    sourceType: "receivable",
-    sourceId: receivableId,
-    receiptUrl: options?.receiptUrl ?? null,
-    date: now,
-  });
-
-  queueDocCreate("gemtrack_payments", {
-      ownerUid,
-      direction: "in",
-      amount: paymentAmount,
-      currency,
-      amountBase,
-      paymentMethod: options?.paymentMethod ?? null,
-      commission: options?.commission ?? null,
-      receivableId,
-      payableId: null,
-      billId: null,
-      gemId: null,
-      contactId: data.contactId,
-      transactionId: txnId,
-      sourceType: "receivable",
-      sourceId: receivableId,
-      notes: options?.notes ?? null,
-      receiptUrl: options?.receiptUrl ?? null,
-      paymentDate: now,
-      createdAt: now,
-    });
+  return recordOpenItemPayment("receivable", ownerUid, receivableId, paymentAmount, options);
 }
 
-export async function recordPayablePayment(
+export function recordPayablePayment(
   ownerUid: string,
   payableId: string,
   paymentAmount: number,
-  options?: {
-    currency?: string;
-    paymentMethod?: string | null;
-    commission?: number | null;
-    notes?: string | null;
-    receiptUrl?: string | null;
-  },
+  options?: OpenItemPaymentOptions,
 ) {
-  if (paymentAmount <= 0) throw new Error("Payment amount must be positive");
-  const ref = doc(getFirebaseDb(), "gemtrack_payables", payableId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Payable not found");
-  const data = snap.data() as Payable;
-  const remaining = Math.round((data.amount - data.amountPaid) * 100) / 100;
-  if (Math.round((paymentAmount - remaining) * 100) / 100 > 0) {
-    throw new Error(
-      `Payment exceeds the remaining balance of ${remaining} ${data.currency ?? "LKR"}`,
-    );
-  }
-  const newPaid = Math.min(data.amount, data.amountPaid + paymentAmount);
-  const status =
-    newPaid >= data.amount ? "paid" : newPaid > 0 ? "partial" : "pending";
-  const now = Timestamp.now();
-  const currency = options?.currency ?? data.currency ?? "LKR";
-
-  forgetSync(
-    updateDoc(ref, {
-      amountPaid: newPaid,
-      status,
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  const amountBase = await convertToBase(paymentAmount, currency);
-  const txnId = await createTransaction(ownerUid, {
-    type: "expense",
-    amount: paymentAmount,
-    currency,
-    amountBase,
-    category: "other_expense",
-    description: `Payment made: ${data.title || data.description || "Payable"}`,
-    gemId: null,
-    contactId: data.contactId,
-    sourceType: "payable",
-    sourceId: payableId,
-    receiptUrl: options?.receiptUrl ?? null,
-    date: now,
-  });
-
-  queueDocCreate("gemtrack_payments", {
-      ownerUid,
-      direction: "out",
-      amount: paymentAmount,
-      currency,
-      amountBase,
-      paymentMethod: options?.paymentMethod ?? null,
-      commission: options?.commission ?? null,
-      receivableId: null,
-      payableId,
-      billId: null,
-      gemId: null,
-      contactId: data.contactId,
-      transactionId: txnId,
-      sourceType: "payable",
-      sourceId: payableId,
-      notes: options?.notes ?? null,
-      receiptUrl: options?.receiptUrl ?? null,
-      paymentDate: now,
-      createdAt: now,
-    });
+  return recordOpenItemPayment("payable", ownerUid, payableId, paymentAmount, options);
 }
 
 export async function fetchPayments(ownerUid: string): Promise<Payment[]> {

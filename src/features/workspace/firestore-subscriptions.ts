@@ -13,6 +13,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  Timestamp,
   where,
 } from '@/lib/firebase/db';
 import type {
@@ -45,6 +46,9 @@ type Unsub = () => void;
 
 /** Cap realtime owner-scoped lists — enough for typical inventory, avoids unbounded sync. */
 export const OWNER_LIST_LIMIT = 200;
+
+/** Stored statuses of a receivable / payable that still has a balance (`overdue` is legacy). */
+export const OPEN_ITEM_STATUSES = ['pending', 'partial', 'overdue'];
 /** Marketplace directory page size. */
 export const MARKET_LIST_LIMIT = 100;
 /** Firestore `in` operator max values per query. */
@@ -453,7 +457,37 @@ export function subscribeTransactions(
   );
 }
 
-export function subscribeReceivables(
+/**
+ * Every transaction dated within `[start, end]`, uncapped — period totals,
+ * trends and reports must not silently drop older rows the way the capped
+ * {@link subscribeTransactions} feed would.
+ */
+export function subscribeTransactionsInRange(
+  ownerUid: string,
+  start: Date,
+  end: Date,
+  onData: (rows: Transaction[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'gemtrack_transactions'),
+      where('ownerUid', '==', ownerUid),
+      where('date', '>=', Timestamp.fromDate(start)),
+      where('date', '<=', Timestamp.fromDate(end)),
+      orderBy('date', 'desc'),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction),
+    onData,
+    onError,
+  );
+}
+
+/**
+ * Every unsettled receivable — uncapped, so outstanding totals and due buckets
+ * are complete. Settled history is paginated separately.
+ */
+export function subscribeOpenReceivables(
   ownerUid: string,
   onData: (rows: Receivable[]) => void,
   onError?: ErrCb,
@@ -462,7 +496,7 @@ export function subscribeReceivables(
     query(
       collection(getFirebaseDb(), 'gemtrack_receivables'),
       where('ownerUid', '==', ownerUid),
-      limit(OWNER_LIST_LIMIT),
+      where('status', 'in', OPEN_ITEM_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Receivable),
     onData,
@@ -470,7 +504,8 @@ export function subscribeReceivables(
   );
 }
 
-export function subscribePayables(
+/** Every unsettled payable — see {@link subscribeOpenReceivables}. */
+export function subscribeOpenPayables(
   ownerUid: string,
   onData: (rows: Payable[]) => void,
   onError?: ErrCb,
@@ -479,7 +514,7 @@ export function subscribePayables(
     query(
       collection(getFirebaseDb(), 'gemtrack_payables'),
       where('ownerUid', '==', ownerUid),
-      limit(OWNER_LIST_LIMIT),
+      where('status', 'in', OPEN_ITEM_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Payable),
     onData,
