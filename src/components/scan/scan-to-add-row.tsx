@@ -120,7 +120,7 @@ const TARGETS: TargetConfig[] = [
 ];
 
 /** Let a closing sheet finish animating before the camera UI is presented. */
-const SHEET_CLOSE_MS = 350;
+export const SHEET_CLOSE_MS = 350;
 const TILE_MIN_WIDTH = 66;
 
 /**
