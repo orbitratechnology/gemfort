@@ -1,12 +1,13 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { format, isToday, isYesterday } from 'date-fns';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useMoneyChartTheme } from '@/components/money/money-chart-theme';
+import { SegmentedControl } from '@/components/money/segmented-control';
 import {
-  Accent,
   IconBubble,
   KeyStats,
   ListItem,
@@ -33,6 +34,14 @@ import { formatRelativeTime } from '@/lib/utils';
 import { useAuth } from '@/providers/auth-provider';
 import type { Payment } from '@/types';
 
+type Direction = 'all' | 'in' | 'out';
+
+const DIRECTIONS = [
+  { id: 'all', label: 'All' },
+  { id: 'in', label: 'Received' },
+  { id: 'out', label: 'Paid out' },
+] as const;
+
 type Entry =
   | { kind: 'header'; key: string; title: string; net: number }
   | { kind: 'row'; key: string; item: Payment; isLast: boolean };
@@ -53,9 +62,11 @@ export default function PaymentsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const { formatBase, formatStored } = usePreferredMoney();
+  const chart = useMoneyChartTheme();
+  const [direction, setDirection] = useState<Direction>('all');
 
   const {
-    items: payments,
+    items: allPayments,
     refetch,
     isRefetching,
     hasNextPage,
@@ -79,6 +90,11 @@ export default function PaymentsScreen() {
     const map = new Map(contacts.map((c) => [c.id, c.displayName?.trim() || null]));
     return (id: string | null) => (id ? map.get(id) ?? null : null);
   }, [contacts]);
+
+  const payments = useMemo(
+    () => (direction === 'all' ? allPayments : allPayments.filter((p) => p.direction === direction)),
+    [allPayments, direction],
+  );
 
   const { entries, received, paidOut } = useMemo(() => {
     let inTotal = 0;
@@ -118,7 +134,7 @@ export default function PaymentsScreen() {
           <ListSectionHeader
             title={entry.title}
             trailing={`${entry.net > 0 ? '+' : entry.net < 0 ? '−' : ''}${formatBase(Math.abs(entry.net))}`}
-            trailingColor={entry.net > 0 ? Accent.emerald : undefined}
+            trailingColor={entry.net > 0 ? chart.income : undefined}
           />
         </View>
       );
@@ -128,7 +144,7 @@ export default function PaymentsScreen() {
     const isIn = item.direction === 'in';
     const source = sourceOfPayment(item);
     const sourceMeta = getPaymentSourceMeta(source?.type);
-    const href = source ? paymentSourceHref(source.type, source.id) : null;
+    const href = paymentSourceHref(source.type, source.id);
     const party = contactName(item.contactId);
     const directionLabel = isIn ? 'Payment received' : 'Payment made';
 
@@ -137,12 +153,12 @@ export default function PaymentsScreen() {
         leading={
           <IconBubble
             icon={isIn ? 'south-west' : 'north-east'}
-            accent={isIn ? Accent.emerald : Accent.amber}
+            accent={isIn ? chart.income : chart.expense}
             size={40}
           />
         }
         title={party ?? directionLabel}
-        subtitle={[party ? directionLabel : null, source ? sourceMeta.label : null, item.paymentMethod]
+        subtitle={[party ? directionLabel : null, source.type ? sourceMeta.label : null, item.paymentMethod]
           .filter(Boolean)
           .join(' · ')}
         meta={[
@@ -159,7 +175,7 @@ export default function PaymentsScreen() {
           currency: item.currency,
           amountBase: item.amountBase,
         })}`}
-        amountColor={isIn ? Accent.emerald : undefined}
+        amountColor={isIn ? chart.income : undefined}
         onPress={href ? () => router.push(href) : undefined}
         isLast={isLast}
       />
@@ -181,20 +197,41 @@ export default function PaymentsScreen() {
         }}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
-          payments.length > 0 ? (
-            <TitleBand
-              title={`${net > 0 ? '+' : net < 0 ? '−' : ''}${formatBase(Math.abs(net))}`}
-              subtitle={`Net across ${payments.length} payment${payments.length === 1 ? '' : 's'}`}
-            >
-              <KeyStats
-                items={[
-                  { label: 'Received', value: formatBase(received), color: Accent.emerald },
-                  { label: 'Paid out', value: formatBase(paidOut) },
-                  { label: 'Payments', value: String(payments.length) },
-                ]}
+          <View>
+            {payments.length > 0 ? (
+              <TitleBand
+                fitTitle
+                title={
+                  direction === 'all'
+                    ? `${net > 0 ? '+' : net < 0 ? '−' : ''}${formatBase(Math.abs(net))}`
+                    : formatBase(direction === 'in' ? received : paidOut)
+                }
+                subtitle={`${direction === 'all' ? 'Net' : direction === 'in' ? 'Received' : 'Paid out'} across ${
+                  payments.length
+                } ${hasNextPage ? 'loaded ' : ''}payment${payments.length === 1 ? '' : 's'}${
+                  hasNextPage ? ' · scroll for more' : ''
+                }`}
+              >
+                {direction === 'all' ? (
+                  <KeyStats
+                    items={[
+                      { label: 'Received', value: formatBase(received), color: chart.income },
+                      { label: 'Paid out', value: formatBase(paidOut) },
+                      { label: 'Payments', value: String(payments.length) },
+                    ]}
+                  />
+                ) : null}
+              </TitleBand>
+            ) : null}
+            <View style={styles.filters}>
+              <SegmentedControl
+                accessibilityLabel="Show"
+                options={DIRECTIONS}
+                value={direction}
+                onChange={setDirection}
               />
-            </TitleBand>
-          ) : null
+            </View>
+          </View>
         }
         ListFooterComponent={
           <InfiniteListFooter
@@ -207,8 +244,12 @@ export default function PaymentsScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="payments"
-            title="No payments yet"
-            subtitle="Partial payments on receivables and payables appear here with commission if recorded."
+            title={direction === 'all' ? 'No payments yet' : 'No matching payments'}
+            subtitle={
+              direction === 'all'
+                ? 'Payments recorded against receivables, payables and bills appear here.'
+                : 'Switch to All to see every payment.'
+            }
           />
         }
         renderItem={renderEntry}
@@ -221,4 +262,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   list: { paddingBottom: Spacing.section },
   bandHeader: { marginTop: 8 },
+  filters: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
 });

@@ -273,7 +273,7 @@ export default function RecordSaleScreen() {
                   ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
                   : formatFace(salePrice, price.currency)
               }
-              pill={`ROI ${roi}%`}
+              pill={costBasis > 0 ? `ROI ${roi}%` : null}
             />
           </FormSection>
         ) : null}

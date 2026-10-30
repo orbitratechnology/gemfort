@@ -1,10 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Timestamp } from '@/lib/firebase/db';
+
+import { useMoneyChartTheme } from '@/components/money/money-chart-theme';
+import { SegmentedControl } from '@/components/money/segmented-control';
+import { ChipSelect } from '@/components/ui/chip-select';
+import { getCategoryMeta, MANUAL_CATEGORIES } from '@/constants/transaction-categories';
 
 import { ScanFillStatus } from '@/components/scan/scan-fill-status';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
@@ -14,7 +19,6 @@ import {
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
 import {
-  Accent,
   Callout,
   IconBubble,
   KeyStats,
@@ -29,7 +33,7 @@ import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
 import { SearchField } from '@/components/ui/search-field';
-import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
+import { Spacing } from '@/constants/design-tokens';
 import { GemThumb } from '@/components/workspace/gem-thumb';
 import {
   getPaymentSourceMeta,
@@ -72,10 +76,19 @@ function timeLabel(t: Transaction): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-const TYPE_OPTIONS = [
-  { id: 'income', label: 'Income', icon: 'arrow-downward', accent: Accent.emerald },
-  { id: 'expense', label: 'Expense', icon: 'arrow-upward', accent: Accent.rose },
+type EntryType = 'income' | 'expense';
+type Filter = 'all' | EntryType;
+
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'income', label: 'Income' },
+  { id: 'expense', label: 'Expenses' },
 ] as const;
+
+const DEFAULT_CATEGORY: Record<EntryType, string> = {
+  income: 'other_income',
+  expense: 'general',
+};
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
@@ -84,7 +97,10 @@ export default function TransactionsScreen() {
   const { formatBase, formatFace, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [type, setType] = useState<'income' | 'expense'>('income');
+  const chart = useMoneyChartTheme();
+  const [type, setType] = useState<EntryType>('income');
+  const [category, setCategory] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: '',
     currency: preferred,
@@ -95,8 +111,18 @@ export default function TransactionsScreen() {
   // A scanned receipt (Scan & add) opens the new-transaction sheet with it
   // attached. Applied during render so it also works when this tab is
   // already mounted; each scan has a fresh file URI.
-  const { receiptUri } = useLocalSearchParams<{ receiptUri?: string }>();
+  const { receiptUri, compose } = useLocalSearchParams<{
+    receiptUri?: string;
+    compose?: EntryType;
+  }>();
   const [appliedReceiptUri, setAppliedReceiptUri] = useState<string | null>(null);
+  // "Add income" / "Add expense" on the Money overview open the sheet preset.
+  const [appliedCompose, setAppliedCompose] = useState<string | null>(null);
+  if (compose && compose !== appliedCompose && !receiptUri) {
+    setAppliedCompose(compose);
+    setType(compose === 'expense' ? 'expense' : 'income');
+    setShowForm(true);
+  }
   if (receiptUri && receiptUri !== appliedReceiptUri) {
     setAppliedReceiptUri(receiptUri);
     setReceipt({
@@ -167,14 +193,22 @@ export default function TransactionsScreen() {
     enabled: !!user,
   });
 
+  // A category picked for the other type falls back to this type's default.
+  const entryCategory =
+    category && MANUAL_CATEGORIES[type].includes(category) ? category : DEFAULT_CATEGORY[type];
+
   const filteredTransactions = useMemo(() => {
-    if (!debouncedSearch) return transactions;
     const q = debouncedSearch.toLowerCase();
-    return transactions.filter(t =>
-      t.description?.toLowerCase().includes(q) ||
-      t.category?.toLowerCase().includes(q)
-    );
-  }, [transactions, debouncedSearch]);
+    return transactions.filter((t) => {
+      if (filter !== 'all' && t.type !== filter) return false;
+      if (!q) return true;
+      return (
+        t.description?.toLowerCase().includes(q) ||
+        t.category?.toLowerCase().includes(q) ||
+        getCategoryMeta(t.category).label.toLowerCase().includes(q)
+      );
+    });
+  }, [transactions, debouncedSearch, filter]);
 
   const sections = useMemo(() => groupTransactionsByDate(filteredTransactions), [filteredTransactions]);
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
@@ -209,7 +243,7 @@ export default function TransactionsScreen() {
         type: result.data.type,
         amount: result.data.amount,
         currency: money.currency,
-        category: 'general',
+        category: entryCategory,
         description:
           result.data.description ||
           (type === 'income' ? 'Income' : 'Expense'),
@@ -223,7 +257,9 @@ export default function TransactionsScreen() {
       setReceipt(null);
       setScanDate(null);
       setScanFilled(null);
+      setCategory(null);
       setShowForm(false);
+      toast.success(result.data.type === 'income' ? 'Income recorded' : 'Expense recorded');
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save entry.'));
@@ -245,6 +281,12 @@ export default function TransactionsScreen() {
             value={search}
             onChangeText={setSearch}
           />
+          <SegmentedControl
+            accessibilityLabel="Show"
+            options={FILTERS}
+            value={filter}
+            onChange={setFilter}
+          />
         </View>
 
         <SectionList
@@ -259,18 +301,23 @@ export default function TransactionsScreen() {
           ListHeaderComponent={
             filteredTransactions.length > 0 ? (
               <TitleBand
-                title={signed(totals.net)}
-                subtitle={`Net across ${filteredTransactions.length} transaction${
-                  filteredTransactions.length === 1 ? '' : 's'
-                }${debouncedSearch ? ' matching your search' : ''}`}
+                fitTitle
+                title={filter === 'all' ? signed(totals.net) : formatBase(filter === 'income' ? totals.income : totals.expense)}
+                subtitle={`${filter === 'all' ? 'Net' : filter === 'income' ? 'Income' : 'Spent'} across ${
+                  filteredTransactions.length
+                } ${hasNextPage ? 'loaded ' : ''}entr${filteredTransactions.length === 1 ? 'y' : 'ies'}${
+                  debouncedSearch ? ' matching your search' : ''
+                }${hasNextPage ? ' · scroll for more' : ''}`}
               >
-                <KeyStats
-                  items={[
-                    { label: 'Income', value: `+${formatBase(totals.income)}`, color: Accent.emerald },
-                    { label: 'Expenses', value: `−${formatBase(totals.expense)}` },
-                    { label: 'Entries', value: String(filteredTransactions.length) },
-                  ]}
-                />
+                {filter === 'all' ? (
+                  <KeyStats
+                    items={[
+                      { label: 'Income', value: `+${formatBase(totals.income)}`, color: chart.income },
+                      { label: 'Expenses', value: `−${formatBase(totals.expense)}` },
+                      { label: 'Entries', value: String(filteredTransactions.length) },
+                    ]}
+                  />
+                ) : null}
               </TitleBand>
             ) : undefined
           }
@@ -287,7 +334,15 @@ export default function TransactionsScreen() {
           keyboardShouldPersistTaps="handled"
           renderScrollComponent={(props) => <ScrollView {...props} />}
           ListEmptyComponent={
-            <EmptyState icon="receipt-long" title="No transactions yet" subtitle="Tap + to record one." />
+            <EmptyState
+              icon="receipt-long"
+              title={debouncedSearch || filter !== 'all' ? 'No matching transactions' : 'No transactions yet'}
+              subtitle={
+                debouncedSearch || filter !== 'all'
+                  ? 'Try another search or show all entries.'
+                  : 'Tap + to record income or an expense.'
+              }
+            />
           }
           renderSectionHeader={({ section }) => {
             const dayNet = section.data.reduce((sum, t) => sum + signedBase(t), 0);
@@ -296,7 +351,7 @@ export default function TransactionsScreen() {
                 <ListSectionHeader
                   title={section.title}
                   trailing={signed(dayNet)}
-                  trailingColor={dayNet > 0 ? Accent.emerald : undefined}
+                  trailingColor={dayNet > 0 ? chart.income : undefined}
                 />
               </View>
             );
@@ -305,8 +360,7 @@ export default function TransactionsScreen() {
             const linkedGem = item.gemId ? gemById.get(item.gemId) : null;
             const isIncome = item.type === 'income';
             const source = sourceOfTransaction(item);
-            const sourceMeta = getPaymentSourceMeta(source?.type);
-            const href = source ? paymentSourceHref(source.type, source.id) : null;
+            const href = paymentSourceHref(source.type, source.id);
             return (
               <ListItem
                 leading={
@@ -320,15 +374,15 @@ export default function TransactionsScreen() {
                   ) : (
                     <IconBubble
                       icon={isIncome ? 'south-west' : 'north-east'}
-                      accent={isIncome ? Accent.emerald : Accent.rose}
+                      accent={isIncome ? chart.income : chart.expense}
                       size={40}
                     />
                   )
                 }
                 title={item.description || 'Transaction'}
                 subtitle={[
-                  item.category || 'General',
-                  source ? sourceMeta.label : null,
+                  getCategoryMeta(item.category).label,
+                  source.type ? getPaymentSourceMeta(source.type).label : null,
                   linkedGem ? `Linked: ${linkedGem.sku}` : null,
                 ]
                   .filter(Boolean)
@@ -339,7 +393,7 @@ export default function TransactionsScreen() {
                   currency: item.currency,
                   amountBase: item.amountBase,
                 })}`}
-                amountColor={isIncome ? Accent.emerald : undefined}
+                amountColor={isIncome ? chart.income : undefined}
                 onPress={href ? () => router.push(href) : undefined}
                 isLast={index === section.data.length - 1}
               />
@@ -368,9 +422,14 @@ export default function TransactionsScreen() {
         onClose={() => {
           if (!adding) setShowForm(false);
         }}
-        title="New Transaction"
+        title={type === 'income' ? 'Add income' : 'Add expense'}
         footer={
-          <Button title="Add Transaction" icon="add" loading={adding} onPress={handleAdd} />
+          <Button
+            title={type === 'income' ? 'Save income' : 'Save expense'}
+            icon="check"
+            loading={adding}
+            onPress={handleAdd}
+          />
         }
       >
         <ScanFillStatus
@@ -379,40 +438,15 @@ export default function TransactionsScreen() {
           document="receipt"
           style={styles.scanStatus}
         />
-        <View
-          style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}
-          accessibilityRole="radiogroup"
-        >
-          {TYPE_OPTIONS.map((opt) => {
-            const active = type === opt.id;
-            return (
-              <Pressable
-                key={opt.id}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: active }}
-                onPress={() => setType(opt.id)}
-                style={[
-                  styles.segmentBtn,
-                  active && { backgroundColor: `${opt.accent}1A` },
-                ]}
-              >
-                <Icon
-                  name={opt.icon}
-                  size={16}
-                  color={active ? opt.accent : colors.onSurfaceVariant}
-                />
-                <Text
-                  style={[
-                    styles.segmentText,
-                    { color: active ? opt.accent : colors.onSurfaceVariant },
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          accessibilityLabel="Entry type"
+          options={[
+            { id: 'income', label: 'Income', icon: 'south-west', accent: chart.income },
+            { id: 'expense', label: 'Expense', icon: 'north-east', accent: chart.expense },
+          ]}
+          value={type}
+          onChange={setType}
+        />
         <CurrencyAmountField
           label="Amount"
           value={money}
@@ -427,7 +461,23 @@ export default function TransactionsScreen() {
           }}
           error={errors.amount}
         />
-        <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
+        <ChipSelect
+          label="Category"
+          options={MANUAL_CATEGORIES[type].map((value) => ({
+            value,
+            label: getCategoryMeta(value).label,
+            icon: getCategoryMeta(value).icon,
+          }))}
+          value={entryCategory}
+          onChange={setCategory}
+        />
+        <Input
+          label="Description"
+          value={description}
+          onChangeText={setDescription}
+          placeholder={type === 'income' ? 'e.g. Sale of Sapphire' : 'e.g. Courier to Colombo'}
+          leftIcon="notes"
+        />
         <ReceiptField
           value={receipt}
           onChange={(next) => {
@@ -441,7 +491,7 @@ export default function TransactionsScreen() {
           <Callout
             style={styles.preview}
             icon={type === 'income' ? 'south-west' : 'north-east'}
-            accent={type === 'income' ? Accent.emerald : Accent.rose}
+            accent={type === 'income' ? chart.income : chart.expense}
             label={type === 'income' ? 'Recording income' : 'Recording expense'}
             value={`${type === 'income' ? '+' : '−'}${formatFace(draftAmount, money.currency)}`}
           />
@@ -459,25 +509,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.stackMd,
+    gap: Spacing.md,
   },
   list: { paddingBottom: 100 },
   bandHeader: { marginTop: 8 },
-  segment: {
-    flexDirection: 'row',
-    padding: 4,
-    borderRadius: Radius.full,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    minHeight: 40,
-    flexDirection: 'row',
-    gap: 6,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentText: { fontFamily: FontFamily.semibold, fontSize: 14, includeFontPadding: false },
   preview: { marginTop: 0 },
   fab: {
     position: 'absolute',

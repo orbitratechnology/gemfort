@@ -1,4 +1,4 @@
-import { BASE_CURRENCY, type CurrencyCode } from '@/constants/currencies';
+import { BASE_CURRENCY, getCurrencySymbol, type CurrencyCode } from '@/constants/currencies';
 import {
   convertFromBaseSync,
   convertToBaseSync,
@@ -9,6 +9,29 @@ import { formatCurrency } from '@/lib/utils';
 /** Format a face amount in its own currency. Alias kept for gradual migration. */
 export function formatMoney(amount: number, currency = BASE_CURRENCY): string {
   return formatCurrency(amount, currency);
+}
+
+/**
+ * Short money label for tight spots (chart axes, tiles): `Rs 1.25M`, `$ 940`.
+ * Keeps the sign; below 10,000 it shows the whole number.
+ */
+export function formatCompactMoney(amount: number, currency = BASE_CURRENCY): string {
+  const symbol = getCurrencySymbol(currency);
+  const sign = amount < 0 ? '−' : '';
+  const abs = Math.abs(amount);
+  const units: [number, string][] = [
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  for (const [size, suffix] of units) {
+    if (abs >= size && (size > 1e3 || abs >= 1e4)) {
+      const value = abs / size;
+      const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+      return `${sign}${symbol} ${Number(value.toFixed(digits))}${suffix}`;
+    }
+  }
+  return `${sign}${symbol} ${Math.round(abs).toLocaleString('en-LK')}`;
 }
 
 /**

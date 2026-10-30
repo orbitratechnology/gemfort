@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { addDays, startOfDay } from 'date-fns';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
@@ -9,6 +10,7 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { ChipSelect } from '@/components/ui/chip-select';
 import { Accent, Callout } from '@/components/ui/detail-kit';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
@@ -34,6 +36,16 @@ import { addPayableSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 
+/** Common credit terms in the gem trade; the due date counts from today. */
+const CREDIT_TERMS = [
+  { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' },
+  { value: '30', label: '30 days' },
+  { value: '60', label: '60 days' },
+  { value: '90', label: '90 days' },
+] as const;
+type CreditTerm = (typeof CREDIT_TERMS)[number]['value'];
+
 export default function AddPayableScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
@@ -48,6 +60,7 @@ export default function AddPayableScreen() {
     currency: preferred,
   });
   const [title, setTitle] = useState('');
+  const [termDays, setTermDays] = useState<CreditTerm>('14');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
@@ -87,7 +100,7 @@ export default function AddPayableScreen() {
 
     setErrors({});
     try {
-      const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
+      const due = Timestamp.fromDate(addDays(startOfDay(new Date()), Number(termDays)));
       await createPayable(user.uid, {
         contactId: result.data.contactId ?? null,
         amount: result.data.amount,
@@ -136,7 +149,7 @@ export default function AddPayableScreen() {
             accent={Accent.amber}
             label={contactName ? `You'll pay ${contactName}` : 'You owe'}
             value={draftAmount > 0 ? formatFace(draftAmount, money.currency) : 'Enter an amount'}
-            pill="Due in 14 days"
+            pill={`Due in ${termDays} days`}
           />
         </FormSection>
         <FormSection title="Contact">
@@ -172,6 +185,12 @@ export default function AddPayableScreen() {
             placeholder="e.g. Advance for parcel"
             leftIcon="notes"
             error={errors.title}
+          />
+          <ChipSelect
+            label="Due in"
+            options={[...CREDIT_TERMS]}
+            value={termDays}
+            onChange={setTermDays}
           />
         </FormSection>
       </ThemedScrollView>

@@ -1,7 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { router } from "expo-router";
-import { useTourTarget } from "@/lib/tour-target";
+import { router, type Href } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
     Pressable,
@@ -13,22 +11,25 @@ import {
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CashFlowChart } from "@/components/money/cash-flow-chart";
+import { moneySeries, useMoneyChartTheme } from "@/components/money/money-chart-theme";
+import { SegmentedControl } from "@/components/money/segmented-control";
+import { SpendBreakdown } from "@/components/money/spend-breakdown";
+import { TourHelpButton } from "@/components/onboarding/tour-help-button";
+import { IconBubble, ListItem } from "@/components/ui/detail-kit";
 import {
     FormSection,
     FormSectionLabel,
     ScreenInset,
 } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
-import { TourHelpButton } from "@/components/onboarding/tour-help-button";
-import { CashFlowGraph } from "@/components/workspace/cash-flow-graph";
 import { DateRangeSheet } from "@/components/workspace/date-range-sheet";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
 import {
-    subscribeCheques,
     subscribeOpenPayables,
     subscribeOpenReceivables,
     subscribeTransactionsInRange,
@@ -53,21 +54,60 @@ import {
     sourceOfTransaction,
 } from "@/features/workspace/payment-source";
 import {
-    fetchCheques,
+    effectivePayableStatus,
+    effectiveReceivableStatus,
+} from "@/features/workspace/payment-utils";
+import {
     fetchOpenPayables,
     fetchOpenReceivables,
     fetchTransactionsInRange,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { useTourTarget } from "@/lib/tour-target";
 import { useAuth } from "@/providers/auth-provider";
 
 const MONEY = "/(marketplace)/(tabs)/money";
+const RECENT_LIMIT = 6;
+
+const COMPARISON_LABEL: Record<MoneyPeriod, string> = {
+  this_month: "vs last month",
+  last_month: "vs the month before",
+  this_year: "vs last year",
+};
+
+type QuickAction = {
+  key: string;
+  label: string;
+  icon: IconName;
+  href: Href;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { key: "sale", label: "Record sale", icon: "price-check", href: "/(marketplace)/money/record-sale" as Href },
+  {
+    key: "income",
+    label: "Add income",
+    icon: "south-west",
+    href: { pathname: `${MONEY}/transactions`, params: { compose: "income" } } as Href,
+  },
+  {
+    key: "expense",
+    label: "Add expense",
+    icon: "north-east",
+    href: { pathname: `${MONEY}/transactions`, params: { compose: "expense" } } as Href,
+  },
+  { key: "ledger", label: "Transactions", icon: "receipt-long", href: `${MONEY}/transactions` as Href },
+  { key: "payments", label: "Payments", icon: "payments", href: `${MONEY}/payments` as Href },
+  { key: "reports", label: "Reports", icon: "picture-as-pdf", href: `${MONEY}/reports` as Href },
+];
 
 export default function MoneyDashboard() {
   const { user } = useAuth();
-  const { colors } = useAppTheme();
-  const { formatBase, formatStored } = usePreferredMoney();
+  const { colors, isDark } = useAppTheme();
+  const chart = useMoneyChartTheme();
+  const { formatBase, formatBaseCompact, formatStored } = usePreferredMoney();
   const uid = user?.uid;
 
   const [period, setPeriod] = useState<MoneyPeriod>("this_month");
@@ -104,16 +144,11 @@ export default function MoneyDashboard() {
     subscribe: (onData, onError) => subscribeOpenPayables(uid!, onData, onError),
     enabled: !!uid,
   });
-  const chequeQuery = useFirestoreLiveQuery({
-    queryKey: ["cheques", uid],
-    queryFn: () => fetchCheques(uid!),
-    subscribe: (onData, onError) => subscribeCheques(uid!, onData, onError),
-    enabled: !!uid,
-  });
 
   const transactions = useMemo(() => txQuery.data ?? [], [txQuery.data]);
   const receivables = useMemo(() => recQuery.data ?? [], [recQuery.data]);
   const payables = useMemo(() => payQuery.data ?? [], [payQuery.data]);
+  const loadingTx = txQuery.isLoading && !txQuery.data;
 
   const range = useMemo(
     () => customRange ?? getPeriodRange(period),
@@ -137,39 +172,50 @@ export default function MoneyDashboard() {
         : getCashFlowBuckets(transactions, period),
     [transactions, period, customRange],
   );
-  const categories = useMemo(
-    () => getCategoryBreakdown(transactions, range, "expense").slice(0, 4),
+  const spend = useMemo(
+    () => getCategoryBreakdown(transactions, range, "expense"),
     [transactions, range],
   );
   const outstanding = useMemo(
     () => getOutstanding(receivables, payables),
     [receivables, payables],
   );
-
-  const maxCategory = Math.max(1, ...categories.map((c) => c.amount));
-  const rangedTransactions = useMemo(
+  const overdue = useMemo(
+    () => ({
+      collect: receivables.filter((r) => effectiveReceivableStatus(r) === "overdue").length,
+      pay: payables.filter((p) => effectivePayableStatus(p) === "overdue").length,
+    }),
+    [receivables, payables],
+  );
+  const recent = useMemo(
     () =>
-      transactions.filter((t) => {
-        const date = t.date.toDate();
-        return date >= range.start && date <= range.end;
-      }),
+      transactions
+        .filter((t) => {
+          const date = t.date?.toDate?.();
+          return !!date && date >= range.start && date <= range.end;
+        })
+        .slice(0, RECENT_LIMIT),
     [transactions, range],
   );
-  const recent = rangedTransactions.slice(0, 5);
 
-  const onPrimarySoft = colors.onPrimary + "99";
-  const onPrimaryHair = colors.onPrimary + "24";
+  const heroSeries = moneySeries(!isDark);
+  const heroInk = colors.onPrimary;
+  const heroSoft = colors.onPrimary + "A6";
+  const heroHair = colors.onPrimary + "24";
+  const flowTotal = income + expense;
+  const comparison = customRange
+    ? "vs the previous span"
+    : COMPARISON_LABEL[period];
 
   const onRefresh = () => {
-    txQuery.refetch();
-    recQuery.refetch();
-    payQuery.refetch();
-    chequeQuery.refetch();
+    void txQuery.refetch();
+    void recQuery.refetch();
+    void payQuery.refetch();
   };
 
-  const selectPeriod = (id: MoneyPeriod) => {
+  const clearRange = () => {
     setCustomRange(null);
-    setPeriod(id);
+    setPeriod("this_month");
   };
 
   return (
@@ -202,9 +248,9 @@ export default function MoneyDashboard() {
             <TourHelpButton tourId="money" />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="PDF Reports"
+              accessibilityLabel="PDF reports"
               hitSlop={8}
-              onPress={() => router.push(`${MONEY}/reports` as never)}
+              onPress={() => router.push(`${MONEY}/reports` as Href)}
               style={styles.headerBtn}
             >
               <Icon name="picture-as-pdf" size={24} color={colors.onSurface} />
@@ -219,437 +265,271 @@ export default function MoneyDashboard() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={txQuery.isRefetching || chequeQuery.isRefetching}
+            refreshing={txQuery.isRefetching || recQuery.isRefetching || payQuery.isRefetching}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
         }
       >
         <ScreenInset style={styles.inset}>
-          {/* Period segmented control */}
-          <View
-            ref={periodTourTarget}
-            collapsable={false}
-            style={[
-              styles.segment,
-              { backgroundColor: colors.surfaceContainerLow },
-            ]}
-          >
-            {MONEY_PERIODS.map((p) => {
-              const active = !customRange && period === p.id;
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => selectPeriod(p.id)}
-                  style={[
-                    styles.segmentBtn,
-                    active && {
-                      backgroundColor: colors.surfaceContainerLowest,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      {
-                        color: active
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View ref={periodTourTarget} collapsable={false}>
+            <SegmentedControl
+              accessibilityLabel="Period"
+              options={MONEY_PERIODS}
+              value={customRange ? null : period}
+              onChange={(id) => {
+                setCustomRange(null);
+                setPeriod(id);
+              }}
+            />
           </View>
 
           {customRange ? (
-            <Pressable
-              onPress={() => setCalendarOpen(true)}
+            <View
               style={[
                 styles.rangeChip,
-                {
-                  backgroundColor: colors.primary + "14",
-                  borderColor: colors.primary + "33",
-                },
+                { backgroundColor: colors.surfaceContainerHigh },
               ]}
             >
-              <Icon name="date-range" size={16} color={colors.primary} />
-              <Text
-                selectable={false}
-                style={[styles.rangeChipText, { color: colors.primary }]}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Date range ${customRange.label}. Change`}
+                onPress={() => setCalendarOpen(true)}
+                style={styles.rangeChipMain}
               >
-                {customRange.label}
-              </Text>
+                <Icon name="date-range" size={16} color={colors.onSurface} />
+                <Text
+                  style={[styles.rangeChipText, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {customRange.label}
+                </Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Clear date filter"
-                hitSlop={8}
-                onPress={() => {
-                  setCustomRange(null);
-                  setPeriod("this_month");
-                }}
+                hitSlop={10}
+                onPress={clearRange}
+                style={styles.rangeChipClear}
               >
-                <Icon name="close" size={16} color={colors.primary} />
+                <Icon name="close" size={16} color={colors.onSurfaceVariant} />
               </Pressable>
-            </Pressable>
+            </View>
           ) : null}
 
           {/* Net profit hero */}
           <View style={[styles.hero, { backgroundColor: colors.primary }]}>
             <View style={styles.heroTop}>
-              <Text style={[styles.heroLabel, { color: onPrimarySoft }]}>
-                NET PROFIT
+              <Text style={[styles.heroLabel, { color: heroSoft }]} numberOfLines={1}>
+                NET PROFIT · {range.label.toUpperCase()}
               </Text>
-              <View
-                style={[styles.trendBadge, { backgroundColor: onPrimaryHair }]}
-              >
-                <Icon
-                  name={trend.up ? "trending-up" : "trending-down"}
-                  size={14}
-                  color={colors.onPrimary}
-                />
-                <Text style={[styles.trendText, { color: colors.onPrimary }]}>
-                  {trend.up ? "+" : ""}
-                  {trend.pct}%
-                </Text>
-              </View>
             </View>
 
-            <Text style={[styles.heroValue, { color: colors.onPrimary }]}>
-              {formatBase(net)}
+            <Text
+              style={[styles.heroValue, { color: heroInk }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              accessibilityLabel={`Net profit ${net < 0 ? "minus " : ""}${formatBase(Math.abs(net))}`}
+            >
+              {loadingTx ? "—" : `${net < 0 ? "−" : ""}${formatBase(Math.abs(net))}`}
             </Text>
 
+            <View style={styles.trendRow}>
+              {trend.pct == null ? (
+                <Text style={[styles.trendText, { color: heroSoft }]} numberOfLines={1}>
+                  No earlier activity to compare
+                </Text>
+              ) : (
+                <>
+                  <View style={[styles.trendBadge, { backgroundColor: heroHair }]}>
+                    <Icon
+                      name={trend.up ? "trending-up" : "trending-down"}
+                      size={14}
+                      color={heroInk}
+                    />
+                    <Text style={[styles.trendValue, { color: heroInk }]}>
+                      {trend.up ? "+" : "−"}
+                      {Math.abs(trend.pct)}%
+                    </Text>
+                  </View>
+                  <Text style={[styles.trendText, { color: heroSoft }]} numberOfLines={1}>
+                    {comparison}
+                  </Text>
+                </>
+              )}
+            </View>
+
+            {/* Share of money in vs out this period */}
             <View
-              style={[styles.heroDivider, { backgroundColor: onPrimaryHair }]}
-            />
+              style={[styles.flowBar, { backgroundColor: heroHair }]}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {flowTotal > 0 ? (
+                <>
+                  <View style={{ flexGrow: income, backgroundColor: heroSeries.income }} />
+                  <View style={{ flexGrow: expense, backgroundColor: heroSeries.expense }} />
+                </>
+              ) : null}
+            </View>
 
             <View style={styles.heroSplit}>
-              <View style={styles.heroCol}>
-                <View style={styles.heroColLabel}>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: colors.successEmerald },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.heroColCaption, { color: onPrimarySoft }]}
-                  >
-                    Income
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.heroColValue, { color: colors.onPrimary }]}
-                >
-                  {formatBase(income)}
-                </Text>
-              </View>
-              <View style={styles.heroCol}>
-                <View style={styles.heroColLabel}>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: colors.warningAmber },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.heroColCaption, { color: onPrimarySoft }]}
-                  >
-                    Expenses
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.heroColValue, { color: colors.onPrimary }]}
-                >
-                  {formatBase(expense)}
-                </Text>
-              </View>
+              <HeroFigure
+                color={heroSeries.income}
+                label="Income"
+                value={loadingTx ? "—" : formatBase(income)}
+                ink={heroInk}
+                soft={heroSoft}
+              />
+              <View style={[styles.heroDivider, { backgroundColor: heroHair }]} />
+              <HeroFigure
+                color={heroSeries.expense}
+                label="Expenses"
+                value={loadingTx ? "—" : formatBase(expense)}
+                ink={heroInk}
+                soft={heroSoft}
+              />
             </View>
+          </View>
+
+          {/* Quick actions */}
+          <View style={styles.actionsGrid}>
+            {QUICK_ACTIONS.map((action) => (
+              <Pressable
+                key={action.key}
+                ref={action.key === "sale" ? recordSaleTourTarget : undefined}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+                onPress={() => router.push(action.href)}
+                style={({ pressed }) => [
+                  styles.actionTile,
+                  {
+                    backgroundColor: colors.surfaceContainerLowest,
+                    borderColor: colors.outlineVariant,
+                  },
+                  pressed && { backgroundColor: colors.surfaceContainerLow },
+                ]}
+              >
+                <Icon name={action.icon} size={22} color={colors.onSurface} />
+                <Text
+                  style={[styles.actionLabel, { color: colors.onSurface }]}
+                  numberOfLines={2}
+                >
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
 
           {/* Outstanding */}
           <View style={styles.outRow}>
-            <Pressable
-              onPress={() => router.push(`${MONEY}/receivables` as never)}
-              style={({ pressed }) => [
-                styles.outCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.outIcon,
-                  { backgroundColor: colors.successEmerald + "1F" },
-                ]}
-              >
-                <Icon
-                  name="south-west"
-                  size={18}
-                  color={colors.successEmerald}
-                />
-              </View>
-              <Text style={[styles.outValue, { color: colors.onSurface }]}>
-                {formatBase(outstanding.toCollect)}
-              </Text>
-              <Text style={[styles.outLabel, { color: colors.textMuted }]}>
-                To collect
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push(`${MONEY}/payables` as never)}
-              style={({ pressed }) => [
-                styles.outCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.outIcon,
-                  { backgroundColor: colors.warningAmber + "1F" },
-                ]}
-              >
-                <Icon name="north-east" size={18} color={colors.warningAmber} />
-              </View>
-              <Text style={[styles.outValue, { color: colors.onSurface }]}>
-                {formatBase(outstanding.toPay)}
-              </Text>
-              <Text style={[styles.outLabel, { color: colors.textMuted }]}>
-                To pay
-              </Text>
-            </Pressable>
+            <OutstandingCard
+              icon="south-west"
+              accent={chart.income}
+              label="To collect"
+              value={formatBase(outstanding.toCollect)}
+              open={receivables.length}
+              overdue={overdue.collect}
+              overdueColor={chart.overdue}
+              onPress={() => router.push(`${MONEY}/receivables` as Href)}
+            />
+            <OutstandingCard
+              icon="north-east"
+              accent={chart.expense}
+              label="To pay"
+              value={formatBase(outstanding.toPay)}
+              open={payables.length}
+              overdue={overdue.pay}
+              overdueColor={chart.overdue}
+              onPress={() => router.push(`${MONEY}/payables` as Href)}
+            />
           </View>
-
-          {/* Payments */}
-          <Pressable
-            onPress={() => router.push(`${MONEY}/payments` as never)}
-            style={({ pressed }) => [
-              styles.toolCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.surfaceVariant,
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Icon name="payments" size={22} color={colors.primary} />
-            <Text style={[styles.toolLabel, { color: colors.onSurface }]}>
-              Payments
-            </Text>
-          </Pressable>
         </ScreenInset>
 
-        {/* Cash flow */}
         <FormSection title="Cash flow">
-          <CashFlowGraph
-            key={customRange ? customRange.label : period}
+          <CashFlowChart
             buckets={buckets}
             formatAmount={formatBase}
+            formatCompact={formatBaseCompact}
+            loading={loadingTx}
           />
         </FormSection>
 
-        {/* Spend categories */}
-        {categories.length > 0 ? (
-          <FormSection title="Top spend">
-            {categories.map((cat, i) => {
-              const meta = getCategoryMeta(cat.category);
-              return (
-                <View
-                  key={cat.category}
-                  style={[styles.catRow, i > 0 && styles.catRowGap]}
-                >
-                  <View
-                    style={[
-                      styles.catIcon,
-                      { backgroundColor: colors.primary + "14" },
-                    ]}
-                  >
-                    <Icon name={meta.icon} size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.catBody}>
-                    <View style={styles.catTop}>
-                      <Text
-                        style={[styles.catLabel, { color: colors.onSurface }]}
-                        numberOfLines={1}
-                      >
-                        {meta.label}
-                      </Text>
-                      <Text
-                        style={[styles.catAmount, { color: colors.onSurface }]}
-                      >
-                        {formatBase(cat.amount)}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.catTrack,
-                        { backgroundColor: colors.surfaceContainerHigh },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.catFill,
-                          {
-                            backgroundColor: colors.warningAmber,
-                            width: `${(cat.amount / maxCategory) * 100}%`,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+        {spend.length > 0 ? (
+          <FormSection title="Where it went" hint={`${formatBase(expense)} spent ${range.label.toLowerCase()}`}>
+            <SpendBreakdown categories={spend} formatAmount={formatBase} />
           </FormSection>
         ) : null}
 
-        {/* Recent transactions */}
-        <FormSectionLabel title="Recent activity" />
-        <ScreenInset style={styles.sectionHeader}>
-          {rangedTransactions.length > 0 ? (
-            <Pressable
-              onPress={() => router.push(`${MONEY}/transactions` as never)}
-              hitSlop={8}
-              style={styles.viewAllBtn}
-            >
-              <Text style={[styles.viewAll, { color: colors.primary }]}>
-                View all
-              </Text>
-            </Pressable>
-          ) : null}
-        </ScreenInset>
+        <View style={styles.recentHeader}>
+          <FormSectionLabel title="Recent activity" />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View all transactions"
+            onPress={() => router.push(`${MONEY}/transactions` as Href)}
+            hitSlop={8}
+            style={styles.viewAll}
+          >
+            <Text style={[styles.viewAllText, { color: colors.onSurface }]}>View all</Text>
+            <Icon name="chevron-right" size={18} color={colors.onSurface} />
+          </Pressable>
+        </View>
 
         {recent.length > 0 ? (
-          <FormSection>
+          <View>
             {recent.map((t, i) => {
               const meta = getCategoryMeta(t.category);
               const isIncome = t.type === "income";
-              const tone = isIncome ? colors.successEmerald : colors.error;
               const source = sourceOfTransaction(t);
-              const sourceMeta = getPaymentSourceMeta(source?.type);
-              const href = source ? paymentSourceHref(source.type, source.id) : null;
+              const href = paymentSourceHref(source.type, source.id);
+              const date = t.date?.toDate?.();
               return (
-                <Pressable
+                <ListItem
                   key={t.id}
-                  onPress={() => (href ? router.push(href) : undefined)}
-                  disabled={!href}
-                  style={({ pressed }) => [
-                    styles.txRow,
-                    i > 0 && {
-                      borderTopWidth: 1,
-                      borderTopColor: colors.surfaceVariant,
-                    },
-                    pressed && { opacity: 0.85 },
-                  ]}
-                >
-                  <View
-                    style={[styles.txIcon, { backgroundColor: tone + "1A" }]}
-                  >
-                    <Icon
-                      name={isIncome ? "south-west" : "north-east"}
-                      size={18}
-                      color={tone}
+                  leading={
+                    <IconBubble
+                      icon={isIncome ? "south-west" : "north-east"}
+                      accent={isIncome ? chart.income : chart.expense}
+                      size={40}
                     />
-                  </View>
-                  <View style={styles.txBody}>
-                    <Text
-                      style={[styles.txTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {t.description || meta.label}
-                    </Text>
-                    <View style={styles.txSubRow}>
-                      <Text
-                        style={[styles.txSub, { color: colors.textMuted }]}
-                        numberOfLines={1}
-                      >
-                        {meta.label}
-                        {t.date?.toDate
-                          ? ` · ${t.date.toDate().toLocaleDateString()}`
-                          : ""}
-                      </Text>
-                      {source ? (
-                        <View
-                          style={[
-                            styles.sourceChip,
-                            { backgroundColor: colors.surfaceContainerHigh },
-                          ]}
-                        >
-                          <Icon
-                            name={sourceMeta.icon}
-                            size={12}
-                            color={colors.onSurfaceVariant}
-                          />
-                          <Text
-                            style={[
-                              styles.sourceText,
-                              { color: colors.onSurfaceVariant },
-                            ]}
-                          >
-                            {sourceMeta.label}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                  <Text style={[styles.txAmount, { color: tone }]}>
-                    {isIncome ? "+" : "−"}
-                    {formatStored({
-                      amount: t.amount,
-                      currency: t.currency,
-                      amountBase: t.amountBase,
-                    })}
-                  </Text>
-                </Pressable>
+                  }
+                  title={t.description || meta.label}
+                  subtitle={[
+                    meta.label,
+                    source.type ? getPaymentSourceMeta(source.type).label : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  meta={date ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : null}
+                  amount={`${isIncome ? "+" : "−"}${formatStored({
+                    amount: t.amount,
+                    currency: t.currency,
+                    amountBase: t.amountBase,
+                  })}`}
+                  amountColor={isIncome ? chart.income : undefined}
+                  onPress={href ? () => router.push(href) : undefined}
+                  isLast={i === recent.length - 1}
+                />
               );
             })}
-          </FormSection>
+          </View>
         ) : (
           <FormSection>
             <View style={styles.emptyBox}>
               <Icon name="receipt-long" size={26} color={colors.outline} />
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                No transactions yet
+              <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
+                {loadingTx ? "Loading activity…" : `Nothing recorded for ${range.label.toLowerCase()}`}
               </Text>
-              <Pressable
-                onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
-                style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text
-                  style={[styles.emptyBtnText, { color: colors.onPrimary }]}
-                >
-                  Record a sale
+              {!loadingTx ? (
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  Record a sale, or add income and expenses as they happen.
                 </Text>
-              </Pressable>
+              ) : null}
             </View>
           </FormSection>
         )}
       </ThemedScrollView>
-
-      <Pressable
-        ref={recordSaleTourTarget}
-        accessibilityRole="button"
-        accessibilityLabel="Record a sale"
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.primary },
-          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-        ]}
-        onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
-      >
-        <Icon name="add" size={28} color={colors.onPrimary} />
-      </Pressable>
 
       <DateRangeSheet
         visible={calendarOpen}
@@ -665,8 +545,7 @@ export default function MoneyDashboard() {
           setCustomRange(next);
         }}
         onClear={() => {
-          setCustomRange(null);
-          setPeriod("this_month");
+          clearRange();
           setCalendarOpen(false);
         }}
       />
@@ -674,11 +553,113 @@ export default function MoneyDashboard() {
   );
 }
 
+function HeroFigure({
+  color,
+  label,
+  value,
+  ink,
+  soft,
+}: {
+  color: string;
+  label: string;
+  value: string;
+  ink: string;
+  soft: string;
+}) {
+  return (
+    <View style={styles.heroCol}>
+      <View style={styles.heroColLabel}>
+        <View style={[styles.swatch, { backgroundColor: color }]} />
+        <Text style={[styles.heroColCaption, { color: soft }]} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+      <Text
+        style={[styles.heroColValue, { color: ink }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function OutstandingCard({
+  icon,
+  accent,
+  label,
+  value,
+  open,
+  overdue,
+  overdueColor,
+  onPress,
+}: {
+  icon: IconName;
+  accent: string;
+  label: string;
+  value: string;
+  open: number;
+  overdue: number;
+  overdueColor: string;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${value}, ${open} open, ${overdue} overdue`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.outCard,
+        {
+          backgroundColor: colors.surfaceContainerLowest,
+          borderColor: colors.outlineVariant,
+        },
+        pressed && { backgroundColor: colors.surfaceContainerLow },
+      ]}
+    >
+      <View style={styles.outTop}>
+        <IconBubble icon={icon} accent={accent} size={32} />
+        <Icon name="chevron-right" size={20} color={colors.outline} />
+      </View>
+      <Text style={[styles.outLabel, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text
+        style={[styles.outValue, { color: colors.onSurface }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+      >
+        {value}
+      </Text>
+      <View style={styles.outMeta}>
+        {overdue > 0 ? (
+          <>
+            <View style={[styles.swatch, { backgroundColor: overdueColor }]} />
+            <Text style={[styles.outMetaText, { color: colors.onSurface }]} numberOfLines={1}>
+              {overdue} overdue
+            </Text>
+          </>
+        ) : (
+          <Text style={[styles.outMetaText, { color: colors.textMuted }]} numberOfLines={1}>
+            {open === 0 ? "All settled" : `${open} open`}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+const text = { includeFontPadding: false } as const;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingTop: Spacing.stackSm,
-    paddingBottom: 120,
+    paddingBottom: Spacing.section + 24,
     gap: Spacing.gutterMd,
   },
   inset: { gap: Spacing.gutterMd },
@@ -689,177 +670,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 100,
-    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
-  },
 
-  segment: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: Radius.full,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: Radius.full,
-    alignItems: "center",
-  },
-  segmentText: { ...Typography.labelMd },
   rangeChip: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    maxWidth: "100%",
     borderRadius: Radius.full,
-    borderWidth: 1,
   },
-  rangeChipText: { ...Typography.labelMd, fontWeight: "600" },
+  rangeChipMain: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 12,
+    paddingVertical: 8,
+  },
+  rangeChipText: { ...text, flexShrink: 1, fontFamily: FontFamily.semibold, fontSize: 13 },
+  rangeChipClear: { paddingHorizontal: 12, paddingVertical: 8 },
 
   hero: {
     borderRadius: Radius.xl,
+    borderCurve: "continuous",
     padding: Spacing.containerMargin,
-    gap: 6,
+    gap: 10,
     boxShadow: "0 10px 30px rgba(0, 0, 0, 0.12)",
   },
-  heroTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  heroTop: { flexDirection: "row", alignItems: "center" },
+  heroLabel: { ...text, flex: 1, fontFamily: FontFamily.semibold, fontSize: 11, letterSpacing: 1.1 },
+  heroValue: {
+    ...text,
+    fontFamily: FontFamily.bold,
+    fontSize: 34,
+    lineHeight: 42,
+    letterSpacing: -0.6,
+    fontVariant: ["tabular-nums"],
   },
-  heroLabel: { ...Typography.labelMd, letterSpacing: 1 },
+  trendRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   trendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-  trendText: { ...Typography.labelMd },
-  heroValue: { ...Typography.displayLg },
-  heroDivider: { height: 1, marginVertical: Spacing.stackMd },
-  heroSplit: { flexDirection: "row" },
-  heroCol: { flex: 1, gap: 6 },
-  heroColLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroColCaption: { ...Typography.bodyMd },
-  heroColValue: { ...Typography.headlineSm },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-
-  outRow: { flexDirection: "row", gap: Spacing.stackMd },
-  outCard: {
-    flex: 1,
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    gap: 8,
-  },
-  outIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outValue: { ...Typography.headlineSm },
-  outLabel: { ...Typography.labelMd },
-
-  chequeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
-  },
-  chequeCardLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    flex: 1,
-  },
-  chequeCardTitle: { ...Typography.labelMd, fontWeight: "700" },
-  chequeCardSub: { ...Typography.bodySmall, marginTop: 2 },
-
-  toolCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    minHeight: 52,
-  },
-  toolLabel: { ...Typography.labelMd, fontWeight: "600" },
-
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    marginTop: -Spacing.sm,
-  },
-  viewAllBtn: { marginTop: -Spacing.md },
-  viewAll: { ...Typography.labelMd },
-
-  catRow: { flexDirection: "row", alignItems: "center", gap: Spacing.stackMd },
-  catRowGap: { marginTop: Spacing.gutterMd },
-  catIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  catBody: { flex: 1, gap: 8 },
-  catTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  catLabel: {
-    ...Typography.bodyLg,
-    fontWeight: "600",
-    flex: 1,
-    marginRight: 8,
-  },
-  catAmount: { ...Typography.bodyMd, fontWeight: "700" },
-  catTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
-  catFill: { height: "100%", borderRadius: 3 },
-
-  txRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.stackMd,
-    paddingVertical: Spacing.stackMd,
-  },
-  txIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  txBody: { flex: 1, gap: 2 },
-  txTitle: { ...Typography.bodyLg, fontWeight: "600" },
-  txSub: { ...Typography.bodyMd },
-  txSubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  sourceChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -867,21 +715,96 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.full,
   },
-  sourceText: { ...Typography.caption, fontWeight: "600" },
-  txAmount: { ...Typography.bodyLg, fontWeight: "700" },
+  trendValue: { ...text, fontFamily: FontFamily.semibold, fontSize: 12, fontVariant: ["tabular-nums"] },
+  trendText: { ...text, flexShrink: 1, fontFamily: FontFamily.medium, fontSize: 12 },
+  flowBar: {
+    flexDirection: "row",
+    height: 6,
+    gap: 2,
+    marginTop: 4,
+    borderRadius: Radius.full,
+    overflow: "hidden",
+  },
+  heroSplit: { flexDirection: "row", alignItems: "stretch", gap: Spacing.lg },
+  heroDivider: { width: StyleSheet.hairlineWidth },
+  heroCol: { flex: 1, minWidth: 0, gap: 4 },
+  heroColLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroColCaption: { ...text, flexShrink: 1, fontFamily: FontFamily.medium, fontSize: 13 },
+  heroColValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 18,
+    lineHeight: 24,
+    fontVariant: ["tabular-nums"],
+  },
+  swatch: { width: 8, height: 8, borderRadius: 2 },
+
+  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+  actionTile: {
+    flexBasis: "31%",
+    flexGrow: 1,
+    minHeight: 76,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  actionLabel: {
+    ...text,
+    textAlign: "center",
+    fontFamily: FontFamily.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  outRow: { flexDirection: "row", gap: Spacing.stackMd },
+  outCard: {
+    flex: 1,
+    minWidth: 0,
+    padding: Spacing.gutterMd,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  outTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  outLabel: { ...text, fontFamily: FontFamily.medium, fontSize: 13 },
+  outValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 19,
+    lineHeight: 26,
+    fontVariant: ["tabular-nums"],
+  },
+  outMeta: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 18 },
+  outMetaText: { ...text, flexShrink: 1, fontFamily: FontFamily.medium, fontSize: 12 },
+
+  recentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingRight: Spacing.containerMargin,
+    marginBottom: -Spacing.sm,
+  },
+  viewAll: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 32 },
+  viewAllText: { ...text, fontFamily: FontFamily.semibold, fontSize: 13 },
 
   emptyBox: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.sectionGap,
-    gap: Spacing.stackMd,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
   },
-  emptyText: { ...Typography.bodyMd, textAlign: "center" },
-  emptyBtn: {
-    paddingHorizontal: Spacing.gutterMd,
-    paddingVertical: 10,
-    borderRadius: Radius.full,
-    marginTop: 4,
-  },
-  emptyBtnText: { ...Typography.labelMd },
+  emptyTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, textAlign: "center" },
+  emptyText: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18, textAlign: "center" },
 });

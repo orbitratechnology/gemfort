@@ -187,6 +187,7 @@ export function TitleBand({
   subtitle,
   subtitleDot,
   overlapHero,
+  fitTitle,
   children,
 }: {
   chips?: ReactNode;
@@ -195,6 +196,8 @@ export function TitleBand({
   /** Small colour dot before the subtitle (e.g. a gem's hue). */
   subtitleDot?: string | null;
   overlapHero?: boolean;
+  /** Keep the title on one line, shrinking it to fit — for money totals. */
+  fitTitle?: boolean;
   children?: ReactNode;
 }) {
   const { colors } = useAppTheme();
@@ -207,7 +210,13 @@ export function TitleBand({
       ]}
     >
       {chips ? <View style={styles.chipRow}>{chips}</View> : null}
-      <Text style={[styles.title, { color: colors.onSurface }]} selectable={false}>
+      <Text
+        style={[styles.title, fitTitle && styles.titleFit, { color: colors.onSurface }]}
+        selectable={false}
+        numberOfLines={fitTitle ? 1 : undefined}
+        adjustsFontSizeToFit={fitTitle}
+        minimumFontScale={fitTitle ? 0.55 : undefined}
+      >
         {title}
       </Text>
       {subtitle ? (
@@ -273,7 +282,14 @@ export function KeyStats({ items }: { items: KeyStatItem[] }) {
             <View style={[styles.keyStatDivider, { backgroundColor: colors.outlineVariant }]} />
           ) : null}
           <View style={styles.keyStat}>
-            <Text style={[styles.keyStatLabel, { color: colors.onSurfaceVariant }]}>{item.label}</Text>
+            <Text
+              style={[styles.keyStatLabel, { color: colors.onSurfaceVariant }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {item.label}
+            </Text>
             <Text
               style={[styles.keyStatValue, { color: item.color ?? colors.onSurface }]}
               numberOfLines={1}
@@ -316,8 +332,15 @@ export function Callout({
     <View style={[styles.callout, { backgroundColor: `${accent}14` }, style]}>
       <IconBubble icon={icon} accent={accent} />
       <View style={styles.calloutCopy}>
-        <Text style={[styles.calloutLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
-        <Text style={[styles.calloutValue, { color: accent }]} numberOfLines={1}>
+        <Text style={[styles.calloutLabel, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
+          {label}
+        </Text>
+        <Text
+          style={[styles.calloutValue, { color: accent }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.65}
+        >
           {value}
         </Text>
       </View>
@@ -580,16 +603,16 @@ export function ListItem({
         ]}
       >
         <View style={styles.listCopy}>
-          <Text style={[styles.listTitle, { color: colors.onSurface }]} numberOfLines={1}>
+          <Text style={[styles.listTitle, { color: colors.onSurface }]} numberOfLines={2}>
             {title}
           </Text>
           {subtitle ? (
-            <Text style={[styles.listSubtitle, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+            <Text style={[styles.listSubtitle, { color: colors.onSurfaceVariant }]} numberOfLines={2}>
               {subtitle}
             </Text>
           ) : null}
           {meta ? (
-            <Text style={[styles.listMeta, { color: colors.textMuted }]} numberOfLines={1}>
+            <Text style={[styles.listMeta, { color: colors.textMuted }]} numberOfLines={2}>
               {meta}
             </Text>
           ) : null}
@@ -597,7 +620,12 @@ export function ListItem({
         {right ?? (
           <View style={styles.listTrailing}>
             {amount ? (
-              <Text style={[styles.listAmount, { color: amountColor ?? colors.onSurface }]} numberOfLines={1}>
+              <Text
+                style={[styles.listAmount, { color: amountColor ?? colors.onSurface }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 {amount}
               </Text>
             ) : null}
@@ -636,7 +664,11 @@ export function ListSectionHeader({
     <View style={styles.listSection}>
       <View style={styles.listSectionRow}>
         {accent ? <View style={[styles.listSectionDot, { backgroundColor: accent }]} /> : null}
-        <Text style={[styles.listSectionTitle, { color: colors.onSurface }]} accessibilityRole="header">
+        <Text
+          style={[styles.listSectionTitle, { color: colors.onSurface }]}
+          accessibilityRole="header"
+          numberOfLines={1}
+        >
           {title}
         </Text>
         {count != null ? (
@@ -647,6 +679,8 @@ export function ListSectionHeader({
           <Text
             style={[styles.listSectionTrailing, { color: trailingColor ?? colors.onSurfaceVariant }]}
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
           >
             {trailing}
           </Text>
@@ -711,6 +745,7 @@ const styles = StyleSheet.create({
   },
   chipRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: Spacing.sm, marginBottom: 6 },
   title: { ...text, fontFamily: FontFamily.semibold, fontSize: 28, lineHeight: 36, letterSpacing: -0.4 },
+  titleFit: { fontVariant: ["tabular-nums"] },
   subtitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   subtitleDot: { width: 10, height: 10, borderRadius: 5 },
   subtitle: { ...text, ...Typography.bodyMd, fontSize: 15, lineHeight: 22, flexShrink: 1 },
@@ -826,10 +861,17 @@ const styles = StyleSheet.create({
   },
   listSectionRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   listSectionDot: { width: 8, height: 8, borderRadius: 4 },
-  listSectionTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 18, lineHeight: 24 },
+  listSectionTitle: { ...text, flexShrink: 1, fontFamily: FontFamily.semibold, fontSize: 18, lineHeight: 24 },
   listSectionCount: { ...text, fontFamily: FontFamily.medium, fontSize: 14 },
-  listSectionSpacer: { flex: 1 },
-  listSectionTrailing: { ...text, fontFamily: FontFamily.semibold, fontSize: 14, fontVariant: ["tabular-nums"] },
+  listSectionSpacer: { flex: 1, minWidth: 8 },
+  listSectionTrailing: {
+    ...text,
+    flexShrink: 1,
+    maxWidth: "50%",
+    fontFamily: FontFamily.semibold,
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+  },
   listSectionHint: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
   listItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: Spacing.containerMargin },
   listBody: {
