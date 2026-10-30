@@ -292,11 +292,11 @@ export function GemCard({
   );
 }
 
-/** Status dot colours, legible on the dark overlay pill in both themes. */
+/** Status dot colours: soft, muted tones legible on the dark overlay pill. */
 const STATUS_DOT = {
-  stock: "#34D399",
-  listed: "#60A5FA",
-  away: "#FBBF24",
+  stock: "#8DBFA3",
+  listed: "#9FB3CF",
+  away: "#D2B27A",
   closed: "#A3A3A3",
 } as const;
 

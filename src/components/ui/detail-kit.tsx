@@ -24,19 +24,20 @@ import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-toke
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 /**
- * Semantic accents. Use the same hue for the same meaning on every screen:
- * violet = work / stage, amber = away / pending / due, blue = listed / info,
- * emerald = done / received / gain, rose = overdue / bounced / loss,
- * slate = idle / closed.
+ * Semantic accents — deliberately muted, ink-like tones that sit with
+ * GemFort's monochrome brand rather than bright UI colours. Use the same
+ * hue for the same meaning on every screen: violet = work / stage,
+ * amber = away / pending / due, blue = listed / info, emerald = done /
+ * received / gain, rose = overdue / bounced / loss, slate = idle / closed.
  */
 export const Accent = {
-  violet: "#7C3AED",
-  amber: "#D97706",
-  blue: "#2563EB",
-  emerald: "#059669",
-  rose: "#DC2626",
-  slate: "#64748B",
-  teal: "#0D9488",
+  violet: "#5E5486",
+  amber: "#A66B12",
+  blue: "#3D5A80",
+  emerald: "#2A7A4B",
+  rose: "#A63D3D",
+  slate: "#6E6E6E",
+  teal: "#2F6B68",
 } as const;
 
 const text = { includeFontPadding: false } as const;

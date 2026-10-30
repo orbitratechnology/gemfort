@@ -18,17 +18,17 @@ export const BUSINESS_REPUTATION_BADGE_LABELS: Record<
 /**
  * Shared tier colors used anywhere a verification level is represented by color.
  * Member stays in GemFort graphite; verified tiers step through jewel tones
- * (emerald → sapphire → topaz → ruby).
+ * (emerald → sapphire → gold → ruby), kept deep and muted.
  */
 export const BUSINESS_REPUTATION_BADGE_COLORS: Record<
   Exclude<BusinessReputationBadgeType, "none">,
   string
 > = {
   member: "#5C5C5C",
-  identity: "#1E9E62",
-  business: "#2F6FE0",
-  gem: "#D4A021",
-  recognized: "#B0213F",
+  identity: "#2E7553",
+  business: "#3A5A8E",
+  gem: "#A9842F",
+  recognized: "#8C2F42",
 };
 
 export function parseBusinessReputationBadge(

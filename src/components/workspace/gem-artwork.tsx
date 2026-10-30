@@ -46,10 +46,33 @@ const TYPE_TINT: Record<string, string> = {
   amber: "#D97706",
 };
 
-/** The gem's display hue: recorded colour shade, else its type's hue. */
+/**
+ * Pulls a hue toward its own grey so backdrops read as a refined wash of the
+ * stone's colour rather than a bright UI colour. `amount` 0 = unchanged.
+ */
+export function muteColor(hex: string, amount = 0.45): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const grey = 0.299 * r + 0.587 * g + 0.114 * b;
+  const mix = (c: number) =>
+    Math.round(c + (grey - c) * amount)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${mix(r)}${mix(g)}${mix(b)}`.toUpperCase();
+}
+
+/**
+ * The gem's display hue (muted): recorded colour shade, else its type's hue.
+ * Use the raw shade hex instead where the true colour matters (swatches).
+ */
 export function gemTint(gem: Pick<WorkspaceGem, "colorPrimary" | "gemType">): string | null {
   const hit = gem.colorPrimary ? findColorShade(gem.colorPrimary) : null;
-  return hit?.shade.hex ?? hit?.family.hex ?? TYPE_TINT[gem.gemType] ?? null;
+  const hue = hit?.shade.hex ?? hit?.family.hex ?? TYPE_TINT[gem.gemType] ?? null;
+  return hue ? muteColor(hue) : null;
 }
 
 /**

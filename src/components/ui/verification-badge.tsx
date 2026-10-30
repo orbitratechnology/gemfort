@@ -18,10 +18,10 @@ export type VerificationTier = Exclude<BusinessReputationBadgeType, "none">;
  */
 const SEAL_TONES: Record<VerificationTier, { light: string; base: string; deep: string; glyph: string }> = {
   member: { light: "#A3A3A3", base: BUSINESS_REPUTATION_BADGE_COLORS.member, deep: "#262626", glyph: "#FFFFFF" },
-  identity: { light: "#62D69C", base: BUSINESS_REPUTATION_BADGE_COLORS.identity, deep: "#0B5E39", glyph: "#FFFFFF" },
-  business: { light: "#86B2FF", base: BUSINESS_REPUTATION_BADGE_COLORS.business, deep: "#173F9A", glyph: "#FFFFFF" },
-  gem: { light: "#F8DC84", base: BUSINESS_REPUTATION_BADGE_COLORS.gem, deep: "#8A5A06", glyph: "#FFFFFF" },
-  recognized: { light: "#E86A82", base: BUSINESS_REPUTATION_BADGE_COLORS.recognized, deep: "#5E0A1E", glyph: "#FFFFFF" },
+  identity: { light: "#6FA88A", base: BUSINESS_REPUTATION_BADGE_COLORS.identity, deep: "#1B4A34", glyph: "#FFFFFF" },
+  business: { light: "#7D97BF", base: BUSINESS_REPUTATION_BADGE_COLORS.business, deep: "#22385C", glyph: "#FFFFFF" },
+  gem: { light: "#D9BF7E", base: BUSINESS_REPUTATION_BADGE_COLORS.gem, deep: "#6E5419", glyph: "#FFFFFF" },
+  recognized: { light: "#B66A79", base: BUSINESS_REPUTATION_BADGE_COLORS.recognized, deep: "#561A27", glyph: "#FFFFFF" },
 };
 
 // 24×24 emerald-cut outline, its table facet, and the upper crown facets.
