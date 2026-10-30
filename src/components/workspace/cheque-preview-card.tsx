@@ -56,6 +56,12 @@ type ChequePreviewCardProps = {
   accent?: string;
   /** Small eyebrow above the cheque (e.g. "Preview"). */
   label?: string | null;
+  /** Shows the cheque's status in place of the Given/Taken pill (lists). */
+  status?: { label: string; icon: IconName } | null;
+  /** Relative maturity under the date, e.g. "In 5 days". */
+  maturityHint?: string | null;
+  /** Softer shadow for cards stacked in a list. */
+  variant?: "hero" | "list";
   style?: StyleProp<ViewStyle>;
 };
 
@@ -85,6 +91,9 @@ export function ChequePreviewCard({
   maturityDateLabel,
   accent = CHEQUE_STATUS_ACCENT.holding,
   label,
+  status,
+  maturityHint,
+  variant = "hero",
   style,
 }: ChequePreviewCardProps) {
   const { colors, isDark } = useAppTheme();
@@ -118,9 +127,14 @@ export function ChequePreviewCard({
           {
             backgroundColor: colors.surfaceContainerLowest,
             borderColor: colors.outlineVariant,
-            boxShadow: isDark
-              ? "0 10px 28px rgba(0, 0, 0, 0.35)"
-              : "0 10px 28px rgba(15, 23, 42, 0.10)",
+            boxShadow:
+              variant === "list"
+                ? isDark
+                  ? "0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25)"
+                  : "0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.06)"
+                : isDark
+                  ? "0 10px 28px rgba(0, 0, 0, 0.35)"
+                  : "0 10px 28px rgba(15, 23, 42, 0.10)",
           },
         ]}
       >
@@ -169,12 +183,12 @@ export function ChequePreviewCard({
                 style={[styles.directionPill, { backgroundColor: `${accent}1A` }]}
               >
                 <Icon
-                  name={isReceived ? "call-received" : "call-made"}
+                  name={status?.icon ?? (isReceived ? "call-received" : "call-made")}
                   size={12}
                   color={accent}
                 />
                 <Text style={[styles.directionText, { color: accent }]}>
-                  {isReceived ? "Taken" : "Given"}
+                  {status?.label ?? (isReceived ? "Taken" : "Given")}
                 </Text>
               </View>
               <Text
@@ -253,6 +267,11 @@ export function ChequePreviewCard({
               >
                 {maturityDateLabel ?? "—"}
               </Text>
+              {maturityHint ? (
+                <Text style={[styles.maturityHint, { color: accent }]} numberOfLines={1}>
+                  {maturityHint}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>
@@ -376,4 +395,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  maturityHint: { ...text, fontFamily: FontFamily.medium, fontSize: 12, lineHeight: 16 },
 });

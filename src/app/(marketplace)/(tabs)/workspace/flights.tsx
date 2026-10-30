@@ -648,6 +648,7 @@ function FlightResultsSurface({
               currency={currency}
               index={index}
               reduceMotion={reduceMotion}
+              notchColor={resultsBackground}
               onPress={() => onOfferPress(offer)}
             />
           ))}

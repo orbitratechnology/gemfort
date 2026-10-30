@@ -1,16 +1,18 @@
 import { EmptyState } from "@/components/ui/empty-state";
-import { Accent, IconBubble, ListItem, ListSectionHeader } from "@/components/ui/detail-kit";
+import { Accent, ListSectionHeader } from "@/components/ui/detail-kit";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
-import { CHEQUE_STATUS_ACCENT } from "@/components/workspace/cheque-preview-card";
-import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import {
+    CHEQUE_STATUS_ACCENT,
+    CHEQUE_STATUS_ICON,
+    ChequePreviewCard,
+} from "@/components/workspace/cheque-preview-card";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Spacing } from "@/constants/design-tokens";
-import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     CHEQUE_STATUS_LABELS,
     daysUntilMaturity,
@@ -18,11 +20,7 @@ import {
     maturityLabel,
     toDate,
 } from "@/features/workspace/cheque-utils";
-import {
-    subscribeContacts,
-    subscribeVerifiedBusinesses,
-} from "@/features/workspace/firestore-subscriptions";
-import { buildContactPhotoMap } from "@/features/workspace/party-photo";
+import { subscribeContacts } from "@/features/workspace/firestore-subscriptions";
 import {
     deleteCheque,
     fetchContacts,
@@ -52,7 +50,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 type ListRow =
   | { type: "header"; key: string; title: string; count: number; accent?: string }
-  | { type: "cheque"; key: string; cheque: Cheque; isLast: boolean };
+  | { type: "cheque"; key: string; cheque: Cheque };
 
 /** Upcoming cheques grouped by when they mature: matured, this week, then by month. */
 function groupUpcoming(cheques: Cheque[]): ListRow[] {
@@ -81,69 +79,38 @@ function groupUpcoming(cheques: Cheque[]): ListRow[] {
       count: g.items.length,
       accent: g.accent,
     },
-    ...g.items.map((cheque, i) => ({
+    ...g.items.map((cheque) => ({
       type: "cheque" as const,
       key: cheque.id,
       cheque,
-      isLast: i === g.items.length - 1,
     })),
   ]);
 }
 
-/** Contact photo with a status-tinted direction badge, or a tinted icon bubble. */
-function ChequeLeading({
-  cheque,
-  partyLabel,
-  photoUrl,
-}: {
-  cheque: Cheque;
-  partyLabel: string;
-  photoUrl: string | null;
-}) {
-  const { colors } = useAppTheme();
-  const accent = CHEQUE_STATUS_ACCENT[cheque.status];
-  const icon = cheque.direction === "received" ? "call-received" : "call-made";
-  if (!photoUrl) return <IconBubble icon={icon} accent={accent} size={44} />;
-  return (
-    <View style={styles.leading}>
-      <ContactAvatar name={partyLabel} photoUrl={photoUrl} size={44} />
-      <View
-        style={[
-          styles.leadingBadge,
-          {
-            backgroundColor: accent,
-            borderColor: colors.surfaceContainerLowest,
-          },
-        ]}
-      >
-        <Icon name={icon} size={11} color="#FFFFFF" />
-      </View>
-    </View>
-  );
-}
-
+/** One cheque in the list, drawn as the same paper cheque as Add Cheque. */
 function ChequeRow({
   cheque,
   contactName,
-  contactPhotoUrl,
-  isLast,
   onDelete,
 }: {
   cheque: Cheque;
   contactName: string;
-  contactPhotoUrl: string | null;
-  isLast?: boolean;
   onDelete: () => void | Promise<void>;
 }) {
   const { formatStored } = usePreferredMoney();
-  const isBounced = cheque.status === "bounced";
   const partyLabel = contactName || cheque.issuedBy || "Counterparty";
-  const label = `${cheque.chequeNumber} · ${cheque.bankName}`;
+  const statusLabel = CHEQUE_STATUS_LABELS[cheque.status];
+  const amount = formatStored({
+    amount: cheque.amount,
+    currency: cheque.currency,
+    amountBase: cheque.amountBase,
+  });
 
   return (
     <ContextActionsLink
       href={`/(marketplace)/(tabs)/workspace/cheques/${cheque.id}` as never}
-      accessibilityLabel={label}
+      accessibilityLabel={`${statusLabel} cheque ${cheque.chequeNumber}, ${cheque.bankName}, ${partyLabel}, ${amount}, ${maturityLabel(cheque)}`}
+      style={styles.card}
       actions={[
         {
           label: "Delete",
@@ -158,29 +125,26 @@ function ChequeRow({
         },
       ]}
     >
-      <ListItem
-        leading={
-          <ChequeLeading
-            cheque={cheque}
-            partyLabel={partyLabel}
-            photoUrl={contactPhotoUrl || cheque.photoUrl}
-          />
-        }
-        title={partyLabel}
-        subtitle={`No. ${cheque.chequeNumber} · ${cheque.bankName}`}
-        meta={`${maturityLabel(cheque)} · ${formatDate(cheque.maturityDate)}`}
-        amount={formatStored({
-          amount: cheque.amount,
-          currency: cheque.currency,
-          amountBase: cheque.amountBase,
-        })}
-        amountColor={isBounced ? Accent.rose : undefined}
-        status={{
-          label: CHEQUE_STATUS_LABELS[cheque.status],
-          accent: CHEQUE_STATUS_ACCENT[cheque.status],
-        }}
-        isLast={isLast}
-      />
+      {({ pressed }) => (
+        <ChequePreviewCard
+          variant="list"
+          direction={cheque.direction}
+          chequeNumber={cheque.chequeNumber}
+          bankName={cheque.bankName}
+          bankCode={cheque.bankCode}
+          branch={cheque.branch}
+          amount=""
+          amountLabel={amount}
+          issuedBy={partyLabel}
+          maturityDateLabel={formatDate(cheque.maturityDate)}
+          maturityHint={
+            cheque.status === "holding" ? maturityLabel(cheque) : null
+          }
+          accent={CHEQUE_STATUS_ACCENT[cheque.status]}
+          status={{ label: statusLabel, icon: CHEQUE_STATUS_ICON[cheque.status] }}
+          style={pressed ? styles.cardPressed : undefined}
+        />
+      )}
     </ContextActionsLink>
   );
 }
@@ -215,21 +179,11 @@ export default function ChequesScreen() {
     enabled: !!user,
   });
 
-  const { data: businesses = [] } = useFirestoreLiveQuery({
-    queryKey: ["home-businesses"],
-    queryFn: () => fetchBusinesses(),
-    subscribe: (onData, onError) =>
-      subscribeVerifiedBusinesses(onData, onError),
-    enabled: !!user,
-  });
+
 
   const contactMap = useMemo(
     () => new Map(contacts.map((c) => [c.id, c.displayName])),
     [contacts],
-  );
-  const contactPhotoMap = useMemo(
-    () => buildContactPhotoMap(contacts, businesses),
-    [contacts, businesses],
   );
   const sideCheques = useMemo(
     () =>
@@ -310,10 +264,6 @@ export default function ChequesScreen() {
                   contactName={
                     contactMap.get(c.counterpartyContactId) ?? c.issuedBy
                   }
-                  contactPhotoUrl={
-                    contactPhotoMap.get(c.counterpartyContactId) ?? null
-                  }
-                  isLast={i === bounced.length - 1}
                   onDelete={() => handleDelete(c.id)}
                 />
               ))}
@@ -349,10 +299,6 @@ export default function ChequesScreen() {
                 contactMap.get(item.cheque.counterpartyContactId) ??
                 item.cheque.issuedBy
               }
-              contactPhotoUrl={
-                contactPhotoMap.get(item.cheque.counterpartyContactId) ?? null
-              }
-              isLast={item.isLast}
               onDelete={() => handleDelete(item.cheque.id)}
             />
           )
@@ -385,18 +331,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bouncedBlock: { marginBottom: Spacing.xs },
-  leading: { width: 44, height: 44 },
-  leadingBadge: {
-    position: "absolute",
-    right: -3,
-    bottom: -3,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
+  card: {
+    marginHorizontal: Spacing.containerMargin,
+    marginBottom: Spacing.md,
   },
+  cardPressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
   fab: {
     position: "absolute",
     bottom: 24,
