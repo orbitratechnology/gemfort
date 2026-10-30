@@ -17,7 +17,6 @@ import {
   StatusChip,
   TitleBand,
   TotalRow,
-  detailStyles,
   useCollapsingHeader,
 } from "@/components/ui/detail-kit";
 import { Icon } from "@/components/ui/icon";
@@ -40,6 +39,11 @@ import {
   TripSoldGemsSection,
   canSellTripGem,
 } from "@/components/workspace/trip-gems-sheet";
+import { QuickActionsFab } from "@/components/workspace/quick-actions-sheet";
+import {
+  TripActionsSheet,
+  type TripScanKind,
+} from "@/components/workspace/trip-actions-sheet";
 import { TripBudgetBand } from "@/components/workspace/trip-money-cards";
 import { TripFlagHero, TripRouteStrip } from "@/components/workspace/trip-hero";
 import { TRIP_STATUS_ACCENT } from "@/components/workspace/trip-status-tabs";
@@ -106,6 +110,7 @@ export default function TripDetailScreen() {
   const [pendingScans, setPendingScans] = useState<LocalMedia[]>([]);
   const [kindSheetOpen, setKindSheetOpen] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<TripDocument | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const { data: trip, isLoading } = useFirestoreLiveQuery({
     queryKey: ["trip", tripId],
@@ -271,6 +276,16 @@ export default function TripDetailScreen() {
     }
   });
 
+  /** Scan from the actions sheet: the kind is already known, so skip asking. */
+  const [scanningAs, handleScanAs] = usePendingAction(async (kind: TripScanKind) => {
+    try {
+      const pages = await scanDocuments({ maxPages: 4 });
+      if (pages.length) await uploadScans(kind, pages);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not scan document."));
+    }
+  });
+
   function handlePickDocumentKind(kind: TripDocumentKind) {
     const pages = pendingScans;
     setKindSheetOpen(false);
@@ -343,8 +358,7 @@ export default function TripDetailScreen() {
   const statusAccent = TRIP_STATUS_ACCENT[trip.status];
   const showStart = canStartTrip(trip.status);
   const showComplete = canCompleteTrip(trip.status);
-  const hasBottomActions = showStart || showComplete;
-  const bottomBarPad = Math.max(insets.bottom, 12);
+  const scanBusy = scanning || scanningAs || uploadingDocs || kindSheetOpen;
   const previewGems = activeTripGems.slice(0, PREVIEW_COUNT);
   const previewExpenses = expenses.slice(0, PREVIEW_COUNT);
   const showOverhead =
@@ -355,7 +369,8 @@ export default function TripDetailScreen() {
       <StatusBar style={headerSolid ? "auto" : "light"} />
       <ThemedScrollView
         contentContainerStyle={{
-          paddingBottom: hasBottomActions ? 96 + bottomBarPad : 48,
+          // Clear the floating actions button.
+          paddingBottom: Math.max(insets.bottom, 12) + 96,
         }}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
@@ -550,7 +565,7 @@ export default function TripDetailScreen() {
               <TripDocumentsScanLink
                 busy={uploadingDocs}
                 onPress={() => {
-                  if (scanning || uploadingDocs || kindSheetOpen) return;
+                  if (scanBusy) return;
                   void handleScanDocuments();
                 }}
               />
@@ -589,8 +604,8 @@ export default function TripDetailScreen() {
               />
             ) : (
               <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                Scan your passport, visa, or tickets to keep them with this trip.
-                Only you can see them.
+                Scan your visa or tickets to keep them with this trip. Only you
+                can see them.
               </Text>
             )}
           </DetailBand>
@@ -622,51 +637,58 @@ export default function TripDetailScreen() {
             </Text>
           </DetailBand>
         ) : null}
+
+        {showStart || showComplete ? (
+          <View style={styles.statusAction}>
+            {showStart ? (
+              <Button
+                title="Start trip"
+                icon="flight"
+                loading={updatingStatus}
+                onPress={() => handleStatus("ongoing")}
+              />
+            ) : null}
+            {showComplete ? (
+              <Button
+                title="Complete trip"
+                icon="done-all"
+                loading={updatingStatus}
+                onPress={() => {
+                  void confirm({
+                    title: "Complete trip?",
+                    message: `Mark “${trip.tripName}” as completed? Expenses, gems, and sales stay available to review.`,
+                    confirmLabel: "Complete",
+                    cancelLabel: "Cancel",
+                    icon: "done-all",
+                    onConfirm: () => handleStatus("completed"),
+                  });
+                }}
+              />
+            ) : null}
+          </View>
+        ) : null}
       </ThemedScrollView>
 
       <DetailHeader title={trip.tripName} solid={headerSolid} />
 
-      {hasBottomActions ? (
-        <View
-          style={[
-            detailStyles.actionBar,
-            {
-              backgroundColor: colors.background,
-              borderTopColor: colors.outlineVariant,
-              paddingBottom: bottomBarPad,
-            },
-          ]}
-        >
-          {showStart ? (
-            <Button
-              title="Start trip"
-              icon="flight"
-              loading={updatingStatus}
-              onPress={() => handleStatus("ongoing")}
-              style={styles.actionBarBtn}
-            />
-          ) : null}
-          {showComplete ? (
-            <Button
-              title="Complete trip"
-              icon="done-all"
-              loading={updatingStatus}
-              onPress={() => {
-                void confirm({
-                  title: "Complete trip?",
-                  message: `Mark “${trip.tripName}” as completed? Expenses, gems, and sales stay available to review.`,
-                  confirmLabel: "Complete",
-                  cancelLabel: "Cancel",
-                  icon: "done-all",
-                  onConfirm: () => handleStatus("completed"),
-                });
-              }}
-              style={styles.actionBarBtn}
-            />
-          ) : null}
-        </View>
-      ) : null}
+      <QuickActionsFab
+        onPress={() => setActionsOpen(true)}
+        accessibilityLabel="Trip actions"
+        accessibilityHint="Add a gem or expense, or scan a visa or ticket"
+      />
 
+      <TripActionsSheet
+        visible={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        showAddGem={isSourcing}
+        showAddGems={isSelling}
+        showDocuments={isOwner}
+        scanBusy={scanBusy}
+        onAddGem={() => router.push(sheets.addGem as never)}
+        onAddGems={() => router.push(sheets.addGems as never)}
+        onAddExpense={() => router.push(sheets.addExpense as never)}
+        onScan={(kind) => void handleScanAs(kind)}
+      />
       <TripExpensesSheet
         visible={expensesOpen}
         onClose={() => setExpensesOpen(false)}
@@ -724,5 +746,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   notes: { ...text, fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 22 },
-  actionBarBtn: { flex: 1 },
+  statusAction: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.xxl,
+  },
 });

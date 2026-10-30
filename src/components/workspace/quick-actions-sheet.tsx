@@ -114,9 +114,16 @@ export function QuickActionsSheet({
 type QuickActionsFabProps = {
   onPress: () => void;
   targetRef?: RefObject<HostInstance | null>;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 };
 
-export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {
+export function QuickActionsFab({
+  onPress,
+  targetRef,
+  accessibilityLabel = "Open quick actions",
+  accessibilityHint = "Add something or verify a certificate",
+}: QuickActionsFabProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -124,8 +131,8 @@ export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {
     <Pressable
       ref={targetRef}
       accessibilityRole="button"
-      accessibilityLabel="Open quick actions"
-      accessibilityHint="Add something or verify a certificate"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       onPress={onPress}
       style={({ pressed }) => [
         styles.fab,
