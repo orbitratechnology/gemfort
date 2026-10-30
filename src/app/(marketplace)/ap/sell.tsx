@@ -2,7 +2,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import {
@@ -16,6 +15,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
@@ -73,7 +73,6 @@ export default function ApSellScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
 
   const [step, setStep] = useState<SellStep>(0);
@@ -458,7 +457,7 @@ export default function ApSellScreen() {
         </ThemedScrollView>
       ) : null}
 
-      <View style={{ paddingBottom: Math.max(insets.bottom, 0) }}>
+      <SheetFooter>
         {step < 2 ? (
           <FormFooter
             title="Next"
@@ -478,7 +477,7 @@ export default function ApSellScreen() {
             onSecondaryPress={goBack}
           />
         )}
-      </View>
+      </SheetFooter>
     </View>
   );
 }

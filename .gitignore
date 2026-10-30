@@ -48,6 +48,10 @@ example
 # generated native folders
 /ios
 /android
+# native build output of local Expo modules
+/modules/*/android/build/
+/modules/*/android/.cxx/
+/modules/*/ios/build/
 
 *.plan.md
 

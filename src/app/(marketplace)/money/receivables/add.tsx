@@ -14,6 +14,7 @@ import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { SheetFooter } from '@/components/ui/sheet-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactPicker } from '@/components/workspace/contact-picker';
 import { Spacing } from '@/constants/design-tokens';
@@ -174,7 +175,9 @@ export default function AddReceivableScreen() {
           />
         </FormSection>
       </ThemedScrollView>
-      <FormFooter title="Add Receivable" icon="add" loading={adding} onPress={handleAdd} />
+      <SheetFooter>
+        <FormFooter title="Add Receivable" icon="add" loading={adding} onPress={handleAdd} />
+      </SheetFooter>
     </KeyboardAvoidingView>
   );
 }

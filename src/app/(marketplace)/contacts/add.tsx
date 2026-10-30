@@ -8,12 +8,13 @@ import {
   View,
 } from "react-native";
 
-import { Button } from "@/components/ui/button";
+import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberField } from "@/components/ui/phone-number-field";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { CONTACT_TYPE_OPTIONS } from "@/constants/contact-types";
@@ -347,16 +348,16 @@ export default function AddContactScreen() {
             leftIcon="notes"
           />
         </FormSection>
-
-        <ScreenInset>
-          <Button
-            title="Add Contact"
-            icon="person-add"
-            loading={submitting}
-            onPress={handleSubmit}
-          />
-        </ScreenInset>
       </ThemedScrollView>
+
+      <SheetFooter>
+        <FormFooter
+          title="Add Contact"
+          icon="person-add"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
     </View>
   );
 }

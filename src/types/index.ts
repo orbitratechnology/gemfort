@@ -724,6 +724,17 @@ export type TripType = "sourcing" | "selling" | "both";
 
 export type TripStatus = "planning" | "ongoing" | "completed" | "cancelled";
 
+export type TripDocumentKind = "passport" | "visa" | "ticket" | "other";
+
+/** Scanned travel document stored owner-only under `trips/{uid}/{tripId}/documents/`. */
+export type TripDocument = {
+  id: string;
+  kind: TripDocumentKind;
+  url: string;
+  storagePath: string;
+  addedAt: Timestamp;
+};
+
 export type Trip = {
   id: string;
   ownerUid: string;
@@ -754,6 +765,8 @@ export type Trip = {
     gemsReturned: number;
   };
   notes: string | null;
+  /** Scanned passports, visas, tickets. Owner-only; never shown to others. */
+  documents?: TripDocument[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

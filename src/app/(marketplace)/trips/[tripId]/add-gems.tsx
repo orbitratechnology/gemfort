@@ -14,6 +14,7 @@ import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { SheetFooter } from '@/components/ui/sheet-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { TripGemAvatar } from '@/components/workspace/trip-gems-sheet';
 import { TripContextSummary } from '@/components/workspace/trip-money-cards';
@@ -183,17 +184,19 @@ export default function AddGemsToTripScreen() {
       </ThemedScrollView>
 
       {available.length > 0 ? (
-        <FormFooter
-          title={
-            selected.size > 0
-              ? `Add ${selected.size} gem${selected.size === 1 ? '' : 's'}`
-              : 'Select gems'
-          }
-          icon="add"
-          disabled={selected.size === 0}
-          loading={submitting}
-          onPress={handleSubmit}
-        />
+        <SheetFooter>
+          <FormFooter
+            title={
+              selected.size > 0
+                ? `Add ${selected.size} gem${selected.size === 1 ? '' : 's'}`
+                : 'Select gems'
+            }
+            icon="add"
+            disabled={selected.size === 0}
+            loading={submitting}
+            onPress={handleSubmit}
+          />
+        </SheetFooter>
       ) : null}
     </View>
   );

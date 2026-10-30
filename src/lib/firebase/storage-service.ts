@@ -87,6 +87,21 @@ async function assetToLocalMedia(
   };
 }
 
+/**
+ * Wrap a local image file (camera capture, document scan) as LocalMedia,
+ * re-encoded the same way as picked images.
+ */
+export async function localImageFromUri(
+  uri: string,
+  fileName?: string | null,
+): Promise<LocalMedia> {
+  const normalized = uri.startsWith('file://') || uri.includes('://') ? uri : `file://${uri}`;
+  return assetToLocalMedia(
+    { uri: normalized, mimeType: 'image/jpeg', fileName: fileName ?? null, width: 0, height: 0 },
+    'images',
+  );
+}
+
 async function pickDocument(): Promise<LocalMedia | null> {
   return runExternalActivity(async () => {
     const result = await DocumentPicker.getDocumentAsync({

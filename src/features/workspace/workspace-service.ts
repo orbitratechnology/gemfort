@@ -25,7 +25,10 @@ import {
 import { convertFromBase, convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import { listingShareUrl } from "@/lib/public-links";
+import { deleteObject, getStorage, ref as storageRef } from "@react-native-firebase/storage";
+import * as Crypto from "expo-crypto";
 import {
+    arrayUnion,
     collection,
     deleteDoc,
     doc,
@@ -50,6 +53,11 @@ import {
 } from "@/lib/firebase/local-write";
 import { normalizePhoneForStorage } from "@/lib/firebase/phone-utils";
 import { uploadBlobToStorage } from "@/lib/firebase/storage-upload";
+import {
+  extensionForMedia,
+  uploadLocalMedia,
+  type LocalMedia,
+} from "@/lib/firebase/storage-service";
 import { calcWeightLossPercent, generateSkuFromDocId } from "@/lib/utils";
 import type {
     ApRecord,
@@ -71,6 +79,8 @@ import type {
     ServiceRecord,
     Transaction,
     Trip,
+    TripDocument,
+    TripDocumentKind,
     TripExpense,
     TripGem,
     TripStatus,
@@ -1960,6 +1970,8 @@ export async function createTrip(
     cashCarried?: number;
     cashCarriedCurrency?: string;
     notes?: string | null;
+    /** Scanned travel documents to upload and attach once the trip exists. */
+    documents?: TripDocumentUpload[];
   },
 ): Promise<string> {
   const now = Timestamp.now();
@@ -1993,7 +2005,108 @@ export async function createTrip(
     createdAt: now,
     updatedAt: now,
   });
+  if (input.documents?.length) {
+    try {
+      // Just created by this owner, so skip the ownership read.
+      await attachTripDocuments(id, ownerUid, input.documents);
+    } catch (e) {
+      throw new TripDocumentsUploadError(id, e);
+    }
+  }
   return id;
+}
+
+// ─── Trip travel documents ──────────────────────────
+
+export type TripDocumentUpload = { kind: TripDocumentKind; media: LocalMedia };
+
+/**
+ * Thrown by `createTrip` when the trip was saved but some or all of its
+ * documents failed to upload. `tripId` lets the caller still open the trip.
+ */
+export class TripDocumentsUploadError extends Error {
+  readonly tripId: string;
+  constructor(tripId: string, cause: unknown) {
+    super(
+      cause instanceof Error ? cause.message : "Travel documents could not be uploaded.",
+    );
+    this.name = "TripDocumentsUploadError";
+    this.tripId = tripId;
+  }
+}
+
+function tripDocumentsPrefix(ownerUid: string, tripId: string): string {
+  return `trips/${ownerUid}/${tripId}/documents/`;
+}
+
+/** Upload each scan, then append the successful ones in a single write. */
+async function attachTripDocuments(
+  tripId: string,
+  ownerUid: string,
+  docs: TripDocumentUpload[],
+): Promise<TripDocument[]> {
+  if (!docs.length) return [];
+  const prefix = tripDocumentsPrefix(ownerUid, tripId);
+  const results = await Promise.allSettled(
+    docs.map(async ({ kind, media }): Promise<TripDocument> => {
+      const id = Crypto.randomUUID();
+      const storagePath = `${prefix}${id}.${extensionForMedia(media)}`;
+      const url = await uploadLocalMedia(media, storagePath);
+      return { id, kind, url, storagePath, addedAt: Timestamp.now() };
+    }),
+  );
+  const uploaded = results
+    .filter((r): r is PromiseFulfilledResult<TripDocument> => r.status === "fulfilled")
+    .map((r) => r.value);
+  if (uploaded.length) {
+    queueDocUpdate("gemtrack_trips", tripId, {
+      documents: arrayUnion(...uploaded),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  const failed = results.length - uploaded.length;
+  if (failed > 0) {
+    throw new Error(
+      failed === results.length
+        ? "Travel documents could not be uploaded."
+        : `${failed} of ${results.length} documents could not be uploaded.`,
+    );
+  }
+  return uploaded;
+}
+
+/** Upload scanned travel documents to a trip the caller owns. */
+export async function addTripDocuments(
+  tripId: string,
+  ownerUid: string,
+  docs: TripDocumentUpload[],
+): Promise<TripDocument[]> {
+  const trip = await fetchTrip(tripId);
+  if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");
+  return attachTripDocuments(tripId, ownerUid, docs);
+}
+
+/** Detach a travel document and best-effort delete its file. */
+export async function removeTripDocument(
+  tripId: string,
+  ownerUid: string,
+  docId: string,
+): Promise<void> {
+  const trip = await fetchTrip(tripId);
+  if (!trip || trip.ownerUid !== ownerUid) throw new Error("Trip not found");
+  const current = trip.documents ?? [];
+  const target = current.find((d) => d.id === docId);
+  if (!target) return;
+  queueDocUpdate("gemtrack_trips", tripId, {
+    documents: current.filter((d) => d.id !== docId),
+    updatedAt: serverTimestamp(),
+  });
+  // Only ever touch files inside this trip's own documents folder.
+  if (target.storagePath.startsWith(tripDocumentsPrefix(ownerUid, tripId))) {
+    void deleteObject(storageRef(getStorage(), target.storagePath)).catch(() => {
+      // Orphaned file is owner-only; safe to leave if the delete fails.
+    });
+  }
 }
 
 export async function updateTripStatus(tripId: string, status: TripStatus) {

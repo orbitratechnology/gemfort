@@ -26,6 +26,7 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
   AttributePickerField,
@@ -685,12 +686,14 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         </FormSection>
       </ThemedScrollView>
 
-      <FormFooter
-        title="Save changes"
-        icon="check"
-        loading={saving}
-        onPress={() => void handleSubmit()}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Save changes"
+          icon="check"
+          loading={saving}
+          onPress={() => void handleSubmit()}
+        />
+      </SheetFooter>
 
       <GemTypePickerSheet
         visible={sheet === "type"}

@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Timestamp } from '@/lib/firebase/db';
 
+import { ScanFillStatus } from '@/components/scan/scan-fill-status';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +45,7 @@ import {
 } from '@/features/workspace/workspace-service';
 import { fetchTransactionsPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useAutofillGuard, useDocumentReader } from '@/hooks/use-document-reader';
 import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -53,6 +55,8 @@ import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { uploadReceipt } from '@/lib/firebase/receipt-service';
 import type { LocalMedia } from '@/lib/firebase/storage-service';
+import { readReceipt } from '@/lib/document-extract';
+import { mimeFromUri } from '@/lib/scan';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
@@ -88,8 +92,57 @@ export default function TransactionsScreen() {
   const [description, setDescription] = useState('');
   const [receipt, setReceipt] = useState<LocalMedia | null>(null);
   const [showForm, setShowForm] = useState(false);
+  // A scanned receipt (Scan & add) opens the new-transaction sheet with it
+  // attached. Applied during render so it also works when this tab is
+  // already mounted; each scan has a fresh file URI.
+  const { receiptUri } = useLocalSearchParams<{ receiptUri?: string }>();
+  const [appliedReceiptUri, setAppliedReceiptUri] = useState<string | null>(null);
+  if (receiptUri && receiptUri !== appliedReceiptUri) {
+    setAppliedReceiptUri(receiptUri);
+    setReceipt({
+      uri: receiptUri,
+      kind: 'image',
+      mimeType: mimeFromUri(receiptUri),
+      fileName: 'scanned-receipt.webp',
+    });
+    setShowForm(true);
+  }
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Read the receipt on device: an expense for its total, named after the
+  // business, dated when it was issued. Typed values are never overwritten.
+  const [scanDate, setScanDate] = useState<Date | null>(null);
+  const [scanFilled, setScanFilled] = useState<string[] | null>(null);
+  const autofill = useAutofillGuard<'type' | 'amount' | 'description'>({ type: 'income' });
+  const { reading } = useDocumentReader(
+    receipt?.kind === 'image' ? receipt.uri : null,
+    readReceipt,
+    (result) => {
+      const filled: string[] = [];
+      if (result?.amount && autofill.canFill('amount', money.amount)) {
+        const amount = String(result.amount);
+        setMoney((prev) => ({ amount, currency: result.currency ?? prev.currency }));
+        autofill.mark('amount', amount);
+        filled.push('amount');
+        if (autofill.canFill('type', type)) {
+          setType('expense');
+          autofill.mark('type', 'expense');
+        }
+      }
+      const name = [result?.merchant, result?.reference && `#${result.reference}`]
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 200);
+      if (name && autofill.canFill('description', description)) {
+        setDescription(name);
+        autofill.mark('description', name);
+        filled.push('description');
+      }
+      setScanDate(result?.date ?? null);
+      if (result?.date) filled.push('date');
+      setScanFilled(filled);
+    },
+  );
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const {
@@ -163,11 +216,13 @@ export default function TransactionsScreen() {
         gemId: null,
         contactId: null,
         receiptUrl,
-        date: Timestamp.now(),
+        date: scanDate ? Timestamp.fromDate(scanDate) : Timestamp.now(),
       });
       setMoney({ amount: '', currency: preferred });
       setDescription('');
       setReceipt(null);
+      setScanDate(null);
+      setScanFilled(null);
       setShowForm(false);
       await queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (e) {
@@ -318,6 +373,12 @@ export default function TransactionsScreen() {
           <Button title="Add Transaction" icon="add" loading={adding} onPress={handleAdd} />
         }
       >
+        <ScanFillStatus
+          reading={reading}
+          filled={scanFilled}
+          document="receipt"
+          style={styles.scanStatus}
+        />
         <View
           style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}
           accessibilityRole="radiogroup"
@@ -367,7 +428,15 @@ export default function TransactionsScreen() {
           error={errors.amount}
         />
         <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
-        <ReceiptField value={receipt} onChange={setReceipt} />
+        <ReceiptField
+          value={receipt}
+          onChange={(next) => {
+            setReceipt(next);
+            // The date only holds while the receipt it came from is attached.
+            setScanDate(null);
+            if (!next) setScanFilled(null);
+          }}
+        />
         {draftAmount > 0 ? (
           <Callout
             style={styles.preview}
@@ -383,6 +452,7 @@ export default function TransactionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  scanStatus: { paddingHorizontal: 0 },
   safe: { flex: 1 },
   container: { flex: 1 },
   searchSection: {

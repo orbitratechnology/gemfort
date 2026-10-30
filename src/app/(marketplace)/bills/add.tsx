@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { addDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -25,6 +25,7 @@ import {
     TotalRow,
     type DetailRowProps,
 } from "@/components/ui/detail-kit";
+import { ScanFillStatus } from "@/components/scan/scan-fill-status";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ReceiptField } from "@/components/ui/receipt-field";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
@@ -66,6 +68,7 @@ import {
     fetchGems,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useAutofillGuard, useDocumentReader } from "@/hooks/use-document-reader";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
@@ -76,6 +79,12 @@ import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
 import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
 import { uploadReceipt } from "@/lib/firebase/receipt-service";
 import type { LocalMedia } from "@/lib/firebase/storage-service";
+import {
+    matchContact,
+    readReceipt,
+    type ReceiptExtraction,
+} from "@/lib/document-extract";
+import { mimeFromUri } from "@/lib/scan";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { formatCurrency } from "@/lib/utils";
 import { addBillSchema, parseForm } from "@/lib/validation/form-schemas";
@@ -128,8 +137,11 @@ export default function AddBillScreen() {
     dueDate?: string;
     currency?: string;
     counterpartyBusinessId?: string;
+    /** Scanned bill (Scan & add) to attach as the receipt. */
+    sharedReceiptUri?: string;
   }>();
   const paramAmount = firstParam(raw.amount);
+  const paramReceiptUri = firstParam(raw.sharedReceiptUri);
   const paramNotes = decodeShareParam(raw.notes);
   const paramJobId = firstParam(raw.jobId);
   const paramGemId = firstParam(raw.gemId);
@@ -156,7 +168,16 @@ export default function AddBillScreen() {
   const [dueDays, setDueDays] = useState(() => dueDaysFromParam(paramDueDate));
   const [commissionPercent, setCommissionPercent] = useState("");
   const [notes, setNotes] = useState(paramNotes);
-  const [receipt, setReceipt] = useState<LocalMedia | null>(null);
+  const [receipt, setReceipt] = useState<LocalMedia | null>(() =>
+    paramReceiptUri
+      ? {
+          uri: paramReceiptUri,
+          kind: "image",
+          mimeType: mimeFromUri(paramReceiptUri),
+          fileName: "scanned-bill.webp",
+        }
+      : null,
+  );
   const [gemIds, setGemIds] = useState<string[]>(
     paramGemId ? [paramGemId] : [],
   );
@@ -225,6 +246,70 @@ export default function AddBillScreen() {
     () => jobs.find((j) => j.id === jobId) ?? null,
     [jobs, jobId],
   );
+
+  // Read the attached bill on device and fill amount, due date, who it is
+  // from and a reference note. Never overwrites what the user typed.
+  const [scan, setScan] = useState<ReceiptExtraction | null>(null);
+  const [scanFilled, setScanFilled] = useState<string[] | null>(null);
+  const autofill = useAutofillGuard<"amount" | "dueDays" | "notes" | "contactId">({
+    dueDays: dueDaysFromParam(paramDueDate),
+  });
+  const { reading } = useDocumentReader(
+    receipt?.kind === "image" ? receipt.uri : null,
+    readReceipt,
+    (result) => {
+      setScan(result);
+      if (!result) {
+        setScanFilled([]);
+        return;
+      }
+      const filled: string[] = [];
+      if (result.amount && autofill.canFill("amount", money.amount)) {
+        const amount = String(result.amount);
+        setMoney((prev) => ({ amount, currency: result.currency ?? prev.currency }));
+        autofill.mark("amount", amount);
+        clearField("amount");
+        filled.push("amount");
+      }
+      if (result.dueDate && autofill.canFill("dueDays", dueDays)) {
+        const days = String(
+          Math.min(730, Math.max(0, differenceInCalendarDays(result.dueDate, new Date()))),
+        );
+        setDueDays(days);
+        autofill.mark("dueDays", days);
+        clearField("dueDays");
+        filled.push("due date");
+      }
+      const note = [
+        result.reference ? `Ref ${result.reference}` : null,
+        result.merchant ?? null,
+        result.date ? format(result.date, "d MMM yyyy") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (note && autofill.canFill("notes", notes)) {
+        setNotes(note);
+        autofill.mark("notes", note);
+        filled.push("notes");
+      }
+      setScanFilled(filled);
+    },
+  );
+
+  // A payable bill comes from the business printed at the top. Direction and
+  // contacts may arrive after the scan is read.
+  const partyKey = scan && direction === "payable" ? `${contacts.length}` : null;
+  const [appliedPartyKey, setAppliedPartyKey] = useState<string | null>(null);
+  if (scan && partyKey !== null && partyKey !== appliedPartyKey) {
+    setAppliedPartyKey(partyKey);
+    const match = matchContact(scan.merchant, contacts);
+    if (match && autofill.canFill("contactId", contactId)) {
+      setContactId(match.id);
+      autofill.mark("contactId", match.id);
+      clearField("contactId");
+      setScanFilled((prev) => (prev?.includes("contact") ? prev : [...(prev ?? []), "contact"]));
+    }
+  }
 
   const duePreview = useMemo(() => {
     const days = parseInt(dueDays, 10);
@@ -442,6 +527,8 @@ export default function AddBillScreen() {
               />
             ) : null}
 
+            <ScanFillStatus reading={reading} filled={scanFilled} document="bill" />
+
             {isLapidary ? (
               <FormSection
                 title="Job"
@@ -599,14 +686,16 @@ export default function AddBillScreen() {
             ) : null}
           </ThemedScrollView>
 
-          <FormFooter
-            title="Add bill"
-            onPress={handleSubmit}
-            loading={submitting}
-            icon="check"
-            secondaryTitle={canChangeDirection ? "Back" : undefined}
-            onSecondaryPress={canChangeDirection ? () => setStep(0) : undefined}
-          />
+          <SheetFooter>
+            <FormFooter
+              title="Add bill"
+              onPress={handleSubmit}
+              loading={submitting}
+              icon="check"
+              secondaryTitle={canChangeDirection ? "Back" : undefined}
+              onSecondaryPress={canChangeDirection ? () => setStep(0) : undefined}
+            />
+          </SheetFooter>
         </>
       )}
 

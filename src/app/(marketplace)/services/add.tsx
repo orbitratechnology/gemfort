@@ -8,6 +8,7 @@ import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
@@ -401,12 +402,14 @@ export default function AddServiceScreen() {
         ) : null}
       </ThemedScrollView>
 
-      <FormFooter
-        title={provider?.source === "business" ? "Send Request" : "Add Service"}
-        icon="service"
-        loading={submitting}
-        onPress={handleSubmit}
-      />
+      <SheetFooter>
+        <FormFooter
+          title={provider?.source === "business" ? "Send Request" : "Add Service"}
+          icon="service"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
 
       <GemPickerSheet
         visible={gemSheetOpen}

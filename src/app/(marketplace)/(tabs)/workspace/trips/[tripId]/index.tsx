@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,13 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
+import {
+  TripDocumentKindSheet,
+  TripDocumentThumb,
+  TripDocumentViewer,
+  TripDocumentsScanLink,
+  tripDocumentKindLabel,
+} from "@/components/workspace/trip-documents";
 import {
   TripExpensesSheet,
   tripExpenseRow,
@@ -62,11 +69,13 @@ import {
   tripDurationDays,
 } from "@/features/workspace/trip-utils";
 import {
+  addTripDocuments,
   distributeTripOverhead,
   fetchGems,
   fetchTrip,
   fetchTripExpenses,
   fetchTripGems,
+  removeTripDocument,
   updateTripBudget,
   updateTripStatus,
 } from "@/features/workspace/workspace-service";
@@ -75,9 +84,13 @@ import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import type { LocalMedia } from "@/lib/firebase/storage-service";
+import { scanDocuments } from "@/lib/scan";
+import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
-import { confirm } from "@/providers/confirm-bridge";
+import { confirm, confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
+import type { TripDocument, TripDocumentKind } from "@/types";
 
 /** Rows shown in a band before "See all" hands off to the sheet. */
 const PREVIEW_COUNT = 4;
@@ -95,6 +108,10 @@ export default function TripDetailScreen() {
   const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
   const [expensesOpen, setExpensesOpen] = useState(false);
   const [gemsOpen, setGemsOpen] = useState(false);
+  /** Scanned pages waiting for the user to pick their document kind. */
+  const [pendingScans, setPendingScans] = useState<LocalMedia[]>([]);
+  const [kindSheetOpen, setKindSheetOpen] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<TripDocument | null>(null);
 
   const { data: trip, isLoading } = useFirestoreLiveQuery({
     queryKey: ["trip", tripId],
@@ -146,6 +163,20 @@ export default function TripDetailScreen() {
   const summary = useMemo(
     () => (trip ? computeTripSummary(expenses, tripGems, gems) : null),
     [trip, expenses, tripGems, gems],
+  );
+  // Travel documents are owner-only: never surface them to anyone else.
+  const isOwner = !!user && !!trip && trip.ownerUid === user.uid;
+  const travelDocuments = useMemo(
+    () =>
+      isOwner
+        ? (trip?.documents ?? [])
+            .slice()
+            .sort(
+              (a, b) =>
+                (b.addedAt?.toMillis?.() ?? 0) - (a.addedAt?.toMillis?.() ?? 0),
+            )
+        : [],
+    [isOwner, trip?.documents],
   );
 
   const typeMeta = TRIP_TYPES.find((t) => t.id === trip?.tripType);
@@ -210,6 +241,66 @@ export default function TripDetailScreen() {
         }
       },
     });
+  }
+
+  const [scanning, handleScanDocuments] = usePendingAction(async () => {
+    try {
+      const pages = await scanDocuments({ maxPages: 4 });
+      if (!pages.length) return;
+      setPendingScans(pages);
+      setKindSheetOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not scan document."));
+    }
+  });
+
+  const [uploadingDocs, uploadScans] = usePendingAction(async (
+    kind: TripDocumentKind,
+    pages: LocalMedia[],
+  ) => {
+    if (!user || !trip) return;
+    try {
+      await addTripDocuments(
+        trip.id,
+        user.uid,
+        pages.map((media) => ({ kind, media })),
+      );
+      toast.success(
+        pages.length > 1
+          ? `${pages.length} pages added to travel documents.`
+          : `${tripDocumentKindLabel(kind)} added to travel documents.`,
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, "Could not upload documents."));
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+    }
+  });
+
+  function handlePickDocumentKind(kind: TripDocumentKind) {
+    const pages = pendingScans;
+    setKindSheetOpen(false);
+    setPendingScans([]);
+    if (pages.length) void uploadScans(kind, pages);
+  }
+
+  function handleRemoveDocument(document: TripDocument) {
+    if (!user || !trip) return;
+    const label = tripDocumentKindLabel(document.kind);
+    void confirmDelete(
+      `Delete ${label.toLowerCase()}?`,
+      `The scanned ${label.toLowerCase()} will be removed from this trip.`,
+      async () => {
+        try {
+          await removeTripDocument(trip.id, user.uid, document.id);
+          await queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+          toast.success(`${label} deleted.`);
+        } catch (e) {
+          toast.error(friendlyError(e, "Could not delete document."));
+          throw e;
+        }
+      },
+    );
   }
 
   function handleRequestSale(tripGem: { id: string; gemId: string }) {
@@ -495,6 +586,59 @@ export default function TripDetailScreen() {
           )}
         </DetailBand>
 
+        {isOwner ? (
+          <DetailBand
+            title="Travel documents"
+            trailing={
+              <TripDocumentsScanLink
+                busy={uploadingDocs}
+                onPress={() => {
+                  if (scanning || uploadingDocs || kindSheetOpen) return;
+                  void handleScanDocuments();
+                }}
+              />
+            }
+          >
+            {travelDocuments.length ? (
+              <DetailRows
+                rows={travelDocuments.map((d) => {
+                  const label = tripDocumentKindLabel(d.kind);
+                  return {
+                    key: d.id,
+                    leading: <TripDocumentThumb uri={d.url} />,
+                    label,
+                    hint: d.addedAt ? `Added ${formatDate(d.addedAt)}` : null,
+                    value: (
+                      <Pressable
+                        onPress={() => handleRemoveDocument(d)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${label}`}
+                        style={({ pressed }) => [
+                          styles.docDelete,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Icon
+                          name="delete-outline"
+                          size={20}
+                          color={colors.textMuted}
+                        />
+                      </Pressable>
+                    ),
+                    onPress: () => setViewingDoc(d),
+                  };
+                })}
+              />
+            ) : (
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                Scan your passport, visa, or tickets to keep them with this trip.
+                Only you can see them.
+              </Text>
+            )}
+          </DetailBand>
+        ) : null}
+
         <TripSoldGemsSection
           soldGems={soldTripGems}
           gemMap={gemMap}
@@ -586,6 +730,24 @@ export default function TripDetailScreen() {
         onAddGem={() => router.push(sheets.addGem as never)}
         onAddGems={() => router.push(sheets.addGems as never)}
       />
+      {isOwner ? (
+        <>
+          <TripDocumentKindSheet
+            visible={kindSheetOpen}
+            pageCount={pendingScans.length}
+            onClose={() => {
+              setKindSheetOpen(false);
+              setPendingScans([]);
+            }}
+            onSelect={handlePickDocumentKind}
+          />
+          <TripDocumentViewer
+            uri={viewingDoc?.url ?? null}
+            title={viewingDoc ? tripDocumentKindLabel(viewingDoc.kind) : undefined}
+            onClose={() => setViewingDoc(null)}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -618,6 +780,12 @@ const styles = StyleSheet.create({
   emptyHint: { ...text, fontFamily: FontFamily.regular, fontSize: 14, lineHeight: 20 },
   inlineActions: { flexDirection: "row", gap: Spacing.sm },
   inlineHalf: { flex: 1 },
+  docDelete: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   notes: { ...text, fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 22 },
   actionBarBtn: { flex: 1 },
 });

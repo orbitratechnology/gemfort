@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { addDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import { ScanFillStatus } from "@/components/scan/scan-fill-status";
 import {
     ChoicePreviewCard,
     ChoiceTileGrid,
@@ -38,6 +39,12 @@ import { Spacing } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
 import { bankHasBranches } from "@/constants/sri-lanka-branches";
 import {
+    matchContact,
+    readCheque,
+    type ChequeExtraction,
+} from "@/lib/document-extract";
+import { useAutofillGuard, useDocumentReader } from "@/hooks/use-document-reader";
+import {
     apPaymentReceived,
     apPaymentSent,
 } from "@/features/workspace/ap-lifecycle-service";
@@ -62,10 +69,12 @@ import {
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import { mimeFromUri } from "@/lib/scan";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { Accent } from "@/components/ui/detail-kit";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
@@ -152,7 +161,7 @@ export default function AddChequeScreen() {
       ? {
           uri: sharedImageUri,
           kind: "image",
-          mimeType: "image/jpeg",
+          mimeType: mimeFromUri(sharedImageUri),
           fileName: "shared-cheque.jpg",
         }
       : null,
@@ -162,6 +171,11 @@ export default function AddChequeScreen() {
   const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+  const [scan, setScan] = useState<ChequeExtraction | null>(null);
+  const [scanFilled, setScanFilled] = useState<string[] | null>(null);
+  const autofill = useAutofillGuard<
+    "chequeNumber" | "bankCode" | "branch" | "amount" | "maturityDays" | "issuedBy" | "contactId"
+  >({ maturityDays: "30" });
 
   const directionMeta = DIRECTIONS.find((d) => d.value === direction);
 
@@ -184,6 +198,88 @@ export default function AddChequeScreen() {
     () => contacts.find((c) => c.id === contactId) ?? null,
     [contacts, contactId],
   );
+
+  // Read the cheque photo on device and fill what it shows. Fields the user
+  // has typed are never overwritten; a new photo replaces earlier scan values.
+  const { reading } = useDocumentReader(
+    photo?.kind === "image" ? photo.uri : null,
+    readCheque,
+    (result) => {
+      setScan(result);
+      if (!result) {
+        setScanFilled([]);
+        return;
+      }
+      const filled: string[] = [];
+      if (result.chequeNumber && autofill.canFill("chequeNumber", chequeNumber)) {
+        setChequeNumber(result.chequeNumber);
+        autofill.mark("chequeNumber", result.chequeNumber);
+        clearField("chequeNumber");
+        filled.push("number");
+      }
+      if (result.bankCode && autofill.canFill("bankCode", bankCode)) {
+        setBankCode(result.bankCode);
+        autofill.mark("bankCode", result.bankCode);
+        clearField("bankName");
+        const nextBranch = result.branch ?? "";
+        setBranch(nextBranch);
+        autofill.mark("branch", nextBranch);
+        filled.push(result.branch ? "bank and branch" : "bank");
+      } else if (
+        result.branch &&
+        result.bankCode === bankCode &&
+        autofill.canFill("branch", branch)
+      ) {
+        setBranch(result.branch);
+        autofill.mark("branch", result.branch);
+        filled.push("branch");
+      }
+      if (result.amount && autofill.canFill("amount", money.amount)) {
+        const amount = String(result.amount);
+        setMoney((prev) => ({ ...prev, amount }));
+        autofill.mark("amount", amount);
+        clearField("amount");
+        filled.push("amount");
+      }
+      if (result.date && autofill.canFill("maturityDays", maturityDays)) {
+        // The cheque's date is when it can be deposited — its maturity.
+        const days = String(
+          Math.min(730, Math.max(1, differenceInCalendarDays(result.date, new Date()))),
+        );
+        setMaturityDays(days);
+        autofill.mark("maturityDays", days);
+        clearField("maturityDays");
+        filled.push("date");
+      }
+      setScanFilled(filled);
+    },
+  );
+
+  // Who the cheque is from or to depends on direction, and contacts load
+  // separately — fill those once all three are known.
+  const partyKey = scan && direction ? `${direction}:${contacts.length}` : null;
+  const [appliedPartyKey, setAppliedPartyKey] = useState<string | null>(null);
+  if (scan && direction && partyKey !== appliedPartyKey) {
+    setAppliedPartyKey(partyKey);
+    // Received: the drawer printed on the cheque. Given: the payee.
+    const party = direction === "received" ? scan.drawer : scan.payee;
+    const added: string[] = [];
+    if (direction === "received" && scan.drawer && autofill.canFill("issuedBy", issuedBy)) {
+      setIssuedBy(scan.drawer);
+      autofill.mark("issuedBy", scan.drawer);
+      added.push("issuer");
+    }
+    const match = matchContact(party, contacts);
+    if (match && autofill.canFill("contactId", contactId)) {
+      setContactId(match.id);
+      autofill.mark("contactId", match.id);
+      clearField("contactId");
+      added.push("contact");
+    }
+    if (added.length) {
+      setScanFilled((prev) => [...(prev ?? []), ...added.filter((a) => !prev?.includes(a))]);
+    }
+  }
 
   const maturityPreview = useMemo(() => {
     const days = parseInt(maturityDays, 10);
@@ -428,6 +524,8 @@ export default function AddChequeScreen() {
               />
             ) : null}
 
+            <ScanFillStatus reading={reading} filled={scanFilled} document="cheque" />
+
             {directionMeta ? (
               <ChoicePreviewCard
                 label={directionMeta.label}
@@ -552,14 +650,16 @@ export default function AddChequeScreen() {
             </FormSection>
           </ThemedScrollView>
 
-          <FormFooter
-            title="Add"
-            icon="shield"
-            loading={submitting}
-            onPress={handleSubmit}
-            secondaryTitle={presetDirection ? undefined : "Back"}
-            onSecondaryPress={presetDirection ? undefined : () => setStep(0)}
-          />
+          <SheetFooter>
+            <FormFooter
+              title="Add"
+              icon="shield"
+              loading={submitting}
+              onPress={handleSubmit}
+              secondaryTitle={presetDirection ? undefined : "Back"}
+              onSecondaryPress={presetDirection ? undefined : () => setStep(0)}
+            />
+          </SheetFooter>
         </>
       )}
 

@@ -11,6 +11,7 @@ import { Accent, Callout, KeyStats } from "@/components/ui/detail-kit";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import type { PartySelection } from "@/components/workspace/contact-picker-sheet";
@@ -292,12 +293,14 @@ export default function RecordSaleScreen() {
         }}
       />
 
-      <FormFooter
-        title="Record sale"
-        icon="price-check"
-        loading={confirming}
-        onPress={handleConfirm}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Record sale"
+          icon="price-check"
+          loading={confirming}
+          onPress={handleConfirm}
+        />
+      </SheetFooter>
     </View>
   );
 }

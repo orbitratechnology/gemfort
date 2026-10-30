@@ -27,6 +27,7 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
     AttributePickerField,
@@ -77,6 +78,7 @@ import {
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import { mimeFromUri } from "@/lib/scan";
 import { formatCurrency } from "@/lib/utils";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
@@ -84,7 +86,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { GemCertificate, GemStatus, GemStoneStage, Trip } from "@/types";
 
-const STEPS = ["Details", "Photos", "Certificate", "Review"] as const;
+const STEPS = ["Details", "Certificate", "Review"] as const;
 const MAX_GEM_PHOTOS = 10;
 
 type SheetKey =
@@ -198,13 +200,10 @@ export default function AddGemScreen() {
           .map((uri, index) => ({
             uri,
             kind: "image" as const,
-            mimeType: "image/jpeg",
+            mimeType: mimeFromUri(uri),
             fileName: `shared-${index + 1}.jpg`,
           }));
-        if (media.length > 0) {
-          setPhotos(media);
-          setStep(1);
-        }
+        if (media.length > 0) setPhotos(media);
       }
       setDidApplyShared(true);
     } catch {
@@ -289,16 +288,12 @@ export default function AddGemScreen() {
   function handleNext() {
     if (step === 0) {
       if (!validateDetails()) return;
+      clearField("photos");
       setStep(1);
       return;
     }
     if (step === 1) {
-      clearField("photos");
       setStep(2);
-      return;
-    }
-    if (step === 2) {
-      setStep(3);
       return;
     }
     void handleSubmit();
@@ -549,6 +544,19 @@ export default function AddGemScreen() {
             })}
           </View>
         </ScreenInset>
+
+        {step === 0 ? (
+          <FormSection title="Photos">
+            <MediaAlbumField
+              value={photos}
+              onChange={handlePhotosChange}
+              max={MAX_GEM_PHOTOS}
+              error={errors.photos}
+              emptyTitle="Add photos"
+              emptySubtitle="Optional — skip now and add later from Edit"
+            />
+          </FormSection>
+        ) : null}
 
         {step === 0 ? (
           <FormSection title="Stone">
@@ -828,21 +836,6 @@ export default function AddGemScreen() {
         ) : null}
 
         {step === 1 ? (
-          <>
-            <FormSection title="Photos">
-              <MediaAlbumField
-                value={photos}
-                onChange={handlePhotosChange}
-                max={MAX_GEM_PHOTOS}
-                error={errors.photos}
-                emptyTitle="Add photos"
-                emptySubtitle="Optional — skip now and add later from Edit"
-              />
-            </FormSection>
-          </>
-        ) : null}
-
-        {step === 2 ? (
           <FormSection title="Gem certificate">
             <MediaField
               label="Certificate"
@@ -857,7 +850,7 @@ export default function AddGemScreen() {
           </FormSection>
         ) : null}
 
-        {step === 3 ? (
+        {step === 2 ? (
           <FormSection title="Review">
             <View style={styles.reviewList}>
               <ReviewRow label="Title" value={title.trim() || "—"} />
@@ -925,20 +918,16 @@ export default function AddGemScreen() {
         ) : null}
       </ThemedScrollView>
 
-      <FormFooter
-        title={
-          step === 3
-            ? "Add Gem"
-            : step === 1 && photos.length === 0
-              ? "Continue"
-              : "Continue"
-        }
-        icon={step === 3 ? "shield" : "arrow-forward"}
-        loading={submitting}
-        onPress={handleNext}
-        secondaryTitle={step > 0 ? "Back" : undefined}
-        onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}
-      />
+      <SheetFooter>
+        <FormFooter
+          title={step === 2 ? "Add Gem" : "Continue"}
+          icon={step === 2 ? "shield" : "arrow-forward"}
+          loading={submitting}
+          onPress={handleNext}
+          secondaryTitle={step > 0 ? "Back" : undefined}
+          onSecondaryPress={step > 0 ? () => setStep((s) => s - 1) : undefined}
+        />
+      </SheetFooter>
 
       <GemTypePickerSheet
         visible={sheet === "type"}

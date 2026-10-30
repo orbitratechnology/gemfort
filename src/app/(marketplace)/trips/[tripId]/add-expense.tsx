@@ -21,6 +21,7 @@ import { MediaField } from '@/components/ui/media-field';
 import { PaymentMethodPicker } from '@/components/workspace/payment-method-picker';
 import { TripContextSummary } from '@/components/workspace/trip-money-cards';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { SheetFooter } from '@/components/ui/sheet-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import {
   TRIP_EXPENSE_CATEGORIES,
@@ -197,12 +198,14 @@ export default function AddTripExpenseScreen() {
         </FormSection>
       </ThemedScrollView>
 
-      <FormFooter
-        title="Save expense"
-        icon="check"
-        loading={submitting}
-        onPress={handleSubmit}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Save expense"
+          icon="check"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
     </View>
   );
 }

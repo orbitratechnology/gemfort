@@ -19,6 +19,7 @@ import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { MaskedInput } from '@/components/ui/masked-input';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { SheetFooter } from '@/components/ui/sheet-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { TripContextSummary } from '@/components/workspace/trip-money-cards';
 import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
@@ -189,12 +190,14 @@ export default function AddTripPurchaseScreen() {
         </FormSection>
       </ThemedScrollView>
 
-      <FormFooter
-        title="Add to trip"
-        icon="add"
-        loading={submitting}
-        onPress={handleSubmit}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Add to trip"
+          icon="add"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
     </View>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScanToAddRow } from "@/components/scan/scan-to-add-row";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -59,6 +60,16 @@ export function QuickActionsSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Quick actions">
+      <ScanToAddRow
+        onBeforeCapture={onClose}
+        header={
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+            Scan & add
+          </Text>
+        }
+        style={styles.section}
+      />
+
       <View style={styles.section}>
         <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
           Verify certificate

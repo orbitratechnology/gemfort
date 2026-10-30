@@ -24,6 +24,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
@@ -431,12 +432,14 @@ export default function AddApScreen() {
         ) : null}
       </ThemedScrollView>
 
-      <FormFooter
-        title="Send AP request"
-        icon="ap"
-        loading={submitting}
-        onPress={handleSubmit}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Send AP request"
+          icon="ap"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
 
       <GemPickerSheet
         visible={gemSheetOpen}
