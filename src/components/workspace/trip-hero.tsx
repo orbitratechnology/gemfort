@@ -126,7 +126,7 @@ export function TripFlagHero({
 }
 
 /** How far along the route the plane sits for each trip state. */
-function routeProgress(status: TripStatus, start: Date | null, end: Date | null) {
+export function routeProgress(status: TripStatus, start: Date | null, end: Date | null) {
   if (status === "completed") return 1;
   if (status !== "ongoing" || !start || !end) return 0;
   const span = end.getTime() - start.getTime();

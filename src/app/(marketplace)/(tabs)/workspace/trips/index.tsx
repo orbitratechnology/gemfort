@@ -4,8 +4,7 @@ import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { CountryFlag } from "@/components/ui/country-flag";
-import { Accent, IconBubble, ListItem } from "@/components/ui/detail-kit";
+import { IconBubble, ListItem } from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
@@ -13,24 +12,17 @@ import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import {
-    TRIP_STATUS_ACCENT,
     TripStatusTabs,
     type TripListTab,
 } from "@/components/workspace/trip-status-tabs";
+import { TripTicket } from "@/components/workspace/trip-ticket";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Spacing } from "@/constants/design-tokens";
-import { resolveCountryCode } from "@/constants/gem-options";
-import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
-import {
-    formatTripDates,
-    getTripsByStatus,
-    tripBudgetBase,
-} from "@/features/workspace/trip-utils";
+import { Radius, Spacing } from "@/constants/design-tokens";
+import { getTripsByStatus } from "@/features/workspace/trip-utils";
 import { deleteTrip } from "@/features/workspace/workspace-service";
 import { fetchTripsPage } from "@/features/workspace/workspace-pagination";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query";
-import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useAuth } from "@/providers/auth-provider";
@@ -38,54 +30,21 @@ import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Trip } from "@/types";
 
-/** Leading mark: status-tinted flight bubble with the destination flag. */
-function TripLeading({ trip }: { trip: Trip }) {
-  const accent = TRIP_STATUS_ACCENT[trip.status];
-  const hasFlag = !!resolveCountryCode(trip.destinationCountry);
-  return (
-    <View>
-      <IconBubble icon="flight" accent={accent} size={44} />
-      {hasFlag ? (
-        <View style={styles.leadingFlag} pointerEvents="none">
-          <CountryFlag country={trip.destinationCountry} width={20} height={14} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 function TripRow({
   trip,
-  isLast,
   onDelete,
 }: {
   trip: Trip;
-  isLast: boolean;
   onDelete: () => void | Promise<void>;
 }) {
-  const { formatBase } = usePreferredMoney();
-  const typeMeta =
-    TRIP_TYPES.find((t) => t.id === trip.tripType) ?? TRIP_TYPES[0];
-  const location = [trip.destinationCity, trip.destinationCountry]
+  const place = [trip.destinationCity, trip.destinationCountry]
     .filter((part): part is string => !!part?.trim())
     .join(", ");
-  const { totalExpenses, totalGemsPurchased, totalGemsSold, totalRevenue, netResult } =
-    trip.summary;
-  const budgetBase = tripBudgetBase(trip);
-  const overBudget = budgetBase > 0 && totalExpenses > budgetBase;
-  const meta = [
-    typeMeta.label,
-    totalGemsPurchased > 0 ? `${totalGemsPurchased} bought` : null,
-    totalGemsSold > 0 ? `${totalGemsSold} sold` : null,
-    totalRevenue > 0 ? `Net ${formatBase(netResult)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
     <ContextActionsLink
       href={`/(marketplace)/(tabs)/workspace/trips/${trip.id}` as never}
-      accessibilityLabel={trip.tripName}
+      accessibilityLabel={[trip.tripName, place].filter(Boolean).join(", ")}
+      style={styles.ticketRow}
       actions={[
         {
           label: "Delete",
@@ -100,19 +59,7 @@ function TripRow({
         },
       ]}
     >
-      <ListItem
-        leading={<TripLeading trip={trip} />}
-        title={trip.tripName}
-        subtitle={[location, formatTripDates(trip)].filter(Boolean).join(" · ")}
-        meta={meta}
-        amount={totalExpenses > 0 ? formatBase(totalExpenses) : null}
-        amountColor={overBudget ? Accent.rose : undefined}
-        status={{
-          label: TRIP_STATUS_LABELS[trip.status],
-          accent: TRIP_STATUS_ACCENT[trip.status],
-        }}
-        isLast={isLast}
-      />
+      {({ pressed }) => <TripTicket trip={trip} pressed={pressed} />}
     </ContextActionsLink>
   );
 }
@@ -181,9 +128,14 @@ export default function TripsScreen() {
         }}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={tab === "active" ? (
-          <View style={styles.flightsRow}>
+          <View
+            style={[
+              styles.flightsRow,
+              { backgroundColor: colors.surfaceContainerLowest },
+            ]}
+          >
             <ListItem
-              leading={<IconBubble icon="explore" accent={Accent.blue} size={44} />}
+              leading={<IconBubble icon="explore" accent={colors.onSurfaceVariant} size={44} />}
               title="Find flights"
               subtitle="Compare cached fares for your next trade trip"
               onPress={haptics.wrap("light", () =>
@@ -213,12 +165,8 @@ export default function TripsScreen() {
             onRetry={() => void fetchNextPage()}
           />
         }
-        renderItem={({ item, index }) => (
-          <TripRow
-            trip={item}
-            isLast={index === visible.length - 1}
-            onDelete={() => handleDelete(item.id)}
-          />
+        renderItem={({ item }) => (
+          <TripRow trip={item} onDelete={() => handleDelete(item.id)} />
         )}
       />
 
@@ -243,15 +191,16 @@ export default function TripsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingBottom: 100 },
-  flightsRow: { marginBottom: Spacing.sm },
-  leadingFlag: {
-    position: "absolute",
-    right: -4,
-    bottom: -2,
-    borderRadius: 3,
+  flightsRow: {
+    marginHorizontal: Spacing.containerMargin,
+    marginBottom: Spacing.lg,
+    borderRadius: Radius.xl + 4,
+    borderCurve: "continuous",
     overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF",
+  },
+  ticketRow: {
+    marginHorizontal: Spacing.containerMargin,
+    marginBottom: Spacing.md,
   },
   fab: {
     position: "absolute",
