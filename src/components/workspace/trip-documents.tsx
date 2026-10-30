@@ -1,5 +1,5 @@
 /**
- * Travel documents on trips (passport, visa, ticket…): kind metadata, the
+ * Travel documents on trips (visa, ticket…): kind metadata, the
  * "what did you scan?" sheet, a thumbnail, a busy-aware band link and a
  * full-screen in-app viewer. Documents are owner-only — callers must not
  * render any of this for non-owners, and URLs must never be logged.
@@ -26,27 +26,37 @@ import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import type { TripDocumentKind } from "@/types";
 
+/** Kinds offered when scanning or retagging a document. */
 export const TRIP_DOCUMENT_KINDS: {
   value: TripDocumentKind;
   label: string;
   icon: IconName;
 }[] = [
-  { value: "passport", label: "Passport", icon: "badge" },
   { value: "visa", label: "Visa", icon: "fact-check" },
   { value: "ticket", label: "Ticket", icon: "airplane-ticket" },
   { value: "other", label: "Other", icon: "description" },
 ];
 
+/** Passports are no longer offered, but older trips may still hold them. */
+const LEGACY_KINDS: typeof TRIP_DOCUMENT_KINDS = [
+  { value: "passport", label: "Passport", icon: "badge" },
+];
+
+function kindMeta(kind: TripDocumentKind) {
+  return [...TRIP_DOCUMENT_KINDS, ...LEGACY_KINDS].find((k) => k.value === kind);
+}
+
+/** True for kinds a new document may be tagged with (passport excluded). */
 export function isTripDocumentKind(value: unknown): value is TripDocumentKind {
   return TRIP_DOCUMENT_KINDS.some((k) => k.value === value);
 }
 
 export function tripDocumentKindLabel(kind: TripDocumentKind): string {
-  return TRIP_DOCUMENT_KINDS.find((k) => k.value === kind)?.label ?? "Document";
+  return kindMeta(kind)?.label ?? "Document";
 }
 
 export function tripDocumentKindIcon(kind: TripDocumentKind): IconName {
-  return TRIP_DOCUMENT_KINDS.find((k) => k.value === kind)?.icon ?? "description";
+  return kindMeta(kind)?.icon ?? "description";
 }
 
 const KIND_OPTIONS: ChoiceTileOption<TripDocumentKind>[] = TRIP_DOCUMENT_KINDS.map(
@@ -124,7 +134,7 @@ export function TripDocumentsScanLink({
   return <BandLink label="Scan" onPress={onPress} />;
 }
 
-/** Full-screen in-app viewer, so passport URLs never reach the browser history. */
+/** Full-screen in-app viewer, so document URLs never reach the browser history. */
 export function TripDocumentViewer({
   uri,
   title,

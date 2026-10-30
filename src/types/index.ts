@@ -724,6 +724,7 @@ export type TripType = "sourcing" | "selling" | "both";
 
 export type TripStatus = "planning" | "ongoing" | "completed" | "cancelled";
 
+/** `passport` is legacy: still readable on older trips, no longer offered. */
 export type TripDocumentKind = "passport" | "visa" | "ticket" | "other";
 
 /** Scanned travel document stored owner-only under `trips/{uid}/{tripId}/documents/`. */
@@ -765,7 +766,7 @@ export type Trip = {
     gemsReturned: number;
   };
   notes: string | null;
-  /** Scanned passports, visas, tickets. Owner-only; never shown to others. */
+  /** Scanned visas and tickets (older trips may hold passports). Owner-only; never shown to others. */
   documents?: TripDocument[];
   createdAt: Timestamp;
   updatedAt: Timestamp;

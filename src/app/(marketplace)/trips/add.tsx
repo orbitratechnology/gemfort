@@ -104,7 +104,7 @@ export default function AddTripScreen() {
   const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
   const defaultDocKind: TripDocumentKind = isTripDocumentKind(params.scanKind)
     ? params.scanKind
-    : 'passport';
+    : 'other';
   const [documents, setDocuments] = useState<PendingTripDocument[]>(() =>
     parseScanUris(params.scanUris).map((uri, i) => pendingFromUri(uri, i, defaultDocKind)),
   );
@@ -355,7 +355,7 @@ export default function AddTripScreen() {
 
             <FormSection
               title="Travel documents"
-              hint="Passports, visas and tickets stay private to you.">
+              hint="Visas and tickets stay private to you.">
               {documents.map((d) => {
                 const label = tripDocumentKindLabel(d.kind);
                 return (

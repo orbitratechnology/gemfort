@@ -36,7 +36,7 @@ export async function capturePhoto(): Promise<LocalMedia | null> {
 }
 
 /**
- * Scan flat documents (cheques, bills, receipts, passports). Returns cropped,
+ * Scan flat documents (cheques, bills, receipts, visas, tickets). Returns cropped,
  * de-skewed page images, or an empty array if the user cancels.
  */
 export async function scanDocuments(options: { maxPages?: number } = {}): Promise<LocalMedia[]> {

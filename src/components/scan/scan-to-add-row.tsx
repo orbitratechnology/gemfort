@@ -14,7 +14,7 @@ import { capturePhoto, scanDocuments } from '@/lib/scan';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 
-export type ScanTarget = 'gem' | 'cheque' | 'bill' | 'receipt' | 'passport';
+export type ScanTarget = 'gem' | 'cheque' | 'bill' | 'receipt' | 'visa' | 'ticket';
 
 type TargetConfig = {
   id: ScanTarget;
@@ -92,18 +92,32 @@ const TARGETS: TargetConfig[] = [
     }) as Href,
   },
   {
-    id: 'passport',
-    label: 'Passport',
+    id: 'visa',
+    label: 'Visa',
     hint: 'Scan → New trip',
-    icon: 'badge',
-    image: WORKSPACE_ENTITY_IMAGES.trip,
+    icon: 'fact-check',
     accent: Accent.teal,
     module: 'trips',
     mode: 'document',
     maxPages: 2,
     href: (uris) => ({
       pathname: '/(marketplace)/trips/add',
-      params: { scanUris: JSON.stringify(uris), scanKind: 'passport' },
+      params: { scanUris: JSON.stringify(uris), scanKind: 'visa' },
+    }) as Href,
+  },
+  {
+    id: 'ticket',
+    label: 'Ticket',
+    hint: 'Scan → New trip',
+    icon: 'airplane-ticket',
+    image: WORKSPACE_ENTITY_IMAGES.trip,
+    accent: Accent.teal,
+    module: 'trips',
+    mode: 'document',
+    maxPages: 4,
+    href: (uris) => ({
+      pathname: '/(marketplace)/trips/add',
+      params: { scanUris: JSON.stringify(uris), scanKind: 'ticket' },
     }) as Href,
   },
 ];
@@ -112,8 +126,8 @@ const TARGETS: TargetConfig[] = [
 export const SHEET_CLOSE_MS = 350;
 
 /**
- * "Scan & add" tiles: capture a gem photo or scan a cheque, bill, receipt or
- * passport, then open the matching add sheet with the capture attached.
+ * "Scan & add" tiles: capture a gem photo or scan a cheque, bill, receipt,
+ * visa or ticket, then open the matching add sheet with the capture attached.
  * `onBeforeCapture` closes the host sheet; `trailing` tiles share the row.
  */
 export function ScanToAddRow({
