@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
@@ -9,7 +9,9 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { Accent, Callout } from '@/components/ui/detail-kit';
 import { FormFooter } from '@/components/ui/form-footer';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
@@ -24,6 +26,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { addPayableSchema, parseForm } from '@/lib/validation/form-schemas';
@@ -35,6 +38,7 @@ export default function AddPayableScreen() {
   const { colors } = useAppTheme();
   const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
+  const { formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [contactId, setContactId] = useState('');
@@ -51,6 +55,12 @@ export default function AddPayableScreen() {
     subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
+
+  const contactName = useMemo(
+    () => contacts.find((c) => c.id === contactId)?.displayName?.trim() || null,
+    [contacts, contactId],
+  );
+  const draftAmount = parseFloat(money.amount) || 0;
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -118,37 +128,51 @@ export default function AddPayableScreen() {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ContactPicker
-          label="To contact (optional)"
-          contacts={contacts}
-          value={contactId}
-          allowClear
-          onChange={(id) => {
-            setContactId(id);
-            clearField('contactId');
-          }}
-          error={errors.contactId}
-        />
-        <CurrencyAmountField
-          label="Amount"
-          value={money}
-          onChange={(next) => {
-            setMoney(next);
-            clearField('amount');
-          }}
-          error={errors.amount}
-        />
-        <Input
-          label="Title / Reason (required)"
-          value={title}
-          onChangeText={(value) => {
-            setTitle(value);
-            clearField('title');
-          }}
-          placeholder="e.g. Advance for parcel"
-          leftIcon="notes"
-          error={errors.title}
-        />
+        <FormSection>
+          <Callout
+            style={styles.summary}
+            icon="north-east"
+            accent={Accent.amber}
+            label={contactName ? `You'll pay ${contactName}` : 'You owe'}
+            value={draftAmount > 0 ? formatFace(draftAmount, money.currency) : 'Enter an amount'}
+            pill="Due in 14 days"
+          />
+        </FormSection>
+        <FormSection title="Contact">
+          <ContactPicker
+            label="To contact (optional)"
+            contacts={contacts}
+            value={contactId}
+            allowClear
+            onChange={(id) => {
+              setContactId(id);
+              clearField('contactId');
+            }}
+            error={errors.contactId}
+          />
+        </FormSection>
+        <FormSection title="Details">
+          <CurrencyAmountField
+            label="Amount"
+            value={money}
+            onChange={(next) => {
+              setMoney(next);
+              clearField('amount');
+            }}
+            error={errors.amount}
+          />
+          <Input
+            label="Title / Reason (required)"
+            value={title}
+            onChangeText={(value) => {
+              setTitle(value);
+              clearField('title');
+            }}
+            placeholder="e.g. Advance for parcel"
+            leftIcon="notes"
+            error={errors.title}
+          />
+        </FormSection>
       </ThemedScrollView>
       <FormFooter title="Add Payable" icon="add" loading={adding} onPress={handleAdd} />
     </KeyboardAvoidingView>
@@ -159,7 +183,9 @@ const styles = StyleSheet.create({
   /** No flex:1 — required for formSheet fitToContents height measurement. */
   sheet: { gap: Spacing.sm },
   content: {
-    padding: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
+  summary: { marginTop: 0 },
 });

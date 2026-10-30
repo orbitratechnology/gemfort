@@ -1,31 +1,43 @@
 import { FlashList } from '@/components/ui/gesture-lists';
 import { useQueryClient } from '@tanstack/react-query';
+import { differenceInCalendarDays, startOfDay } from 'date-fns';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
-import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import {
-    CurrencyAmountField,
-    type CurrencyAmountValue,
+  CurrencyAmountField,
+  type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import {
+  Accent,
+  Callout,
+  DetailRows,
+  IconBubble,
+  KeyStats,
+  ListItem,
+  ListSectionHeader,
+  StatusChip,
+  TitleBand,
+} from '@/components/ui/detail-kit';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
+import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { resolveCurrencyCode } from '@/constants/currencies';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
+import { subscribeContacts } from '@/features/workspace/firestore-subscriptions';
 import { effectivePayableStatus, getPayableSummary } from '@/features/workspace/payment-utils';
-import {
-  recordPayablePayment,
-} from '@/features/workspace/workspace-service';
+import { fetchContacts, recordPayablePayment } from '@/features/workspace/workspace-service';
 import { fetchPayablesPage } from '@/features/workspace/workspace-pagination';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreInfiniteQuery } from '@/hooks/use-firestore-infinite-query';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredMoney } from '@/hooks/use-preferred-money';
@@ -38,6 +50,45 @@ import { parseForm, recordPaymentSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { Payable } from '@/types';
+
+type Bucket = 'overdue' | 'week' | 'later' | 'settled';
+
+const BUCKETS: { id: Bucket; title: string; accent: string }[] = [
+  { id: 'overdue', title: 'Overdue', accent: Accent.rose },
+  { id: 'week', title: 'Due this week', accent: Accent.amber },
+  { id: 'later', title: 'Later', accent: Accent.slate },
+  { id: 'settled', title: 'Paid', accent: Accent.emerald },
+];
+
+const STATUS_ACCENT: Record<Payable['status'], string> = {
+  overdue: Accent.rose,
+  paid: Accent.emerald,
+  partial: Accent.amber,
+  pending: Accent.amber,
+};
+
+type Entry =
+  | { kind: 'header'; key: string; title: string; accent: string; count: number; trailing: string | null }
+  | { kind: 'row'; key: string; item: Payable; isLast: boolean };
+
+function remainingOf(item: Payable) {
+  return Math.max(0, item.amount - item.amountPaid);
+}
+
+/** Days until due (negative when past), or null without a due date. */
+function daysUntilDue(item: Payable): number | null {
+  const due = item.dueDate?.toDate?.();
+  if (!due) return null;
+  return differenceInCalendarDays(startOfDay(due), startOfDay(new Date()));
+}
+
+function bucketOf(item: Payable): Bucket {
+  const status = effectivePayableStatus(item);
+  if (status === 'paid') return 'settled';
+  if (status === 'overdue') return 'overdue';
+  const days = daysUntilDue(item);
+  return days != null && days <= 6 ? 'week' : 'later';
+}
 
 export default function PayablesScreen() {
   const { user } = useAuth();
@@ -70,8 +121,54 @@ export default function PayablesScreen() {
     enabled: !!user,
   });
 
+  const { data: contacts = [] } = useFirestoreLiveQuery({
+    queryKey: ['contacts', user?.uid],
+    queryFn: () => fetchContacts(user!.uid),
+    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    enabled: !!user,
+  });
+  const contactName = useMemo(() => {
+    const map = new Map(contacts.map((c) => [c.id, c.displayName?.trim() || null]));
+    return (id: string | null) => (id ? map.get(id) ?? null : null);
+  }, [contacts]);
+
   const summary = getPayableSummary(payables);
-  const overdueItems = payables.filter((p) => effectivePayableStatus(p) === 'overdue');
+
+  const { entries, dueThisWeek, dueThisWeekCount, openCount } = useMemo(() => {
+    const groups: Record<Bucket, Payable[]> = { overdue: [], week: [], later: [], settled: [] };
+    for (const p of payables) groups[bucketOf(p)].push(p);
+    const byDue = (a: Payable, b: Payable) =>
+      (daysUntilDue(a) ?? Number.MAX_SAFE_INTEGER) - (daysUntilDue(b) ?? Number.MAX_SAFE_INTEGER);
+    groups.overdue.sort(byDue);
+    groups.week.sort(byDue);
+    groups.later.sort(byDue);
+
+    const list: Entry[] = [];
+    for (const bucket of BUCKETS) {
+      const items = groups[bucket.id];
+      if (items.length === 0) continue;
+      const open = items.reduce((sum, p) => sum + remainingOf(p), 0);
+      list.push({
+        kind: 'header',
+        key: `h-${bucket.id}`,
+        title: bucket.title,
+        accent: bucket.accent,
+        count: items.length,
+        trailing: bucket.id === 'settled' ? null : formatBase(open),
+      });
+      items.forEach((item, i) =>
+        list.push({ kind: 'row', key: item.id, item, isLast: i === items.length - 1 }),
+      );
+    }
+    return {
+      entries: list,
+      dueThisWeek: groups.week.reduce((sum, p) => sum + remainingOf(p), 0),
+      dueThisWeekCount: groups.week.length,
+      openCount: payables.length - groups.settled.length,
+    };
+  }, [payables, formatBase]);
+
+  const payingItem = payingId ? payables.find((p) => p.id === payingId) ?? null : null;
 
   const [recordingPayment, handleRecordPayment] = usePendingAction(async (item: Payable) => {
     if (!user) return;
@@ -118,112 +215,74 @@ export default function PayablesScreen() {
     };
   }
 
-  function renderRow({ item }: { item: Payable }) {
+  function paidStored(item: Payable) {
+    return {
+      amount: item.amountPaid,
+      currency: item.currency,
+      amountBase:
+        item.amountBase && item.amount > 0
+          ? (item.amountPaid / item.amount) * item.amountBase
+          : undefined,
+    };
+  }
+
+  function startPayment(item: Payable, mode: 'full' | 'partial') {
     const remaining = item.amount - item.amountPaid;
-    const remainingStored = payableRemainingStored(item);
+    setPayingId(item.id);
+    setPaymentMoney({
+      amount: mode === 'full' ? String(remaining) : '',
+      currency: resolveCurrencyCode(item.currency, preferred),
+    });
+  }
+
+  function renderEntry({ item: entry }: { item: Entry }) {
+    if (entry.kind === 'header') {
+      return (
+        <View style={[styles.bandHeader, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <ListSectionHeader
+            title={entry.title}
+            count={entry.count}
+            accent={entry.accent}
+            trailing={entry.trailing}
+          />
+        </View>
+      );
+    }
+
+    const { item, isLast } = entry;
     const status = effectivePayableStatus(item);
-    const isPaying = payingId === item.id;
     const paid = status === 'paid';
-    const isOverdue = status === 'overdue';
+    const party = contactName(item.contactId);
+    const what = item.title || item.description || 'Payable';
 
     return (
-      <View
-        style={[
-          styles.row,
-          { backgroundColor: colors.surfaceContainerLowest },
-          isOverdue && { borderWidth: 1, borderColor: colors.error + '55' },
-        ]}>
-        <View style={styles.rowHeader}>
-          <Text style={[styles.amount, { color: paid ? colors.successEmerald : isOverdue ? colors.error : colors.primary }]}>
-            {formatStored(remainingStored)}
-          </Text>
-          <View
-            style={[
-              styles.statusPill,
-              {
-                backgroundColor: isOverdue
-                  ? colors.error + '1A'
-                  : paid
-                    ? colors.successEmerald + '1A'
-                    : colors.warningAmber + '1A',
-              },
-            ]}>
-            <Text
-              style={[
-                styles.statusText,
-                {
-                  color: isOverdue ? colors.error : paid ? colors.successEmerald : colors.warningAmber,
-                },
-              ]}>
-              {status}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.desc, { color: colors.onSurface }]}>
-          {item.title || item.description || "Payable"}
-        </Text>
-        <Text style={[styles.meta, { color: colors.textMuted }]}>
-          Due {formatRelativeDue(item.dueDate)}
-          {item.amountPaid > 0
-            ? ` · Paid ${formatStored({
-                amount: item.amountPaid,
-                currency: item.currency,
-                amountBase:
-                  item.amountBase && item.amount > 0
-                    ? (item.amountPaid / item.amount) * item.amountBase
-                    : undefined,
-              })}`
-            : ''}
-        </Text>
-        {!paid ? (
-          isPaying ? (
-            <View style={styles.payForm}>
-              <CurrencyAmountField
-                label="Payment amount"
-                value={paymentMoney}
-                onChange={(next) => {
-                  setPaymentMoney(next);
-                  setPaymentError(null);
-                }}
-                placeholder={String(remaining)}
-                error={paymentError ?? undefined}
-              />
-              <Input label="Payment method" value={paymentMethod} onChangeText={setPaymentMethod} placeholder="Cash, transfer…" leftIcon="account-balance-wallet" />
-              <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
-              <Button title="Confirm Payment" icon="check-circle" loading={recordingPayment} onPress={() => handleRecordPayment(item)} />
-              <Button title="Cancel" variant="ghost" disabled={recordingPayment} onPress={() => setPayingId(null)} />
-            </View>
-          ) : (
-            <View style={styles.payActions}>
-              <Button
-                title="Full Payment"
-                variant="secondary"
-                style={styles.flex1}
-                onPress={() => {
-                  setPayingId(item.id);
-                  setPaymentMoney({
-                    amount: String(remaining),
-                    currency: resolveCurrencyCode(item.currency, preferred),
-                  });
-                }}
-              />
-              <Button
-                title="Partial"
-                variant="ghost"
-                onPress={() => {
-                  setPayingId(item.id);
-                  setPaymentMoney({
-                    amount: '',
-                    currency: resolveCurrencyCode(item.currency, preferred),
-                  });
-                }}
-              />
-            </View>
-          )
-        ) : null}
-      </View>
+      <ListItem
+        leading={<IconBubble icon="north-east" accent={paid ? Accent.emerald : Accent.amber} size={40} />}
+        title={party ?? what}
+        subtitle={party ? what : null}
+        meta={[
+          `Due ${formatRelativeDue(item.dueDate)}`,
+          item.amountPaid > 0 ? `Paid ${formatStored(paidStored(item))}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+        amount={
+          paid
+            ? formatStored({ amount: item.amount, currency: item.currency, amountBase: item.amountBase })
+            : formatStored(payableRemainingStored(item))
+        }
+        amountColor={paid ? Accent.emerald : status === 'overdue' ? Accent.rose : undefined}
+        status={{ label: status, accent: STATUS_ACCENT[status] }}
+        onPress={paid ? undefined : () => startPayment(item, 'full')}
+        isLast={isLast}
+      />
     );
   }
+
+  const sheetRemaining = payingItem ? payingItem.amount - payingItem.amountPaid : 0;
+  const sheetStatus = payingItem ? effectivePayableStatus(payingItem) : null;
+  const sheetParty = payingItem ? contactName(payingItem.contactId) : null;
+  const sheetMode = paymentMoney.amount === String(sheetRemaining) ? 'full' : 'partial';
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -240,14 +299,13 @@ export default function PayablesScreen() {
           </Pressable>
         }
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" automaticOffset>
       <FlashList
-        data={payables}
-        keyExtractor={(p) => p.id}
+        data={entries}
+        keyExtractor={(e) => e.key}
+        getItemType={(e) => e.kind}
         onRefresh={refetch}
         refreshing={isRefetching}
         contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
         }}
@@ -261,31 +319,46 @@ export default function PayablesScreen() {
           />
         }
         ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <View style={[styles.summary, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.summaryLabel, { color: colors.onPrimary + 'AA' }]}>OUTSTANDING PAYABLE</Text>
-              <Text style={[styles.summaryValue, { color: colors.onPrimary }]}>{formatBase(summary.totalOutstanding)}</Text>
-              {summary.overdueCount > 0 ? (
-                <Text style={[styles.overdueHint, { color: colors.onPrimary + 'CC' }]}>
-                  {summary.overdueCount} overdue · {formatBase(summary.overdueAmount)}
-                </Text>
-              ) : null}
-            </View>
-
-            {overdueItems.length > 0 ? (
-              <View style={[styles.overdueBanner, { backgroundColor: colors.error + '12', borderColor: colors.error + '33' }]}>
-                <Text style={[styles.overdueTitle, { color: colors.error }]}>
-                  {overdueItems.length} overdue payable{overdueItems.length === 1 ? '' : 's'}
-                </Text>
-              </View>
+          <TitleBand
+            chips={<StatusChip label="You owe" accent={Accent.amber} />}
+            title={formatBase(summary.totalOutstanding)}
+            subtitle={`Outstanding across ${openCount} open payable${openCount === 1 ? '' : 's'}`}
+          >
+            <KeyStats
+              items={[
+                {
+                  label: 'Due this week',
+                  value: formatBase(dueThisWeek),
+                  sub: `${dueThisWeekCount} item${dueThisWeekCount === 1 ? '' : 's'}`,
+                  color: dueThisWeekCount > 0 ? Accent.amber : undefined,
+                },
+                {
+                  label: 'Overdue',
+                  value: formatBase(summary.overdueAmount),
+                  sub: `${summary.overdueCount} item${summary.overdueCount === 1 ? '' : 's'}`,
+                  color: summary.overdueCount > 0 ? Accent.rose : undefined,
+                },
+                {
+                  label: 'Partly paid',
+                  value: String(summary.partialCount),
+                  sub: 'in progress',
+                },
+              ]}
+            />
+            {summary.overdueCount > 0 ? (
+              <Callout
+                icon="warning"
+                accent={Accent.rose}
+                label={`${summary.overdueCount} overdue payable${summary.overdueCount === 1 ? '' : 's'}`}
+                value={formatBase(summary.overdueAmount)}
+                pill="Overdue"
+              />
             ) : null}
-
-          </View>
+          </TitleBand>
         }
         ListEmptyComponent={<EmptyState icon="money-off" title="No payables" subtitle="Track money you owe here." />}
-        renderItem={renderRow}
+        renderItem={renderEntry}
       />
-      </KeyboardAvoidingView>
 
       <Pressable
         accessibilityRole="button"
@@ -299,30 +372,164 @@ export default function PayablesScreen() {
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
+
+      <BottomSheet
+        visible={payingItem != null}
+        onClose={() => {
+          if (!recordingPayment) setPayingId(null);
+        }}
+        title="Record payment"
+        footer={
+          payingItem ? (
+            <>
+              <Button
+                title="Confirm Payment"
+                icon="check-circle"
+                loading={recordingPayment}
+                onPress={() => handleRecordPayment(payingItem)}
+              />
+              <Button
+                title="Cancel"
+                variant="ghost"
+                disabled={recordingPayment}
+                onPress={() => setPayingId(null)}
+              />
+            </>
+          ) : null
+        }
+      >
+        {payingItem ? (
+          <>
+            <View>
+              <DetailRows
+                rows={[
+                  {
+                    key: 'for',
+                    icon: 'notes',
+                    label: 'For',
+                    value: payingItem.title || payingItem.description || 'Payable',
+                  },
+                  ...(sheetParty
+                    ? [{ key: 'party', icon: 'person' as const, label: 'To', value: sheetParty }]
+                    : []),
+                  {
+                    key: 'due',
+                    icon: 'event',
+                    accent: sheetStatus === 'overdue' ? Accent.rose : undefined,
+                    label: 'Due',
+                    value: formatRelativeDue(payingItem.dueDate),
+                  },
+                  ...(payingItem.amountPaid > 0
+                    ? [
+                        {
+                          key: 'total',
+                          icon: 'receipt-long' as const,
+                          label: 'Total',
+                          value: formatStored({
+                            amount: payingItem.amount,
+                            currency: payingItem.currency,
+                            amountBase: payingItem.amountBase,
+                          }),
+                        },
+                        {
+                          key: 'paid',
+                          icon: 'check-circle' as const,
+                          accent: Accent.emerald,
+                          label: 'Paid so far',
+                          value: formatStored(paidStored(payingItem)),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              <Callout
+                icon="account-balance-wallet"
+                accent={sheetStatus === 'overdue' ? Accent.rose : Accent.amber}
+                label="Remaining to pay"
+                value={formatStored(payableRemainingStored(payingItem))}
+                pill={sheetStatus === 'overdue' ? 'Overdue' : null}
+              />
+            </View>
+
+            <View
+              style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}
+              accessibilityRole="radiogroup"
+            >
+              {(
+                [
+                  { id: 'full', label: 'Full payment' },
+                  { id: 'partial', label: 'Partial' },
+                ] as const
+              ).map((opt) => {
+                const active = sheetMode === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    disabled={recordingPayment}
+                    onPress={() => startPayment(payingItem, opt.id)}
+                    style={[
+                      styles.segmentBtn,
+                      active && { backgroundColor: colors.surfaceContainerLowest },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        { color: active ? colors.onSurface : colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <CurrencyAmountField
+              label="Payment amount"
+              value={paymentMoney}
+              onChange={(next) => {
+                setPaymentMoney(next);
+                setPaymentError(null);
+              }}
+              placeholder={String(sheetRemaining)}
+              error={paymentError ?? undefined}
+            />
+            <Input
+              label="Payment method"
+              value={paymentMethod}
+              onChangeText={setPaymentMethod}
+              placeholder="Cash, transfer…"
+              leftIcon="account-balance-wallet"
+            />
+            <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
+          </>
+        ) : null}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  list: { padding: Spacing.containerMargin, gap: Spacing.md, paddingBottom: Spacing.section + 72 },
-  listHeader: { gap: Spacing.md, marginBottom: Spacing.sm },
-  summary: { borderRadius: Radius.lg, padding: Spacing.xl },
-  summaryLabel: { ...Typography.labelMd, letterSpacing: 1 },
-  summaryValue: { ...Typography.displayLg, fontSize: 28, marginTop: 4 },
-  overdueHint: { ...Typography.bodySmall, marginTop: 4 },
-  overdueBanner: { padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1 },
-  overdueTitle: { ...Typography.labelMd, fontWeight: '700' },
-  row: { borderRadius: Radius.lg, padding: Spacing.gutterMd, gap: 6 },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  amount: { ...Typography.headlineSm },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full },
-  statusText: { ...Typography.labelMd, textTransform: 'capitalize' },
-  desc: { ...Typography.bodyLg },
-  meta: { ...Typography.caption },
-  payForm: { gap: Spacing.sm, marginTop: Spacing.sm },
-  payActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, alignItems: 'center' },
-  flex1: { flex: 1 },
+  list: { paddingBottom: Spacing.section + 72 },
+  bandHeader: { marginTop: 8 },
+  segment: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: Radius.full,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentText: { fontFamily: FontFamily.semibold, fontSize: 14, includeFontPadding: false },
   fab: {
     position: 'absolute',
     bottom: 24,

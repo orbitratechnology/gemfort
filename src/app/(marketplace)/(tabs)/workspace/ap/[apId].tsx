@@ -1,23 +1,34 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import {
-  FormSection,
-  FormSectionLabel,
-  ScreenInset,
-} from "@/components/ui/form-section";
+  Accent,
+  Callout,
+  DetailBand,
+  DetailHeader,
+  DetailRow,
+  DetailRows,
+  IconBubble,
+  KeyStats,
+  StatusChip,
+  TintHero,
+  TitleBand,
+  detailStyles,
+  useCollapsingHeader,
+} from "@/components/ui/detail-kit";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ReceiptField } from "@/components/ui/receipt-field";
@@ -25,9 +36,10 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApGemSaleSplit, ApGemSenderDue } from "@/components/workspace/ap-gem-sale-split";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork, gemTint } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { paymentMethodOptions } from "@/constants/payment-methods";
 import {
   fetchBusinessByOwnerUid,
@@ -82,12 +94,12 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { uploadReceipt } from "@/lib/firebase/receipt-service";
 import type { LocalMedia } from "@/lib/firebase/storage-service";
-import { haptics } from "@/lib/haptics";
 import { formatDate, formatRelativeDue } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type {
+  ApGemLineStatus,
   ApLifecycleStatus,
   ApPaymentMethod,
   ApRecord,
@@ -98,40 +110,47 @@ const PAY_METHODS = paymentMethodOptions(["cash", "transfer", "cheque"] as const
 
 type StepState = "done" | "active" | "pending" | "overdue";
 
+/**
+ * Status chip meaning: amber = waiting on someone, blue = out with the
+ * holder, emerald = settled, rose = overdue / rejected, slate = cancelled.
+ */
 function apStatusMeta(
   status: ApLifecycleStatus,
   overdue: boolean,
-): { label: string; icon: IconName; tone: "neutral" | "warning" | "success" | "error" } {
+): { label: string; icon: IconName; accent: string } {
   if (overdue && isApOngoing(status)) {
-    return { label: "Overdue", icon: "error-outline", tone: "error" };
+    return { label: "Overdue", icon: "error-outline", accent: Accent.rose };
   }
   switch (status) {
     case "pending":
-      return { label: apStatusLabel(status), icon: "hourglass-top", tone: "neutral" };
+      return { label: apStatusLabel(status), icon: "hourglass-top", accent: Accent.amber };
     case "accepted":
     case "with_holder":
-      return { label: apStatusLabel(status), icon: "ap", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "ap", accent: Accent.blue };
     case "payment_sent":
-      return { label: apStatusLabel(status), icon: "payments", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "payments", accent: Accent.amber };
     case "partial":
-      return { label: apStatusLabel(status), icon: "payments", tone: "warning" };
+      return { label: apStatusLabel(status), icon: "payments", accent: Accent.blue };
     case "done":
     case "sold":
     case "returned":
-      return { label: apStatusLabel(status), icon: "check-circle", tone: "success" };
+      return { label: apStatusLabel(status), icon: "check-circle", accent: Accent.emerald };
     case "cancellation_requested":
-      return { label: apStatusLabel(status), icon: "hourglass-top", tone: "warning" };
-    case "cancelled":
+      return { label: apStatusLabel(status), icon: "hourglass-top", accent: Accent.amber };
     case "rejected":
-      return {
-        label: apStatusLabel(status),
-        icon: "cancel",
-        tone: "neutral",
-      };
+      return { label: apStatusLabel(status), icon: "cancel", accent: Accent.rose };
+    case "cancelled":
+      return { label: apStatusLabel(status), icon: "cancel", accent: Accent.slate };
     default:
-      return { label: apStatusLabel(status), icon: "ap", tone: "neutral" };
+      return { label: apStatusLabel(status), icon: "ap", accent: Accent.slate };
   }
 }
+
+const LINE_ACCENT: Record<ApGemLineStatus, string> = {
+  held: Accent.blue,
+  sold: Accent.emerald,
+  returned: Accent.slate,
+};
 
 function apTimelineSteps(
   ap: ApRecord,
@@ -193,6 +212,150 @@ function apTimelineSteps(
   ];
 }
 
+function lineBreakdown(items: ApRecord["items"]): string | null {
+  const held = items.filter((i) => i.lineStatus === "held").length;
+  const sold = items.filter((i) => i.lineStatus === "sold").length;
+  const returned = items.filter((i) => i.lineStatus === "returned").length;
+  const parts: string[] = [];
+  if (held) parts.push(`${held} held`);
+  if (sold) parts.push(`${sold} sold`);
+  if (returned) parts.push(`${returned} returned`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** Gem photo, else its artwork, else a plain thumb while the gem loads. */
+function GemVisual({
+  gem,
+  photo,
+  label,
+  size,
+}: {
+  gem: WorkspaceGem | null;
+  photo: string | null;
+  label: string;
+  size: number;
+}) {
+  if (photo || !gem) {
+    return <GemThumb uri={photo} label={label} size={size} radius={12} />;
+  }
+  return (
+    <GemArtwork
+      gem={gem}
+      artScale={0.8}
+      style={{ width: size, height: size, borderRadius: 12, borderCurve: "continuous" }}
+    />
+  );
+}
+
+/** Short tinted note with a leading icon (waiting, settled, deleted party…). */
+function NoteRow({ icon, accent, text }: { icon: IconName; accent: string; text: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.noteRow}>
+      <IconBubble icon={icon} accent={accent} size={32} />
+      <Text style={[styles.noteText, { color: colors.onSurfaceVariant }]}>{text}</Text>
+    </View>
+  );
+}
+
+function Timeline({
+  steps,
+  activeAccent,
+}: {
+  steps: ReturnType<typeof apTimelineSteps>;
+  activeAccent: string;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View>
+      {steps.map((step, i) => {
+        const isLast = i === steps.length - 1;
+        const accent =
+          step.state === "done"
+            ? Accent.emerald
+            : step.state === "overdue"
+              ? Accent.rose
+              : step.state === "active"
+                ? activeAccent
+                : colors.outlineVariant;
+        const filled = step.state === "done" || step.state === "overdue";
+        return (
+          <View key={step.key} style={styles.stepRow}>
+            <View style={styles.stepRail}>
+              <View
+                style={[
+                  styles.stepDot,
+                  filled
+                    ? { backgroundColor: accent }
+                    : step.state === "active"
+                      ? { backgroundColor: `${accent}1F`, borderColor: accent, borderWidth: 2 }
+                      : { borderColor: accent, borderWidth: 2 },
+                ]}
+              >
+                {step.state === "done" ? (
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                ) : step.state === "overdue" ? (
+                  <Icon name="priority-high" size={14} color="#FFFFFF" />
+                ) : step.state === "active" ? (
+                  <View style={[styles.stepPulse, { backgroundColor: accent }]} />
+                ) : null}
+              </View>
+              {!isLast ? (
+                <View
+                  style={[
+                    styles.stepConnector,
+                    {
+                      backgroundColor:
+                        step.state === "done" ? Accent.emerald : colors.outlineVariant,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+            <View style={[styles.stepCopy, !isLast && styles.stepCopyGap]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  {
+                    color:
+                      step.state === "overdue"
+                        ? Accent.rose
+                        : step.state === "pending"
+                          ? colors.textMuted
+                          : colors.onSurface,
+                  },
+                ]}
+              >
+                {step.label}
+              </Text>
+              <Text style={[styles.stepSub, { color: colors.textMuted }]} selectable={false}>
+                {step.sub}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+type BarKey =
+  | "cancel-request"
+  | "accept"
+  | "reject"
+  | "request-cancel"
+  | "cancel-accept"
+  | "cancel-decline"
+  | "pay-sent"
+  | "delete";
+
+type BarAction = {
+  key: BarKey;
+  title: string;
+  icon: IconName;
+  variant?: "primary" | "secondary";
+};
+
 export default function ApDetailScreen() {
   const { apId } = useLocalSearchParams<{ apId: string }>();
   const { user } = useAuth();
@@ -200,6 +363,11 @@ export default function ApDetailScreen() {
   const { formatBase, formatStored, formatFace, rates } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const heroHeight = Math.round(windowWidth * 0.78);
+  // Floating hero controls become a solid titled bar once the hero scrolls away.
+  const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
 
   const [payMethod, setPayMethod] = useState<ApPaymentMethod>("cash");
   const [payAmount, setPayAmount] = useState("");
@@ -240,28 +408,24 @@ export default function ApDetailScreen() {
     [ap?.items],
   );
 
-  const { data: gemPhotos = {} } = useFirestoreLiveQuery({
-    queryKey: ["ap", "detail-gem-photos", apId, gemIds.join(",")],
+  // Gems on this AP, for photos and the photo-less artwork fallback.
+  const { data: gemsById = {} } = useFirestoreLiveQuery({
+    queryKey: ["ap", "detail-gems", apId, gemIds.join(",")],
     queryFn: async () => {
       const entries = await Promise.all(
-        gemIds.map(async (id) => {
-          const gem = await fetchGem(id);
-          return [id, gemPrimaryPhotoUrl(gem)] as const;
-        }),
+        gemIds.map(async (id) => [id, await fetchGem(id)] as const),
       );
-      const map: Record<string, string | null> = {};
-      for (const [id, url] of entries) map[id] = url;
+      const map: Record<string, WorkspaceGem | null> = {};
+      for (const [id, gem] of entries) map[id] = gem ?? null;
       return map;
     },
     subscribe: (onData, onError) =>
       subscribeGemsByIds(
         gemIds,
         (gems: WorkspaceGem[]) => {
-          const map: Record<string, string | null> = {};
+          const map: Record<string, WorkspaceGem | null> = {};
           for (const id of gemIds) map[id] = null;
-          for (const gem of gems) {
-            map[gem.id] = gemPrimaryPhotoUrl(gem);
-          }
+          for (const gem of gems) map[gem.id] = gem;
           onData(map);
         },
         onError,
@@ -322,9 +486,11 @@ export default function ApDetailScreen() {
 
   if (isLoading || !ap) {
     return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
+      <View
+        style={[
+          styles.safe,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
       >
         <StackHeader title="AP" />
         <View style={styles.center}>
@@ -332,7 +498,7 @@ export default function ApDetailScreen() {
             {isLoading ? "Loading…" : "AP not found."}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -372,718 +538,205 @@ export default function ApDetailScreen() {
   const partyRole = isSender
     ? "Holding your gems"
     : "Gave you these gems";
+  const partyHref =
+    isSender && ap.receiverContactId
+      ? `/(marketplace)/(tabs)/workspace/contacts/${ap.receiverContactId}`
+      : isSender && ap.receiverBusinessId
+        ? `/business/${ap.receiverBusinessId}`
+        : null;
 
-  const toneColor =
-    meta.tone === "success"
-      ? colors.successEmerald
-      : meta.tone === "error"
-        ? colors.error
-        : meta.tone === "warning"
-          ? colors.warningAmber
-          : colors.onSurfaceVariant;
-  const toneBg =
-    meta.tone === "success"
-      ? colors.successEmerald + "18"
-      : meta.tone === "error"
-        ? colors.errorContainer
-        : meta.tone === "warning"
-          ? colors.warningAmber + "18"
-          : colors.surfaceContainerHighest;
+  const firstLine = items[0];
+  const heroGem = firstLine ? (gemsById[firstLine.gemId] ?? null) : null;
+  const heroPhoto = heroGem ? gemPrimaryPhotoUrl(heroGem) : null;
+  const headline = !firstLine
+    ? "AP stones"
+    : items.length === 1
+      ? firstLine.gemLabel?.trim() || "Gem"
+      : `${firstLine.gemLabel?.trim() || "Gem"} +${items.length - 1}`;
+  const returnLive = overdue && isApOngoing(ap.status);
+  const breakdown = lineBreakdown(items);
+  const owesLabel = isReceiver
+    ? amountPaid > 0
+      ? "Balance you owe"
+      : "You owe the sender"
+    : amountPaid > 0
+      ? "Balance owed to you"
+      : "Owed to you";
+
+  // Sticky bar actions (data only — handled in onBarAction).
+  const barActions: BarAction[] = [];
+  if (isSender && ap.status === "pending") {
+    barActions.push({ key: "cancel-request", title: "Cancel request", icon: "cancel", variant: "secondary" });
+  }
+  if (isReceiver && ap.status === "pending") {
+    barActions.push(
+      { key: "accept", title: "Accept", icon: "check" },
+      { key: "reject", title: "Reject", icon: "close", variant: "secondary" },
+    );
+  }
+  if (isSender && canRequestApCancellation(ap, user!.uid)) {
+    barActions.push({ key: "request-cancel", title: "Request cancellation", icon: "cancel", variant: "secondary" });
+  }
+  if (isReceiver && canRespondApCancellation(ap, user!.uid)) {
+    barActions.push(
+      { key: "cancel-accept", title: "Accept", icon: "check" },
+      { key: "cancel-decline", title: "Decline", icon: "close", variant: "secondary" },
+    );
+  }
+  if (isReceiver && isApActive(ap.status) && balanceDue > 0) {
+    barActions.push({
+      key: "pay-sent",
+      title: `Pay ${formatFace(balanceDue, settlementCurrency)}`,
+      icon: "payments",
+    });
+  }
+  if (canDeleteAp(ap)) {
+    barActions.push({ key: "delete", title: "Delete AP", icon: "delete", variant: "secondary" });
+  }
+
+  function onBarAction(key: BarKey) {
+    if (!ap) return;
+    switch (key) {
+      case "cancel-request":
+        return run("cancel-request", async () => {
+          await cancelApRequest(ap.id);
+          router.back();
+        }, "AP cancelled");
+      case "accept":
+        return run("accept", () => respondApRequest(ap.id, "accepted"), "AP accepted");
+      case "reject":
+        return run("reject", async () => {
+          await respondApRequest(ap.id, "rejected");
+          router.back();
+        }, "AP rejected");
+      case "request-cancel":
+        return run("request-cancel", () => requestApCancellation(ap.id), "Cancellation requested");
+      case "cancel-accept":
+        return run("cancel-accept", () => respondApCancellation(ap.id, "accepted"), "AP cancelled");
+      case "cancel-decline":
+        return run(
+          "cancel-decline",
+          () => respondApCancellation(ap.id, "rejected"),
+          "Cancellation declined",
+        );
+      case "pay-sent":
+        // Button already fires the light press haptic.
+        setPayAmount(String(balanceDue));
+        setPaySheetOpen(true);
+        return;
+      case "delete":
+        return run("delete", async () => {
+          await deleteApRecord(ap.id);
+          router.back();
+        }, "AP deleted");
+    }
+  }
+  const bottomBarPad = Math.max(insets.bottom, 12);
 
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title={directionLabel} />
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={heroPhoto && !headerSolid ? "light" : "auto"} />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Status */}
-        <ScreenInset>
-          <Animated.View entering={FadeIn.duration(280)} style={styles.hero}>
-            <View style={[styles.statusPill, { backgroundColor: toneBg }]}>
-              <Icon name={meta.icon} size={14} color={toneColor} />
-              <Text style={[styles.statusPillText, { color: toneColor }]}>
-                {meta.label}
-              </Text>
-            </View>
-            <Text style={[styles.amount, { color: colors.primary }]} selectable={false}>
-              {formatBase(agreed)}
-            </Text>
-            <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
-              {gemCount} gem{gemCount === 1 ? "" : "s"}
-              {ap.expectedReturnDate
-                ? ` · Return ${formatRelativeDue(ap.expectedReturnDate)}`
-                : ""}
-            </Text>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Gems ↔ Receiver (left-to-right relation) */}
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(60).duration(320)}
-            style={styles.relation}
-          >
-            <View style={styles.holderSide}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.holderBlock,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => {
-                  if (isSender && ap.receiverContactId) {
-                    router.push(
-                      `/(marketplace)/(tabs)/workspace/contacts/${ap.receiverContactId}` as never,
-                    );
-                  } else if (isSender && ap.receiverBusinessId) {
-                    router.push(`/business/${ap.receiverBusinessId}` as never);
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`AP party ${partyName}`}
-              >
-                <ContactAvatar
-                  name={partyName}
-                  photoUrl={partyPhoto}
-                  size={88}
-                />
-                <Text
-                  style={[styles.holderName, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {partyName}
-                </Text>
-                <Text style={[styles.holderRole, { color: colors.textMuted }]}>
-                  {partyRole}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View
-              style={[
-                styles.relationMid,
-                !isSender && styles.relationMidReverse,
-              ]}
-              pointerEvents="none"
-            >
-              <View
-                style={[
-                  styles.relationLine,
-                  { backgroundColor: colors.outlineVariant },
-                ]}
-              />
-              <View
-                style={[
-                  styles.directionBadge,
-                  {
-                    backgroundColor: colors.primaryContainer,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon
-                  name={isSender ? "call-made" : "call-received"}
-                  size={16}
-                  color={colors.onPrimaryContainer}
-                />
-                <Text
-                  style={[
-                    styles.directionBadgeText,
-                    { color: colors.onPrimaryContainer },
-                  ]}
-                >
-                  {directionLabel}
-                </Text>
-              </View>
-              <Icon
-                name={isSender ? "keyboard-arrow-right" : "keyboard-arrow-left"}
-                size={22}
-                color={colors.outline}
-              />
-            </View>
-
-            <View style={styles.gemsBlock}>
-              <View style={styles.gemsRow}>
-                {items.map((line) => (
-                  <Pressable
-                    key={line.gemId}
-                    style={styles.gemItem}
-                    onPress={() =>
-                      router.push(
-                        `/(marketplace)/(tabs)/workspace/gems/${line.gemId}` as never,
-                      )
-                    }
-                    accessibilityRole="link"
-                    accessibilityLabel={line.gemLabel}
-                  >
-                    <GemThumb
-                      uri={gemPhotos[line.gemId] ?? null}
-                      label={line.gemLabel}
-                      size={56}
-                      radius={12}
-                    />
-                    <Text
-                      style={[styles.gemLabel, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {line.gemLabel}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {!isSender ? (
-                <Text style={[styles.fromLine, { color: colors.textMuted }]}>
-                  From {counterpartyName}
-                </Text>
-              ) : null}
-            </View>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Timeline */}
-        <FormSection title="Timeline">
-          <View style={styles.timeline}>
-            {steps.map((step, i) => {
-              const active = step.state === "active";
-              const stepDone = step.state === "done";
-              const stepOverdue = step.state === "overdue";
-              const filled = stepDone || active || stepOverdue;
-              const nextFilled =
-                i < steps.length - 1 &&
-                (steps[i + 1]!.state === "done" ||
-                  steps[i + 1]!.state === "active" ||
-                  steps[i + 1]!.state === "overdue");
-              const dotColor = stepOverdue
-                ? colors.error
-                : stepDone || active
-                  ? colors.primary
-                  : colors.surfaceVariant;
-              const labelColor = stepOverdue
-                ? colors.error
-                : stepDone || active
-                  ? colors.primary
-                  : colors.textMuted;
-
-              return (
-                <Animated.View
-                  key={step.key}
-                  entering={FadeInDown.delay(80 + i * 50).duration(280)}
-                  style={styles.timelineRow}
-                >
-                  <View style={styles.timelineRail}>
-                    <View
-                      style={[
-                        styles.timelineDot,
-                        {
-                          backgroundColor: dotColor,
-                          borderColor: colors.surfaceContainerLowest,
-                        },
-                      ]}
-                    >
-                      {stepDone ? (
-                        <Icon name="check" size={12} color={colors.onPrimary} />
-                      ) : null}
-                      {active ? (
-                        <View
-                          style={[
-                            styles.pulse,
-                            { backgroundColor: colors.onPrimary },
-                          ]}
-                        />
-                      ) : null}
-                      {stepOverdue ? (
-                        <Icon
-                          name="priority-high"
-                          size={12}
-                          color={colors.onError}
-                        />
-                      ) : null}
-                    </View>
-                    {i < steps.length - 1 ? (
-                      <View
-                        style={[
-                          styles.timelineConnector,
-                          {
-                            backgroundColor:
-                              nextFilled || filled
-                                ? colors.primary
-                                : colors.outlineVariant,
-                            opacity: nextFilled ? 1 : filled ? 0.45 : 1,
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.timelineCard,
-                      {
-                        backgroundColor:
-                          active || stepOverdue
-                            ? toneBg
-                            : colors.surfaceContainerLow,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.timelineLabel, { color: labelColor }]}>
-                      {step.label}
-                    </Text>
-                    <Text
-                      style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable={false}
-                    >
-                      {step.sub}
-                    </Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </View>
-        </FormSection>
-
-        {ap.rejectionReason ? (
-          <FormSection title="Details">
-            <Text style={{ color: colors.error }} selectable={false}>
-              {ap.rejectionReason}
-            </Text>
-          </FormSection>
-        ) : null}
-
-        {/* Gem lines + actions */}
-        <FormSection title="Gems">
-          {items.map((line) => {
-            const sold = line.lineStatus === "sold" && line.soldPrice != null;
-            const yours = line.commission ?? 0;
-            return (
-              <View key={line.gemId} style={styles.lineCard}>
-                <View style={styles.lineTop}>
-                  <GemThumb
-                    uri={gemPhotos[line.gemId] ?? null}
-                    label={line.gemLabel}
-                    size={40}
-                    radius={10}
-                  />
-                  <View style={styles.lineBody}>
-                    <Text
-                      style={[styles.lineTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {line.gemLabel}
-                    </Text>
-                    {!sold ? (
-                      <View style={styles.apPriceRow}>
-                        <Icon
-                          name="ap"
-                          size={14}
-                          color={colors.onSurfaceVariant}
-                        />
-                        <Text
-                          style={[
-                            styles.apPrice,
-                            { color: colors.onSurfaceVariant },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {formatStored({
-                            amount: line.agreedPrice,
-                            currency: line.currency,
-                            amountBase: line.agreedPriceBase,
-                          })}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.lineBadge,
-                      {
-                        backgroundColor: sold
-                          ? colors.successEmerald + "22"
-                          : colors.surfaceContainerHighest,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.lineBadgeText,
-                        {
-                          color: sold
-                            ? colors.successEmerald
-                            : colors.onSurfaceVariant,
-                        },
-                      ]}
-                    >
-                      {line.lineStatus}
-                    </Text>
-                  </View>
-                </View>
-
-                {sold && line.ownerReceives != null ? (
-                  isReceiver ? (
-                    <ApGemSaleSplit
-                      soldLabel={formatStored({
-                        amount: line.soldPrice!,
-                        currency: line.currency,
-                        amountBase: line.soldPriceBase ?? undefined,
-                      })}
-                      senderLabel={formatStored({
-                        amount: line.ownerReceives,
-                        currency: line.currency,
-                        amountBase: line.ownerReceivesBase ?? undefined,
-                      })}
-                      yoursLabel={formatStored({
-                        amount: yours,
-                        currency: line.currency,
-                        amountBase: line.commissionBase ?? undefined,
-                      })}
-                    />
-                  ) : isSender ? (
-                    <ApGemSenderDue
-                      amountLabel={formatStored({
-                        amount: line.ownerReceives,
-                        currency: line.currency,
-                        amountBase: line.ownerReceivesBase ?? undefined,
-                      })}
-                    />
-                  ) : null
-                ) : null}
-
-                {isReceiver &&
-                isApActive(ap.status) &&
-                line.lineStatus === "held" ? (
-                  <View style={styles.row}>
-                    <Button
-                      title="Sell"
-                      icon="sell"
-                      onPress={() =>
-                        router.push({
-                          pathname: "/(marketplace)/ap/sell",
-                          params: { apId: ap.id, gemId: line.gemId },
-                        })
-                      }
-                      style={styles.flex}
-                    />
-                    <Button
-                      title="Return"
-                      variant="secondary"
-                      icon="undo"
-                      loading={pendingKey === `return:${line.gemId}`}
-                      disabled={busy}
-                      onPress={() =>
-                        run(
-                          `return:${line.gemId}`,
-                          () => returnApGem(ap.id, line.gemId),
-                          "Gem returned",
-                        )
-                      }
-                      style={styles.flex}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </FormSection>
-
-        {isSender && ap.status === "pending" ? (
-          <ScreenInset>
-            <Button
-              title="Cancel request"
-              variant="secondary"
-              icon="cancel"
-              loading={pendingKey === "cancel-request"}
-              disabled={busy}
-              onPress={() =>
-                run("cancel-request", async () => {
-                  await cancelApRequest(ap.id);
-                  router.back();
-                }, "AP cancelled")
-              }
+      <ThemedScrollView
+        contentContainerStyle={[
+          detailStyles.scrollContent,
+          barActions.length ? { paddingBottom: 96 + bottomBarPad } : null,
+        ]}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+      >
+        <View style={{ height: heroHeight }}>
+          {heroPhoto ? (
+            <Image
+              source={{ uri: heroPhoto }}
+              style={{ width: windowWidth, height: heroHeight }}
+              contentFit="cover"
+              accessibilityLabel={`${headline} photo`}
             />
-          </ScreenInset>
-        ) : null}
-
-        {isReceiver && ap.status === "pending" ? (
-          <>
-            <FormSectionLabel title="Respond" />
-            <ScreenInset style={styles.row}>
-              <Button
-                title="Accept"
-                icon="check"
-                loading={pendingKey === "accept"}
-                disabled={busy}
-                onPress={() =>
-                  run(
-                    "accept",
-                    () => respondApRequest(ap.id, "accepted"),
-                    "AP accepted",
-                  )
-                }
-                style={styles.flex}
-              />
-              <Button
-                title="Reject"
-                variant="secondary"
-                icon="close"
-                loading={pendingKey === "reject"}
-                disabled={busy}
-                onPress={() =>
-                  run("reject", async () => {
-                    await respondApRequest(ap.id, "rejected");
-                    router.back();
-                  }, "AP rejected")
-                }
-                style={styles.flex}
-              />
-            </ScreenInset>
-          </>
-        ) : null}
-
-        {isSender && canRequestApCancellation(ap, user!.uid) ? (
-          <ScreenInset>
-            <Button
-              title="Request cancellation"
-              variant="secondary"
-              icon="cancel"
-              loading={pendingKey === "request-cancel"}
-              disabled={busy}
-              onPress={() =>
-                run(
-                  "request-cancel",
-                  () => requestApCancellation(ap.id),
-                  "Cancellation requested",
-                )
-              }
+          ) : heroGem ? (
+            <GemArtwork
+              gem={heroGem}
+              artScale={0.7}
+              style={{ width: windowWidth, height: heroHeight, paddingTop: insets.top }}
             />
-          </ScreenInset>
-        ) : null}
-
-        {isReceiver && canRespondApCancellation(ap, user!.uid) ? (
-          <>
-            <FormSectionLabel title="Cancellation requested" />
-            <ScreenInset style={styles.row}>
-              <Button
-                title="Accept"
-                icon="check"
-                loading={pendingKey === "cancel-accept"}
-                disabled={busy}
-                onPress={() =>
-                  run(
-                    "cancel-accept",
-                    () => respondApCancellation(ap.id, "accepted"),
-                    "AP cancelled",
-                  )
-                }
-                style={styles.flex}
-              />
-              <Button
-                title="Decline"
-                variant="secondary"
-                icon="close"
-                loading={pendingKey === "cancel-decline"}
-                disabled={busy}
-                onPress={() =>
-                  run(
-                    "cancel-decline",
-                    () => respondApCancellation(ap.id, "rejected"),
-                    "Cancellation declined",
-                  )
-                }
-                style={styles.flex}
-              />
-            </ScreenInset>
-          </>
-        ) : null}
-
-        {ap.partyDeleted ? (
-          <ScreenInset>
-            <View style={styles.waitRow}>
-              <Icon name="info-outline" size={18} color={colors.textMuted} />
-              <Text style={{ color: colors.textMuted, flex: 1 }}>
-                {counterpartyName} deleted their GemFort account. This record is
-                kept for your history.
-              </Text>
+          ) : (
+            <TintHero accent={meta.accent} icon="ap" height={heroHeight} />
+          )}
+          {items.length > 1 ? (
+            <View style={styles.heroCount} pointerEvents="none">
+              <Icon name="diamond" size={14} color="#FFFFFF" />
+              <Text style={styles.heroCountText}>{items.length} gems</Text>
             </View>
-          </ScreenInset>
-        ) : null}
+          ) : null}
+        </View>
 
-        {amountPaid > 0 && !done ? (
-          <FormSection title="Payments">
-            <View style={styles.waitRow}>
-              <Icon name="payments" size={18} color={colors.textMuted} />
-              <Text style={{ color: colors.textMuted, flex: 1 }}>
-                {formatFace(amountPaid, settlementCurrency)} paid ·{" "}
-                {formatFace(balanceDue, settlementCurrency)} still owed
-              </Text>
-            </View>
-          </FormSection>
-        ) : null}
-
-        {isReceiver && isApActive(ap.status) && balanceDue > 0 ? (
-          <ScreenInset>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Pay owner ${formatFace(balanceDue, settlementCurrency)}`}
-              accessibilityState={{ busy: pendingKey === "pay-sent" }}
-              disabled={busy}
-              onPress={haptics.wrap("light", () => {
-                setPayAmount(String(balanceDue));
-                setPaySheetOpen(true);
-              })}
-              style={({ pressed }) => [
-                styles.owedCard,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.92 : 1,
-                  transform: [{ scale: pressed ? 0.985 : 1 }],
-                },
-              ]}
-            >
-              <ContactAvatar
-                name={counterpartyName}
-                photoUrl={ownerPhoto}
-                size={52}
-              />
-              <View style={styles.owedBody}>
-                <Icon name="call-made" size={18} color={colors.onPrimary} />
-                <Text
-                  style={[styles.owedAmount, { color: colors.onPrimary }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  {formatFace(balanceDue, settlementCurrency)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.owedChevron,
-                  { backgroundColor: colors.onPrimary + "22" },
-                ]}
-              >
-                {pendingKey === "pay-sent" ? (
-                  <ActivityIndicator size="small" color={colors.onPrimary} />
-                ) : (
-                  <Icon name="payments" size={22} color={colors.onPrimary} />
-                )}
-              </View>
-            </Pressable>
-          </ScreenInset>
-        ) : null}
-
-        <BottomSheet
-          visible={paySheetOpen}
-          onClose={() => setPaySheetOpen(false)}
-          footer={
-            <Button
-              title={
-                payMethod === "cheque"
-                  ? "Continue with cheque"
-                  : "Payment Sent"
-              }
-              icon={payMethod === "cheque" ? "cheque" : "send"}
-              loading={pendingKey === "pay-sent"}
-              disabled={busy}
-              onPress={() => {
-                const amountToValidate =
-                  payAmount || (balanceDue > 0 ? String(balanceDue) : "");
-                const result = parseForm(recordPaymentSchema, {
-                  amount: amountToValidate,
-                });
-                if (!result.success) {
-                  toast.error(result.errors.amount ?? "Enter payment amount");
-                  return;
-                }
-                const amount = result.data.amount;
-                if (amount - balanceDue > 0.005) {
-                  toast.error(
-                    `Payment cannot exceed ${formatFace(balanceDue, settlementCurrency)}.`,
-                  );
-                  return;
-                }
-                setPaySheetOpen(false);
-                if (payMethod === "cheque") {
-                  router.push({
-                    pathname: "/(marketplace)/cheques/add",
-                    params: {
-                      amount: String(amount),
-                      currency: settlementCurrency,
-                      apRecordId: ap.id,
-                      gemId: items[0]?.gemId,
-                      direction: "given",
-                      confirmApSent: "1",
-                    },
-                  });
-                  return;
-                }
-                run(
-                  "pay-sent",
-                  async () =>
-                    apPaymentSent({
-                      apId: ap.id,
-                      method: payMethod,
-                      amount,
-                      currency: settlementCurrency,
-                      receiptUrl: await uploadReceipt(user!.uid, sentReceipt),
-                    }),
-                  amount < balanceDue ? "Part payment marked sent" : "Payment marked sent",
-                );
-              }}
-            />
+        <TitleBand
+          overlapHero
+          chips={
+            <>
+              <StatusChip label={meta.label} accent={meta.accent} />
+              <StatusChip label={`${directionLabel} on AP`} accent={Accent.violet} />
+            </>
           }
+          title={headline}
+          subtitle={isSender ? `Given to ${partyName}` : `Taken from ${counterpartyName}`}
+          subtitleDot={heroGem ? gemTint(heroGem) : null}
         >
-          <View style={styles.payHero}>
-            <ContactAvatar
-              name={counterpartyName}
-              photoUrl={ownerPhoto}
-              size={72}
+          <KeyStats
+            items={[
+              { label: "Agreed", value: formatBase(agreed) },
+              {
+                label: "Gems",
+                value: String(gemCount),
+                sub: breakdown,
+              },
+              {
+                label: "Return",
+                value: ap.expectedReturnDate ? formatDate(ap.expectedReturnDate) : "—",
+                sub: ap.expectedReturnDate ? formatRelativeDue(ap.expectedReturnDate) : null,
+                color: returnLive ? Accent.rose : undefined,
+              },
+            ]}
+          />
+          {balanceDue > 0 && !done ? (
+            <Callout
+              icon={isReceiver ? "call-made" : "call-received"}
+              accent={returnLive ? Accent.rose : Accent.amber}
+              label={owesLabel}
+              value={formatFace(balanceDue, settlementCurrency)}
+              pill={amountPaid > 0 ? "Part paid" : null}
             />
-            <Icon name="call-made" size={22} color={colors.primary} />
-            <Text
-              style={[styles.payHeroAmount, { color: colors.primary }]}
-              selectable={false}
-            >
-              {formatFace(balanceDue, settlementCurrency)}
-            </Text>
-            <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
-              {amountPaid > 0 ? "Balance owed" : "Owed to sender"} · pay all or part,
-              in {settlementCurrency}
-            </Text>
-          </View>
-
-          <PaymentMethodPicker
-            label="Payment method"
-            options={PAY_METHODS}
-            value={payMethod}
-            onChange={setPayMethod}
-          />
-
-          <MaskedInput
-            mode="currency"
-            value={payAmount || (balanceDue > 0 ? String(balanceDue) : "")}
-            onChangeText={setPayAmount}
-            label={`Amount (${settlementCurrency})`}
-            leftIcon="payments"
-          />
-          <ReceiptField value={sentReceipt} onChange={setSentReceipt} />
-        </BottomSheet>
+          ) : done && amountPaid > 0 ? (
+            <Callout
+              icon="check-circle"
+              accent={Accent.emerald}
+              label="Settled · paid"
+              value={formatFace(amountPaid, settlementCurrency)}
+            />
+          ) : null}
+        </TitleBand>
 
         {isSender && ap.status === "payment_sent" ? (
-          <FormSection title="Confirm payment">
-            <Text style={[styles.meta, { color: colors.onSurface }]}>
-              {ap.paymentMethod
-                ? `Marked sent as ${ap.paymentMethod}`
-                : "Payment"}{" "}
-              · {formatFace(ap.paymentAmount ?? balanceDue, settlementCurrency)}
-            </Text>
+          <DetailBand title="Confirm payment">
+            <DetailRow
+              icon="payments"
+              accent={Accent.amber}
+              label={
+                ap.paymentMethod
+                  ? `Marked sent as ${ap.paymentMethod}`
+                  : "Payment"
+              }
+              value={formatFace(ap.paymentAmount ?? balanceDue, settlementCurrency)}
+              isLast
+            />
             <PaymentMethodPicker
               label="How was it received?"
               options={PAY_METHODS}
               value={receiveMethod}
               onChange={setReceiveMethodOverride}
             />
+            <ReceiptField value={receivedReceipt} onChange={setReceivedReceipt} />
             <Button
               title={
                 receiveMethod === "cheque"
@@ -1124,286 +777,408 @@ export default function ApDetailScreen() {
                 );
               }}
             />
-            <ReceiptField value={receivedReceipt} onChange={setReceivedReceipt} />
-          </FormSection>
+          </DetailBand>
         ) : null}
 
-        {done ? (
-          <FormSection title="Settled">
-            <View style={styles.waitRow}>
-              <Icon
-                name="check-circle"
-                size={18}
-                color={colors.successEmerald}
-              />
-              <Text style={{ color: colors.textMuted, flex: 1 }}>
-                Payment received. Money ledgers updated on both sides.
-              </Text>
-            </View>
-          </FormSection>
+        {ap.rejectionReason ? (
+          <DetailBand title="Details">
+            <NoteRow icon="cancel" accent={Accent.rose} text={ap.rejectionReason} />
+          </DetailBand>
         ) : null}
 
-        {isSender && isApOngoing(ap.status) ? (
-          <FormSection title="Waiting">
-            <View style={styles.waitRow}>
-              <Icon name="schedule" size={18} color={colors.textMuted} />
-              <Text style={{ color: colors.textMuted, flex: 1 }}>
-                Holder can sell or return gems. You confirm payment when they
-                mark it sent.
-              </Text>
-            </View>
-          </FormSection>
-        ) : null}
-
-        {canDeleteAp(ap) ? (
-          <ScreenInset>
-            <Button
-              title="Delete AP"
-              variant="secondary"
-              icon="delete"
-              loading={pendingKey === "delete"}
-              disabled={busy}
-              onPress={() =>
-                run("delete", async () => {
-                  await deleteApRecord(ap.id);
-                  router.back();
-                }, "AP deleted")
-              }
+        <DetailBand title="Status">
+          <Timeline steps={steps} activeAccent={meta.accent} />
+          {isReceiver && canRespondApCancellation(ap, user!.uid) ? (
+            <NoteRow
+              icon="hourglass-top"
+              accent={Accent.amber}
+              text="Cancellation requested. Accept or decline it below."
             />
-          </ScreenInset>
+          ) : null}
+          {isSender && isApOngoing(ap.status) ? (
+            <NoteRow
+              icon="schedule"
+              accent={Accent.blue}
+              text="Holder can sell or return gems. You confirm payment when they mark it sent."
+            />
+          ) : null}
+          {done ? (
+            <NoteRow
+              icon="check-circle"
+              accent={Accent.emerald}
+              text="Payment received. Money ledgers updated on both sides."
+            />
+          ) : null}
+          {ap.partyDeleted ? (
+            <NoteRow
+              icon="info-outline"
+              accent={Accent.slate}
+              text={`${counterpartyName} deleted their GemFort account. This record is kept for your history.`}
+            />
+          ) : null}
+        </DetailBand>
+
+        <DetailBand title={items.length > 1 ? `Gems · ${items.length}` : "Gem"}>
+          {items.map((line, i) => {
+            const sold = line.lineStatus === "sold" && line.soldPrice != null;
+            const yours = line.commission ?? 0;
+            const gem = gemsById[line.gemId] ?? null;
+            const canAct =
+              isReceiver && isApActive(ap.status) && line.lineStatus === "held";
+            return (
+              <View
+                key={line.gemId}
+                style={[
+                  styles.line,
+                  i > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Pressable
+                  style={({ pressed }) => [styles.lineTop, pressed && styles.pressed]}
+                  onPress={() =>
+                    router.push(
+                      `/(marketplace)/(tabs)/workspace/gems/${line.gemId}` as never,
+                    )
+                  }
+                  accessibilityRole="link"
+                  accessibilityLabel={line.gemLabel}
+                >
+                  <GemVisual
+                    gem={gem}
+                    photo={gem ? gemPrimaryPhotoUrl(gem) : null}
+                    label={line.gemLabel}
+                    size={48}
+                  />
+                  <View style={styles.lineBody}>
+                    <Text
+                      style={[styles.lineTitle, { color: colors.onSurface }]}
+                      numberOfLines={1}
+                    >
+                      {line.gemLabel}
+                    </Text>
+                    <Text
+                      style={[styles.lineSub, { color: colors.onSurfaceVariant }]}
+                      numberOfLines={1}
+                    >
+                      {sold
+                        ? `Sold${line.soldToName ? ` to ${line.soldToName}` : ""}`
+                        : `AP price ${formatStored({
+                            amount: line.agreedPrice,
+                            currency: line.currency,
+                            amountBase: line.agreedPriceBase,
+                          })}`}
+                    </Text>
+                  </View>
+                  <StatusChip
+                    label={line.lineStatus}
+                    accent={LINE_ACCENT[line.lineStatus] ?? Accent.slate}
+                    size="sm"
+                  />
+                  <Icon name="chevron-right" size={18} color={colors.outline} />
+                </Pressable>
+
+                {sold && line.ownerReceives != null ? (
+                  isReceiver ? (
+                    <ApGemSaleSplit
+                      soldLabel={formatStored({
+                        amount: line.soldPrice!,
+                        currency: line.currency,
+                        amountBase: line.soldPriceBase ?? undefined,
+                      })}
+                      senderLabel={formatStored({
+                        amount: line.ownerReceives,
+                        currency: line.currency,
+                        amountBase: line.ownerReceivesBase ?? undefined,
+                      })}
+                      yoursLabel={formatStored({
+                        amount: yours,
+                        currency: line.currency,
+                        amountBase: line.commissionBase ?? undefined,
+                      })}
+                    />
+                  ) : isSender ? (
+                    <ApGemSenderDue
+                      amountLabel={formatStored({
+                        amount: line.ownerReceives,
+                        currency: line.currency,
+                        amountBase: line.ownerReceivesBase ?? undefined,
+                      })}
+                    />
+                  ) : null
+                ) : null}
+
+                {canAct ? (
+                  <View style={styles.buttonRow}>
+                    <Button
+                      title="Sell"
+                      icon="sell"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(marketplace)/ap/sell",
+                          params: { apId: ap.id, gemId: line.gemId },
+                        })
+                      }
+                      style={styles.flex}
+                    />
+                    <Button
+                      title="Return"
+                      variant="secondary"
+                      icon="undo"
+                      loading={pendingKey === `return:${line.gemId}`}
+                      disabled={busy}
+                      onPress={() =>
+                        run(
+                          `return:${line.gemId}`,
+                          () => returnApGem(ap.id, line.gemId),
+                          "Gem returned",
+                        )
+                      }
+                      style={styles.flex}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </DetailBand>
+
+        <DetailBand title={isSender ? "Holder" : "Sender"}>
+          <Pressable
+            disabled={!partyHref}
+            onPress={() => {
+              if (partyHref) router.push(partyHref as never);
+            }}
+            accessibilityRole={partyHref ? "button" : undefined}
+            accessibilityLabel={`AP party ${partyName}`}
+            style={({ pressed }) => [styles.partyRow, pressed && styles.pressed]}
+          >
+            <ContactAvatar name={partyName} photoUrl={partyPhoto} size={48} />
+            <View style={styles.partyCopy}>
+              <Text
+                style={[styles.partyName, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {partyName}
+              </Text>
+              <Text style={[styles.partyRole, { color: colors.onSurfaceVariant }]}>
+                {partyRole}
+              </Text>
+            </View>
+            {partyHref ? (
+              <Icon name="chevron-right" size={18} color={colors.outline} />
+            ) : null}
+          </Pressable>
+        </DetailBand>
+
+        {amountPaid > 0 && !done ? (
+          <DetailBand title="Payments">
+            <DetailRows
+              rows={[
+                {
+                  key: "paid",
+                  icon: "check-circle",
+                  accent: Accent.emerald,
+                  label: "Paid",
+                  value: formatFace(amountPaid, settlementCurrency),
+                },
+                {
+                  key: "owed",
+                  icon: "payments",
+                  accent: Accent.amber,
+                  label: "Still owed",
+                  value: formatFace(balanceDue, settlementCurrency),
+                },
+              ]}
+            />
+          </DetailBand>
         ) : null}
       </ThemedScrollView>
-    </SafeAreaView>
+
+      <DetailHeader title={`${directionLabel} · ${headline}`} solid={headerSolid} />
+
+      {barActions.length ? (
+        <View
+          style={[
+            detailStyles.actionBar,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.outlineVariant,
+              paddingBottom: bottomBarPad,
+            },
+          ]}
+        >
+          {barActions.map((action) => (
+            <Button
+              key={action.key}
+              title={action.title}
+              icon={action.icon}
+              variant={action.variant ?? "primary"}
+              loading={pendingKey === action.key}
+              disabled={busy}
+              onPress={() => void onBarAction(action.key)}
+              style={styles.flex}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      <BottomSheet
+        visible={paySheetOpen}
+        onClose={() => setPaySheetOpen(false)}
+        title={`Pay ${counterpartyName}`}
+        footer={
+          <Button
+            title={
+              payMethod === "cheque"
+                ? "Continue with cheque"
+                : "Payment Sent"
+            }
+            icon={payMethod === "cheque" ? "cheque" : "send"}
+            loading={pendingKey === "pay-sent"}
+            disabled={busy}
+            onPress={() => {
+              const amountToValidate =
+                payAmount || (balanceDue > 0 ? String(balanceDue) : "");
+              const result = parseForm(recordPaymentSchema, {
+                amount: amountToValidate,
+              });
+              if (!result.success) {
+                toast.error(result.errors.amount ?? "Enter payment amount");
+                return;
+              }
+              const amount = result.data.amount;
+              if (amount - balanceDue > 0.005) {
+                toast.error(
+                  `Payment cannot exceed ${formatFace(balanceDue, settlementCurrency)}.`,
+                );
+                return;
+              }
+              setPaySheetOpen(false);
+              if (payMethod === "cheque") {
+                router.push({
+                  pathname: "/(marketplace)/cheques/add",
+                  params: {
+                    amount: String(amount),
+                    currency: settlementCurrency,
+                    apRecordId: ap.id,
+                    gemId: items[0]?.gemId,
+                    direction: "given",
+                    confirmApSent: "1",
+                  },
+                });
+                return;
+              }
+              run(
+                "pay-sent",
+                async () =>
+                  apPaymentSent({
+                    apId: ap.id,
+                    method: payMethod,
+                    amount,
+                    currency: settlementCurrency,
+                    receiptUrl: await uploadReceipt(user!.uid, sentReceipt),
+                  }),
+                amount < balanceDue ? "Part payment marked sent" : "Payment marked sent",
+              );
+            }}
+          />
+        }
+      >
+        <View>
+          <View style={styles.payParty}>
+            <ContactAvatar name={counterpartyName} photoUrl={ownerPhoto} size={44} />
+            <View style={styles.partyCopy}>
+              <Text style={[styles.partyName, { color: colors.onSurface }]} numberOfLines={1}>
+                {counterpartyName}
+              </Text>
+              <Text style={[styles.partyRole, { color: colors.onSurfaceVariant }]}>
+                Pay all or part, in {settlementCurrency}
+              </Text>
+            </View>
+          </View>
+          <Callout
+            icon="call-made"
+            accent={Accent.amber}
+            label={amountPaid > 0 ? "Balance owed" : "Owed to sender"}
+            value={formatFace(balanceDue, settlementCurrency)}
+          />
+        </View>
+
+        <PaymentMethodPicker
+          label="Payment method"
+          options={PAY_METHODS}
+          value={payMethod}
+          onChange={setPayMethod}
+        />
+
+        <MaskedInput
+          mode="currency"
+          value={payAmount || (balanceDue > 0 ? String(balanceDue) : "")}
+          onChangeText={setPayAmount}
+          label={`Amount (${settlementCurrency})`}
+          leftIcon="payments"
+        />
+        <ReceiptField value={sentReceipt} onChange={setSentReceipt} />
+      </BottomSheet>
+    </View>
   );
 }
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { gap: Spacing.sectionGap, paddingBottom: 48 },
-
-  hero: { gap: Spacing.stackSm, alignItems: "center" },
-  statusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-  },
-  statusPillText: { ...Typography.labelMd, fontWeight: "600" },
-  amount: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
-  },
-  amountMeta: { ...Typography.bodyMd, textAlign: "center" },
-
-  relation: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 10,
-  },
-  holderSide: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-  },
-  holderBlock: {
-    width: "100%",
-    alignItems: "center",
-    gap: 8,
-  },
-  holderName: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    textAlign: "center",
-    width: "100%",
-  },
-  holderRole: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  relationMid: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 48,
-    width: 120,
-  },
-  relationMidReverse: { flexDirection: "row-reverse" },
-  relationLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 23,
-    height: 2,
-  },
-  directionBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: 3,
-    zIndex: 1,
-  },
-  directionBadgeText: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-  },
-  gemsBlock: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 8,
-  },
-  gemsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 16,
-    width: "100%",
-  },
-  gemItem: {
-    width: 72,
-    alignItems: "center",
-    gap: 6,
-  },
-  gemLabel: {
-    ...Typography.labelMd,
-    fontWeight: "600",
-    textAlign: "center",
-    width: "100%",
-  },
-  fromLine: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-
-  timeline: { gap: 0 },
-  timelineRow: {
-    flexDirection: "row",
-    gap: 14,
-    minHeight: 72,
-  },
-  timelineRail: {
-    width: 24,
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  pulse: { width: 8, height: 8, borderRadius: 4 },
-  timelineConnector: {
-    flex: 1,
-    width: 2,
-    marginTop: 2,
-    marginBottom: 2,
-    borderRadius: 1,
-  },
-  timelineCard: {
-    flex: 1,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    gap: 2,
-  },
-  timelineLabel: { ...Typography.labelMd, fontWeight: "700" },
-  timelineSub: { ...Typography.bodyMd, fontSize: 13 },
-
-  lineCard: {
-    gap: 10,
-    marginBottom: Spacing.sm,
-  },
-  lineTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  lineBody: { flex: 1, gap: 2, minWidth: 0 },
-  lineTitle: { ...Typography.bodyMd, fontWeight: "600" },
-  lineBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  lineBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  apPriceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  apPrice: {
-    ...Typography.bodySmall,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-  },
-  meta: { ...Typography.bodySmall },
-  row: { flexDirection: "row", gap: Spacing.sm },
   flex: { flex: 1 },
-  waitRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    alignItems: "flex-start",
-  },
+  pressed: { opacity: 0.7 },
 
-  owedCard: {
+  heroCount: {
+    position: "absolute",
+    right: Spacing.containerMargin,
+    bottom: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
+    gap: 6,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: Radius.full,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
-  owedBody: {
-    flex: 1,
-    gap: 4,
-    minWidth: 0,
-  },
-  owedAmount: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  owedChevron: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  heroCountText: { ...text, color: "#FFFFFF", fontFamily: FontFamily.semibold, fontSize: 12 },
+
+  stepRow: { flexDirection: "row", gap: 14 },
+  stepRail: { width: 28, alignItems: "center" },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
+  stepPulse: { width: 10, height: 10, borderRadius: 5 },
+  stepConnector: { flex: 1, width: 2, minHeight: 18, marginVertical: 4, borderRadius: 1 },
+  stepCopy: { flex: 1, minWidth: 0, paddingTop: 3, gap: 1 },
+  stepCopyGap: { paddingBottom: Spacing.lg },
+  stepLabel: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 22 },
+  stepSub: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
 
-  payHero: {
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: Spacing.sm,
-  },
-  payHeroAmount: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
-  },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  noteText: { ...text, flex: 1, fontFamily: FontFamily.regular, fontSize: 14, lineHeight: 20 },
+
+  line: { gap: Spacing.md, paddingVertical: Spacing.md },
+  lineTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  lineBody: { flex: 1, minWidth: 0, gap: 2 },
+  lineTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 21 },
+  lineSub: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums"] },
+  buttonRow: { flexDirection: "row", gap: Spacing.sm },
+
+  partyRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  partyCopy: { flex: 1, minWidth: 0, gap: 2 },
+  partyName: { ...text, fontFamily: FontFamily.semibold, fontSize: 16, lineHeight: 22 },
+  partyRole: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+
+  payParty: { flexDirection: "row", alignItems: "center", gap: 12 },
 });

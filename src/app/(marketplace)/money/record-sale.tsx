@@ -7,15 +7,16 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
+import { Accent, Callout, KeyStats } from "@/components/ui/detail-kit";
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import type { PartySelection } from "@/components/workspace/contact-picker-sheet";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, Typography } from "@/constants/design-tokens";
 import { paymentMethodOptions } from "@/constants/payment-methods";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
 import {
@@ -200,7 +201,7 @@ export default function RecordSaleScreen() {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ScreenInset style={styles.stack}>
+        <FormSection title="Item">
           <GemSelectField
             label="Stone"
             gem={gem}
@@ -213,7 +214,7 @@ export default function RecordSaleScreen() {
               Cost basis {formatBase(costBasis)}
             </Text>
           ) : null}
-        </ScreenInset>
+        </FormSection>
 
         <FormSection title="Sale details">
           <CurrencyAmountField
@@ -251,65 +252,29 @@ export default function RecordSaleScreen() {
         </FormSection>
 
         {gem && salePrice > 0 ? (
-          <ScreenInset>
-            <View
-              style={[styles.projection, { backgroundColor: colors.primary }]}
-            >
-              <Text
-                style={[styles.projHeading, { color: colors.onPrimary + "B3" }]}
-              >
-                Projection
-              </Text>
-              <View style={styles.projRow}>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    Cost
-                  </Text>
-                  <Text
-                    style={[styles.projValue, { color: colors.onPrimary }]}
-                  >
-                    {formatBase(costBasis)}
-                  </Text>
-                </View>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    Profit
-                  </Text>
-                  <Text
-                    style={[
-                      styles.projValue,
-                      {
-                        color:
-                          (netProfitBase ?? 0) >= 0
-                            ? colors.onPrimary
-                            : colors.errorContainer,
-                      },
-                    ]}
-                  >
-                    {netProfitBase != null
-                      ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
-                      : formatFace(salePrice, price.currency)}
-                  </Text>
-                </View>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    ROI
-                  </Text>
-                  <Text
-                    style={[styles.projValue, { color: colors.onPrimary }]}
-                  >
-                    {roi}%
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScreenInset>
+          <FormSection
+            title="Projection"
+            padded={false}
+            style={styles.projection}
+          >
+            <KeyStats
+              items={[
+                { label: "Sale", value: formatFace(salePrice, price.currency) },
+                { label: "Cost", value: formatBase(costBasis) },
+              ]}
+            />
+            <Callout
+              icon={(netProfitBase ?? 0) >= 0 ? "trending-up" : "trending-down"}
+              accent={(netProfitBase ?? 0) >= 0 ? Accent.emerald : Accent.rose}
+              label={(netProfitBase ?? 0) >= 0 ? "Profit" : "Loss"}
+              value={
+                netProfitBase != null
+                  ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
+                  : formatFace(salePrice, price.currency)
+              }
+              pill={`ROI ${roi}%`}
+            />
+          </FormSection>
         ) : null}
       </ThemedScrollView>
 
@@ -345,20 +310,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
-  stack: { gap: Spacing.md },
   gemMeta: { ...Typography.bodySmall },
   projection: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: 12,
-  },
-  projHeading: { ...Typography.labelMd, fontWeight: "600" },
-  projRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  projCell: { flex: 1, gap: 4 },
-  projLabel: { ...Typography.caption },
-  projValue: {
-    ...Typography.headlineSmMobile,
-    fontVariant: ["tabular-nums"],
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.lg,
   },
 });

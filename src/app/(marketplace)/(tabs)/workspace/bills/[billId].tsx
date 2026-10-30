@@ -1,16 +1,40 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import {
-  FormSection,
-  ScreenInset,
-} from "@/components/ui/form-section";
+  Accent,
+  Callout,
+  DetailBand,
+  DetailHeader,
+  DetailRows,
+  IconBubble,
+  KeyStats,
+  StatusChip,
+  StatusGrid,
+  TintHero,
+  TitleBand,
+  TotalRow,
+  detailStyles,
+  useCollapsingHeader,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ReceiptField } from "@/components/ui/receipt-field";
@@ -18,9 +42,10 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { JOB_STATUS_LABELS } from "@/components/workspace/job-picker-sheet";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { paymentMethodOptions } from "@/constants/payment-methods";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -31,6 +56,7 @@ import {
   billCommissionAmount,
   billGemIds,
   billNetAfterCommission,
+  daysUntilDue,
   dueLabel,
   isOpenBill,
   remainingAmount,
@@ -40,6 +66,7 @@ import {
   subscribeContacts,
   subscribeGems,
   subscribeLapidaryJobs,
+  subscribePayments,
   subscribeVerifiedBusinesses,
 } from "@/features/workspace/firestore-subscriptions";
 import {
@@ -50,6 +77,7 @@ import {
   fetchBill,
   fetchContacts,
   fetchGems,
+  fetchPayments,
   recordBillPayment,
   updateBillStatus,
 } from "@/features/workspace/workspace-service";
@@ -65,34 +93,58 @@ import {
   formatRelativeDue,
   openPhone,
   openWhatsApp,
+  toJsDate,
 } from "@/lib/utils";
 import { parseForm, recordPaymentSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { ApPaymentMethod, Bill, BillStatus } from "@/types";
+import type {
+  ApPaymentMethod,
+  Bill,
+  BillStatus,
+  WorkspaceGem,
+} from "@/types";
 
 const PAY_METHODS = paymentMethodOptions(["cash", "transfer", "cheque"] as const);
+/** Labels/icons for any method a recorded payment may carry. */
+const PAYMENT_METHOD_META = paymentMethodOptions([
+  "cash",
+  "card",
+  "transfer",
+  "bank_transfer",
+  "cheque",
+  "bill",
+  "other",
+] as const);
 
 type StepState = "done" | "active" | "pending" | "overdue";
 
-function billStatusMeta(
-  status: BillStatus,
-): { label: string; icon: IconName; tone: "neutral" | "warning" | "success" | "error" } {
-  switch (status) {
-    case "paid":
-      return { label: "Paid", icon: "check-circle", tone: "success" };
-    case "partial":
-    case "ongoing":
-      return { label: BILL_STATUS_LABELS[status], icon: "sync", tone: "warning" };
-    case "overdue":
-      return { label: "Overdue", icon: "error-outline", tone: "error" };
-    case "cancelled":
-      return { label: "Cancelled", icon: "cancel", tone: "neutral" };
-    default:
-      return { label: "Open", icon: "bill", tone: "neutral" };
-  }
-}
+/** Status → semantic accent (amber unpaid, violet work, rose overdue…). */
+const STATUS_ACCENT: Record<BillStatus, string> = {
+  open: Accent.amber,
+  partial: Accent.amber,
+  ongoing: Accent.violet,
+  overdue: Accent.rose,
+  paid: Accent.emerald,
+  cancelled: Accent.slate,
+};
+
+const STATUS_ICON: Record<BillStatus, IconName> = {
+  open: "receipt-long",
+  partial: "sync",
+  ongoing: "sync",
+  overdue: "error-outline",
+  paid: "check-circle",
+  cancelled: "cancel",
+};
+
+const STEP_META: Record<StepState, { icon: IconName; accent: string }> = {
+  done: { icon: "check-circle", accent: Accent.emerald },
+  active: { icon: "schedule", accent: Accent.amber },
+  overdue: { icon: "error-outline", accent: Accent.rose },
+  pending: { icon: "radio-button-unchecked", accent: Accent.slate },
+};
 
 function billTimelineSteps(
   bill: Bill,
@@ -141,6 +193,45 @@ function billTimelineSteps(
   ];
 }
 
+/** Receipts can be photos or PDFs; only photos can fill the hero. */
+function isPdfUrl(url: string): boolean {
+  let decoded = url;
+  try {
+    decoded = decodeURIComponent(url);
+  } catch {
+    // keep the raw URL
+  }
+  return /\.pdf($|[?#])/i.test(decoded);
+}
+
+function paymentMethodMeta(method: string | null): {
+  label: string;
+  icon: IconName;
+} {
+  const hit = PAYMENT_METHOD_META.find((m) => m.value === method);
+  if (hit) {
+    return {
+      label: hit.label,
+      icon:
+        hit.icon ??
+        (method === "cheque" ? "money-check-dollar" : "receipt-long"),
+    };
+  }
+  const label = method
+    ? method.charAt(0).toUpperCase() + method.slice(1).replace(/_/g, " ")
+    : "Payment";
+  return { label, icon: "payments" };
+}
+
+/** Gem photo, else the gem's artwork on its own colour. */
+function GemLeading({ gem, label }: { gem: WorkspaceGem | undefined; label: string }) {
+  const photo = gemPrimaryPhotoUrl(gem);
+  if (photo || !gem) {
+    return <GemThumb uri={photo} label={label} size={44} radius={12} />;
+  }
+  return <GemArtwork gem={gem} artScale={0.8} style={styles.gemArt} />;
+}
+
 export default function BillDetailScreen() {
   const { billId } = useLocalSearchParams<{ billId: string }>();
   const { user } = useAuth();
@@ -148,6 +239,8 @@ export default function BillDetailScreen() {
   const { formatStored, formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
 
   const [paySheetOpen, setPaySheetOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -161,6 +254,13 @@ export default function BillDetailScreen() {
     subscribe: (onData, onError) => subscribeBill(billId!, onData, onError),
     enabled: !!billId,
   });
+
+  const receiptUrl = bill?.receiptUrl?.trim() || null;
+  const receiptIsPdf = receiptUrl ? isPdfUrl(receiptUrl) : false;
+  const heroImage = receiptUrl && !receiptIsPdf ? receiptUrl : null;
+  const heroHeight = Math.round(windowWidth * (heroImage ? 0.9 : 0.62));
+  // Floating hero controls become a solid titled bar once the hero scrolls away.
+  const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", bill?.ownerUid],
@@ -192,6 +292,16 @@ export default function BillDetailScreen() {
     subscribe: (onData, onError) =>
       subscribeLapidaryJobs(bill!.ownerUid, onData, onError),
     enabled: !!bill?.ownerUid && !!bill?.jobId,
+  });
+
+  // Payment history lives in the owner's payments ledger, linked by billId.
+  const isOwner = !!user && !!bill && user.uid === bill.ownerUid;
+  const { data: payments = [] } = useFirestoreLiveQuery({
+    queryKey: ["payments", bill?.ownerUid],
+    queryFn: () => fetchPayments(bill!.ownerUid),
+    subscribe: (onData, onError) =>
+      subscribePayments(bill!.ownerUid, onData, onError),
+    enabled: isOwner,
   });
 
   const contact =
@@ -337,6 +447,8 @@ export default function BillDetailScreen() {
   const isPayable = bill.direction === "payable";
   const directionLabel = BILL_DIRECTION_LABELS[bill.direction];
   const open = isOpenBill(bill);
+  const isOverdue =
+    bill.status === "overdue" || (open && daysUntilDue(bill) < 0);
   const commissionOnFace = billCommissionAmount(
     bill.amount,
     bill.commissionPercent,
@@ -346,7 +458,6 @@ export default function BillDetailScreen() {
     bill.commissionPercent,
   );
   const linkedGemIds = billGemIds(bill);
-  const meta = billStatusMeta(bill.status);
   const steps = billTimelineSteps(bill);
   const settlePct =
     bill.amount > 0
@@ -355,616 +466,418 @@ export default function BillDetailScreen() {
         ? 100
         : 0;
 
-  const toneColor =
-    meta.tone === "success"
-      ? colors.successEmerald
-      : meta.tone === "error"
-        ? colors.error
-        : meta.tone === "warning"
-          ? colors.warningAmber
-          : colors.onSurfaceVariant;
-  const toneBg =
-    meta.tone === "success"
-      ? colors.successEmerald + "18"
-      : meta.tone === "error"
-        ? colors.errorContainer
-        : meta.tone === "warning"
-          ? colors.warningAmber + "18"
-          : colors.surfaceContainerHighest;
+  const statusAccent = STATUS_ACCENT[bill.status];
+  const heroAccent = isOverdue ? Accent.rose : statusAccent;
+  const balanceAccent = !open
+    ? colors.textMuted
+    : isOverdue
+      ? Accent.rose
+      : Accent.amber;
+  const progressAccent =
+    settlePct >= 100 ? Accent.emerald : isOverdue ? Accent.rose : Accent.amber;
+  const billNo = bill.id.slice(-6).toUpperCase();
+  const settledWord = isPayable ? "Paid" : "Received";
 
   const phone = contact?.phone?.trim() || null;
   const whatsapp =
     contact?.whatsapp?.trim() || contact?.phone?.trim() || null;
 
+  const billPayments = payments
+    .filter((p) => p.billId === bill.id)
+    .sort(
+      (a, b) =>
+        (toJsDate(b.paymentDate ?? b.createdAt)?.getTime() ?? 0) -
+        (toJsDate(a.paymentDate ?? a.createdAt)?.getTime() ?? 0),
+    );
+
+  const openReceipt = (url: string) => () => void Linking.openURL(url);
+
+  // ─── Line items ──────────────────────────────────────────────────────
+  const itemRows: ({ key: string } & DetailRowProps)[] = [];
+  if (bill.jobId) {
+    const jobLabel = linkedJob?.gemName ?? "Lapidary job";
+    itemRows.push({
+      key: "job",
+      leading: linkedJob?.gemPhotoUrl ? (
+        <GemThumb uri={linkedJob.gemPhotoUrl} label={jobLabel} size={44} radius={12} />
+      ) : (
+        <IconBubble icon="handyman" accent={Accent.violet} size={44} />
+      ),
+      label: jobLabel,
+      hint: linkedJob?.serviceTypes?.length
+        ? linkedJob.serviceTypes.join(", ")
+        : null,
+      value: linkedJob ? JOB_STATUS_LABELS[linkedJob.status] : "—",
+    });
+  } else {
+    for (const id of linkedGemIds) {
+      const gem = gems.find((g) => g.id === id);
+      const label =
+        gem?.title?.trim() ||
+        gem?.variety?.trim() ||
+        (gem ? formatGemType(gem.gemType) : null) ||
+        gem?.sku ||
+        id.slice(0, 8);
+      itemRows.push({
+        key: `gem-${id}`,
+        leading: <GemLeading gem={gem} label={label} />,
+        label,
+        hint: gem
+          ? [formatGemType(gem.gemType), gem.variety?.trim()]
+              .filter(Boolean)
+              .join(" · ")
+          : null,
+        value: gem ? `${gem.currentWeight} ct` : "",
+        onPress: () =>
+          router.push(`/(marketplace)/(tabs)/workspace/gems/${id}` as never),
+      });
+    }
+  }
+  if (commissionOnFace > 0) {
+    itemRows.push(
+      {
+        key: "face",
+        icon: "receipt-long",
+        accent: colors.onSurfaceVariant,
+        label: "Bill amount",
+        value: formatStored(faceStored),
+      },
+      {
+        key: "commission",
+        icon: "percent",
+        accent: isPayable ? Accent.emerald : Accent.rose,
+        label: isPayable
+          ? `Your cut (${bill.commissionPercent}%)`
+          : `Their cut (${bill.commissionPercent}%)`,
+        value: formatFace(commissionOnFace, bill.currency),
+      },
+    );
+  }
+
+  // ─── Payments ────────────────────────────────────────────────────────
+  const paymentRows: ({ key: string } & DetailRowProps)[] = billPayments.map(
+    (p) => {
+      const method = paymentMethodMeta(p.paymentMethod);
+      const receipt = p.receiptUrl?.trim() || null;
+      return {
+        key: p.id,
+        icon: method.icon,
+        accent: Accent.emerald,
+        label: method.label,
+        hint: `${formatDate(p.paymentDate ?? p.createdAt)}${receipt ? " · Receipt" : ""}`,
+        value: formatStored({
+          amount: p.amount,
+          currency: p.currency,
+          amountBase: p.amountBase,
+        }),
+        onPress: receipt ? openReceipt(receipt) : undefined,
+      };
+    },
+  );
+
+  const bottomBarPad = Math.max(insets.bottom, 12);
+
   return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title={directionLabel} />
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={heroImage && !headerSolid ? "light" : "auto"} />
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Hero */}
-        <ScreenInset>
-          <Animated.View entering={FadeIn.duration(280)} style={styles.hero}>
-            <View style={[styles.statusPill, { backgroundColor: toneBg }]}>
-              <Icon name={meta.icon} size={14} color={toneColor} />
-              <Text style={[styles.statusPillText, { color: toneColor }]}>
-                {meta.label}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.amount,
-                {
-                  color:
-                    meta.tone === "error"
-                      ? colors.error
-                      : meta.tone === "success"
-                        ? colors.successEmerald
-                        : colors.primary,
-                },
-              ]}
-              selectable={false}
-            >
-              {formatStored(remainingStored)}
-            </Text>
-            <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
-              {open
-                ? `Remaining · Due ${dueLabel(bill)}`
-                : bill.status === "paid"
-                  ? "Fully settled"
-                  : BILL_STATUS_LABELS[bill.status]}
-            </Text>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Gems / job ↔ Party (left-to-right relation) */}
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(60).duration(320)}
-            style={styles.relation}
+      <ThemedScrollView
+        contentContainerStyle={
+          open
+            ? { paddingBottom: 96 + bottomBarPad }
+            : detailStyles.scrollContent
+        }
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+      >
+        {heroImage ? (
+          <Pressable
+            onPress={openReceipt(heroImage)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Open bill receipt"
           >
-            <View style={styles.partySide}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.partyBlock,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => {
-                  if (bill.counterpartyContactId) {
-                    router.push(
-                      `/(marketplace)/(tabs)/workspace/contacts/${bill.counterpartyContactId}` as never,
-                    );
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Open contact ${contactName}`}
-              >
-                <ContactAvatar
-                  name={contactName}
-                  photoUrl={contactPhoto}
-                  size={88}
-                />
-                <Text
-                  style={[styles.partyName, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {contactName}
-                </Text>
-                <Text style={[styles.partyRole, { color: colors.textMuted }]}>
-                  {isPayable ? "You owe them" : "They owe you"}
-                </Text>
-              </Pressable>
+            <Image
+              source={{ uri: heroImage }}
+              style={{ width: windowWidth, height: heroHeight }}
+              contentFit="cover"
+              recyclingKey={heroImage}
+              accessibilityIgnoresInvertColors
+            />
+          </Pressable>
+        ) : (
+          <TintHero accent={heroAccent} icon="receipt-long" height={heroHeight} />
+        )}
 
-              {phone || whatsapp ? (
-                <View style={styles.partyActions}>
-                  {phone ? (
-                    <Pressable
-                      onPress={() => void Linking.openURL(openPhone(phone))}
-                      style={[
-                        styles.roundBtn,
-                        { backgroundColor: colors.primary },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Call contact"
-                    >
-                      <Icon name="call" size={18} color={colors.onPrimary} />
-                    </Pressable>
-                  ) : null}
-                  {whatsapp ? (
-                    <Pressable
-                      onPress={() =>
-                        void Linking.openURL(openWhatsApp(whatsapp))
-                      }
-                      style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
-                      accessibilityRole="button"
-                      accessibilityLabel="WhatsApp contact"
-                    >
-                      <Icon name="whatsapp" size={18} color="#FFFFFF" />
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-
-            <View
-              style={[
-                styles.relationMid,
-                !isPayable && styles.relationMidReverse,
-              ]}
-              pointerEvents="none"
-            >
-              <View
-                style={[
-                  styles.relationLine,
-                  { backgroundColor: colors.outlineVariant },
-                ]}
-              />
-              <View
-                style={[
-                  styles.directionBadge,
-                  {
-                    backgroundColor: isPayable
-                      ? colors.errorContainer
-                      : colors.primaryContainer,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon
-                  name={isPayable ? "call-made" : "call-received"}
-                  size={16}
-                  color={
-                    isPayable ? colors.error : colors.onPrimaryContainer
-                  }
-                />
-                <Text
-                  style={[
-                    styles.directionBadgeText,
-                    {
-                      color: isPayable
-                        ? colors.error
-                        : colors.onPrimaryContainer,
-                    },
-                  ]}
-                >
-                  {directionLabel}
-                </Text>
-              </View>
-              <Icon
-                name={isPayable ? "keyboard-arrow-right" : "keyboard-arrow-left"}
-                size={22}
-                color={colors.outline}
-              />
-            </View>
-
-            {bill.jobId ? (
-              <View style={styles.linkBlock}>
-                <GemThumb
-                  uri={linkedJob?.gemPhotoUrl}
-                  label={linkedJob?.gemName ?? "Gem"}
-                  size={56}
-                  radius={14}
-                />
-                <Text
-                  style={[styles.linkTitle, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {linkedJob?.gemName ?? "Lapidary job"}
-                </Text>
-                {linkedJob ? (
-                  <Text
-                    style={[styles.linkSub, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {JOB_STATUS_LABELS[linkedJob.status]}
-                    {linkedJob.serviceTypes?.length
-                      ? ` · ${linkedJob.serviceTypes.join(", ")}`
-                      : ""}
-                  </Text>
-                ) : null}
-              </View>
-            ) : linkedGemIds.length > 0 ? (
-              <View style={styles.gemsBlock}>
-                <View style={styles.gemsRow}>
-                  {linkedGemIds.map((id) => {
-                    const gem = gems.find((g) => g.id === id);
-                    const label =
-                      gem?.variety?.trim() ||
-                      (gem ? formatGemType(gem.gemType) : null) ||
-                      gem?.sku ||
-                      id.slice(0, 8);
-                    return (
-                      <Pressable
-                        key={id}
-                        style={styles.gemItem}
-                        onPress={() =>
-                          router.push(
-                            `/(marketplace)/(tabs)/workspace/gems/${id}` as never,
-                          )
-                        }
-                        accessibilityRole="link"
-                        accessibilityLabel={label}
-                      >
-                        <GemThumb
-                          uri={gemPrimaryPhotoUrl(gem)}
-                          label={label}
-                          size={56}
-                          radius={12}
-                        />
-                        <Text
-                          style={[
-                            styles.gemLabel,
-                            { color: colors.onSurface },
-                          ]}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.linkBlock}>
-                <View
-                  style={[
-                    styles.jobThumb,
-                    { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <Icon name="bill" size={28} color={colors.outline} />
-                </View>
-                <Text style={[styles.linkSub, { color: colors.textMuted }]}>
-                  No linked gems
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Settlement progress */}
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(100).duration(300)}
-            style={[
-              styles.progressCard,
-              { backgroundColor: colors.surfaceContainerLowest },
+        <TitleBand
+          overlapHero
+          chips={
+            <>
+              <StatusChip label={BILL_STATUS_LABELS[bill.status]} accent={statusAccent} />
+              <StatusChip label={directionLabel} accent={Accent.blue} />
+            </>
+          }
+          title={contactName}
+          subtitle={`Bill #${billNo} · ${formatDate(bill.createdAt)}`}
+        >
+          <KeyStats
+            items={[
+              { label: "Total", value: formatStored(faceStored) },
+              {
+                label: settledWord,
+                value: formatStored(settledStored),
+                sub: `${settlePct}%`,
+                color: bill.amountSettled > 0 ? Accent.emerald : colors.textMuted,
+              },
+              {
+                label: "Balance",
+                value: formatStored(remainingStored),
+                color: remaining > 0 ? balanceAccent : colors.textMuted,
+              },
             ]}
+          />
+          <View
+            style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}
+            accessibilityRole="progressbar"
+            accessibilityLabel={`${settlePct}% settled`}
           >
-            <View style={styles.progressHead}>
-              <Text style={[styles.progressTitle, { color: colors.onSurface }]}>
-                Settlement
-              </Text>
-              <Text
-                style={[
-                  styles.progressPct,
-                  {
-                    color:
-                      settlePct >= 100
-                        ? colors.successEmerald
-                        : bill.status === "overdue"
-                          ? colors.error
-                          : colors.primary,
-                  },
-                ]}
-              >
-                {settlePct}%
-              </Text>
-            </View>
             <View
               style={[
-                styles.track,
-                { backgroundColor: colors.surfaceContainerHigh },
+                styles.fill,
+                { width: `${settlePct}%`, backgroundColor: progressAccent },
               ]}
-            >
-              <Animated.View
-                entering={FadeIn.delay(180).duration(420)}
-                style={[
-                  styles.fill,
-                  {
-                    width: `${settlePct}%`,
-                    backgroundColor:
-                      settlePct >= 100
-                        ? colors.successEmerald
-                        : bill.status === "overdue"
-                          ? colors.error
-                          : colors.primary,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.moneyRow}>
-              <View style={styles.moneyCol}>
-                <Text style={[styles.moneyLabel, { color: colors.textMuted }]}>
-                  Face
-                </Text>
-                <Text
-                  style={[styles.moneyValue, { color: colors.onSurface }]}
-                  selectable={false}
-                >
-                  {formatStored(faceStored)}
-                </Text>
-              </View>
-              <View style={styles.moneyCol}>
-                <Text style={[styles.moneyLabel, { color: colors.textMuted }]}>
-                  Settled
-                </Text>
-                <Text
-                  style={[
-                    styles.moneyValue,
-                    { color: colors.successEmerald },
-                  ]}
-                  selectable={false}
-                >
-                  {formatStored(settledStored)}
-                </Text>
-              </View>
-              <View style={styles.moneyCol}>
-                <Text style={[styles.moneyLabel, { color: colors.textMuted }]}>
-                  Left
-                </Text>
-                <Text
-                  style={[
-                    styles.moneyValue,
-                    {
-                      color: remaining > 0 ? colors.primary : colors.textMuted,
-                    },
-                  ]}
-                  selectable={false}
-                >
-                  {formatStored(remainingStored)}
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-        </ScreenInset>
+            />
+          </View>
+          {open ? (
+            <Callout
+              icon={isOverdue ? "error-outline" : "schedule"}
+              accent={isOverdue ? Accent.rose : statusAccent}
+              label={
+                isOverdue
+                  ? isPayable
+                    ? "Overdue · balance due"
+                    : "Overdue · balance to collect"
+                  : isPayable
+                    ? "Balance due"
+                    : "Balance to collect"
+              }
+              value={formatStored(remainingStored)}
+              pill={dueLabel(bill)}
+            />
+          ) : bill.status === "paid" ? (
+            <Callout
+              icon="check-circle"
+              accent={Accent.emerald}
+              label="Fully settled"
+              value={formatStored(faceStored)}
+            />
+          ) : (
+            <Callout
+              icon="cancel"
+              accent={Accent.slate}
+              label="Cancelled · left unsettled"
+              value={formatStored(remainingStored)}
+            />
+          )}
+        </TitleBand>
 
-        {commissionOnFace > 0 ? (
-          <ScreenInset>
-            <Animated.View
-              entering={FadeInDown.delay(120).duration(280)}
-              style={styles.commissionRow}
-            >
-              <View
-                style={[
-                  styles.commissionCard,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="percent" size={18} color={colors.onSurfaceVariant} />
-                <View style={styles.commissionBody}>
-                  <Text
-                    style={[styles.commissionLabel, { color: colors.textMuted }]}
-                  >
-                    {isPayable
-                      ? `Your cut (${bill.commissionPercent}%)`
-                      : `Their cut (${bill.commissionPercent}%)`}
-                  </Text>
-                  <Text
-                    style={[styles.commissionValue, { color: colors.onSurface }]}
-                    selectable={false}
-                  >
-                    {formatFace(commissionOnFace, bill.currency)}
-                  </Text>
-                </View>
-              </View>
-              <View
-                style={[
-                  styles.commissionCard,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon
-                  name={isPayable ? "payments" : "account-balance-wallet"}
-                  size={18}
-                  color={colors.primary}
-                />
-                <View style={styles.commissionBody}>
-                  <Text
-                    style={[styles.commissionLabel, { color: colors.textMuted }]}
-                  >
-                    {isPayable ? "You pay" : "You keep"}
-                  </Text>
-                  <Text
-                    style={[styles.commissionValue, { color: colors.primary }]}
-                    selectable={false}
-                  >
-                    {formatFace(netOnFace, bill.currency)}
-                  </Text>
-                </View>
-              </View>
-            </Animated.View>
-          </ScreenInset>
+        <DetailBand title="Status">
+          <StatusGrid
+            tiles={[
+              {
+                icon: STATUS_ICON[bill.status],
+                label: "Status",
+                value: BILL_STATUS_LABELS[bill.status],
+                accent: statusAccent,
+              },
+              {
+                icon: "event",
+                label: "Due",
+                value: open ? dueLabel(bill) : formatDate(bill.dueDate),
+                accent: open ? (isOverdue ? Accent.rose : Accent.amber) : Accent.slate,
+              },
+              {
+                icon: isPayable ? "call-made" : "call-received",
+                label: "Direction",
+                value: isPayable ? "You owe them" : "They owe you",
+                accent: Accent.blue,
+              },
+              {
+                icon: "donut-large",
+                label: "Settled",
+                value: `${settlePct}%`,
+                accent: settlePct > 0 ? Accent.emerald : Accent.slate,
+              },
+            ]}
+          />
+        </DetailBand>
+
+        <DetailBand title={bill.jobId ? "Job" : "Items"}>
+          {itemRows.length ? (
+            <DetailRows rows={itemRows} />
+          ) : (
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+              No linked gems
+            </Text>
+          )}
+          {commissionOnFace > 0 ? (
+            <TotalRow
+              label={isPayable ? "You pay" : "You keep"}
+              value={formatFace(netOnFace, bill.currency)}
+            />
+          ) : (
+            <TotalRow label="Total" value={formatStored(faceStored)} />
+          )}
+        </DetailBand>
+
+        {isOwner ? (
+          <DetailBand title="Payments">
+            {paymentRows.length ? (
+              <DetailRows rows={paymentRows} />
+            ) : (
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                {open
+                  ? isPayable
+                    ? "No payments recorded yet"
+                    : "Nothing received yet"
+                  : "No payments recorded"}
+              </Text>
+            )}
+            <TotalRow
+              label={`${settledWord} so far`}
+              value={formatStored(settledStored)}
+              accent={bill.amountSettled > 0 ? Accent.emerald : undefined}
+            />
+          </DetailBand>
         ) : null}
 
-        {/* Timeline */}
-        <FormSection title="Timeline">
-          <View style={styles.timeline}>
-            {steps.map((step, i) => {
-              const active = step.state === "active";
-              const done = step.state === "done";
-              const overdue = step.state === "overdue";
-              const filled = done || active || overdue;
-              const nextFilled =
-                i < steps.length - 1 &&
-                (steps[i + 1]!.state === "done" ||
-                  steps[i + 1]!.state === "active" ||
-                  steps[i + 1]!.state === "overdue");
-              const dotColor = overdue
-                ? colors.error
-                : done || active
-                  ? colors.primary
-                  : colors.surfaceVariant;
-              const labelColor = overdue
-                ? colors.error
-                : done || active
-                  ? colors.primary
-                  : colors.textMuted;
+        <DetailBand title={isPayable ? "Pay to" : "Collect from"}>
+          <Pressable
+            style={({ pressed }) => [styles.partyRow, pressed && styles.pressed]}
+            onPress={() => {
+              if (bill.counterpartyContactId) {
+                router.push(
+                  `/(marketplace)/(tabs)/workspace/contacts/${bill.counterpartyContactId}` as never,
+                );
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Open contact ${contactName}`}
+          >
+            <ContactAvatar name={contactName} photoUrl={contactPhoto} size={48} />
+            <View style={styles.partyCopy}>
+              <Text
+                style={[styles.partyName, { color: colors.onSurface }]}
+                numberOfLines={1}
+              >
+                {contactName}
+              </Text>
+              <Text style={[styles.partyRole, { color: colors.onSurfaceVariant }]}>
+                {isPayable ? "You owe them" : "They owe you"}
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.outline} />
+          </Pressable>
+          {phone || whatsapp ? (
+            <View style={styles.partyActions}>
+              {phone ? (
+                <Button
+                  title="Call"
+                  icon="call"
+                  variant="phone"
+                  accessibilityLabel="Call contact"
+                  onPress={() => void Linking.openURL(openPhone(phone))}
+                  style={styles.flex}
+                />
+              ) : null}
+              {whatsapp ? (
+                <Button
+                  title="WhatsApp"
+                  icon="whatsapp"
+                  variant="whatsapp"
+                  accessibilityLabel="WhatsApp contact"
+                  onPress={() => void Linking.openURL(openWhatsApp(whatsapp))}
+                  style={styles.flex}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </DetailBand>
 
-              return (
-                <Animated.View
-                  key={step.key}
-                  entering={FadeInDown.delay(80 + i * 50).duration(280)}
-                  style={styles.timelineRow}
-                >
-                  <View style={styles.timelineRail}>
-                    <View
-                      style={[
-                        styles.timelineDot,
-                        {
-                          backgroundColor: dotColor,
-                          borderColor: colors.surfaceContainerLowest,
-                        },
-                      ]}
-                    >
-                      {done ? (
-                        <Icon name="check" size={12} color={colors.onPrimary} />
-                      ) : null}
-                      {active ? (
-                        <View
-                          style={[
-                            styles.pulse,
-                            { backgroundColor: colors.onPrimary },
-                          ]}
-                        />
-                      ) : null}
-                      {overdue ? (
-                        <Icon
-                          name="priority-high"
-                          size={12}
-                          color={colors.onError}
-                        />
-                      ) : null}
-                    </View>
-                    {i < steps.length - 1 ? (
-                      <View
-                        style={[
-                          styles.timelineConnector,
-                          {
-                            backgroundColor:
-                              nextFilled || filled
-                                ? colors.primary
-                                : colors.outlineVariant,
-                            opacity: nextFilled ? 1 : filled ? 0.45 : 1,
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.timelineCard,
-                      {
-                        backgroundColor:
-                          active || overdue
-                            ? toneBg
-                            : colors.surfaceContainerLow,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.timelineLabel, { color: labelColor }]}>
-                      {step.label}
-                    </Text>
-                    <Text
-                      style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable={false}
-                    >
-                      {step.sub}
-                    </Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </View>
-        </FormSection>
+        <DetailBand title="Timeline">
+          <DetailRows
+            rows={steps.map((step) => ({
+              key: step.key,
+              icon: STEP_META[step.state].icon,
+              accent: STEP_META[step.state].accent,
+              label: step.label,
+              value: step.sub,
+            }))}
+          />
+        </DetailBand>
 
         {bill.notes ? (
-          <FormSection title="Notes">
+          <DetailBand title="Notes">
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
               selectable={false}
             >
               {bill.notes}
             </Text>
-          </FormSection>
+          </DetailBand>
         ) : null}
 
-        {open ? (
-          <ScreenInset style={styles.bottomActions}>
-            <Animated.View entering={FadeInDown.delay(200).duration(280)}>
-              <Pressable
-                onPress={() => openPayForm(remaining)}
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.primary,
-                    opacity: pressed ? 0.88 : 1,
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={isPayable ? "Record payment" : "Record receipt"}
-              >
-                <View
-                  style={[
-                    styles.actionIconWrap,
-                    { backgroundColor: colors.primary + "22" },
-                  ]}
-                >
-                  <Icon name="check-circle" size={20} color={colors.primary} />
-                </View>
-                <View style={styles.actionTextCol}>
-                  <Text
-                    style={[styles.actionTitle, { color: colors.onSurface }]}
-                  >
-                    {isPayable ? "Mark paid" : "Mark received"}
-                  </Text>
-                  <Text style={[styles.actionSub, { color: colors.textMuted }]}>
-                    Full or partial · cash, transfer, cheque
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={colors.outline} />
-              </Pressable>
-            </Animated.View>
-
-            <Pressable
-              onPress={handleCancel}
-              style={({ pressed }) => [
-                styles.actionBtn,
+        {receiptUrl ? (
+          <DetailBand title="Attachments">
+            <DetailRows
+              rows={[
                 {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.error,
-                  opacity: pressed ? 0.88 : 1,
+                  key: "receipt",
+                  icon: receiptIsPdf ? "picture-as-pdf" : "image",
+                  accent: Accent.blue,
+                  label: "Bill receipt",
+                  hint: receiptIsPdf ? "PDF document" : "Photo",
+                  value: "Open",
+                  onPress: openReceipt(receiptUrl),
                 },
               ]}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel bill"
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: colors.errorContainer },
-                ]}
-              >
-                <Icon name="cancel" size={20} color={colors.error} />
-              </View>
-              <View style={styles.actionTextCol}>
-                <Text style={[styles.actionTitle, { color: colors.error }]}>
-                  Cancel bill
-                </Text>
-                <Text style={[styles.actionSub, { color: colors.textMuted }]}>
-                  Close without settling
-                </Text>
-              </View>
-            </Pressable>
-          </ScreenInset>
+            />
+          </DetailBand>
         ) : null}
       </ThemedScrollView>
+
+      <DetailHeader title={contactName} solid={headerSolid} />
+
+      {open ? (
+        <View
+          style={[
+            detailStyles.actionBar,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.outlineVariant,
+              paddingBottom: bottomBarPad,
+            },
+          ]}
+        >
+          <Button
+            title="Cancel bill"
+            icon="cancel"
+            variant="secondary"
+            iconColor={colors.error}
+            textStyle={{ color: colors.error }}
+            accessibilityLabel="Cancel bill"
+            onPress={handleCancel}
+            style={[styles.flex, { borderColor: colors.error }]}
+          />
+          <Button
+            title={isPayable ? "Mark paid" : "Mark received"}
+            icon="check-circle"
+            accessibilityLabel={isPayable ? "Record payment" : "Record receipt"}
+            onPress={() => openPayForm(remaining)}
+            style={styles.flex}
+          />
+        </View>
+      ) : null}
 
       <BottomSheet
         visible={paySheetOpen}
@@ -987,27 +900,40 @@ export default function BillDetailScreen() {
           />
         }
       >
-        <View style={styles.payHero}>
-          <ContactAvatar
-            name={contactName}
-            photoUrl={contactPhoto}
-            size={64}
-          />
-          <Icon
-            name={isPayable ? "call-made" : "call-received"}
-            size={22}
-            color={isPayable ? colors.error : colors.primary}
-          />
-          <Text
-            style={[
-              styles.payHeroAmount,
-              { color: isPayable ? colors.error : colors.primary },
-            ]}
-            selectable={false}
-          >
-            {formatStored(remainingStored)}
-          </Text>
-        </View>
+        <DetailRows
+          rows={[
+            {
+              key: "party",
+              leading: (
+                <ContactAvatar name={contactName} photoUrl={contactPhoto} size={40} />
+              ),
+              label: isPayable ? "Pay to" : "Collect from",
+              value: contactName,
+            },
+            {
+              key: "total",
+              icon: "receipt-long",
+              accent: colors.onSurfaceVariant,
+              label: "Bill total",
+              value: formatStored(faceStored),
+            },
+            {
+              key: "settled",
+              icon: "check-circle",
+              accent: Accent.emerald,
+              label: `${settledWord} so far`,
+              value: formatStored(settledStored),
+            },
+          ]}
+        />
+        <Callout
+          icon={isPayable ? "call-made" : "call-received"}
+          accent={isOverdue ? Accent.rose : Accent.amber}
+          label={isPayable ? "Balance due" : "Balance to collect"}
+          value={formatStored(remainingStored)}
+          pill={open ? dueLabel(bill) : null}
+          style={styles.sheetCallout}
+        />
 
         <MaskedInput
           label="Amount"
@@ -1029,286 +955,41 @@ export default function BillDetailScreen() {
         />
         <ReceiptField value={paymentReceipt} onChange={setPaymentReceipt} />
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { gap: Spacing.sectionGap, paddingBottom: 48 },
+  flex: { flex: 1 },
+  pressed: { opacity: 0.7 },
 
-  hero: { gap: Spacing.stackSm, alignItems: "center" },
-  statusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-  },
-  statusPillText: { ...Typography.labelMd, fontWeight: "600" },
-  amount: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
-  },
-  amountMeta: { ...Typography.bodyMd, textAlign: "center" },
-
-  relation: {
-    width: "100%",
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 10,
-  },
-  partySide: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 10,
-  },
-  partyBlock: {
-    width: "100%",
-    alignItems: "center",
-    gap: 8,
-  },
-  partyName: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    textAlign: "center",
-    width: "100%",
-  },
-  partyRole: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  partyActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  roundBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  relationMid: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 48,
-    width: 140,
-  },
-  relationMidReverse: { flexDirection: "row-reverse" },
-  relationLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 23,
-    height: 2,
-  },
-  directionBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: 3,
-    zIndex: 1,
-  },
-  directionBadgeText: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-  },
-  gemsBlock: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 8,
-  },
-  gemsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 16,
-    width: "100%",
-  },
-  gemItem: {
-    width: 72,
-    alignItems: "center",
-    gap: 6,
-  },
-  gemLabel: {
-    ...Typography.labelMd,
-    fontWeight: "600",
-    textAlign: "center",
-    width: "100%",
-  },
-  linkBlock: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 8,
-  },
-  jobThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  linkTitle: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  linkSub: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-
-  progressCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  progressHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  progressTitle: { ...Typography.labelMd, fontWeight: "700" },
-  progressPct: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
   track: {
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    marginTop: Spacing.md,
+    borderRadius: Radius.full,
     overflow: "hidden",
   },
-  fill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  moneyRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  moneyCol: { flex: 1, gap: 2 },
-  moneyLabel: {
-    ...Typography.caption,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  moneyValue: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
+  fill: { height: "100%", borderRadius: Radius.full },
 
-  commissionRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  commissionCard: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  commissionBody: { flex: 1, gap: 2, minWidth: 0 },
-  commissionLabel: { ...Typography.caption },
-  commissionValue: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-
-  timeline: { gap: 0 },
-  timelineRow: {
-    flexDirection: "row",
-    gap: 14,
-    minHeight: 72,
-  },
-  timelineRail: {
-    width: 24,
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  pulse: { width: 8, height: 8, borderRadius: 4 },
-  timelineConnector: {
-    flex: 1,
-    width: 2,
-    marginTop: 2,
-    marginBottom: 2,
-    borderRadius: 1,
-  },
-  timelineCard: {
-    flex: 1,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    gap: 2,
-  },
-  timelineLabel: { ...Typography.labelMd, fontWeight: "700" },
-  timelineSub: { ...Typography.bodyMd, fontSize: 13 },
-
-  notes: { ...Typography.bodyMd, lineHeight: 22 },
-
-  bottomActions: { gap: Spacing.sm },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1.5,
-  },
-  actionIconWrap: {
-    width: 40,
-    height: 40,
+  gemArt: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    borderCurve: "continuous",
   },
-  actionTextCol: { flex: 1, gap: 2, minWidth: 0 },
-  actionTitle: { ...Typography.labelMd, fontWeight: "700" },
-  actionSub: { ...Typography.bodyMd, fontSize: 13 },
 
-  payHero: {
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: Spacing.md,
-  },
-  payHeroAmount: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
+  partyRow: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },
+  partyCopy: { flex: 1, minWidth: 0, gap: 2 },
+  partyName: { ...text, fontFamily: FontFamily.semibold, fontSize: 16, lineHeight: 22 },
+  partyRole: { ...text, fontFamily: FontFamily.regular, fontSize: 13 },
+  partyActions: { flexDirection: "row", gap: Spacing.sm },
+
+  notes: { ...text, ...Typography.bodyMd, fontSize: 15, lineHeight: 24 },
+  emptyHint: { ...text, ...Typography.bodyMd },
+
+  sheetCallout: { marginTop: 0, marginBottom: Spacing.sm },
 });

@@ -8,7 +8,6 @@ import {
   SectionList,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { FlatList, ScrollView } from 'react-native-gesture-handler';
@@ -19,8 +18,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenInset } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SearchField } from "@/components/ui/search-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactListRow } from "@/components/workspace/contact-list-row";
+import { ContactListSkeleton } from "@/components/workspace/contact-list-skeleton";
 import {
   CONTACT_TYPES,
   getContactTypeOption,
@@ -78,39 +79,12 @@ function ContactsListHeader({
   return (
     <View style={styles.listHeader}>
       <ScreenInset>
-        <View
-          style={[
-            styles.searchBox,
-            { backgroundColor: colors.surfaceContainerHigh },
-          ]}
-        >
-          <Icon name="search" size={20} color={colors.outline} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search"
-            placeholderTextColor={colors.textMuted}
-            value={query}
-            onChangeText={onQueryChange}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {query.length > 0 ? (
-            <Pressable
-              onPress={() => onQueryChange("")}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-            >
-              <Icon
-                name="cancel"
-                size={18}
-                color={colors.onSurfaceVariant}
-              />
-            </Pressable>
-          ) : null}
-        </View>
+        <SearchField
+          placeholder="Search"
+          value={query}
+          onChangeText={onQueryChange}
+          autoCapitalize="none"
+        />
       </ScreenInset>
 
       <FlatList
@@ -170,7 +144,14 @@ export default function ContactsListScreen() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  /**
+   * Contacts with business links merged in, tagged with the page list they
+   * came from so a stale (or still-empty) result is never shown for new data.
+   */
+  const [linked, setLinked] = useState<{
+    source: Contact[];
+    contacts: Contact[];
+  } | null>(null);
   const openSwipeRef = useRef<{
     id: string;
     methods: SwipeableMethods;
@@ -178,6 +159,7 @@ export default function ContactsListScreen() {
 
   const {
     items: loadedContacts,
+    isPending,
     refetch,
     isRefetching,
     hasNextPage,
@@ -203,10 +185,12 @@ export default function ContactsListScreen() {
 
     void syncContactBusinessLinks(loadedContacts, businesses)
       .then((syncedContacts) => {
-        if (active) setContacts(syncedContacts);
+        if (!active) return;
+        setLinked({ source: loadedContacts, contacts: syncedContacts });
       })
       .catch(() => {
-        if (active) setContacts(loadedContacts);
+        if (!active) return;
+        setLinked({ source: loadedContacts, contacts: loadedContacts });
       });
 
     return () => {
@@ -214,6 +198,11 @@ export default function ContactsListScreen() {
     };
   }, [loadedContacts, businesses]);
 
+  // Show fetched contacts right away; linking only enriches them, so it
+  // must not hold the list in an empty, not-loading state.
+  const contacts =
+    linked?.source === loadedContacts ? linked.contacts : loadedContacts;
+  const listLoading = isPending;
   const contactPhotoMap = buildContactPhotoMap(contacts, businesses);
   const filtered = filterContacts(contacts, debouncedQuery, typeFilter);
   const sections = groupContactsByLetter(filtered);
@@ -270,10 +259,13 @@ export default function ContactsListScreen() {
     setPicking(true);
     try {
       await runWithCleanup(async () => {
-        const deviceContact = await presentDeviceContactPicker();
+        // Spin as soon as a contact is chosen: reading its details from the
+        // phone and saving it both happen after the picker closes.
+        const deviceContact = await presentDeviceContactPicker({
+          onPicked: () => setImporting(true),
+        });
         if (!deviceContact) return;
 
-        setImporting(true);
         const { created } = await importDeviceContactToWorkspace(
           user.uid,
           deviceContact,
@@ -367,26 +359,49 @@ export default function ContactsListScreen() {
           />
         }
         ListHeaderComponent={
-          <ContactsListHeader
-            colors={colors}
-            query={query}
-            onQueryChange={setQuery}
-            typeFilter={typeFilter}
-            onTypeFilterChange={setTypeFilter}
-          />
+          <>
+            <ContactsListHeader
+              colors={colors}
+              query={query}
+              onQueryChange={setQuery}
+              typeFilter={typeFilter}
+              onTypeFilterChange={setTypeFilter}
+            />
+            {importing ? (
+              <ScreenInset style={styles.importingInset}>
+                <View
+                  accessibilityRole="progressbar"
+                  accessibilityLiveRegion="polite"
+                  style={[
+                    styles.importing,
+                    { backgroundColor: colors.surfaceContainerLow },
+                  ]}
+                >
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.importingText, { color: colors.onSurface }]}>
+                    Importing contact from your phone…
+                  </Text>
+                </View>
+              </ScreenInset>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
-          <ScreenInset style={styles.empty}>
-            <EmptyState
-              icon="person"
-              title={contacts.length === 0 ? "No Contacts" : "No Results"}
-              subtitle={
-                contacts.length === 0
-                  ? "Import from your phone or tap + to add a contact."
-                  : "Try a different search or filter."
-              }
-            />
-          </ScreenInset>
+          listLoading ? (
+            <ContactListSkeleton />
+          ) : (
+            <ScreenInset style={styles.empty}>
+              <EmptyState
+                icon="person"
+                title={contacts.length === 0 ? "No Contacts" : "No Results"}
+                subtitle={
+                  contacts.length === 0
+                    ? "Import from your phone or tap + to add a contact."
+                    : "Try a different search or filter."
+                }
+              />
+            </ScreenInset>
+          )
         }
         renderSectionHeader={({ section: { title } }) => (
           <View
@@ -446,20 +461,6 @@ const styles = StyleSheet.create({
     gap: Spacing.stackMd,
     marginBottom: Spacing.stackMd,
   },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 14,
-    minHeight: 48,
-  },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyMd,
-    fontSize: 16,
-    paddingVertical: 0,
-  },
   filterRow: {
     flexDirection: "row",
     gap: Spacing.stackSm,
@@ -490,6 +491,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+  importingInset: { marginBottom: Spacing.stackMd },
+  importing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.stackMd,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+    paddingHorizontal: Spacing.gutterMd,
+    minHeight: 48,
+  },
+  importingText: { ...Typography.labelMd, flex: 1 },
   empty: {
     paddingTop: 48,
   },

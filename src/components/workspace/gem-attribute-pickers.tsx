@@ -6,7 +6,6 @@ import {
     Pressable,
     StyleSheet,
     Text,
-    TextInput,
     View,
     type LayoutChangeEvent,
 } from "react-native";
@@ -14,7 +13,15 @@ import {
 import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from "@/components/ui/field-chrome";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
 import { Motion, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { LISTING_VISIBILITY_OPTIONS } from "@/constants/listing-visibility-options";
 import { easeOut, useReduceMotion } from "@/hooks/use-reduce-motion";
@@ -62,56 +69,37 @@ export function AttributePickerField({
   leading,
 }: PickerFieldProps) {
   const { colors } = useAppTheme();
+  const chrome = useFieldChrome({ error: !!error });
   const hasValue = Boolean(valueLabel);
 
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={hasValue ? `${label}: ${valueLabel}` : placeholder}
         onPress={onPress}
         style={({ pressed }) => [
-          styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
+          fieldStyles.box,
+          leading ? styles.fieldWithLeading : null,
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}
       >
-        {leading ?? (
-          <View
-            style={[
-              styles.fieldIcon,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-          >
-            <Icon name="tune" size={18} color={colors.outline} />
-          </View>
-        )}
+        {leading ?? <Icon name="tune" size={20} color={chrome.iconColor} />}
         <Text
           style={[
-            styles.fieldValue,
-            { color: hasValue ? colors.onSurface : colors.outline },
+            fieldStyles.value,
+            { color: hasValue ? colors.onSurface : chrome.placeholderColor },
           ]}
           numberOfLines={1}
         >
           {hasValue ? valueLabel : placeholder}
         </Text>
-        <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
@@ -193,22 +181,12 @@ export function OptionPickerSheet({
       scrollable={false}
     >
       {searchable ? (
-        <View
-          style={[
-            styles.searchBox,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-        >
-          <Icon name="search" size={20} color={colors.outline} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search…"
-            placeholderTextColor={colors.outline}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-          />
-        </View>
+        <SearchField
+          style={styles.search}
+          placeholder="Search…"
+          value={query}
+          onChangeText={setQuery}
+        />
       ) : null}
       <FlashList
         data={filtered as SearchableOption[]}
@@ -331,22 +309,12 @@ export function GemTypePickerSheet({
       title="Gem type"
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search gem types…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search gem types…"
+        value={query}
+        onChangeText={setQuery}
+      />
       <FlashList
         data={[...filtered]}
         keyExtractor={(item) => item.value}
@@ -573,22 +541,12 @@ export function ColorPickerSheet({
               <Text style={[styles.hint, { color: colors.textMuted }]}>
                 Choose a color family, then a shade.
               </Text>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="search" size={20} color={colors.outline} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.onSurface }]}
-                  placeholder="Search colors…"
-                  placeholderTextColor={colors.outline}
-                  value={query}
-                  onChangeText={setQuery}
-                  autoCorrect={false}
-                />
-              </View>
+              <SearchField
+                style={styles.search}
+                placeholder="Search colors…"
+                value={query}
+                onChangeText={setQuery}
+              />
               <FlashList
                 data={filteredFamilies}
                 keyExtractor={(item) => item.value}
@@ -637,22 +595,12 @@ export function ColorPickerSheet({
               />
             </View>
             <View style={[styles.colorPanel, { width: panelWidth }]}>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="search" size={20} color={colors.outline} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.onSurface }]}
-                  placeholder="Search shades…"
-                  placeholderTextColor={colors.outline}
-                  value={query}
-                  onChangeText={setQuery}
-                  autoCorrect={false}
-                />
-              </View>
+              <SearchField
+                style={styles.search}
+                placeholder="Search shades…"
+                value={query}
+                onChangeText={setQuery}
+              />
               <FlashList
                 data={filteredShades}
                 keyExtractor={(item) => item.value}
@@ -770,22 +718,12 @@ export function OriginPickerSheet({
       title="Origin"
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search origins…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search origins…"
+        value={query}
+        onChangeText={setQuery}
+      />
       <FlashList
         data={filtered as GemOrigin[]}
         keyExtractor={(item) => item.value}
@@ -894,39 +832,8 @@ export function ListingVisibilityPickerSheet(
 }
 
 const styles = StyleSheet.create({
-  fieldWrap: { gap: 8 },
-  fieldLabel: { ...Typography.labelMd },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 52,
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 12,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1.5,
-  },
-  fieldIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fieldValue: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
-  error: { ...Typography.bodySmall },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    height: 44,
-    borderRadius: Radius.lg,
-    paddingHorizontal: 12,
-    marginBottom: Spacing.stackMd,
-  },
-  searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
+  fieldWithLeading: { paddingLeft: 8 },
+  search: { marginBottom: Spacing.stackMd },
   listContent: { paddingBottom: Spacing.lg },
   colorTrack: { flex: 1, minHeight: 0, overflow: "hidden" },
   colorPanels: { flexDirection: "row", height: "100%" },

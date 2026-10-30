@@ -12,6 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from '@/components/ui/field-chrome';
 import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -98,6 +105,10 @@ export default function VerifyApplicationScreen() {
   const [licensePhoto, setLicensePhoto] = useState<LocalMedia | null>(null);
 
   const dobDate = parseIsoDate(dateOfBirth) ?? maxDob;
+  const dobChrome = useFieldChrome({
+    focused: showDobPicker,
+    error: !!applicantErrors.dateOfBirth,
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -329,46 +340,30 @@ export default function VerifyApplicationScreen() {
               error={applicantErrors.businessName}
             />
 
-            <View style={styles.dobBlock}>
-              <Text style={[styles.dobLabel, { color: colors.textSecondary }]}>
-                Date of birth (required)
-              </Text>
+            <FieldWrap>
+              <FieldLabel>Date of birth (required)</FieldLabel>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Choose date of birth"
                 onPress={() => setShowDobPicker(true)}
-                style={[
-                  styles.dobField,
-                  {
-                    backgroundColor: colors.surfaceMuted,
-                    borderColor: applicantErrors.dateOfBirth
-                      ? colors.error
-                      : colors.border,
-                  },
+                style={({ pressed }) => [
+                  fieldStyles.box,
+                  dobChrome.box,
+                  pressed && dobChrome.pressedBox,
                 ]}>
-                <Icon
-                  name="cake"
-                  size={20}
-                  color={applicantErrors.dateOfBirth ? colors.error : colors.textMuted}
-                />
+                <Icon name="cake" size={20} color={dobChrome.iconColor} />
                 <Text
                   style={[
-                    styles.dobValue,
-                    {
-                      color: dateOfBirth ? colors.text : colors.textMuted,
-                    },
+                    fieldStyles.value,
+                    { color: dateOfBirth ? colors.text : dobChrome.placeholderColor },
                   ]}>
                   {dateOfBirth
                     ? format(dobDate, 'd MMM yyyy')
                     : 'Select date of birth'}
                 </Text>
               </Pressable>
-              {applicantErrors.dateOfBirth ? (
-                <Text style={[styles.dobError, { color: colors.error }]}>
-                  {applicantErrors.dateOfBirth}
-                </Text>
-              ) : null}
-            </View>
+              <FieldMessage error={applicantErrors.dateOfBirth} />
+            </FieldWrap>
 
             {showDobPicker ? (
               <DateTimePicker
@@ -549,20 +544,6 @@ const styles = StyleSheet.create({
   },
   currentTagText: { ...Typography.caption, fontWeight: '700' },
   fields: { gap: Spacing.lg },
-  dobBlock: { gap: 6 },
-  dobLabel: { ...Typography.labelMd },
-  dobField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1.5,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    paddingHorizontal: Spacing.gutterMd,
-    minHeight: 52,
-  },
-  dobValue: { ...Typography.bodyLg, flex: 1 },
-  dobError: { ...Typography.labelMd },
   documentIntro: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,15 +1,11 @@
+import { addDays, format } from "date-fns";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-    Pressable,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
-} from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { Button } from "@/components/ui/button";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { ChipSelect, type ChipOption } from "@/components/ui/chip-select";
+import { FormFooter } from "@/components/ui/form-footer";
+import { FormSection } from "@/components/ui/form-section";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
@@ -23,7 +19,7 @@ import {
     GemPickerSheet,
     GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
 import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
 import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
@@ -64,6 +60,18 @@ const SERVICE_TYPES = [
   { id: "repolishing", label: "Repolishing" },
   { id: "appraisal", label: "Appraisal" },
 ];
+
+const SERVICE_TYPE_OPTIONS: ChipOption[] = SERVICE_TYPES.map((t) => ({
+  value: t.id,
+  label: t.label,
+  icon: t.id.includes("cut")
+    ? "content-cut"
+    : t.id.includes("heat")
+      ? "local-fire-department"
+      : t.id.includes("polish")
+        ? "auto-fix-high"
+        : "verified",
+}));
 
 export default function AddServiceScreen() {
   const { user } = useAuth();
@@ -135,6 +143,12 @@ export default function AddServiceScreen() {
 
   const weightBeforeValue =
     weightBefore || (selectedGem ? String(selectedGem.currentWeight) : "");
+
+  const returnDays = Number(daysUntilReturn);
+  const returnDatePreview =
+    daysUntilReturn && Number.isInteger(returnDays) && returnDays >= 0
+      ? `Expected back ${format(addDays(new Date(), returnDays), "d MMM yyyy")}`
+      : undefined;
 
   const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
@@ -283,60 +297,55 @@ export default function AddServiceScreen() {
         image={require("@/assets/images/lapidary-icon.png")}
       />
       <ThemedScrollView
-        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        style={{ flex: 0, maxHeight: windowHeight * 0.64 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ScreenInset>
+        <FormSection title="Stone & work">
           <GemSelectField
             label="Gem"
             gem={selectedGem}
             onPress={() => setGemSheetOpen(true)}
             error={errors.gemId}
           />
-        </ScreenInset>
-
-        <FormSection title="Service type" padded={false}>
-          <View style={styles.chips}>
-            {SERVICE_TYPES.map((t) => {
-              const active = serviceType === t.id;
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => setServiceType(t.id)}
-                  style={[
-                    styles.chip,
-                    active
-                      ? {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        }
-                      : {
-                          backgroundColor: colors.surfaceContainerLowest,
-                          borderColor: colors.outlineVariant,
-                        },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      {
-                        color: active
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {t.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ChipSelect
+            label="Service type"
+            options={SERVICE_TYPE_OPTIONS}
+            value={serviceType ?? null}
+            onChange={setServiceType}
+          />
         </FormSection>
 
-        <FormSection title="Details">
+        <FormSection title="Send to">
+          <PickerSelectField
+            label="Provider"
+            valueLabel={provider?.label ?? null}
+            avatarName={
+              provider?.source === "business"
+                ? provider.label
+                : selectedProviderContact?.displayName
+            }
+            avatarPhotoUrl={
+              provider?.source === "business"
+                ? provider.logoUrl
+                : selectedProviderContact?.photoUrl
+            }
+            subtitle={
+              provider?.source === "business"
+                ? provider.businessType.replace(/_/g, " ")
+                : provider?.source === "contact"
+                  ? "Saved contact"
+                  : null
+            }
+            placeholder="Search lapidaries or contacts…"
+            icon="service"
+            onPress={() => setProviderSheetOpen(true)}
+            error={errors.provider}
+          />
+        </FormSection>
+
+        <FormSection title="Weight & return">
           <MaskedInput
             label="Weight Before (ct)"
             mode="weight"
@@ -370,58 +379,34 @@ export default function AddServiceScreen() {
             keyboardType="number-pad"
             leftIcon="schedule"
             error={errors.daysUntilReturn}
+            helperText={returnDatePreview}
           />
         </FormSection>
 
-        <ScreenInset style={styles.footer}>
-         
-          <PickerSelectField
-            label="Provider"
-            valueLabel={provider?.label ?? null}
-            avatarName={
-              provider?.source === "business"
-                ? provider.label
-                : selectedProviderContact?.displayName
-            }
-            avatarPhotoUrl={
-              provider?.source === "business"
-                ? provider.logoUrl
-                : selectedProviderContact?.photoUrl
-            }
-            subtitle={
-              provider?.source === "business"
-                ? provider.businessType.replace(/_/g, " ")
-                : provider?.source === "contact"
-                  ? "Saved contact"
-                  : null
-            }
-            placeholder="Search lapidaries or contacts…"
-            icon="service"
-            onPress={() => setProviderSheetOpen(true)}
-            error={errors.provider}
-          />
-
-           <CalendarSyncToggle
-            surface="calendar"
-            value={calendarSyncEnabled}
-            onValueChange={setCalendarSyncEnabled}
-            colors={colors}
-          />
-          <CalendarSyncToggle
-            surface="reminder"
-            value={reminderSyncEnabled}
-            onValueChange={setReminderSyncEnabled}
-            colors={colors}
-          />
-
-          <Button
-            title={provider?.source === "business" ? "Send Request" : "Add Service"}
-            icon="service"
-            loading={submitting}
-            onPress={handleSubmit}
-          />
-        </ScreenInset>
+        {Platform.OS !== "web" ? (
+          <FormSection title="Reminders" style={styles.toggles}>
+            <CalendarSyncToggle
+              surface="calendar"
+              value={calendarSyncEnabled}
+              onValueChange={setCalendarSyncEnabled}
+              colors={colors}
+            />
+            <CalendarSyncToggle
+              surface="reminder"
+              value={reminderSyncEnabled}
+              onValueChange={setReminderSyncEnabled}
+              colors={colors}
+            />
+          </FormSection>
+        ) : null}
       </ThemedScrollView>
+
+      <FormFooter
+        title={provider?.source === "business" ? "Send Request" : "Add Service"}
+        icon="service"
+        loading={submitting}
+        onPress={handleSubmit}
+      />
 
       <GemPickerSheet
         visible={gemSheetOpen}
@@ -462,20 +447,6 @@ export default function AddServiceScreen() {
 const styles = StyleSheet.create({
   /** No flex:1 — required for formSheet fitToContents height measurement. */
   sheet: { gap: Spacing.sm },
-  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.lg,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-  },
-  chipText: { ...Typography.labelMd },
-  footer: { gap: Spacing.lg },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.lg },
+  toggles: { gap: Spacing.xs, paddingVertical: Spacing.md },
 });

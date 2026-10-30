@@ -1,10 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { Icon, type IconName } from "@/components/ui/icon";
-import { Radius, Typography } from "@/constants/design-tokens";
+import { Accent, Callout, IconBubble } from "@/components/ui/detail-kit";
+import type { IconName } from "@/components/ui/icon";
+import { FontFamily, Radius } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
-
-type MoneyTone = "sold" | "sender" | "yours";
 
 type ApGemSaleSplitProps = {
   soldLabel: string;
@@ -12,42 +11,9 @@ type ApGemSaleSplitProps = {
   yoursLabel: string;
 };
 
-const TONE: Record<
-  MoneyTone,
-  { icon: IconName; bgKey: "primaryContainer" | "secondaryContainer" | "success" }
-> = {
-  sold: { icon: "sell", bgKey: "secondaryContainer" },
-  sender: { icon: "call-made", bgKey: "primaryContainer" },
-  yours: { icon: "account-balance-wallet", bgKey: "success" },
-};
-
-function toneColors(
-  colors: ReturnType<typeof useAppTheme>["colors"],
-  bgKey: (typeof TONE)[MoneyTone]["bgKey"],
-) {
-  if (bgKey === "success") {
-    return {
-      bg: colors.successEmerald + "22",
-      fg: colors.successEmerald,
-      iconBg: colors.successEmerald + "33",
-    };
-  }
-  if (bgKey === "primaryContainer") {
-    return {
-      bg: colors.primaryContainer,
-      fg: colors.onPrimaryContainer,
-      iconBg: colors.surfaceContainerLowest + "88",
-    };
-  }
-  return {
-    bg: colors.secondaryContainer,
-    fg: colors.onSecondaryContainer,
-    iconBg: colors.surfaceContainerLowest + "88",
-  };
-}
-
 /**
- * Receiver view: three visual money cells — actual sale, to sender, yours.
+ * Receiver view: how one sold gem's money splits — sale price (blue, info),
+ * owed to the sender (amber, due) and your share (emerald, gain).
  */
 export function ApGemSaleSplit({
   soldLabel,
@@ -56,67 +22,60 @@ export function ApGemSaleSplit({
 }: ApGemSaleSplitProps) {
   const { colors } = useAppTheme();
 
-  const cells: { tone: MoneyTone; amount: string }[] = [
-    { tone: "sold", amount: soldLabel },
-    { tone: "sender", amount: senderLabel },
-    { tone: "yours", amount: yoursLabel },
+  const cells: { key: string; label: string; icon: IconName; accent: string; amount: string }[] = [
+    { key: "sold", label: "Sold for", icon: "sell", accent: Accent.blue, amount: soldLabel },
+    { key: "sender", label: "To sender", icon: "call-made", accent: Accent.amber, amount: senderLabel },
+    {
+      key: "yours",
+      label: "Yours",
+      icon: "account-balance-wallet",
+      accent: Accent.emerald,
+      amount: yoursLabel,
+    },
   ];
 
   return (
     <View
       style={styles.row}
+      accessible
       accessibilityLabel={`Sold ${soldLabel}, to sender ${senderLabel}, yours ${yoursLabel}`}
     >
-      {cells.map((cell) => {
-        const meta = TONE[cell.tone];
-        const tone = toneColors(colors, meta.bgKey);
-        return (
-          <View
-            key={cell.tone}
-            style={[styles.cell, { backgroundColor: tone.bg }]}
+      {cells.map((cell) => (
+        <View
+          key={cell.key}
+          style={[styles.cell, { backgroundColor: `${cell.accent}12` }]}
+        >
+          <IconBubble icon={cell.icon} accent={cell.accent} size={28} />
+          <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>
+            {cell.label}
+          </Text>
+          <Text
+            style={[styles.amount, { color: cell.key === "yours" ? cell.accent : colors.onSurface }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
           >
-            <View
-              style={[styles.iconWrap, { backgroundColor: tone.iconBg }]}
-            >
-              <Icon name={meta.icon} size={16} color={tone.fg} />
-            </View>
-            <Text
-              style={[styles.amount, { color: tone.fg }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
-            >
-              {cell.amount}
-            </Text>
-          </View>
-        );
-      })}
+            {cell.amount}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 /**
- * Sender view: only the amount the receiver owes / sends to them.
+ * Sender view: only the amount the holder owes for this sold gem.
  */
 export function ApGemSenderDue({ amountLabel }: { amountLabel: string }) {
-  const { colors } = useAppTheme();
-  const tone = toneColors(colors, "primaryContainer");
-
   return (
-    <View
-      style={[styles.dueCard, { backgroundColor: tone.bg }]}
-      accessibilityLabel={`Amount to you ${amountLabel}`}
-    >
-      <View style={[styles.dueIcon, { backgroundColor: tone.iconBg }]}>
-        <Icon name="call-received" size={22} color={tone.fg} />
-      </View>
-      <Text
-        style={[styles.dueAmount, { color: tone.fg }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {amountLabel}
-      </Text>
+    <View accessible accessibilityLabel={`Amount to you ${amountLabel}`}>
+      <Callout
+        icon="call-received"
+        accent={Accent.amber}
+        label="Due to you"
+        value={amountLabel}
+        style={styles.callout}
+      />
     </View>
   );
 }
@@ -129,48 +88,25 @@ const styles = StyleSheet.create({
   },
   cell: {
     flex: 1,
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    minWidth: 0,
+    gap: 4,
+    padding: 10,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
-    minWidth: 0,
   },
-  iconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
+  label: {
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 4,
+    includeFontPadding: false,
   },
   amount: {
-    ...Typography.labelMd,
-    fontWeight: "700",
+    fontFamily: FontFamily.semibold,
+    fontSize: 14,
+    lineHeight: 20,
     fontVariant: ["tabular-nums"],
-    textAlign: "center",
-    width: "100%",
+    includeFontPadding: false,
   },
-  dueCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
-  dueIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dueAmount: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    flex: 1,
-  },
+  callout: { marginTop: 0 },
 });

@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import type { ICountryCca2 } from "rn-country-select";
@@ -13,6 +12,7 @@ import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
 import {
   POPULAR_COUNTRY_CODES,
   findCountry,
@@ -92,23 +92,13 @@ export function CountryPickerSheet({
       title={title}
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search countries…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          autoCapitalize="words"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search countries…"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="words"
+      />
       <FlashList
         data={filtered}
         keyExtractor={(item) => item.code}
@@ -185,20 +175,8 @@ export function CountryPickerSheet({
 }
 
 const styles = StyleSheet.create({
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+  search: {
     marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    minHeight: 44,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyMd,
-    paddingVertical: Spacing.sm,
   },
   listContent: {
     paddingBottom: Spacing.xl,

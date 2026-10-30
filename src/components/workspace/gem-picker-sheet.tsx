@@ -5,14 +5,21 @@ import {
     Pressable,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 
 import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from "@/components/ui/field-chrome";
 import { Icon } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType, formatOriginLabel } from "@/constants/gem-options";
 import { resolveGemLifecycle } from "@/features/workspace/gem-lifecycle";
@@ -172,24 +179,13 @@ export function GemPickerSheet({
         })}
       </View>
 
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search name, type, weight…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          autoCapitalize="none"
-          clearButtonMode="while-editing"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search name, type, weight…"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+      />
 
       <FlashList
         data={filtered}
@@ -353,12 +349,11 @@ export function GemSelectField({
 }: GemSelectFieldProps) {
   const { colors } = useAppTheme();
   const photo = gemPrimaryPhotoUrl(gem);
+  const chrome = useFieldChrome({ error: !!error });
 
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
@@ -368,12 +363,10 @@ export function GemSelectField({
         }
         onPress={onPress}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}
       >
         {gem ? (
@@ -424,22 +417,18 @@ export function GemSelectField({
             >
               <Icon name="diamond" size={18} color={colors.onPrimaryContainer} />
             </View>
-            <Text style={[styles.placeholder, { color: colors.outline }]}>
+            <Text
+              style={[fieldStyles.value, { color: chrome.placeholderColor }]}
+              numberOfLines={1}
+            >
               {placeholder}
             </Text>
           </>
         )}
-        <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
@@ -464,16 +453,7 @@ const styles = StyleSheet.create({
   tabText: { ...Typography.labelMd, fontWeight: "700" },
   tabCount: { ...Typography.caption, fontVariant: ["tabular-nums"] },
 
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    height: 48,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    marginBottom: Spacing.stackMd,
-  },
-  searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
+  search: { marginBottom: Spacing.stackMd },
   list: { flex: 1 },
   listContent: { paddingBottom: Spacing.md, flexGrow: 1 },
   row: {
@@ -506,23 +486,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
 
-  fieldWrap: { gap: Spacing.stackSm },
-  fieldLabel: {
-    ...Typography.labelMd,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    minHeight: 64,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
+  /** Taller trigger for the thumbnail + two-line layout. */
+  field: { minHeight: 64, paddingVertical: Spacing.sm, gap: Spacing.md },
   fieldThumb: {
     width: 44,
     height: 44,
@@ -532,6 +497,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   fieldBody: { flex: 1, minWidth: 0, gap: 2 },
-  placeholder: { ...Typography.bodyMd, flex: 1 },
-  error: { ...Typography.bodySmall },
 });

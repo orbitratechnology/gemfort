@@ -7,7 +7,6 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
+import { SEARCH_HEIGHT, SearchField } from '@/components/ui/search-field';
 import { StackHeader } from '@/components/ui/stack-header';
 import { WorkspaceScreenBackdrop } from '@/components/workspace/workspace-screen-backdrop';
 import { GemCard } from '@/components/workspace/gem-card';
@@ -25,7 +25,7 @@ import {
   GemTypePickerSheet,
 } from '@/components/workspace/gem-attribute-pickers';
 import { formatGemType, GEM_TYPES } from '@/constants/gem-options';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Spacing, Typography } from '@/constants/design-tokens';
 import { canDeleteGem } from '@/features/workspace/delete-gates';
 import { filterGems } from '@/features/workspace/gem-utils';
 import { deleteGem } from '@/features/workspace/workspace-service';
@@ -133,20 +133,13 @@ export default function GemsListScreen() {
       />
 
       <View style={styles.searchRow}>
-        <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
-          <View style={styles.searchIcon}>
-            <Icon name="search" size={20} color={colors.outline} />
-          </View>
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search SKU, type, origin..."
-            placeholderTextColor={colors.outline}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-            accessibilityLabel="Search inventory"
-          />
-        </View>
+        <SearchField
+          style={styles.searchField}
+          placeholder="Search SKU, type, origin..."
+          value={search}
+          onChangeText={setSearch}
+          accessibilityLabel="Search inventory"
+        />
         <Pressable
           onPress={openFilter}
           accessibilityRole="button"
@@ -323,19 +316,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.stackMd,
   },
-  searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: Radius.full,
-    height: 44,
-  },
-  searchIcon: { marginLeft: 12 },
-  searchInput: { flex: 1, paddingHorizontal: 12, ...Typography.bodyMd },
+  searchField: { flex: 1 },
   filterBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: SEARCH_HEIGHT,
+    height: SEARCH_HEIGHT,
+    borderRadius: SEARCH_HEIGHT / 2,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

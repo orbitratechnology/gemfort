@@ -1,9 +1,15 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, TextInput, View, Text, type TextInputProps } from 'react-native';
+import { TextInput, View, type TextInputProps } from 'react-native';
 
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+  useFieldFocus,
+} from '@/components/ui/field-chrome';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { useAppTheme } from '@/hooks/use-app-theme';
 
 type InputProps = TextInputProps & {
   label?: string;
@@ -25,70 +31,46 @@ export function Input({
   leftElement,
   rightElement,
   style,
+  onFocus,
+  onBlur,
   ...props
 }: InputProps) {
-  const { colors } = useAppTheme();
-  const borderColor = error ? colors.error : colors.border;
-  const iconColor = error ? colors.error : colors.textMuted;
+  const { focused, focusProps } = useFieldFocus({ onFocus, onBlur });
+  const chrome = useFieldChrome({
+    focused,
+    error: !!error,
+    disabled: props.editable === false,
+  });
 
   return (
-    <View style={styles.wrap}>
-      {label ? <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text> : null}
+    <FieldWrap>
+      {label ? <FieldLabel>{label}</FieldLabel> : null}
       <View
         style={[
-          styles.field,
-          {
-            backgroundColor: colors.surfaceMuted,
-            borderColor,
-            borderRadius: Radius.lg,
-            borderCurve: 'continuous',
-          },
+          fieldStyles.box,
+          props.multiline && { alignItems: 'flex-start' },
+          chrome.box,
         ]}>
         {props.multiline
           ? null
-          : leftElement ?? (leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null)}
+          : leftElement ?? (leftIcon ? <Icon name={leftIcon} size={20} color={chrome.iconColor} /> : null)}
         <TextInput
-          placeholderTextColor={colors.textMuted}
-          style={[styles.input, { color: colors.text }, style]}
+          placeholderTextColor={chrome.placeholderColor}
+          selectionColor={chrome.selectionColor}
+          cursorColor={chrome.selectionColor}
+          style={[
+            fieldStyles.input,
+            { color: chrome.textColor },
+            props.multiline && fieldStyles.inputMultiline,
+            style,
+          ]}
           accessibilityLabel={label}
           {...props}
+          {...focusProps}
         />
-        {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
+        {rightElement ? <View style={fieldStyles.right}>{rightElement}</View> : null}
       </View>
-      {error ? (
-        <Text style={[styles.error, { color: colors.error }]} accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : helperText ? (
-        <Text style={[styles.helper, { color: colors.textMuted }]}>{helperText}</Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} helperText={helperText} />
+    </FieldWrap>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: 6 },
-  label: { ...Typography.labelMd },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1.5,
-    paddingHorizontal: Spacing.gutterMd,
-    minHeight: 52,
-  },
-  input: {
-    ...Typography.bodyMd,
-    flex: 1,
-    paddingVertical: 14,
-    minHeight: 52,
-    fontSize: 16,
-  },
-  right: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-  },
-  error: { ...Typography.bodySmall },
-  helper: { ...Typography.bodySmall },
-});

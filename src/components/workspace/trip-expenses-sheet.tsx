@@ -2,8 +2,15 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  Accent,
+  DetailRows,
+  IconBubble,
+  TotalRow,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
 import { Icon } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
   getExpenseCategoryIcon,
   getExpenseCategoryLabel,
@@ -14,6 +21,37 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { formatRelativeTime } from "@/lib/utils";
 import type { TripExpense } from "@/types";
 
+type FormatStored = ReturnType<typeof usePreferredMoney>["formatStored"];
+
+/**
+ * One expense as a detail row: category bubble, category + when / how paid /
+ * note, amount on the right. Shared by the sheet and the trip detail band.
+ */
+export function tripExpenseRow(
+  e: TripExpense,
+  formatStored: FormatStored,
+): { key: string } & DetailRowProps {
+  const hint = [
+    formatRelativeTime(e.date),
+    e.paymentMethod ? getTripPaymentMethodLabel(e.paymentMethod) : null,
+    e.description?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    key: e.id,
+    icon: getExpenseCategoryIcon(e.category),
+    accent: Accent.amber,
+    label: getExpenseCategoryLabel(e.category),
+    hint,
+    value: formatStored({
+      amount: e.amount,
+      currency: e.currency,
+      amountBase: e.amountBase,
+    }),
+  };
+}
+
 type TripExpensesSheetProps = {
   visible: boolean;
   onClose: () => void;
@@ -21,7 +59,7 @@ type TripExpensesSheetProps = {
   onAddExpense?: () => void;
 };
 
-/** Timeline-style expense list for a trip (matches gem History rail). */
+/** Every expense logged on a trip, with the running total. */
 export function TripExpensesSheet({
   visible,
   onClose,
@@ -29,13 +67,14 @@ export function TripExpensesSheet({
   onAddExpense,
 }: TripExpensesSheetProps) {
   const { colors } = useAppTheme();
-  const { formatStored } = usePreferredMoney();
+  const { formatStored, formatBase } = usePreferredMoney();
+  const total = expenses.reduce((s, e) => s + e.amountBase, 0);
 
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title="Expenses"
+      title={expenses.length ? `Expenses · ${expenses.length}` : "Expenses"}
       footer={
         onAddExpense ? (
           <Button
@@ -51,7 +90,7 @@ export function TripExpensesSheet({
     >
       {expenses.length === 0 ? (
         <View style={styles.empty}>
-          <Icon name="receipt" size={28} color={colors.outlineVariant} />
+          <IconBubble icon="receipt" accent={Accent.amber} size={52} />
           <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
             No expenses yet
           </Text>
@@ -60,77 +99,9 @@ export function TripExpensesSheet({
           </Text>
         </View>
       ) : (
-        <View style={styles.timeline}>
-          {expenses.map((e, i) => (
-            <View key={e.id} style={styles.timelineRow}>
-              <View style={styles.timelineRail}>
-                <View
-                  style={[
-                    styles.timelineIconWrap,
-                    {
-                      backgroundColor:
-                        i === 0
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerHigh,
-                    },
-                  ]}
-                >
-                  <Icon
-                    name={getExpenseCategoryIcon(e.category)}
-                    size={14}
-                    color={
-                      i === 0
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant
-                    }
-                  />
-                </View>
-                {i < expenses.length - 1 ? (
-                  <View
-                    style={[
-                      styles.timelineLine,
-                      { backgroundColor: colors.outlineVariant },
-                    ]}
-                  />
-                ) : null}
-              </View>
-              <View style={styles.timelineBody}>
-                <Text
-                  style={[styles.timelineDate, { color: colors.textMuted }]}
-                >
-                  {formatRelativeTime(e.date)}
-                  {e.paymentMethod
-                    ? ` · ${getTripPaymentMethodLabel(e.paymentMethod)}`
-                    : ""}
-                </Text>
-                <Text
-                  style={[styles.timelineTitle, { color: colors.onSurface }]}
-                >
-                  {getExpenseCategoryLabel(e.category)}
-                </Text>
-                {e.description ? (
-                  <Text
-                    style={[
-                      styles.timelineMeta,
-                      { color: colors.onSurfaceVariant },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {e.description}
-                  </Text>
-                ) : null}
-                <Text
-                  style={[styles.timelineAmt, { color: colors.onSurface }]}
-                >
-                  {formatStored({
-                    amount: e.amount,
-                    currency: e.currency,
-                    amountBase: e.amountBase,
-                  })}
-                </Text>
-              </View>
-            </View>
-          ))}
+        <View>
+          <DetailRows rows={expenses.map((e) => tripExpenseRow(e, formatStored))} />
+          <TotalRow label="Total expenses" value={formatBase(total)} />
         </View>
       )}
     </BottomSheet>
@@ -157,27 +128,20 @@ export function TripExpensesButton({
         pressed && { opacity: 0.85 },
       ]}
     >
-      <Icon name="receipt" size={20} color={colors.primary} />
+      <Icon name="receipt" size={20} color={Accent.amber} />
       <Text style={[styles.triggerLabel, { color: colors.onSurface }]}>
         Expenses
       </Text>
       {count > 0 ? (
-        <View
-          style={[
-            styles.countBadge,
-            { backgroundColor: colors.primaryContainer },
-          ]}
-        >
-          <Text
-            style={[styles.countText, { color: colors.onPrimaryContainer }]}
-          >
-            {count}
-          </Text>
+        <View style={[styles.countBadge, { backgroundColor: `${Accent.amber}1F` }]}>
+          <Text style={[styles.countText, { color: Accent.amber }]}>{count}</Text>
         </View>
       ) : null}
     </Pressable>
   );
 }
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   empty: {
@@ -186,29 +150,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.lg,
   },
-  emptyTitle: { ...Typography.labelMd, fontWeight: "700" },
-  emptySub: { ...Typography.bodySmall, textAlign: "center" },
-  timeline: { gap: 0, paddingHorizontal: Spacing.xs },
-  timelineRow: { flexDirection: "row", gap: 12, minHeight: 64 },
-  timelineRail: { width: 28, alignItems: "center" },
-  timelineIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timelineLine: { width: 2, flex: 1, marginTop: 4, marginBottom: 0 },
-  timelineBody: { flex: 1, paddingBottom: Spacing.md, gap: 2, paddingTop: 4 },
-  timelineDate: { ...Typography.caption },
-  timelineTitle: { ...Typography.bodyMd, fontWeight: "600" },
-  timelineMeta: { ...Typography.bodySmall },
-  timelineAmt: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    marginTop: 2,
-  },
+  emptyTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, marginTop: Spacing.xs },
+  emptySub: { ...text, ...Typography.bodySmall, textAlign: "center" },
   trigger: {
     flexDirection: "row",
     alignItems: "center",
@@ -218,7 +161,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     minHeight: 44,
   },
-  triggerLabel: { ...Typography.labelMd, fontWeight: "600" },
+  triggerLabel: { ...text, fontFamily: FontFamily.semibold, fontSize: 14 },
   countBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -226,5 +169,5 @@ const styles = StyleSheet.create({
     minWidth: 22,
     alignItems: "center",
   },
-  countText: { ...Typography.labelMd, fontSize: 11, fontWeight: "700" },
+  countText: { ...text, fontFamily: FontFamily.semibold, fontSize: 11 },
 });

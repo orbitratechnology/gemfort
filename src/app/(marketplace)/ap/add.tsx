@@ -9,25 +9,32 @@ import {
 } from "react-native";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
-import { Button } from "@/components/ui/button";
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import {
+  Accent,
+  DetailBand,
+  DetailRows,
+  IconBubble,
+} from "@/components/ui/detail-kit";
+import { FormFooter } from "@/components/ui/form-footer";
+import { FormSection } from "@/components/ui/form-section";
 import { Icon } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import {
   GemPickerSheet,
   GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
 import { resolveCurrencyCode } from "@/constants/currencies";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { createApRequest } from "@/features/workspace/ap-lifecycle-service";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
@@ -128,6 +135,9 @@ export default function AddApScreen() {
   );
 
   const holder = contacts.find((c) => c.id === holderId);
+  const dayCount = parseInt(days, 10);
+  const returnByLabel =
+    dayCount > 0 ? `In ${dayCount} day${dayCount === 1 ? "" : "s"}` : "—";
 
   function addGem(gem: WorkspaceGem) {
     setLines((prev) => [
@@ -251,30 +261,33 @@ export default function AddApScreen() {
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
       >
-        <FormSection title="Gems">
-          {lines.map((line) => {
+        <FormSection
+          title="Gems"
+          hint={lines.length ? `${lines.length} gem${lines.length === 1 ? "" : "s"} on this AP` : undefined}
+        >
+          {lines.map((line, i) => {
             const gem = gems.find((g) => g.id === line.gemId);
             const gemName =
               gem?.title?.trim() || gem?.variety?.trim() || "Gem";
+            const photo = gemPrimaryPhotoUrl(gem);
             return (
               <View
                 key={line.gemId}
                 style={[
-                  styles.lineCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    borderColor: colors.outlineVariant,
+                  styles.line,
+                  i > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.outlineVariant,
                   },
                 ]}
               >
                 <View style={styles.lineHeader}>
-                  <GemThumb
-                    uri={gemPrimaryPhotoUrl(gem)}
-                    label={gemName}
-                    size={52}
-                    radius={12}
-                  />
-                  <View style={{ flex: 1 }}>
+                  {photo || !gem ? (
+                    <GemThumb uri={photo} label={gemName} size={48} radius={12} />
+                  ) : (
+                    <GemArtwork gem={gem} artScale={0.8} style={styles.gemArt} />
+                  )}
+                  <View style={styles.lineCopy}>
                     <Text
                       style={[styles.lineTitle, { color: colors.onSurface }]}
                       numberOfLines={1}
@@ -282,7 +295,8 @@ export default function AddApScreen() {
                       {gemName}
                     </Text>
                     <Text
-                      style={[styles.lineSub, { color: colors.textMuted }]}
+                      style={[styles.lineSub, { color: colors.onSurfaceVariant }]}
+                      numberOfLines={1}
                     >
                       {gem
                         ? `${formatGemType(gem.gemType)} · ${gem.currentWeight} ct`
@@ -291,10 +305,16 @@ export default function AddApScreen() {
                   </View>
                   <Pressable
                     onPress={() => removeGem(line.gemId)}
+                    accessibilityRole="button"
                     accessibilityLabel="Remove gem"
                     hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.removeBtn,
+                      { backgroundColor: colors.surfaceContainerHigh },
+                      pressed && styles.pressed,
+                    ]}
                   >
-                    <Icon name="close" size={20} color={colors.textMuted} />
+                    <Icon name="close" size={18} color={colors.onSurfaceVariant} />
                   </Pressable>
                 </View>
                 <CurrencyAmountField
@@ -355,10 +375,13 @@ export default function AddApScreen() {
             error={errors.holderId}
           />
           {holder && !holder.linkedBusinessId ? (
-            <Text style={[styles.warn, { color: colors.error }]}>
-              This contact is not linked to a GemFort trader. Choose a trader
-              from the market.
-            </Text>
+            <View style={[styles.warn, { backgroundColor: `${Accent.rose}14` }]}>
+              <IconBubble icon="warning" accent={Accent.rose} size={32} />
+              <Text style={[styles.warnText, { color: Accent.rose }]}>
+                This contact is not linked to a GemFort trader. Choose a trader
+                from the market.
+              </Text>
+            </View>
           ) : null}
         </FormSection>
 
@@ -377,15 +400,43 @@ export default function AddApScreen() {
           />
         </FormSection>
 
-        <ScreenInset>
-          <Button
-            title="Send AP request"
-            icon="ap"
-            loading={submitting}
-            onPress={handleSubmit}
-          />
-        </ScreenInset>
+        {lines.length ? (
+          <DetailBand title="Summary">
+            <DetailRows
+              rows={[
+                {
+                  key: "gems",
+                  icon: "diamond",
+                  accent: Accent.violet,
+                  label: "Gems",
+                  value: String(lines.length),
+                },
+                {
+                  key: "holder",
+                  icon: "person",
+                  accent: holder ? Accent.blue : Accent.slate,
+                  label: "Holder",
+                  value: holder?.displayName || "Not chosen",
+                },
+                {
+                  key: "return",
+                  icon: "schedule",
+                  accent: Accent.amber,
+                  label: "Return",
+                  value: returnByLabel,
+                },
+              ]}
+            />
+          </DetailBand>
+        ) : null}
       </ThemedScrollView>
+
+      <FormFooter
+        title="Send AP request"
+        icon="ap"
+        loading={submitting}
+        onPress={handleSubmit}
+      />
 
       <GemPickerSheet
         visible={gemSheetOpen}
@@ -403,20 +454,49 @@ export default function AddApScreen() {
 const styles = StyleSheet.create({
   /** No flex:1 — required for formSheet fitToContents height measurement. */
   sheet: { gap: Spacing.sm },
-  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
-  lineCard: {
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.lg },
+  line: { gap: Spacing.md, paddingBottom: Spacing.md },
   lineHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
+    alignItems: "center",
+    gap: 12,
+    paddingTop: Spacing.sm,
   },
-  lineTitle: { ...Typography.bodyMd, fontWeight: "600" },
-  lineSub: { ...Typography.caption, marginTop: 2 },
-  warn: { ...Typography.bodySmall, marginTop: Spacing.sm },
+  gemArt: { width: 48, height: 48, borderRadius: 12, borderCurve: "continuous" },
+  lineCopy: { flex: 1, minWidth: 0, gap: 2 },
+  lineTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 21,
+    includeFontPadding: false,
+  },
+  lineSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pressed: { opacity: 0.7 },
+  warn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
+  },
+  warnText: {
+    flex: 1,
+    fontFamily: FontFamily.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
 });

@@ -94,7 +94,12 @@ export async function ensureContactsPermission(): Promise<ContactsAccessState> {
 }
 
 /** Present the native system contact picker (Expo recommended for single select). */
-export async function presentDeviceContactPicker(): Promise<DeviceContact | null> {
+export async function presentDeviceContactPicker(
+  options: {
+    /** Called once a contact is chosen, before its details are read. */
+    onPicked?: () => void;
+  } = {},
+): Promise<DeviceContact | null> {
   const access = await ensureContactsPermission();
   if (!access.granted) {
     throw new Error('Contacts permission is required to pick a contact.');
@@ -102,6 +107,7 @@ export async function presentDeviceContactPicker(): Promise<DeviceContact | null
 
   const selected = await Contact.presentPicker();
   if (!selected) return null;
+  options.onPicked?.();
 
   const details = await selected.getDetails([...DEVICE_CONTACT_FIELDS]);
   return mapDetailsToDeviceContact(selected.id, details);

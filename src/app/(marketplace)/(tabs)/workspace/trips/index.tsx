@@ -1,16 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PlaceLabel } from "@/components/ui/country-flag";
+import { CountryFlag } from "@/components/ui/country-flag";
+import { Accent, IconBubble, ListItem } from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
@@ -18,15 +13,18 @@ import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import {
+    TRIP_STATUS_ACCENT,
     TripStatusTabs,
     type TripListTab,
 } from "@/components/workspace/trip-status-tabs";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
+import { resolveCountryCode } from "@/constants/gem-options";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
     formatTripDates,
     getTripsByStatus,
+    tripBudgetBase,
 } from "@/features/workspace/trip-utils";
 import { deleteTrip } from "@/features/workspace/workspace-service";
 import { fetchTripsPage } from "@/features/workspace/workspace-pagination";
@@ -40,19 +38,49 @@ import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Trip } from "@/types";
 
+/** Leading mark: status-tinted flight bubble with the destination flag. */
+function TripLeading({ trip }: { trip: Trip }) {
+  const accent = TRIP_STATUS_ACCENT[trip.status];
+  const hasFlag = !!resolveCountryCode(trip.destinationCountry);
+  return (
+    <View>
+      <IconBubble icon="flight" accent={accent} size={44} />
+      {hasFlag ? (
+        <View style={styles.leadingFlag} pointerEvents="none">
+          <CountryFlag country={trip.destinationCountry} width={20} height={14} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function TripRow({
   trip,
-  colors,
+  isLast,
   onDelete,
 }: {
   trip: Trip;
-  colors: ReturnType<typeof useAppTheme>["colors"];
+  isLast: boolean;
   onDelete: () => void | Promise<void>;
 }) {
   const { formatBase } = usePreferredMoney();
   const typeMeta =
     TRIP_TYPES.find((t) => t.id === trip.tripType) ?? TRIP_TYPES[0];
-  const isActive = trip.status === "planning" || trip.status === "ongoing";
+  const location = [trip.destinationCity, trip.destinationCountry]
+    .filter((part): part is string => !!part?.trim())
+    .join(", ");
+  const { totalExpenses, totalGemsPurchased, totalGemsSold, totalRevenue, netResult } =
+    trip.summary;
+  const budgetBase = tripBudgetBase(trip);
+  const overBudget = budgetBase > 0 && totalExpenses > budgetBase;
+  const meta = [
+    typeMeta.label,
+    totalGemsPurchased > 0 ? `${totalGemsPurchased} bought` : null,
+    totalGemsSold > 0 ? `${totalGemsSold} sold` : null,
+    totalRevenue > 0 ? `Net ${formatBase(netResult)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <ContextActionsLink
@@ -72,84 +100,19 @@ function TripRow({
         },
       ]}
     >
-      {({ pressed }) => (
-        <View
-          style={[
-            styles.row,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              borderColor: colors.outlineVariant,
-            },
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          <View
-            style={[
-              styles.rowIcon,
-              {
-                backgroundColor: isActive
-                  ? colors.primaryContainer
-                  : colors.surfaceContainerHigh,
-              },
-            ]}
-            >
-            <Icon
-              name="trip"
-              size={22}
-              color={
-                isActive ? colors.onPrimaryContainer : colors.onSurfaceVariant
-              }
-            />
-          </View>
-          <View style={styles.rowBody}>
-            <View style={styles.rowTop}>
-              <Text
-                style={[styles.rowTitle, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {trip.tripName}
-              </Text>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: colors.surfaceContainerHighest },
-                ]}
-              >
-                <Text
-                  style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
-                >
-                  {TRIP_STATUS_LABELS[trip.status]}
-                </Text>
-              </View>
-            </View>
-            <PlaceLabel
-              parts={[trip.destinationCity]}
-              country={trip.destinationCountry}
-              size="xs"
-              textStyle={[styles.rowSub, { color: colors.textMuted }]}
-            />
-            <Text style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}>
-              {formatTripDates(trip)} · {typeMeta.label}
-            </Text>
-            {trip.summary.netResult !== 0 || trip.summary.totalExpenses > 0 ? (
-              <Text
-                style={[
-                  styles.rowNet,
-                  {
-                    color:
-                      trip.summary.netResult >= 0
-                        ? colors.successEmerald
-                        : colors.error,
-                  },
-                ]}
-              >
-                Net {formatBase(trip.summary.netResult)}
-              </Text>
-            ) : null}
-          </View>
-          <Icon name="chevron-right" size={20} color={colors.outline} />
-        </View>
-      )}
+      <ListItem
+        leading={<TripLeading trip={trip} />}
+        title={trip.tripName}
+        subtitle={[location, formatTripDates(trip)].filter(Boolean).join(" · ")}
+        meta={meta}
+        amount={totalExpenses > 0 ? formatBase(totalExpenses) : null}
+        amountColor={overBudget ? Accent.rose : undefined}
+        status={{
+          label: TRIP_STATUS_LABELS[trip.status],
+          accent: TRIP_STATUS_ACCENT[trip.status],
+        }}
+        isLast={isLast}
+      />
     </ContextActionsLink>
   );
 }
@@ -218,29 +181,18 @@ export default function TripsScreen() {
         }}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={tab === "active" ? (
-          <Pressable
-            onPress={haptics.wrap("light", () =>
-              router.push("/(marketplace)/(tabs)/workspace/flights" as never),
-            )}
-            style={({ pressed }) => [
-              styles.flightsCard,
-              { backgroundColor: colors.primaryContainer },
-              pressed && { opacity: 0.9 },
-            ]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: colors.primary }]}>
-              <Icon name="explore" size={22} color={colors.onPrimary} />
-            </View>
-            <View style={styles.createText}>
-              <Text style={[styles.createTitle, { color: colors.onPrimaryContainer }]}>
-                Find flights
-              </Text>
-              <Text style={[styles.createSub, { color: colors.onPrimaryContainer + "B8" }]}>
-                Compare cached fares for your next trade trip
-              </Text>
-            </View>
-            <Icon name="chevron-right" size={22} color={colors.onPrimaryContainer} />
-          </Pressable>
+          <View style={styles.flightsRow}>
+            <ListItem
+              leading={<IconBubble icon="explore" accent={Accent.blue} size={44} />}
+              title="Find flights"
+              subtitle="Compare cached fares for your next trade trip"
+              onPress={haptics.wrap("light", () =>
+                router.push("/(marketplace)/(tabs)/workspace/flights" as never),
+              )}
+              right={<Icon name="chevron-right" size={20} color={colors.outline} />}
+              isLast
+            />
+          </View>
         ) : null}
         ListEmptyComponent={
           <EmptyState
@@ -261,10 +213,10 @@ export default function TripsScreen() {
             onRetry={() => void fetchNextPage()}
           />
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <TripRow
             trip={item}
-            colors={colors}
+            isLast={index === visible.length - 1}
             onDelete={() => handleDelete(item.id)}
           />
         )}
@@ -290,62 +242,16 @@ export default function TripsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: {
-    paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: 100,
-    gap: Spacing.lg,
-  },
-  subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  flightsCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
-  createText: { flex: 1, gap: 2 },
-  createTitle: { ...Typography.labelMd, fontWeight: "700" },
-  createSub: { ...Typography.bodySmall },
-  list: { gap: Spacing.sm },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  rowIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowBody: { flex: 1, gap: 2, minWidth: 0 },
-  rowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.sm,
-  },
-  rowTitle: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeText: { ...Typography.labelMd, fontSize: 10, fontWeight: "600" },
-  rowSub: { ...Typography.bodySmall },
-  rowMeta: { ...Typography.bodySmall },
-  rowNet: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    marginTop: 2,
-    fontVariant: ["tabular-nums"],
+  content: { paddingBottom: 100 },
+  flightsRow: { marginBottom: Spacing.sm },
+  leadingFlag: {
+    position: "absolute",
+    right: -4,
+    bottom: -2,
+    borderRadius: 3,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
   },
   fab: {
     position: "absolute",

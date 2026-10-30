@@ -2,7 +2,8 @@ import { Image, type ImageSource } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FieldMessage } from "@/components/ui/field-chrome";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
 
@@ -13,6 +14,8 @@ export type ChoiceTileOption<T extends string = string> = {
   image?: ImageSource;
   /** Column span in `grid` layout. Default 1. */
   span?: 1 | 2;
+  /** Highlight colour when selected (defaults to the theme primary). */
+  accent?: string;
 };
 
 type ChoiceTileGridProps<T extends string> = {
@@ -35,7 +38,8 @@ export function ChoiceTileGrid<T extends string>({
   error,
   layout,
 }: ChoiceTileGridProps<T>) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const restFill = isDark ? colors.surfaceContainerHigh : colors.surfaceContainerLow;
 
   return (
     <View style={styles.wrap} accessibilityRole="radiogroup">
@@ -43,6 +47,7 @@ export function ChoiceTileGrid<T extends string>({
         {options.map((opt) => {
           const active = value === opt.value;
           const span2 = layout === "grid" && (opt.span ?? 1) === 2;
+          const accent = opt.accent ?? colors.primary;
 
           return (
             <Pressable
@@ -56,16 +61,16 @@ export function ChoiceTileGrid<T extends string>({
                 layout === "pair" && styles.tilePair,
                 layout === "grid" &&
                   (span2 ? styles.tileSpan2 : styles.tileHalf),
-                {
-                  backgroundColor: active
-                    ? colors.primary
-                    : colors.surfaceContainerLow,
-                  borderColor: active
-                    ? colors.primary
-                    : error
-                      ? colors.error
-                      : colors.outlineVariant,
-                },
+                active
+                  ? {
+                      backgroundColor: `${accent}${isDark ? "26" : "12"}`,
+                      borderColor: accent,
+                      boxShadow: `0 0 0 3px ${accent}${isDark ? "33" : "1F"}`,
+                    }
+                  : {
+                      backgroundColor: restFill,
+                      borderColor: error ? colors.error : "transparent",
+                    },
                 pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
               ]}
             >
@@ -75,8 +80,10 @@ export function ChoiceTileGrid<T extends string>({
                     styles.iconWrap,
                     {
                       backgroundColor: active
-                        ? colors.onPrimary + "22"
-                        : colors.surfaceContainerHighest,
+                        ? opt.image
+                          ? `${accent}24`
+                          : accent
+                        : `${accent}1A`,
                     },
                   ]}
                 >
@@ -90,19 +97,14 @@ export function ChoiceTileGrid<T extends string>({
                   ) : (
                     <Icon
                       name={opt.icon!}
-                      size={28}
-                      color={
-                        active ? colors.onPrimary : colors.onSurfaceVariant
-                      }
+                      size={26}
+                      color={active ? "#FFFFFF" : accent}
                     />
                   )}
                 </View>
               ) : null}
               <Text
-                style={[
-                  styles.tileLabel,
-                  { color: active ? colors.onPrimary : colors.onSurface },
-                ]}
+                style={[styles.tileLabel, { color: colors.onSurface }]}
                 numberOfLines={2}
               >
                 {opt.label}
@@ -111,41 +113,32 @@ export function ChoiceTileGrid<T extends string>({
           );
         })}
       </View>
-      {error ? (
-        <Text
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : null}
+      <FieldMessage error={error} />
     </View>
   );
 }
 
-/** Centered selection summary card shown at the top of the form step. */
+/** Selected-choice summary row at the top of the form step ("Taken · Change"). */
 export function ChoicePreviewCard({
   label,
   icon,
   image,
+  accent,
   onPress,
 }: {
   label: string;
   icon?: IconName;
   image?: ImageSource;
+  accent?: string;
   /** Optional — e.g. tap to change selection. */
   onPress?: () => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
+  const tone = accent ?? colors.primary;
   const body = (
     <>
       {icon || image ? (
-        <View
-          style={[
-            styles.previewIcon,
-            { backgroundColor: colors.primaryContainer },
-          ]}
-        >
+        <View style={[styles.previewIcon, { backgroundColor: `${tone}1F` }]}>
           {image ? (
             <Image
               source={image}
@@ -154,18 +147,19 @@ export function ChoicePreviewCard({
               accessibilityIgnoresInvertColors
             />
           ) : (
-            <Icon name={icon!} size={26} color={colors.onPrimaryContainer} />
+            <Icon name={icon!} size={20} color={tone} />
           )}
         </View>
       ) : null}
-      <Text
-        style={[styles.previewLabel, { color: colors.onSurface }]}
-        numberOfLines={1}
-      >
+      <Text style={[styles.previewLabel, { color: colors.onSurface }]} numberOfLines={1}>
         {label}
       </Text>
+      {onPress ? (
+        <Text style={[styles.previewChange, { color: colors.primary }]}>Change</Text>
+      ) : null}
     </>
   );
+  const fill = { backgroundColor: isDark ? colors.surfaceContainerHigh : colors.surfaceContainerLow };
 
   if (onPress) {
     return (
@@ -173,14 +167,7 @@ export function ChoicePreviewCard({
         accessibilityRole="button"
         accessibilityLabel={`${label}. Change`}
         onPress={haptics.wrap("light", onPress)}
-        style={({ pressed }) => [
-          styles.previewCard,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
-        ]}
+        style={({ pressed }) => [styles.previewCard, fill, pressed && { opacity: 0.8 }]}
       >
         {body}
       </Pressable>
@@ -188,16 +175,7 @@ export function ChoicePreviewCard({
   }
 
   return (
-    <View
-      style={[
-        styles.previewCard,
-        {
-          backgroundColor: colors.surfaceContainerLowest,
-          borderColor: colors.outlineVariant,
-        },
-      ]}
-      accessibilityLabel={label}
-    >
+    <View style={[styles.previewCard, fill]} accessibilityLabel={label}>
       {body}
     </View>
   );
@@ -223,7 +201,7 @@ const styles = StyleSheet.create({
     minHeight: 108,
     borderRadius: Radius.xl,
     borderCurve: "continuous",
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
   tilePair: {
     flex: 1,
@@ -243,47 +221,51 @@ const styles = StyleSheet.create({
     minHeight: 96,
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
   optionImage: { width: 36, height: 36 },
   tileLabel: {
-    ...Typography.labelMd,
-    fontWeight: "700",
+    includeFontPadding: false,
+    fontFamily: FontFamily.semibold,
     fontSize: 15,
+    lineHeight: 20,
     textAlign: "center",
   },
-  error: { ...Typography.bodySmall },
 
   previewCard: {
-    alignSelf: "center",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    minWidth: 148,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.lg,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  previewIcon: {
-    width: 52,
-    height: 52,
+    alignSelf: "stretch",
+    // Sits directly in full-width form scroll content, so it insets itself.
+    marginHorizontal: Spacing.containerMargin,
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 12,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
+  },
+  previewIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  previewImage: { width: 40, height: 40 },
+  previewImage: { width: 26, height: 26 },
   previewLabel: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontSize: 16,
-    textAlign: "center",
+    includeFontPadding: false,
+    flex: 1,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+  },
+  previewChange: {
+    includeFontPadding: false,
+    paddingRight: 4,
+    fontFamily: FontFamily.semibold,
+    fontSize: 13,
   },
 });

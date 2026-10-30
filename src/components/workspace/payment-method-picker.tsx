@@ -3,8 +3,16 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from "@/components/ui/field-chrome";
+import { Accent, IconBubble } from "@/components/ui/detail-kit";
 import { Icon } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import type { PaymentMethodOption } from "@/constants/payment-methods";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { haptics } from "@/lib/haptics";
@@ -29,12 +37,11 @@ export function PaymentMethodPicker<T extends string>({
   const { colors } = useAppTheme();
   const [visible, setVisible] = useState(false);
   const selected = options.find((option) => option.value === value) ?? null;
+  const chrome = useFieldChrome({ focused: visible, error: !!error });
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.label, { color: colors.textSecondary }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected?.label ?? placeholder}`}
@@ -42,17 +49,20 @@ export function PaymentMethodPicker<T extends string>({
         accessibilityState={{ selected: selected !== null }}
         onPress={() => setVisible(true)}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.trigger,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.86 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}>
         <MethodMark option={selected} selected={false} />
         <View style={styles.triggerText}>
           <Text
-            style={[styles.methodLabel, { color: colors.onSurface }]}
+            style={[
+              styles.methodLabel,
+              {
+                color: selected ? colors.onSurface : chrome.placeholderColor,
+              },
+            ]}
             numberOfLines={1}>
             {selected?.label ?? placeholder}
           </Text>
@@ -62,20 +72,9 @@ export function PaymentMethodPicker<T extends string>({
             {selected?.subtitle ?? "Tap to see available options"}
           </Text>
         </View>
-        <Icon
-          name="expand-more"
-          size={22}
-          color={colors.onSurfaceVariant}
-        />
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text
-          selectable
-          accessibilityLiveRegion="polite"
-          style={[styles.error, { color: colors.error }]}>
-          {error}
-        </Text>
-      ) : null}
+      <FieldMessage error={error} />
 
       <BottomSheet
         visible={visible}
@@ -89,8 +88,9 @@ export function PaymentMethodPicker<T extends string>({
           <Text style={[styles.description, { color: colors.textMuted }]}>
             Select how this transaction was paid.
           </Text>
-          {options.map((option) => {
+          {options.map((option, index) => {
             const active = option.value === value;
+            const isLast = index === options.length - 1;
             return (
               <Pressable
                 key={option.value}
@@ -107,36 +107,33 @@ export function PaymentMethodPicker<T extends string>({
                 })}
                 style={({ pressed }) => [
                   styles.option,
-                  {
-                    backgroundColor: active
-                      ? colors.primaryContainer
-                      : colors.surfaceContainerLow,
-                    borderColor: active ? colors.primary : colors.outlineVariant,
-                    opacity: pressed ? 0.86 : 1,
-                  },
+                  pressed && { backgroundColor: colors.surfaceContainerLow },
                 ]}>
-                <MethodMark option={option} selected={active} />
-                <View style={styles.optionText}>
-                  <Text style={[styles.methodLabel, { color: colors.onSurface }]}>
-                    {option.label}
-                  </Text>
-                  {option.subtitle ? (
-                    <Text
-                      style={[styles.methodSubtitle, { color: colors.textMuted }]}>
-                      {option.subtitle}
-                    </Text>
-                  ) : null}
-                </View>
+                <OptionMark option={option} />
                 <View
                   style={[
-                    styles.radio,
-                    {
-                      backgroundColor: active ? colors.primary : "transparent",
-                      borderColor: active ? colors.primary : colors.outline,
+                    styles.optionBody,
+                    !isLast && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.outlineVariant,
                     },
                   ]}>
+                  <View style={styles.optionText}>
+                    <Text
+                      style={[styles.optionLabel, { color: colors.onSurface }]}
+                      numberOfLines={1}>
+                      {option.label}
+                    </Text>
+                    {option.subtitle ? (
+                      <Text
+                        style={[styles.optionSubtitle, { color: colors.onSurfaceVariant }]}
+                        numberOfLines={1}>
+                        {option.subtitle}
+                      </Text>
+                    ) : null}
+                  </View>
                   {active ? (
-                    <Icon name="check" size={15} color={colors.onPrimary} />
+                    <Icon name="check-circle" size={22} color={colors.primary} />
                   ) : null}
                 </View>
               </Pressable>
@@ -144,7 +141,7 @@ export function PaymentMethodPicker<T extends string>({
           })}
         </View>
       </BottomSheet>
-    </View>
+    </FieldWrap>
   );
 }
 
@@ -186,36 +183,73 @@ function MethodMark({
   );
 }
 
+/** Sheet-row leading mark: tinted bubble with the method's icon or artwork. */
+function OptionMark({ option }: { option: PaymentMethodOption }) {
+  const accent =
+    option.tone === "success"
+      ? Accent.emerald
+      : option.tone === "warning"
+        ? Accent.amber
+        : Accent.blue;
+  if (!option.image) {
+    return <IconBubble icon={option.icon ?? "payments"} accent={accent} size={40} />;
+  }
+  return (
+    <View style={[styles.optionMark, { backgroundColor: `${accent}1F` }]}>
+      <Image
+        source={option.image}
+        style={styles.optionImage}
+        contentFit="contain"
+        accessible={false}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { gap: Spacing.stackSm },
-  label: { ...Typography.labelMd },
-  trigger: {
-    minHeight: 68,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.stackSm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-  },
+  /** Taller trigger for the method mark + two-line layout. */
+  trigger: { minHeight: 64, paddingVertical: Spacing.stackSm, gap: Spacing.md },
   triggerText: { flex: 1, minWidth: 0, gap: 2 },
   methodLabel: { ...Typography.bodyMd, fontWeight: "600" },
   methodSubtitle: { ...Typography.bodySmall },
-  options: { gap: Spacing.stackSm, paddingBottom: Spacing.sm },
-  description: { ...Typography.bodySmall, paddingBottom: Spacing.xs },
+  options: { paddingBottom: Spacing.sm },
+  description: { ...Typography.bodySmall, paddingBottom: Spacing.sm },
   option: {
-    minHeight: 72,
-    padding: Spacing.stackMd,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
+    gap: 12,
+    borderRadius: Radius.md,
   },
-  optionText: { flex: 1, minWidth: 0, gap: 3 },
+  optionBody: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 64,
+    paddingVertical: 10,
+  },
+  optionText: { flex: 1, minWidth: 0, gap: 2 },
+  optionLabel: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 21,
+    includeFontPadding: false,
+  },
+  optionSubtitle: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  optionMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionImage: { width: 26, height: 26 },
   mark: {
     width: 48,
     height: 48,
@@ -225,13 +259,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   image: { width: 42, height: 42 },
-  radio: {
-    width: 24,
-    height: 24,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  error: { ...Typography.bodySmall },
 });

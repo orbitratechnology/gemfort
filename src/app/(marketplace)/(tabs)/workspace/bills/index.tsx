@@ -5,11 +5,16 @@ import {
     Pressable,
     RefreshControl,
     StyleSheet,
-    Text,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import {
+    Accent,
+    IconBubble,
+    ListItem,
+    ListSectionHeader,
+} from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
@@ -18,11 +23,13 @@ import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     BILL_DIRECTION_LABELS,
     BILL_STATUS_LABELS,
+    billGemIds,
+    daysUntilDue,
     dueLabel,
     isOpenBill,
     remainingAmount,
@@ -42,11 +49,34 @@ import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query"
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
-import type { Bill } from "@/types";
+import type { Bill, BillStatus } from "@/types";
 import { useMemo, useState } from "react";
+
+/** Status → semantic accent (amber unpaid, violet work, rose overdue…). */
+const STATUS_ACCENT: Record<BillStatus, string> = {
+  open: Accent.amber,
+  partial: Accent.amber,
+  ongoing: Accent.violet,
+  overdue: Accent.rose,
+  paid: Accent.emerald,
+  cancelled: Accent.slate,
+};
+
+/** Open bills past their due date read as overdue even before the status catches up. */
+function billAccent(bill: Bill): string {
+  if (isOpenBill(bill) && daysUntilDue(bill) < 0) return Accent.rose;
+  return STATUS_ACCENT[bill.status];
+}
+
+function billDueText(bill: Bill): string {
+  if (!isOpenBill(bill)) return `Due ${formatDate(bill.dueDate)}`;
+  const label = dueLabel(bill);
+  return label.includes("overdue") ? label : `Due ${label.toLowerCase()}`;
+}
 
 function billRemainingStored(bill: Bill) {
   const remaining = remainingAmount(bill);
@@ -64,19 +94,40 @@ function BillRow({
   bill,
   contactName,
   contactPhotoUrl,
-  colors,
+  isLast,
   onDelete,
 }: {
   bill: Bill;
   contactName: string;
   contactPhotoUrl: string | null;
-  colors: ReturnType<typeof useAppTheme>["colors"];
+  isLast: boolean;
   onDelete: () => void | Promise<void>;
 }) {
+  const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
   const isPayable = bill.direction === "payable";
+  const open = isOpenBill(bill);
   const remainingStored = billRemainingStored(bill);
   const partyLabel = contactName || "Contact";
+  const gemCount = billGemIds(bill).length;
+  const subtitle = [
+    BILL_DIRECTION_LABELS[bill.direction],
+    bill.jobId ? "Lapidary job" : null,
+    gemCount > 0 ? `${gemCount} gem${gemCount === 1 ? "" : "s"}` : null,
+    bill.commissionPercent != null
+      ? `${bill.commissionPercent}% commission`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // Open bills show what's left; settled ones show the face amount.
+  const amountLabel = open
+    ? formatStored(remainingStored)
+    : formatStored({
+        amount: bill.amount,
+        currency: bill.currency,
+        amountBase: bill.amountBase,
+      });
 
   return (
     <ContextActionsLink
@@ -96,85 +147,33 @@ function BillRow({
         },
       ]}
     >
-      {({ pressed }) => (
-        <View
-          style={[
-            styles.row,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              borderColor: colors.outlineVariant,
-            },
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          {contactPhotoUrl ? (
+      <ListItem
+        leading={
+          contactPhotoUrl ? (
             <ContactAvatar
               name={partyLabel}
               photoUrl={contactPhotoUrl}
               size={44}
             />
           ) : (
-            <View
-              style={[
-                styles.rowIcon,
-                {
-                  backgroundColor: isPayable
-                    ? colors.errorContainer
-                    : colors.secondaryContainer,
-                },
-              ]}
-            >
-              <Icon
-                name={isPayable ? "call-made" : "call-received"}
-                size={20}
-                color={isPayable ? colors.error : colors.onSecondaryContainer}
-              />
-            </View>
-          )}
-          <View style={styles.rowBody}>
-            <View style={styles.rowTop}>
-              <Text
-                style={[styles.rowTitle, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {partyLabel}
-              </Text>
-              <Text style={[styles.rowAmount, { color: colors.primary }]}>
-                {formatStored(remainingStored)}
-              </Text>
-            </View>
-            <Text
-              style={[styles.rowSub, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {BILL_DIRECTION_LABELS[bill.direction]}
-              {bill.commissionPercent != null
-                ? ` · ${bill.commissionPercent}% commission`
-                : ""}
-            </Text>
-            <View style={styles.rowMeta}>
-              <Text
-                style={[styles.rowDate, { color: colors.onSurfaceVariant }]}
-              >
-                {dueLabel(bill)}
-              </Text>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: colors.surfaceContainerHighest },
-                ]}
-              >
-                <Text
-                  style={[styles.badgeText, { color: colors.onSurfaceVariant }]}
-                >
-                  {BILL_STATUS_LABELS[bill.status]}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={20} color={colors.outline} />
-        </View>
-      )}
+            <IconBubble
+              icon={isPayable ? "call-made" : "call-received"}
+              accent={billAccent(bill)}
+              size={44}
+            />
+          )
+        }
+        title={partyLabel}
+        subtitle={subtitle}
+        meta={billDueText(bill)}
+        amount={amountLabel}
+        amountColor={open ? colors.onSurface : colors.textMuted}
+        status={{
+          label: BILL_STATUS_LABELS[bill.status],
+          accent: STATUS_ACCENT[bill.status],
+        }}
+        isLast={isLast}
+      />
     </ContextActionsLink>
   );
 }
@@ -289,19 +288,17 @@ export default function BillsIndexScreen() {
         renderItem={({ item, index }) => (
           <View>
             {index === 0 && open.length > 0 ? (
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                Open
-              </Text>
+              <ListSectionHeader title="Open" count={open.length} />
             ) : index === open.length && closed.length > 0 ? (
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                Settled
-              </Text>
+              <ListSectionHeader title="Settled" count={closed.length} />
             ) : null}
             <BillRow
               bill={item}
               contactName={contactMap.get(item.counterpartyContactId) ?? ""}
               contactPhotoUrl={contactPhotoMap.get(item.counterpartyContactId) ?? null}
-              colors={colors}
+              isLast={
+                index === open.length - 1 || index === orderedBills.length - 1
+              }
               onDelete={() => handleDelete(item.id)}
             />
           </View>
@@ -327,56 +324,8 @@ export default function BillsIndexScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.xxl + 72,
-    gap: Spacing.md,
   },
-  subtitle: { ...Typography.bodySmall },
-  section: { gap: 8 },
-  sectionTitle: { ...Typography.bodyLg, fontWeight: "700" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowBody: { flex: 1, gap: 2, minWidth: 0 },
-  rowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  rowTitle: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
-  rowAmount: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  rowSub: { ...Typography.caption },
-  rowMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 2,
-  },
-  rowDate: { ...Typography.caption, fontWeight: "500" },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
   fab: {
     position: "absolute",
     bottom: 24,

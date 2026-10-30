@@ -182,7 +182,7 @@ export default function AddTripScreen() {
               />
             ) : null}
 
-            <FormSection title="Where & when">
+            <FormSection title="Trip">
               <Input
                 label="Trip name"
                 value={tripName}
@@ -194,6 +194,22 @@ export default function AddTripScreen() {
                 leftIcon="trip"
                 error={errors.tripName}
               />
+              <MaskedInput
+                label="Duration (days)"
+                mode="custom"
+                mask="999"
+                value={durationDays}
+                onChangeText={(v) => {
+                  setDurationDays(v);
+                  clearField('durationDays');
+                }}
+                keyboardType="number-pad"
+                leftIcon="schedule"
+                error={errors.durationDays}
+              />
+            </FormSection>
+
+            <FormSection title="Destination">
               <CountryField
                 label="Country"
                 value={destinationCountry}
@@ -223,22 +239,9 @@ export default function AddTripScreen() {
                 sheetTitle="Destination city"
                 error={errors.destinationCity}
               />
-              <MaskedInput
-                label="Duration (days)"
-                mode="custom"
-                mask="999"
-                value={durationDays}
-                onChangeText={(v) => {
-                  setDurationDays(v);
-                  clearField('durationDays');
-                }}
-                keyboardType="number-pad"
-                leftIcon="schedule"
-                error={errors.durationDays}
-              />
             </FormSection>
 
-            <FormSection title="Budget">
+            <FormSection title="Budget & notes">
               <CurrencyAmountField
                 label="Total budget"
                 value={budget}
@@ -262,6 +265,7 @@ export default function AddTripScreen() {
                 error={errors.notes}
               />
             </FormSection>
+
             <FormSection>
               <CalendarSyncToggle
                 surface="calendar"

@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
+  StyleSheet,
   Text,
   View,
   type StyleProp,
@@ -24,10 +25,11 @@ import Animated, {
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CountryFlag } from "@/components/ui/country-flag";
+import { Accent, IconBubble } from "@/components/ui/detail-kit";
 import { Icon } from "@/components/ui/icon";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import {
   buildActiveProgressItems,
   type ActiveProgressItem,
@@ -80,8 +82,9 @@ const ProgressCardFace = memo(function ProgressCardFace({
   compact?: boolean;
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
-  const tone = item.overdue ? colors.error : colors.primary;
-  const thumbSize = compact ? 30 : 34;
+  // Ongoing = amber (active / pending), overdue = rose — same hues as the detail kit.
+  const tone = item.overdue ? Accent.rose : Accent.amber;
+  const thumbSize = compact ? 34 : 40;
   const imageUrl = item.imageUrl?.trim() || null;
   const isTrip = item.kind === "trip";
   const showPartyAvatar = !isTrip;
@@ -108,7 +111,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
             alignItems: "center",
             justifyContent: "center",
             alignSelf: "center",
-            backgroundColor: colors.primaryContainer,
+            backgroundColor: `${tone}1F`,
           }}
         >
           {item.country ? (
@@ -118,11 +121,7 @@ const ProgressCardFace = memo(function ProgressCardFace({
               height={thumbSize}
             />
           ) : (
-            <Icon
-              name={item.icon}
-              size={compact ? 15 : 18}
-              color={colors.onPrimaryContainer}
-            />
+            <Icon name={item.icon} size={Math.round(thumbSize * 0.5)} color={tone} />
           )}
         </View>
       ) : imageUrl && item.imageShape === "rounded" ? (
@@ -143,23 +142,8 @@ const ProgressCardFace = memo(function ProgressCardFace({
           />
         </View>
       ) : (
-        <View
-          style={{
-            width: thumbSize,
-            height: thumbSize,
-            borderRadius: 10,
-            borderCurve: "continuous",
-            alignItems: "center",
-            justifyContent: "center",
-            alignSelf: "center",
-            backgroundColor: colors.primaryContainer,
-          }}
-        >
-          <Icon
-            name={item.icon}
-            size={compact ? 15 : 18}
-            color={colors.onPrimaryContainer}
-          />
+        <View style={{ alignSelf: "center" }}>
+          <IconBubble icon={item.icon} accent={tone} size={thumbSize} />
         </View>
       )}
       <View style={{ flex: 1, minWidth: 0, gap: 4, justifyContent: "center" }}>
@@ -173,10 +157,11 @@ const ProgressCardFace = memo(function ProgressCardFace({
         >
           <Text
             style={{
-              ...Typography.caption,
-              fontWeight: "700",
+              includeFontPadding: false,
+              fontFamily: FontFamily.semibold,
+              fontSize: 11,
               textTransform: "uppercase",
-              letterSpacing: 0.3,
+              letterSpacing: 0.4,
               color: tone,
             }}
             numberOfLines={1}
@@ -185,8 +170,9 @@ const ProgressCardFace = memo(function ProgressCardFace({
           </Text>
           <Text
             style={{
-              ...Typography.labelMd,
-              fontWeight: "600",
+              includeFontPadding: false,
+              fontFamily: FontFamily.semibold,
+              fontSize: 15,
               flexShrink: 1,
               color: colors.onSurface,
             }}
@@ -197,8 +183,10 @@ const ProgressCardFace = memo(function ProgressCardFace({
         </View>
         <Text
           style={{
-            ...Typography.caption,
-            color: colors.textMuted,
+            includeFontPadding: false,
+            fontFamily: FontFamily.regular,
+            fontSize: 13,
+            color: colors.onSurfaceVariant,
             flexShrink: 1,
             fontVariant: ["tabular-nums"],
           }}
@@ -210,27 +198,34 @@ const ProgressCardFace = memo(function ProgressCardFace({
       <View
         style={{
           alignItems: "flex-end",
-          justifyContent: "space-between",
+          justifyContent: "center",
           maxWidth: "34%",
           gap: 6,
         }}
       >
-        <Text
+        <View
           style={{
-            ...Typography.caption,
-            fontWeight: "700",
-            color: tone,
-            fontVariant: ["tabular-nums"],
+            height: 22,
+            paddingHorizontal: 8,
+            borderRadius: Radius.full,
+            justifyContent: "center",
+            backgroundColor: `${tone}1A`,
           }}
-          numberOfLines={1}
         >
-          {item.when}
-        </Text>
-        <Icon
-          name={item.icon}
-          size={thumbSize}
-          color={colors.textMuted}
-        />
+          <Text
+            style={{
+              includeFontPadding: false,
+              fontFamily: FontFamily.semibold,
+              fontSize: 11,
+              color: tone,
+              fontVariant: ["tabular-nums"],
+            }}
+            numberOfLines={1}
+          >
+            {item.when}
+          </Text>
+        </View>
+        <Icon name="chevron-right" size={18} color={colors.outline} />
       </View>
     </View>
   );
@@ -310,7 +305,7 @@ const StackedCard = memo(function StackedCard({
           borderCurve: "continuous",
           backgroundColor: surfaceColor,
           borderWidth: item.overdue ? 1 : 0,
-          borderColor: item.overdue ? colors.error + "44" : "transparent",
+          borderColor: item.overdue ? `${Accent.rose}44` : "transparent",
         },
         animatedStyle,
       ]}
@@ -547,9 +542,9 @@ export function ActiveProgressStrip({
         onClose={closeList}
         title={`Ongoing · ${allItems.length}`}
       >
-        <View style={{ gap: Spacing.sm }}>
-          {allItems.map((item) => {
-            const tone = item.overdue ? colors.error : colors.primary;
+        <View>
+          {allItems.map((item, i) => {
+            const isLast = i === allItems.length - 1;
             return (
               <Pressable
                 key={item.id}
@@ -557,13 +552,9 @@ export function ActiveProgressStrip({
                 accessibilityLabel={`${item.badge}. ${item.title}. ${item.when}`}
                 onPress={() => openListed(item.href)}
                 style={({ pressed }) => ({
-                  borderRadius: Radius.lg,
-                  borderCurve: "continuous",
-                  backgroundColor: colors.surfaceContainerLow,
-                  borderWidth: item.overdue ? 1 : 0,
-                  borderColor: item.overdue ? tone + "44" : "transparent",
-                  opacity: pressed ? 0.92 : 1,
-                  overflow: "hidden",
+                  borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
+                  borderBottomColor: colors.outlineVariant,
+                  opacity: pressed ? 0.7 : 1,
                 })}
               >
                 <ProgressCardFace

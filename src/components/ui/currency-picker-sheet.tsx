@@ -4,7 +4,6 @@ import {
     Pressable,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 
@@ -12,6 +11,7 @@ import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { CurrencyFlag } from "@/components/ui/country-flag";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
 import {
     POPULAR_CURRENCY_CODES,
     SUPPORTED_CURRENCIES,
@@ -84,23 +84,13 @@ export function CurrencyPickerSheet({
       title={title}
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search currencies…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          autoCapitalize="characters"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search currencies…"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="characters"
+      />
       <FlashList
         data={filtered}
         keyExtractor={(item) => item.code}
@@ -180,20 +170,8 @@ export function CurrencyPickerSheet({
 }
 
 const styles = StyleSheet.create({
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+  search: {
     marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    minHeight: 44,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyMd,
-    paddingVertical: Spacing.sm,
   },
   listContent: {
     paddingBottom: Spacing.xl,

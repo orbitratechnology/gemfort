@@ -1,18 +1,22 @@
 import { EmptyState } from "@/components/ui/empty-state";
+import { Accent, IconBubble, ListItem, ListSectionHeader } from "@/components/ui/detail-kit";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
+import { CHEQUE_STATUS_ACCENT } from "@/components/workspace/cheque-preview-card";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { ContextActionsLink } from "@/components/workspace/context-actions-link";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
     CHEQUE_STATUS_LABELS,
+    daysUntilMaturity,
     getUpcomingCheques,
     maturityLabel,
+    toDate,
 } from "@/features/workspace/cheque-utils";
 import {
     subscribeContacts,
@@ -29,38 +33,110 @@ import { useFirestoreInfiniteQuery } from "@/hooks/use-firestore-infinite-query"
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
+import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
     Pressable,
     RefreshControl,
     StyleSheet,
-    Text,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+type ListRow =
+  | { type: "header"; key: string; title: string; count: number; accent?: string }
+  | { type: "cheque"; key: string; cheque: Cheque; isLast: boolean };
+
+/** Upcoming cheques grouped by when they mature: matured, this week, then by month. */
+function groupUpcoming(cheques: Cheque[]): ListRow[] {
+  const groups: { key: string; title: string; accent?: string; items: Cheque[] }[] = [];
+  for (const cheque of cheques) {
+    const days = daysUntilMaturity(cheque);
+    const maturity = toDate(cheque.maturityDate);
+    const group =
+      days < 0
+        ? { key: "matured", title: "Matured", accent: Accent.amber }
+        : days <= 7
+          ? { key: "week", title: "Due this week", accent: Accent.amber }
+          : {
+              key: maturity ? format(maturity, "yyyy-MM") : "later",
+              title: maturity ? format(maturity, "MMMM yyyy") : "Later",
+            };
+    const last = groups[groups.length - 1];
+    if (last && last.key === group.key) last.items.push(cheque);
+    else groups.push({ ...group, items: [cheque] });
+  }
+  return groups.flatMap((g) => [
+    {
+      type: "header" as const,
+      key: `header-${g.key}`,
+      title: g.title,
+      count: g.items.length,
+      accent: g.accent,
+    },
+    ...g.items.map((cheque, i) => ({
+      type: "cheque" as const,
+      key: cheque.id,
+      cheque,
+      isLast: i === g.items.length - 1,
+    })),
+  ]);
+}
+
+/** Contact photo with a status-tinted direction badge, or a tinted icon bubble. */
+function ChequeLeading({
+  cheque,
+  partyLabel,
+  photoUrl,
+}: {
+  cheque: Cheque;
+  partyLabel: string;
+  photoUrl: string | null;
+}) {
+  const { colors } = useAppTheme();
+  const accent = CHEQUE_STATUS_ACCENT[cheque.status];
+  const icon = cheque.direction === "received" ? "call-received" : "call-made";
+  if (!photoUrl) return <IconBubble icon={icon} accent={accent} size={44} />;
+  return (
+    <View style={styles.leading}>
+      <ContactAvatar name={partyLabel} photoUrl={photoUrl} size={44} />
+      <View
+        style={[
+          styles.leadingBadge,
+          {
+            backgroundColor: accent,
+            borderColor: colors.surfaceContainerLowest,
+          },
+        ]}
+      >
+        <Icon name={icon} size={11} color="#FFFFFF" />
+      </View>
+    </View>
+  );
+}
 
 function ChequeRow({
   cheque,
   contactName,
   contactPhotoUrl,
-  colors,
+  isLast,
   onDelete,
 }: {
   cheque: Cheque;
   contactName: string;
   contactPhotoUrl: string | null;
-  colors: ReturnType<typeof useAppTheme>["colors"];
+  isLast?: boolean;
   onDelete: () => void | Promise<void>;
 }) {
   const { formatStored } = usePreferredMoney();
   const isBounced = cheque.status === "bounced";
-  const isReceived = cheque.direction === "received";
   const partyLabel = contactName || cheque.issuedBy || "Counterparty";
   const label = `${cheque.chequeNumber} · ${cheque.bankName}`;
 
@@ -82,104 +158,29 @@ function ChequeRow({
         },
       ]}
     >
-      {({ pressed }) => (
-        <View
-          style={[
-            styles.row,
-            {
-              backgroundColor: colors.surfaceContainerLowest,
-              borderColor: colors.outlineVariant,
-            },
-            isBounced && { borderColor: colors.error + "55" },
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          {contactPhotoUrl || cheque.photoUrl ? (
-            <ContactAvatar
-              name={partyLabel}
-              photoUrl={contactPhotoUrl || cheque.photoUrl}
-              size={44}
-            />
-          ) : (
-            <View
-              style={[
-                styles.rowIcon,
-                {
-                  backgroundColor: isBounced
-                    ? colors.errorContainer
-                    : isReceived
-                      ? colors.secondaryContainer
-                      : colors.surfaceContainerHigh,
-                },
-              ]}
-            >
-              <Icon
-                name={isReceived ? "call-received" : "call-made"}
-                size={20}
-                color={
-                  isBounced
-                    ? colors.error
-                    : isReceived
-                      ? colors.onSecondaryContainer
-                      : colors.onSurfaceVariant
-                }
-              />
-            </View>
-          )}
-          <View style={styles.rowBody}>
-            <View style={styles.rowTop}>
-              <Text
-                style={[styles.rowTitle, { color: colors.onSurface }]}
-                numberOfLines={1}
-              >
-                {cheque.chequeNumber} · {cheque.bankName}
-              </Text>
-              <Text style={[styles.rowAmount, { color: colors.primary }]}>
-                {formatStored({
-                  amount: cheque.amount,
-                  currency: cheque.currency,
-                  amountBase: cheque.amountBase,
-                })}
-              </Text>
-            </View>
-            <Text
-              style={[styles.rowSub, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {isReceived ? "From" : "To"} {partyLabel}
-            </Text>
-            <View style={styles.rowMeta}>
-              <Text
-                style={[styles.rowDate, { color: colors.onSurfaceVariant }]}
-              >
-                {maturityLabel(cheque)}
-              </Text>
-              <View
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: isBounced
-                      ? colors.errorContainer
-                      : colors.surfaceContainerHighest,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    {
-                      color: isBounced ? colors.error : colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  {CHEQUE_STATUS_LABELS[cheque.status]}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <Icon name="chevron-right" size={20} color={colors.outline} />
-        </View>
-      )}
+      <ListItem
+        leading={
+          <ChequeLeading
+            cheque={cheque}
+            partyLabel={partyLabel}
+            photoUrl={contactPhotoUrl || cheque.photoUrl}
+          />
+        }
+        title={partyLabel}
+        subtitle={`No. ${cheque.chequeNumber} · ${cheque.bankName}`}
+        meta={`${maturityLabel(cheque)} · ${formatDate(cheque.maturityDate)}`}
+        amount={formatStored({
+          amount: cheque.amount,
+          currency: cheque.currency,
+          amountBase: cheque.amountBase,
+        })}
+        amountColor={isBounced ? Accent.rose : undefined}
+        status={{
+          label: CHEQUE_STATUS_LABELS[cheque.status],
+          accent: CHEQUE_STATUS_ACCENT[cheque.status],
+        }}
+        isLast={isLast}
+      />
     </ContextActionsLink>
   );
 }
@@ -240,6 +241,7 @@ export default function ChequesScreen() {
     [cheques, side],
   );
   const upcoming = getUpcomingCheques(sideCheques);
+  const rows = groupUpcoming(upcoming);
   const bounced = sideCheques.filter((c) => c.status === "bounced");
 
   async function handleDelete(chequeId: string) {
@@ -281,8 +283,9 @@ export default function ChequesScreen() {
       <ApSideTabs side={side} onChange={setSide} />
 
       <FlashList
-        data={upcoming}
-        keyExtractor={(item) => item.id}
+        data={rows}
+        keyExtractor={(item) => item.key}
+        getItemType={(item) => item.type}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -293,35 +296,29 @@ export default function ChequesScreen() {
         }}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={
-          <View style={styles.headerBlock}>
-            {bounced.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.error }]}>
-                  Bounced
-                </Text>
-                {bounced.map((c) => (
-                  <ChequeRow
-                    key={c.id}
-                    cheque={c}
-                    contactName={
-                      contactMap.get(c.counterpartyContactId) ?? c.issuedBy
-                    }
-                    contactPhotoUrl={
-                      contactPhotoMap.get(c.counterpartyContactId) ?? null
-                    }
-                    colors={colors}
-                    onDelete={() => handleDelete(c.id)}
-                  />
-                ))}
-              </View>
-            ) : null}
-
-            {upcoming.length > 0 ? (
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                Upcoming
-              </Text>
-            ) : null}
-          </View>
+          bounced.length > 0 ? (
+            <View style={styles.bouncedBlock}>
+              <ListSectionHeader
+                title="Bounced"
+                count={bounced.length}
+                accent={Accent.rose}
+              />
+              {bounced.map((c, i) => (
+                <ChequeRow
+                  key={c.id}
+                  cheque={c}
+                  contactName={
+                    contactMap.get(c.counterpartyContactId) ?? c.issuedBy
+                  }
+                  contactPhotoUrl={
+                    contactPhotoMap.get(c.counterpartyContactId) ?? null
+                  }
+                  isLast={i === bounced.length - 1}
+                  onDelete={() => handleDelete(c.id)}
+                />
+              ))}
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           <EmptyState
@@ -338,17 +335,28 @@ export default function ChequesScreen() {
             onRetry={() => void fetchNextPage()}
           />
         }
-        renderItem={({ item: c }) => (
-          <ChequeRow
-            cheque={c}
-            contactName={contactMap.get(c.counterpartyContactId) ?? c.issuedBy}
-            contactPhotoUrl={
-              contactPhotoMap.get(c.counterpartyContactId) ?? null
-            }
-            colors={colors}
-            onDelete={() => handleDelete(c.id)}
-          />
-        )}
+        renderItem={({ item }) =>
+          item.type === "header" ? (
+            <ListSectionHeader
+              title={item.title}
+              count={item.count}
+              accent={item.accent}
+            />
+          ) : (
+            <ChequeRow
+              cheque={item.cheque}
+              contactName={
+                contactMap.get(item.cheque.counterpartyContactId) ??
+                item.cheque.issuedBy
+              }
+              contactPhotoUrl={
+                contactPhotoMap.get(item.cheque.counterpartyContactId) ?? null
+              }
+              isLast={item.isLast}
+              onDelete={() => handleDelete(item.cheque.id)}
+            />
+          )
+        }
       />
 
       <Pressable
@@ -369,73 +377,26 @@ export default function ChequesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: {
-    paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: 100,
-  },
-  headerBlock: {
-    gap: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
+  content: { paddingBottom: 100 },
   headerBtn: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  section: { gap: Spacing.sm },
-  sectionTitle: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    marginBottom: Spacing.xs,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-    marginBottom: Spacing.sm,
-  },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
+  bouncedBlock: { marginBottom: Spacing.xs },
+  leading: { width: 44, height: 44 },
+  leadingBadge: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  rowBody: { flex: 1, gap: 2, minWidth: 0 },
-  rowTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-  },
-  rowTitle: { ...Typography.labelMd, fontWeight: "600", flex: 1 },
-  rowAmount: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  rowSub: { ...Typography.bodySmall },
-  rowMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  rowDate: { ...Typography.bodySmall, flex: 1 },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeText: { ...Typography.labelMd, fontSize: 10, fontWeight: "600" },
   fab: {
     position: "absolute",
     bottom: 24,

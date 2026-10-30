@@ -6,7 +6,6 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -20,6 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SEARCH_HEIGHT, SearchField } from "@/components/ui/search-field";
 import { SkeletonList } from "@/components/ui/skeleton-list";
 import { VerificationSeal } from "@/components/ui/verification-badge";
 import {
@@ -353,25 +353,16 @@ export default function MarketScreen() {
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <View style={[styles.searchRow, styles.contentInset]}>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="search" size={22} color={colors.textMuted} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.textMain }]}
-                  placeholder={
-                    tab === "gems"
-                      ? "Search gems, origins…"
-                      : "Search traders, lapidaries…"
-                  }
-                  placeholderTextColor={colors.textMuted}
-                  value={search}
-                  onChangeText={setSearch}
-                />
-              </View>
+              <SearchField
+                style={styles.searchField}
+                placeholder={
+                  tab === "gems"
+                    ? "Search gems, origins…"
+                    : "Search traders, lapidaries…"
+                }
+                value={search}
+                onChangeText={setSearch}
+              />
               <Pressable
                 onPress={openFilter}
                 accessibilityRole="button"
@@ -736,24 +727,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.stackSm,
   },
-  searchBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    height: 48,
-  },
+  searchField: { flex: 1 },
   searchFilterButton: {
-    width: 48,
-    height: 48,
+    width: SEARCH_HEIGHT,
+    height: SEARCH_HEIGHT,
     borderRadius: Radius.full,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  searchInput: { flex: 1, ...Typography.bodyMd },
   segmentTrack: {
     alignSelf: "stretch",
     borderRadius: Radius.full,

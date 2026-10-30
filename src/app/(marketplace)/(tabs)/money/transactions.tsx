@@ -1,24 +1,34 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, Text, View, TextInput } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Timestamp } from '@/lib/firebase/db';
 
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import {
+  Accent,
+  Callout,
+  IconBubble,
+  KeyStats,
+  ListItem,
+  ListSectionHeader,
+  TitleBand,
+} from '@/components/ui/detail-kit';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { InfiniteListFooter } from '@/components/ui/infinite-list-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { Input } from '@/components/ui/input';
 import { ReceiptField } from '@/components/ui/receipt-field';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { SearchField } from '@/components/ui/search-field';
+import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
 import { GemThumb } from '@/components/workspace/gem-thumb';
 import {
   getPaymentSourceMeta,
@@ -46,12 +56,28 @@ import type { LocalMedia } from '@/lib/firebase/storage-service';
 import { addTransactionSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
+import type { Transaction } from '@/types';
+
+function signedBase(t: Transaction): number {
+  const base = typeof t.amountBase === 'number' ? t.amountBase : 0;
+  return t.type === 'income' ? base : -base;
+}
+
+function timeLabel(t: Transaction): string {
+  const date = t.date?.toDate ? t.date.toDate() : new Date(t.date as any);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const TYPE_OPTIONS = [
+  { id: 'income', label: 'Income', icon: 'arrow-downward', accent: Accent.emerald },
+  { id: 'expense', label: 'Expense', icon: 'arrow-upward', accent: Accent.rose },
+] as const;
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const preferred = usePreferredCurrency();
-  const { formatStored } = usePreferredMoney();
+  const { formatBase, formatFace, formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [type, setType] = useState<'income' | 'expense'>('income');
@@ -91,7 +117,7 @@ export default function TransactionsScreen() {
   const filteredTransactions = useMemo(() => {
     if (!debouncedSearch) return transactions;
     const q = debouncedSearch.toLowerCase();
-    return transactions.filter(t => 
+    return transactions.filter(t =>
       t.description?.toLowerCase().includes(q) ||
       t.category?.toLowerCase().includes(q)
     );
@@ -99,6 +125,17 @@ export default function TransactionsScreen() {
 
   const sections = useMemo(() => groupTransactionsByDate(filteredTransactions), [filteredTransactions]);
   const gemById = useMemo(() => new Map(gems.map((g) => [g.id, g])), [gems]);
+
+  const totals = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    for (const t of filteredTransactions) {
+      const base = typeof t.amountBase === 'number' ? t.amountBase : 0;
+      if (t.type === 'income') income += base;
+      else expense += base;
+    }
+    return { income, expense, net: income - expense };
+  }, [filteredTransactions]);
 
   const [adding, handleAdd] = usePendingAction(async () => {
     if (!user) return;
@@ -138,68 +175,22 @@ export default function TransactionsScreen() {
     }
   });
 
+  const draftAmount = parseFloat(money.amount) || 0;
+  const signed = (value: number) =>
+    `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatBase(Math.abs(value))}`;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <StackHeader title="Transactions" />
 
-      <KeyboardAvoidingView style={styles.container} behavior="padding" automaticOffset>
-        {/* Search & Quick Filters */}
+      <View style={styles.container}>
         <View style={styles.searchSection}>
-          <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outline + '1A' }]}>
-            <View style={{ marginLeft: 12 }}>
-              <Icon name="search" size={18} color={colors.outline} />
-            </View>
-            <TextInput 
-              style={[styles.searchInput, { color: colors.textMain }]}
-              placeholder="Search transactions..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+          <SearchField
+            placeholder="Search transactions..."
+            value={search}
+            onChangeText={setSearch}
+          />
         </View>
-
-        {showForm && (
-          <View style={[styles.form, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.surfaceVariant }]}>
-            <View style={styles.formHeader}>
-              <Text style={[styles.formTitle, { color: colors.primary }]}>New Transaction</Text>
-              <Pressable onPress={() => setShowForm(false)}><Icon name="close" size={20} color={colors.onSurfaceVariant} /></Pressable>
-            </View>
-            <View style={styles.typeRow}>
-              <Pressable 
-                style={[styles.typeBtn, { backgroundColor: type === 'income' ? colors.successEmerald + '1A' : colors.surfaceContainerLow }]}
-                onPress={() => setType('income')}
-              >
-                <Icon name="arrow-downward" size={16} color={type === 'income' ? colors.successEmerald : colors.onSurfaceVariant} />
-                <Text style={[styles.typeText, { color: type === 'income' ? colors.successEmerald : colors.onSurfaceVariant }]}>Income</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.typeBtn, { backgroundColor: type === 'expense' ? colors.error + '1A' : colors.surfaceContainerLow }]}
-                onPress={() => setType('expense')}
-              >
-                <Icon name="arrow-upward" size={16} color={type === 'expense' ? colors.error : colors.onSurfaceVariant} />
-                <Text style={[styles.typeText, { color: type === 'expense' ? colors.error : colors.onSurfaceVariant }]}>Expense</Text>
-              </Pressable>
-            </View>
-            <CurrencyAmountField
-              label="Amount"
-              value={money}
-              onChange={(next) => {
-                setMoney(next);
-                setErrors((e) => {
-                  if (!e.amount) return e;
-                  const nextErr = { ...e };
-                  delete nextErr.amount;
-                  return nextErr;
-                });
-              }}
-              error={errors.amount}
-            />
-            <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
-            <ReceiptField value={receipt} onChange={setReceipt} />
-            <Button title="Add Transaction" icon="add" loading={adding} onPress={handleAdd} style={{ marginTop: 8 }} />
-          </View>
-        )}
 
         <SectionList
           sections={sections}
@@ -210,6 +201,24 @@ export default function TransactionsScreen() {
             if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
           }}
           onEndReachedThreshold={0.5}
+          ListHeaderComponent={
+            filteredTransactions.length > 0 ? (
+              <TitleBand
+                title={signed(totals.net)}
+                subtitle={`Net across ${filteredTransactions.length} transaction${
+                  filteredTransactions.length === 1 ? '' : 's'
+                }${debouncedSearch ? ' matching your search' : ''}`}
+              >
+                <KeyStats
+                  items={[
+                    { label: 'Income', value: `+${formatBase(totals.income)}`, color: Accent.emerald },
+                    { label: 'Expenses', value: `−${formatBase(totals.expense)}` },
+                    { label: 'Entries', value: String(filteredTransactions.length) },
+                  ]}
+                />
+              </TitleBand>
+            ) : undefined
+          }
           ListFooterComponent={
             <InfiniteListFooter
               hasNextPage={hasNextPage}
@@ -225,86 +234,68 @@ export default function TransactionsScreen() {
           ListEmptyComponent={
             <EmptyState icon="receipt-long" title="No transactions yet" subtitle="Tap + to record one." />
           }
-          renderSectionHeader={({ section }) => (
-            <Text style={[styles.sectionHeader, { color: colors.onSurfaceVariant }]}>{section.title}</Text>
-          )}
-          renderItem={({ item }) => {
+          renderSectionHeader={({ section }) => {
+            const dayNet = section.data.reduce((sum, t) => sum + signedBase(t), 0);
+            return (
+              <View style={[styles.bandHeader, { backgroundColor: colors.surfaceContainerLowest }]}>
+                <ListSectionHeader
+                  title={section.title}
+                  trailing={signed(dayNet)}
+                  trailingColor={dayNet > 0 ? Accent.emerald : undefined}
+                />
+              </View>
+            );
+          }}
+          renderItem={({ item, index, section }) => {
             const linkedGem = item.gemId ? gemById.get(item.gemId) : null;
             const isIncome = item.type === 'income';
             const source = sourceOfTransaction(item);
             const sourceMeta = getPaymentSourceMeta(source?.type);
             const href = source ? paymentSourceHref(source.type, source.id) : null;
             return (
-              <Pressable
-                onPress={() => (href ? router.push(href) : undefined)}
-                disabled={!href}
-                style={({ pressed }) => [
-                  styles.txCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.surfaceVariant + '80',
-                    opacity: pressed ? 0.85 : 1,
-                  },
-                ]}>
-                <View style={styles.txLeft}>
-                  <View style={[styles.txIconWrap, { backgroundColor: isIncome ? colors.successEmerald + '1A' : colors.error + '1A' }]}>
-                    <Icon
-                      name={isIncome ? 'add-circle' : 'do-not-disturb-on'}
-                      size={24}
-                      color={isIncome ? colors.successEmerald : colors.error}
+              <ListItem
+                leading={
+                  linkedGem ? (
+                    <GemThumb
+                      uri={gemPrimaryPhotoUrl(linkedGem)}
+                      label={linkedGem.title?.trim() || linkedGem.sku || 'Gem'}
+                      size={40}
+                      radius={20}
                     />
-                  </View>
-                  <View style={styles.txInfo}>
-                    <View style={styles.txHeaderRow}>
-                      <Text style={[styles.txTitle, { color: colors.primary }]} numberOfLines={1}>{item.description || 'Transaction'}</Text>
-                      <Text style={[styles.txAmount, { color: isIncome ? colors.successEmerald : colors.error }]}>
-                        {isIncome ? '+' : '-'}
-                        {formatStored({
-                          amount: item.amount,
-                          currency: item.currency,
-                          amountBase: item.amountBase,
-                        })}
-                      </Text>
-                    </View>
-                    <View style={styles.txMetaRow}>
-                      <Text style={[styles.txMeta, { color: colors.textMuted }]}>{item.category || 'General'}</Text>
-                      {source ? (
-                        <>
-                          <View style={[styles.dot, { backgroundColor: colors.outline + '4D' }]} />
-                          <View style={[styles.sourceChip, { backgroundColor: colors.surfaceContainerHigh }]}>
-                            <Icon name={sourceMeta.icon} size={12} color={colors.onSurfaceVariant} />
-                            <Text style={[styles.sourceText, { color: colors.onSurfaceVariant }]}>
-                              {sourceMeta.label}
-                            </Text>
-                          </View>
-                        </>
-                      ) : null}
-                      <View style={[styles.dot, { backgroundColor: colors.outline + '4D' }]} />
-                      <Text style={[styles.txMeta, { color: colors.textMuted }]}>
-                        {item.date?.toDate ? item.date.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(item.date as any).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                    {linkedGem ? (
-                      <View style={styles.linkedGemRow}>
-                        <GemThumb
-                          uri={gemPrimaryPhotoUrl(linkedGem)}
-                          label={linkedGem.title?.trim() || linkedGem.sku || 'Gem'}
-                          size={32}
-                          radius={8}
-                        />
-                        <Text style={[styles.txNotes, { color: colors.onSurfaceVariant }]}>Linked: {linkedGem.sku}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-              </Pressable>
+                  ) : (
+                    <IconBubble
+                      icon={isIncome ? 'south-west' : 'north-east'}
+                      accent={isIncome ? Accent.emerald : Accent.rose}
+                      size={40}
+                    />
+                  )
+                }
+                title={item.description || 'Transaction'}
+                subtitle={[
+                  item.category || 'General',
+                  source ? sourceMeta.label : null,
+                  linkedGem ? `Linked: ${linkedGem.sku}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                meta={timeLabel(item)}
+                amount={`${isIncome ? '+' : '−'}${formatStored({
+                  amount: item.amount,
+                  currency: item.currency,
+                  amountBase: item.amountBase,
+                })}`}
+                amountColor={isIncome ? Accent.emerald : undefined}
+                onPress={href ? () => router.push(href) : undefined}
+                isLast={index === section.data.length - 1}
+              />
             );
           }}
         />
 
-        {/* Floating Action Button */}
         {!showForm && (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add transaction"
             style={({ pressed }) => [
               styles.fab,
               { backgroundColor: colors.primary },
@@ -315,64 +306,109 @@ export default function TransactionsScreen() {
             <Icon name="add" size={28} color={colors.onPrimary} />
           </Pressable>
         )}
-      </KeyboardAvoidingView>
+      </View>
+
+      <BottomSheet
+        visible={showForm}
+        onClose={() => {
+          if (!adding) setShowForm(false);
+        }}
+        title="New Transaction"
+        footer={
+          <Button title="Add Transaction" icon="add" loading={adding} onPress={handleAdd} />
+        }
+      >
+        <View
+          style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}
+          accessibilityRole="radiogroup"
+        >
+          {TYPE_OPTIONS.map((opt) => {
+            const active = type === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                onPress={() => setType(opt.id)}
+                style={[
+                  styles.segmentBtn,
+                  active && { backgroundColor: `${opt.accent}1A` },
+                ]}
+              >
+                <Icon
+                  name={opt.icon}
+                  size={16}
+                  color={active ? opt.accent : colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: active ? opt.accent : colors.onSurfaceVariant },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <CurrencyAmountField
+          label="Amount"
+          value={money}
+          onChange={(next) => {
+            setMoney(next);
+            setErrors((e) => {
+              if (!e.amount) return e;
+              const nextErr = { ...e };
+              delete nextErr.amount;
+              return nextErr;
+            });
+          }}
+          error={errors.amount}
+        />
+        <Input label="Description" value={description} onChangeText={setDescription} placeholder="e.g. Sale of Sapphire" leftIcon="notes" />
+        <ReceiptField value={receipt} onChange={setReceipt} />
+        {draftAmount > 0 ? (
+          <Callout
+            style={styles.preview}
+            icon={type === 'income' ? 'south-west' : 'north-east'}
+            accent={type === 'income' ? Accent.emerald : Accent.rose}
+            label={type === 'income' ? 'Recording income' : 'Recording expense'}
+            value={`${type === 'income' ? '+' : '−'}${formatFace(draftAmount, money.currency)}`}
+          />
+        ) : null}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.stackMd,
-    zIndex: 50,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  brandName: { ...Typography.headlineMdMobile },
-  bellBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  
   container: { flex: 1 },
-  
-  searchSection: { padding: Spacing.containerMargin, paddingTop: Spacing.stackMd },
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, height: 48 },
-  searchInput: { flex: 1, paddingHorizontal: 12, ...Typography.bodyMd },
-
-  form: { margin: Spacing.containerMargin, marginTop: 0, padding: 16, borderRadius: Radius.lg, borderWidth: 1, gap: 12, shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 2 },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  formTitle: { ...Typography.headlineSm },
-  typeRow: { flexDirection: 'row', gap: 8 },
-  typeBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 10, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
-  typeText: { ...Typography.labelMd },
-
-  list: { padding: Spacing.containerMargin, paddingTop: 0, paddingBottom: 100 },
-  sectionHeader: { ...Typography.labelMd, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.gutterMd, marginTop: Spacing.sectionGap },
-  
-  txCard: { padding: 16, borderRadius: Radius.lg, borderWidth: 1, marginBottom: Spacing.stackMd, shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 10, elevation: 1 },
-  txLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  txIconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  txInfo: { flex: 1 },
-  txHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  txTitle: { ...Typography.headlineSm, flex: 1, marginRight: 8 },
-  txAmount: { ...Typography.headlineSm },
-  txMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  txMeta: { ...Typography.bodyMd },
-  dot: { width: 4, height: 4, borderRadius: 2 },
-  sourceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
+  searchSection: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.stackMd,
   },
-  sourceText: { ...Typography.caption, fontWeight: '600' },
-  linkedGemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  txNotes: { ...Typography.bodyMd, fontStyle: 'italic', fontSize: 12, marginTop: 4 },
-
+  list: { paddingBottom: 100 },
+  bandHeader: { marginTop: 8 },
+  segment: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: Radius.full,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    gap: 6,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentText: { fontFamily: FontFamily.semibold, fontSize: 14, includeFontPadding: false },
+  preview: { marginTop: 0 },
   fab: {
     position: 'absolute',
     bottom: 24,

@@ -4,13 +4,20 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from "@/components/ui/field-chrome";
 import { Icon } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import {
@@ -91,23 +98,13 @@ export function TripPickerSheet({
       title={title}
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchWrap,
-          { backgroundColor: colors.surfaceContainerHigh },
-        ]}
-      >
-        <Icon name="search" size={18} color={colors.textMuted} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search trips"
-          placeholderTextColor={colors.textMuted}
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search trips"
+        autoCapitalize="none"
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -209,12 +206,11 @@ export function TripSelectField({
   error,
 }: TripSelectFieldProps) {
   const { colors } = useAppTheme();
+  const chrome = useFieldChrome({ error: !!error });
 
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
@@ -222,12 +218,10 @@ export function TripSelectField({
         }
         onPress={onPress}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}
       >
         {trip ? (
@@ -256,7 +250,10 @@ export function TripSelectField({
             </View>
           </>
         ) : (
-          <Text style={[styles.placeholder, { color: colors.textMuted }]}>
+          <Text
+            style={[fieldStyles.value, { color: chrome.placeholderColor }]}
+            numberOfLines={1}
+          >
             {placeholder}
           </Text>
         )}
@@ -272,29 +269,15 @@ export function TripSelectField({
           <Icon name="expand-more" size={22} color={colors.textMuted} />
         )}
       </Pressable>
-      {error ? (
-        <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
 const styles = StyleSheet.create({
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+  search: {
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  searchInput: {
-    flex: 1,
-    ...Typography.bodyMd,
-    paddingVertical: 4,
   },
   list: { flex: 1 },
   listContent: {
@@ -319,19 +302,8 @@ const styles = StyleSheet.create({
   },
   title: { ...Typography.bodyMd, fontWeight: "600" },
   sub: { ...Typography.caption },
-  fieldWrap: { gap: Spacing.xs },
-  fieldLabel: { ...Typography.labelMd, fontWeight: "600" },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    minHeight: 56,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
+  /** Taller trigger for the icon tile + two-line layout. */
+  field: { minHeight: 64, paddingVertical: Spacing.sm, gap: Spacing.sm },
   fieldIcon: {
     width: 36,
     height: 36,
@@ -341,6 +313,4 @@ const styles = StyleSheet.create({
   },
   fieldTitle: { ...Typography.bodyMd, fontWeight: "600" },
   fieldSub: { ...Typography.caption },
-  placeholder: { ...Typography.bodyMd, flex: 1 },
-  error: { ...Typography.caption },
 });

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
@@ -28,10 +28,13 @@ import {
     BranchPickerSheet,
     BranchSelectField,
 } from "@/components/workspace/bank-picker-sheet";
-import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
+import {
+    CHEQUE_STATUS_ACCENT,
+    ChequePreviewCard,
+} from "@/components/workspace/cheque-preview-card";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
 import { bankHasBranches } from "@/constants/sri-lanka-branches";
 import {
@@ -62,6 +65,7 @@ import {
 import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
+import { Accent } from "@/components/ui/detail-kit";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
@@ -71,11 +75,13 @@ const DIRECTIONS = [
     value: "given" as const,
     label: "Given",
     icon: "call-made" as const,
+    accent: Accent.amber,
   },
   {
     value: "received" as const,
     label: "Taken",
     icon: "call-received" as const,
+    accent: Accent.emerald,
   },
 ];
 
@@ -405,15 +411,33 @@ export default function AddChequeScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
+            {direction ? (
+              <ChequePreviewCard
+                label="Preview"
+                direction={direction}
+                chequeNumber={chequeNumber}
+                bankName={bankName}
+                bankCode={bankCode}
+                branch={branch}
+                amount={money.amount}
+                currency={money.currency}
+                issuedBy={issuedBy || selectedContact?.displayName || ""}
+                maturityDateLabel={maturityPreview}
+                accent={CHEQUE_STATUS_ACCENT.holding}
+                style={styles.preview}
+              />
+            ) : null}
+
             {directionMeta ? (
               <ChoicePreviewCard
                 label={directionMeta.label}
                 icon={directionMeta.icon}
+                accent={directionMeta.accent}
                 onPress={presetDirection ? undefined : () => setStep(0)}
               />
             ) : null}
 
-            <FormSection title="Cheque details">
+            <FormSection title="Cheque">
               <Input
                 label="Cheque number"
                 value={chequeNumber}
@@ -440,6 +464,9 @@ export default function AddChequeScreen() {
                 error={errors.branch}
                 disabled={!canPickBranch}
               />
+            </FormSection>
+
+            <FormSection title="Amount & maturity">
               <CurrencyAmountField
                 label="Amount"
                 value={money}
@@ -462,12 +489,10 @@ export default function AddChequeScreen() {
                 placeholder="30"
                 leftIcon="event"
                 error={errors.maturityDays}
+                helperText={
+                  maturityPreview ? `Matures ${maturityPreview}` : undefined
+                }
               />
-              {maturityPreview ? (
-                <Text style={[styles.hint, { color: colors.textMuted }]}>
-                  Matures {maturityPreview}
-                </Text>
-              ) : null}
             </FormSection>
 
             <FormSection title="Counterparty">
@@ -494,20 +519,17 @@ export default function AddChequeScreen() {
               />
             </FormSection>
 
-            <FormSection title="Cheque photo">
+            <FormSection title="Attachments">
               <MediaField
                 variant="row"
                 value={photo}
                 onChange={setPhoto}
                 emptyTitle="Add cheque photo"
               />
-            </FormSection>
-
-            <FormSection>
               <ReceiptField value={receipt} onChange={setReceipt} />
             </FormSection>
 
-            <FormSection>
+            <FormSection title="Notes">
               <Input
                 label="Notes"
                 value={notes}
@@ -520,20 +542,7 @@ export default function AddChequeScreen() {
               />
             </FormSection>
 
-            {direction ? (
-              <ChequePreviewCard
-                direction={direction}
-                chequeNumber={chequeNumber}
-                bankName={bankName}
-                bankCode={bankCode}
-                branch={branch}
-                amount={money.amount}
-                issuedBy={issuedBy || selectedContact?.displayName || ""}
-                maturityDateLabel={maturityPreview}
-              />
-            ) : null}
-
-            <FormSection>
+            <FormSection title="Reminder">
               <CalendarSyncToggle
                 surface="calendar"
                 value={calendarSyncEnabled}
@@ -591,6 +600,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     gap: Spacing.lg,
   },
-  hint: { ...Typography.bodySmall, marginTop: -4 },
+  preview: { paddingHorizontal: Spacing.containerMargin, paddingTop: Spacing.xs },
   notes: { minHeight: 72, textAlignVertical: "top", paddingTop: 12 },
 });
