@@ -72,12 +72,12 @@ export function TripBudgetBand({
   });
   const [saving, setSaving] = useState(false);
   const hasBudget = budgetLabel != null;
-  // Emerald while comfortably inside budget, amber near the cap, rose over it.
+  // Ink while comfortably inside budget; amber near the cap, rose over it.
   const meterAccent = remainingNegative
     ? Accent.rose
     : percent > 90
       ? Accent.amber
-      : Accent.emerald;
+      : colors.onSurface;
 
   function openEdit() {
     setDraft({
@@ -111,7 +111,6 @@ export function TripBudgetBand({
     {
       key: "budget",
       icon: "account-balance-wallet",
-      accent: Accent.blue,
       label: "Budget",
       value: budgetLabel ?? "Not set",
       onPress: haptics.wrap("light", openEdit),
@@ -119,7 +118,6 @@ export function TripBudgetBand({
     {
       key: "expenses",
       icon: "receipt",
-      accent: Accent.amber,
       label: "Expenses",
       value: expensesLabel,
     },
@@ -128,7 +126,6 @@ export function TripBudgetBand({
           {
             key: "purchases",
             icon: "diamond" as const,
-            accent: Accent.violet,
             label: "Gem purchases",
             value: purchasesLabel,
           },
@@ -163,7 +160,7 @@ export function TripBudgetBand({
                 {percent}%
               </Text>
             </View>
-            <View style={[styles.track, { backgroundColor: `${meterAccent}1F` }]}>
+            <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
               <View
                 style={[
                   styles.fill,

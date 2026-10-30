@@ -41,7 +41,6 @@ export function tripExpenseRow(
   return {
     key: e.id,
     icon: getExpenseCategoryIcon(e.category),
-    accent: Accent.amber,
     label: getExpenseCategoryLabel(e.category),
     hint,
     value: formatStored({

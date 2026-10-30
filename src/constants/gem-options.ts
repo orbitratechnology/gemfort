@@ -438,7 +438,7 @@ export function formatGemType(value: string): string {
 
 export function flagUrl(
   countryCode: string,
-  size: 40 | 80 | 160 | 320 | 640 = 40,
+  size: 40 | 80 | 160 | 320 | 640 | 1280 = 40,
 ): string {
   if (countryCode === 'un') {
     return `https://flagcdn.com/w${size}/un.png`;

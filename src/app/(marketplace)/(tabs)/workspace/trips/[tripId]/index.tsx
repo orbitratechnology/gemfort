@@ -1,23 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
-import { CountryFlag } from "@/components/ui/country-flag";
 import {
   Accent,
   BandLink,
-  Callout,
   DetailBand,
   DetailHeader,
   DetailRow,
   DetailRows,
   KeyStats,
   StatusChip,
-  StatusGrid,
-  TintHero,
   TitleBand,
   TotalRow,
   detailStyles,
@@ -44,12 +41,9 @@ import {
   canSellTripGem,
 } from "@/components/workspace/trip-gems-sheet";
 import { TripBudgetBand } from "@/components/workspace/trip-money-cards";
-import {
-  TRIP_STATUS_ACCENT,
-  TRIP_STATUS_ICON,
-} from "@/components/workspace/trip-status-tabs";
+import { TripFlagHero, TripRouteStrip } from "@/components/workspace/trip-hero";
+import { TRIP_STATUS_ACCENT } from "@/components/workspace/trip-status-tabs";
 import { FontFamily, Spacing } from "@/constants/design-tokens";
-import { resolveCountryCode } from "@/constants/gem-options";
 import { TRIP_STATUS_LABELS, TRIP_TYPES } from "@/constants/trip-options";
 import {
   subscribeGems,
@@ -63,7 +57,7 @@ import {
   canCompleteTrip,
   canStartTrip,
   computeTripSummary,
-  formatTripDates,
+  toTripDate,
   tripBudgetBase,
   tripBudgetSpent,
   tripDurationDays,
@@ -103,7 +97,7 @@ export default function TripDetailScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const heroHeight = insets.top + 220;
+  const heroHeight = insets.top + 300;
   // Floating hero controls become a solid titled bar once the hero scrolls away.
   const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
   const [expensesOpen, setExpensesOpen] = useState(false);
@@ -347,10 +341,6 @@ export default function TripDetailScreen() {
       })
     : null;
   const statusAccent = TRIP_STATUS_ACCENT[trip.status];
-  const hasFlag = !!resolveCountryCode(trip.destinationCountry);
-  const locationLine = [trip.destinationCity, trip.destinationCountry]
-    .filter((part): part is string => !!part?.trim())
-    .join(", ");
   const showStart = canStartTrip(trip.status);
   const showComplete = canCompleteTrip(trip.status);
   const hasBottomActions = showStart || showComplete;
@@ -362,6 +352,7 @@ export default function TripDetailScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={headerSolid ? "auto" : "light"} />
       <ThemedScrollView
         contentContainerStyle={{
           paddingBottom: hasBottomActions ? 96 + bottomBarPad : 48,
@@ -370,22 +361,11 @@ export default function TripDetailScreen() {
         showsVerticalScrollIndicator={false}
         {...scrollProps}
       >
-        <TintHero accent={statusAccent} height={heroHeight}>
-          <View>
-            <View style={[styles.heroIcon, { backgroundColor: statusAccent }]}>
-              <Icon name="flight" size={44} color="#FFFFFF" />
-            </View>
-            {hasFlag ? (
-              <View style={styles.heroFlag} pointerEvents="none">
-                <CountryFlag
-                  country={trip.destinationCountry}
-                  width={34}
-                  height={24}
-                />
-              </View>
-            ) : null}
-          </View>
-        </TintHero>
+        <TripFlagHero
+          country={trip.destinationCountry}
+          city={trip.destinationCity}
+          height={heroHeight}
+        />
 
         <TitleBand
           overlapHero
@@ -396,80 +376,57 @@ export default function TripDetailScreen() {
                 accent={statusAccent}
               />
               {typeMeta ? (
-                <StatusChip label={typeMeta.label} accent={Accent.violet} />
+                <StatusChip
+                  label={typeMeta.label}
+                  accent={colors.onSurfaceVariant}
+                />
               ) : null}
             </>
           }
           title={trip.tripName}
-          subtitle={[locationLine, formatTripDates(trip)]
-            .filter(Boolean)
-            .join(" · ")}
         >
+          <TripRouteStrip
+            status={trip.status}
+            start={toTripDate(trip.startDate)}
+            end={toTripDate(trip.actualEndDate ?? trip.expectedEndDate)}
+            days={tripDurationDays(trip)}
+          />
           <KeyStats
-            items={[
-              {
-                label: "Budget",
-                value: budgetLabel ?? "Not set",
-                color: hasBudget ? undefined : colors.textMuted,
-              },
-              {
-                label: "Spent",
-                value: formatBase(spent),
-                sub: hasBudget ? `${budgetPct}% of budget` : null,
-                color: overBudget ? Accent.rose : undefined,
-              },
-              {
-                label: "Gems",
-                value: String(tripGems.length),
-                sub: soldTripGems.length
-                  ? `${soldTripGems.length} sold`
-                  : activeTripGems.length
-                    ? `${activeTripGems.length} on trip`
-                    : null,
-              },
-            ]}
+            items={
+              hasBudget
+                ? [
+                    {
+                      label: "Budget",
+                      value: budgetLabel ?? "",
+                      sub: `${budgetPct}% used`,
+                    },
+                    { label: "Spent", value: formatBase(spent) },
+                    {
+                      label: overBudget ? "Over by" : "Remaining",
+                      value: formatBase(Math.abs(remaining)),
+                      color: overBudget ? Accent.rose : undefined,
+                    },
+                  ]
+                : [
+                    {
+                      label: "Budget",
+                      value: "Not set",
+                      color: colors.textMuted,
+                    },
+                    { label: "Spent", value: formatBase(spent) },
+                    {
+                      label: "Gems",
+                      value: String(tripGems.length),
+                      sub: soldTripGems.length
+                        ? `${soldTripGems.length} sold`
+                        : activeTripGems.length
+                          ? `${activeTripGems.length} on trip`
+                          : null,
+                    },
+                  ]
+            }
           />
-          {hasBudget ? (
-            <Callout
-              icon={overBudget ? "warning" : "savings"}
-              accent={overBudget ? Accent.rose : Accent.emerald}
-              label={overBudget ? "Over budget by" : "Remaining budget"}
-              value={formatBase(Math.abs(remaining))}
-              pill={overBudget ? null : `${budgetPct}% used`}
-            />
-          ) : null}
         </TitleBand>
-
-        <DetailBand title="Overview">
-          <StatusGrid
-            tiles={[
-              {
-                icon: TRIP_STATUS_ICON[trip.status],
-                label: "Status",
-                value: TRIP_STATUS_LABELS[trip.status],
-                accent: statusAccent,
-              },
-              {
-                icon: typeMeta?.icon ?? "flight",
-                label: "Trip type",
-                value: typeMeta?.label ?? "Trip",
-                accent: Accent.violet,
-              },
-              {
-                icon: "schedule",
-                label: "Duration",
-                value: `${tripDurationDays(trip)} days`,
-                accent: Accent.blue,
-              },
-              {
-                icon: "place",
-                label: "Destination",
-                value: trip.destinationCity?.trim() || trip.destinationCountry || "—",
-                accent: Accent.blue,
-              },
-            ]}
-          />
-        </DetailBand>
 
         <TripBudgetBand
           budgetLabel={budgetLabel}
@@ -649,7 +606,6 @@ export default function TripDetailScreen() {
           <DetailBand title="Overhead">
             <DetailRow
               icon="pie-chart"
-              accent={Accent.violet}
               label="Distribute overhead to gems"
               hint={`Split ${formatBase(summary.totalExpenses)} of expenses across ${summary.totalGemsPurchased} purchased gem${summary.totalGemsPurchased === 1 ? "" : "s"} by cost`}
               value={null}
@@ -758,25 +714,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   loading: { ...text, fontFamily: FontFamily.regular, fontSize: 14 },
-  heroIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 32,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroFlag: {
-    position: "absolute",
-    right: -8,
-    bottom: -6,
-    borderRadius: 6,
-    borderCurve: "continuous",
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.18)",
-  },
   emptyHint: { ...text, fontFamily: FontFamily.regular, fontSize: 14, lineHeight: 20 },
   inlineActions: { flexDirection: "row", gap: Spacing.sm },
   inlineHalf: { flex: 1 },
