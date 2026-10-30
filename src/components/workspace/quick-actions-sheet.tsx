@@ -1,4 +1,3 @@
-import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState, type RefObject } from "react";
 import {
@@ -12,9 +11,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScanSheet } from "@/components/scan/scan-sheet";
 import { SHEET_CLOSE_MS } from "@/components/scan/scan-to-add-row";
+import { ActionTile, ActionTileGrid } from "@/components/ui/action-tile";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type QuickActionSheetItem = {
@@ -68,57 +68,22 @@ export function QuickActionsSheet({
           <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
             Scan & verify
           </Text>
-          <View style={styles.verifyOptions}>
-            <Pressable
-              accessibilityRole="button"
+          <ActionTileGrid>
+            <ActionTile
+              label="List"
               accessibilityLabel="List verification portals"
+              icon="list"
+              accent={colors.onSurfaceVariant}
               onPress={openCertificatePortals}
-              style={({ pressed }) => [
-                styles.verifyOption,
-                { backgroundColor: colors.surfaceContainerLow },
-                { opacity: pressed ? 0.72 : 1 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.verifyOptionIcon,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ]}
-              >
-                <Icon name="list" size={24} color={colors.primary} />
-              </View>
-              <Text style={[styles.optionTitle, { color: colors.onSurface }]}>
-                List
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Scan"
-              accessibilityHint="Scan a document or a certificate code"
+            />
+            <ActionTile
+              label="Scan"
+              hint="Scan a document or a certificate code"
+              icon="document-scanner"
+              accent={colors.primary}
               onPress={openScanSheet}
-              style={({ pressed }) => [
-                styles.verifyOption,
-                { backgroundColor: colors.surfaceContainerLow },
-                { opacity: pressed ? 0.72 : 1 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.verifyOptionIcon,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              >
-                <Icon
-                  name="document-scanner"
-                  size={24}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={[styles.optionTitle, { color: colors.onSurface }]}>
-                Scan
-              </Text>
-            </Pressable>
-          </View>
+            />
+          </ActionTileGrid>
         </View>
 
         {actions.length > 0 ? (
@@ -126,51 +91,18 @@ export function QuickActionsSheet({
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
               Quick actions
             </Text>
-            <View style={styles.actionGrid}>
+            <ActionTileGrid>
               {actions.map((action) => (
-                <Pressable
+                <ActionTile
                   key={action.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
+                  label={action.label}
+                  icon={action.icon}
+                  image={action.image}
+                  accent={colors.primary}
                   onPress={() => selectAction(action)}
-                  style={({ pressed }) => [
-                    styles.action,
-                    { backgroundColor: colors.surfaceContainerLow },
-                    { opacity: pressed ? 0.72 : 1 },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      !action.image && {
-                        backgroundColor: colors.primaryContainer,
-                      },
-                    ]}
-                  >
-                    {action.image ? (
-                      <Image
-                        source={action.image}
-                        style={styles.actionImage}
-                        contentFit="cover"
-                        accessibilityIgnoresInvertColors
-                      />
-                    ) : (
-                      <Icon
-                        name={action.icon}
-                        size={22}
-                        color={colors.onPrimaryContainer}
-                      />
-                    )}
-                  </View>
-                  <Text
-                    style={[styles.optionTitle, { color: colors.onSurface }]}
-                    numberOfLines={1}
-                  >
-                    {action.label}
-                  </Text>
-                </Pressable>
+                />
               ))}
-            </View>
+            </ActionTileGrid>
           </View>
         ) : null}
       </BottomSheet>
@@ -216,53 +148,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  verifyOptions: { flexDirection: "row", gap: Spacing.md },
-  verifyOption: {
-    flex: 1,
-    minHeight: 88,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.md,
-  },
-  verifyOptionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  action: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    minHeight: 76,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  actionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  actionImage: { width: 42, height: 42 },
-  optionTitle: { ...Typography.bodyMd, fontWeight: "700" },
   fab: {
     position: "absolute",
     right: Spacing.containerMargin,

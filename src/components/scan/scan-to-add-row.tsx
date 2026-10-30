@@ -1,24 +1,13 @@
-import { Image, type ImageSource } from 'expo-image';
+import type { ImageSource } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 
+import { ActionTile, ActionTileGrid } from '@/components/ui/action-tile';
 import { Accent } from '@/components/ui/detail-kit';
-import { Icon, type IconName } from '@/components/ui/icon';
+import type { IconName } from '@/components/ui/icon';
 import { canAccessModule, resolveProfileRole, type WorkspaceModule } from '@/constants/roles';
-import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
 import { WORKSPACE_ENTITY_IMAGES } from '@/constants/workspace-entity-images';
-import { useAppTheme } from '@/hooks/use-app-theme';
 import { friendlyError } from '@/lib/errors';
 import { haptics } from '@/lib/haptics';
 import { capturePhoto, scanDocuments } from '@/lib/scan';
@@ -121,35 +110,28 @@ const TARGETS: TargetConfig[] = [
 
 /** Let a closing sheet finish animating before the camera UI is presented. */
 export const SHEET_CLOSE_MS = 350;
-const TILE_MIN_WIDTH = 66;
 
 /**
  * "Scan & add" tiles: capture a gem photo or scan a cheque, bill, receipt or
  * passport, then open the matching add sheet with the capture attached.
- * `onBeforeCapture` closes the host sheet.
+ * `onBeforeCapture` closes the host sheet; `trailing` tiles share the row.
  */
 export function ScanToAddRow({
   onBeforeCapture,
-  header,
+  trailing,
   style,
 }: {
   onBeforeCapture?: () => void;
-  /** Rendered above the tiles (hidden with them when nothing is available). */
-  header?: ReactNode;
+  trailing?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { colors } = useAppTheme();
-  const { width } = useWindowDimensions();
   const { user, profile } = useAuth();
   const toast = useToast();
   const [pending, setPending] = useState<ScanTarget | null>(null);
   const role = resolveProfileRole(profile);
   const targets = user ? TARGETS.filter((t) => canAccessModule(role, t.module)) : [];
 
-  if (targets.length === 0) return null;
-  // Fit every target across the sheet; only scroll on very narrow screens.
-  const fitted = (width - Spacing.containerMargin * 2 - Spacing.sm * (targets.length - 1)) / targets.length;
-  const tileWidth = Math.max(TILE_MIN_WIDTH, Math.floor(fitted));
+  if (targets.length === 0 && !trailing) return null;
 
   async function start(target: TargetConfig) {
     if (pending) return;
@@ -174,92 +156,35 @@ export function ScanToAddRow({
   }
 
   return (
-    <View style={style}>
-      {header}
-      <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-    >
-      {targets.map((target) => {
-        const busy = pending === target.id;
-        return (
-          <Pressable
-            key={target.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Scan ${target.label}`}
-            accessibilityHint={target.hint}
-            accessibilityState={{ busy, disabled: !!pending }}
-            disabled={!!pending}
-            onPress={() => void start(target)}
-            style={({ pressed }) => [
-              styles.tile,
-              { width: tileWidth, backgroundColor: colors.surfaceContainerLow },
-              pressed && styles.pressed,
-              !!pending && !busy && styles.dimmed,
-            ]}
-          >
-            <View style={[styles.icon, { backgroundColor: `${target.accent}1A` }]}>
-              {busy ? (
-                <ActivityIndicator size="small" color={target.accent} />
-              ) : target.image ? (
-                <Image
-                  source={target.image}
-                  style={styles.image}
-                  contentFit="contain"
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <Icon name={target.icon} size={24} color={target.accent} />
-              )}
-              <View style={[styles.badge, { backgroundColor: target.accent, borderColor: colors.surfaceContainerLow }]}>
-                <Icon
-                  name={target.mode === 'photo' ? 'photo-camera' : 'document-scanner'}
-                  size={11}
-                  color="#FFFFFF"
-                />
-              </View>
-            </View>
-            <Text style={[styles.label, { color: colors.onSurface }]} numberOfLines={1}>
-              {target.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-      </ScrollView>
-    </View>
+    <ActionTileGrid style={style}>
+      {targets.map((target) => (
+        <ScanTile
+          key={target.id}
+          label={target.label}
+          hint={target.hint}
+          icon={target.icon}
+          image={target.image}
+          accent={target.accent}
+          busy={pending === target.id}
+          disabled={!!pending}
+          onPress={() => void start(target)}
+        />
+      ))}
+      {trailing}
+    </ActionTileGrid>
   );
 }
 
-const styles = StyleSheet.create({
-  row: { gap: Spacing.sm, paddingVertical: 2 },
-  tile: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-  },
-  pressed: { opacity: 0.75, transform: [{ scale: 0.97 }] },
-  dimmed: { opacity: 0.5 },
-  icon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  image: { width: 32, height: 32 },
-  badge: {
-    position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: { includeFontPadding: false, fontFamily: FontFamily.semibold, fontSize: 12 },
-});
+/** Scan grid tile: an `ActionTile` announced as "Scan <label>". */
+export function ScanTile(props: {
+  label: string;
+  hint: string;
+  icon: IconName;
+  image?: ImageSource;
+  accent: string;
+  busy?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return <ActionTile {...props} accessibilityLabel={`Scan ${props.label}`} />;
+}
