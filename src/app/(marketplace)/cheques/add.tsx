@@ -29,10 +29,7 @@ import {
     BranchPickerSheet,
     BranchSelectField,
 } from "@/components/workspace/bank-picker-sheet";
-import {
-    CHEQUE_STATUS_ACCENT,
-    ChequePreviewCard,
-} from "@/components/workspace/cheque-preview-card";
+import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import { Spacing } from "@/constants/design-tokens";
@@ -519,7 +516,6 @@ export default function AddChequeScreen() {
                 currency={money.currency}
                 issuedBy={issuedBy || selectedContact?.displayName || ""}
                 maturityDateLabel={maturityPreview}
-                accent={CHEQUE_STATUS_ACCENT.holding}
                 style={styles.preview}
               />
             ) : null}

@@ -38,6 +38,21 @@ export const CHEQUE_STATUS_ICON: Record<ChequeStatus, IconName> = {
   cancelled: "cancel",
 };
 
+/**
+ * Sri Lankan cheque leaves are printed on blue security paper; the card keeps
+ * the app's surface and carries that blue in its top stripe and ink.
+ */
+const CHEQUE_BLUE = {
+  light: { stripe: "#6E9BCF", ink: "#2F5B8F" },
+  dark: { stripe: "#4F7BB0", ink: "#9DBCE3" },
+} as const;
+
+/**
+ * Cheque blue as a status accent (chips, callouts) in place of the amber
+ * "holding" hue — one hex for both themes, dark enough for white pill text.
+ */
+export const CHEQUE_ACCENT = "#3A6EA8";
+
 type ChequePreviewCardProps = {
   direction: ChequeDirection;
   chequeNumber: string;
@@ -52,8 +67,6 @@ type ChequePreviewCardProps = {
   amountLabel?: string;
   issuedBy: string;
   maturityDateLabel: string | null;
-  /** Stripe + direction tint. Defaults to the holding (amber) accent. */
-  accent?: string;
   /** Small eyebrow above the cheque (e.g. "Preview"). */
   label?: string | null;
   /** Shows the cheque's status in place of the Given/Taken pill (lists). */
@@ -76,7 +89,7 @@ function formatPreviewAmount(raw: string, currency: string): string {
 /**
  * Paper-cheque visual: the live preview on Add Cheque and the hero of the
  * cheque detail screen. Hierarchy from type and space — the bank logo is the
- * brand signal, a thin accent stripe carries the cheque's state.
+ * brand signal, a cheque-blue top stripe marks it as a cheque.
  */
 export function ChequePreviewCard({
   direction,
@@ -89,7 +102,6 @@ export function ChequePreviewCard({
   amountLabel: amountLabelProp,
   issuedBy,
   maturityDateLabel,
-  accent = CHEQUE_STATUS_ACCENT.holding,
   label,
   status,
   maturityHint,
@@ -97,6 +109,7 @@ export function ChequePreviewCard({
   style,
 }: ChequePreviewCardProps) {
   const { colors, isDark } = useAppTheme();
+  const blue = isDark ? CHEQUE_BLUE.dark : CHEQUE_BLUE.light;
   const isReceived = direction === "received";
   const bank = getBankByCode(bankCode) ?? getBankByName(bankName) ?? null;
   const cleanedAmount = amount.replace(/,/g, "").trim();
@@ -138,7 +151,7 @@ export function ChequePreviewCard({
           },
         ]}
       >
-        <View style={[styles.stripe, { backgroundColor: accent }]} />
+        <View style={[styles.stripe, { backgroundColor: blue.stripe }]} />
 
         <View style={styles.inner}>
           <View style={styles.topRow}>
@@ -180,14 +193,14 @@ export function ChequePreviewCard({
 
             <View style={styles.metaBlock}>
               <View
-                style={[styles.directionPill, { backgroundColor: `${accent}1A` }]}
+                style={[styles.directionPill, { backgroundColor: `${blue.ink}1A` }]}
               >
                 <Icon
                   name={status?.icon ?? (isReceived ? "call-received" : "call-made")}
                   size={12}
-                  color={accent}
+                  color={blue.ink}
                 />
-                <Text style={[styles.directionText, { color: accent }]}>
+                <Text style={[styles.directionText, { color: blue.ink }]}>
                   {status?.label ?? (isReceived ? "Taken" : "Given")}
                 </Text>
               </View>
@@ -268,7 +281,7 @@ export function ChequePreviewCard({
                 {maturityDateLabel ?? "—"}
               </Text>
               {maturityHint ? (
-                <Text style={[styles.maturityHint, { color: accent }]} numberOfLines={1}>
+                <Text style={[styles.maturityHint, { color: blue.ink }]} numberOfLines={1}>
                   {maturityHint}
                 </Text>
               ) : null}

@@ -6,6 +6,7 @@ import {
     resolveGemLifecycle,
     resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
+import { suggestedServiceType } from "@/features/workspace/service-utils";
 import type { GemStatus, WorkspaceGem } from "@/types";
 
 export type GemListFilters = {
@@ -68,9 +69,9 @@ export function getGemQuickActions(gem: WorkspaceGem): GemQuickAction[] {
   const actions: GemQuickAction[] = [];
   const life = resolveGemLifecycle(gem);
   const available = gemActionAvailability(gem);
-  const cuttingServiceType = life.stoneStage === "cut" ? "recutting" : "cutting";
-  const heatingServiceType = life.stoneStage === "heated" ? "reheating" : "heating";
-  const polishingServiceType = life.stoneStage === "polished" ? "repolishing" : "polishing";
+  const cuttingServiceType = suggestedServiceType("cutting", life.stoneStage);
+  const heatingServiceType = suggestedServiceType("heating", life.stoneStage);
+  const polishingServiceType = suggestedServiceType("polishing", life.stoneStage);
 
   if (available.send_for_cutting) {
     actions.push({

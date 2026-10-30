@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Linking,
   Pressable,
@@ -35,6 +35,7 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { BankAvatar } from "@/components/workspace/bank-picker-sheet";
 import {
+  CHEQUE_ACCENT,
   CHEQUE_STATUS_ACCENT,
   CHEQUE_STATUS_ICON,
   ChequePreviewCard,
@@ -43,7 +44,12 @@ import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { FontFamily, Palette, Radius, Spacing } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
-import { getBankByCode, getBankByName } from "@/constants/sri-lanka-banks";
+import {
+  bankLogoUrls,
+  getBankByCode,
+  getBankByName,
+  type SriLankaBank,
+} from "@/constants/sri-lanka-banks";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   CHEQUE_STATUS_LABELS,
@@ -161,7 +167,7 @@ function statusCallout(cheque: Cheque): {
       if (days > 0) {
         return {
           icon: "event",
-          accent: Accent.amber,
+          accent: CHEQUE_ACCENT,
           label: "Matures",
           value: maturityLabel(cheque),
           pill: shortMaturity,
@@ -170,14 +176,14 @@ function statusCallout(cheque: Cheque): {
       if (days === 0) {
         return {
           icon: "event-available",
-          accent: Accent.amber,
+          accent: CHEQUE_ACCENT,
           label: "Maturity",
           value: "Matures today",
         };
       }
       return {
         icon: "event-busy",
-        accent: Accent.amber,
+        accent: CHEQUE_ACCENT,
         label: "Matured · awaiting deposit",
         value: maturityLabel(cheque),
         pill: shortMaturity,
@@ -310,6 +316,47 @@ function ChequeTimeline({
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/** Smallest source logo worth enlarging; favicon-sized ones would blur. */
+const HERO_LOGO_MIN_SOURCE_PX = 128;
+
+/**
+ * The bank's logo in place of the hero's status tint and halos. Tries each
+ * logo URL in turn and covers the tint only once one big enough to enlarge
+ * has loaded, so an unknown bank keeps the tinted hero.
+ */
+function BankHeroBackdrop({ bank }: { bank: SriLankaBank }) {
+  const { colors, isDark } = useAppTheme();
+  const urls = useMemo(() => bankLogoUrls(bank, 256), [bank]);
+  const [urlIndex, setUrlIndex] = useState(0);
+  const [ready, setReady] = useState(false);
+  const uri = urls[urlIndex];
+  if (!uri) return null;
+
+  const tryNext = () => setUrlIndex((i) => i + 1);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.heroBackdrop,
+        { backgroundColor: colors.background, opacity: ready ? 1 : 0 },
+      ]}
+    >
+      <Image
+        key={uri}
+        source={{ uri }}
+        style={[styles.heroLogo, { opacity: isDark ? 0.2 : 0.16 }]}
+        contentFit="contain"
+        onLoad={(e) => {
+          if (e.source.width < HERO_LOGO_MIN_SOURCE_PX) tryNext();
+          else setReady(true);
+        }}
+        onError={tryNext}
+      />
     </View>
   );
 }
@@ -478,7 +525,11 @@ export default function ChequeDetailScreen() {
     cheque.status === "holding" || cheque.status === "deposited";
   const isReceived = cheque.direction === "received";
   const directionLabel = isReceived ? "Taken" : "Given";
-  const statusAccent = CHEQUE_STATUS_ACCENT[cheque.status];
+  // Pending cheques wear cheque blue here rather than the shared amber.
+  const statusAccent =
+    cheque.status === "holding"
+      ? CHEQUE_ACCENT
+      : CHEQUE_STATUS_ACCENT[cheque.status];
   const isClosed =
     cheque.status === "cancelled" || cheque.status === "replaced";
   const steps = chequeTimelineSteps(cheque);
@@ -635,7 +686,11 @@ export default function ChequeDetailScreen() {
         showsVerticalScrollIndicator={false}
         {...scrollProps}
       >
-        <TintHero accent={statusAccent} height={heroHeight}>
+        <TintHero
+          accent={statusAccent}
+          height={heroHeight}
+          backdrop={bank ? <BankHeroBackdrop key={bank.code} bank={bank} /> : null}
+        >
           <View style={styles.heroCardWrap}>
             <View onLayout={handleCardLayout}>
               <ChequePreviewCard
@@ -648,7 +703,6 @@ export default function ChequeDetailScreen() {
                 amountLabel={amountLabel}
                 issuedBy={cheque.issuedBy}
                 maturityDateLabel={formatDate(cheque.maturityDate)}
-                accent={statusAccent}
               />
             </View>
           </View>
@@ -948,6 +1002,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   pressed: { opacity: 0.7 },
 
+  heroBackdrop: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroLogo: { width: "96%", maxWidth: 520, aspectRatio: 1 },
   heroCardWrap: {
     width: "100%",
     maxWidth: 480,

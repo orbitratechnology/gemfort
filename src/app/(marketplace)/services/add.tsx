@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { ChipSelect, type ChipOption } from "@/components/ui/chip-select";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
 import { MaskedInput } from "@/components/ui/masked-input";
@@ -20,6 +19,11 @@ import {
     GemPickerSheet,
     GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
+import {
+    SERVICE_TYPES,
+    ServiceTypePicker,
+    serviceTypeForStage,
+} from "@/components/workspace/service-type-picker";
 import { Spacing } from "@/constants/design-tokens";
 import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
@@ -35,7 +39,10 @@ import {
     subscribeContacts,
     subscribeGems,
 } from "@/features/workspace/firestore-subscriptions";
-import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
+import {
+    gemActionAvailability,
+    resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
     createService,
@@ -52,28 +59,6 @@ import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
-const SERVICE_TYPES = [
-  { id: "cutting", label: "Cutting" },
-  { id: "recutting", label: "Recutting" },
-  { id: "heating", label: "Heating" },
-  { id: "reheating", label: "Reheating" },
-  { id: "polishing", label: "Polishing" },
-  { id: "repolishing", label: "Repolishing" },
-  { id: "appraisal", label: "Appraisal" },
-];
-
-const SERVICE_TYPE_OPTIONS: ChipOption[] = SERVICE_TYPES.map((t) => ({
-  value: t.id,
-  label: t.label,
-  icon: t.id.includes("cut")
-    ? "content-cut"
-    : t.id.includes("heat")
-      ? "local-fire-department"
-      : t.id.includes("polish")
-        ? "auto-fix-high"
-        : "verified",
-}));
-
 export default function AddServiceScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
@@ -87,10 +72,8 @@ export default function AddServiceScreen() {
 
   const [gemId, setGemId] = useState(preselectedGemId ?? "");
   const [provider, setProvider] = useState<ProviderSelection | null>(null);
-  const [serviceType, setServiceType] = useState(
-    SERVICE_TYPES.some((type) => type.id === serviceTypeParam)
-      ? serviceTypeParam
-      : "cutting",
+  const [serviceType, setServiceType] = useState<string>(
+    SERVICE_TYPES.find((type) => type.id === serviceTypeParam)?.id ?? "cutting",
   );
   const [weightBefore, setWeightBefore] = useState("");
   const [daysUntilReturn, setDaysUntilReturn] = useState("14");
@@ -310,11 +293,11 @@ export default function AddServiceScreen() {
             onPress={() => setGemSheetOpen(true)}
             error={errors.gemId}
           />
-          <ChipSelect
-            label="Service type"
-            options={SERVICE_TYPE_OPTIONS}
-            value={serviceType ?? null}
+          <ServiceTypePicker
+            value={serviceType}
             onChange={setServiceType}
+            stoneStage={selectedGem ? resolveGemLifecycle(selectedGem).stoneStage : null}
+            error={errors.serviceType}
           />
         </FormSection>
 
@@ -418,6 +401,9 @@ export default function AddServiceScreen() {
         value={gemId}
         onSelect={(gem) => {
           setGemId(gem.id);
+          setServiceType((current) =>
+            serviceTypeForStage(current, resolveGemLifecycle(gem).stoneStage),
+          );
           setWeightBefore(String(gem.currentWeight));
           setErrors((e) => {
             const next = { ...e };

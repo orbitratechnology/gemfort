@@ -26,8 +26,9 @@ type ChoiceTileGridProps<T extends string> = {
   /**
    * `pair` — two equal tiles side by side (Direction).
    * `grid` — 2-column wrap; use `span: 2` for a full-width tile (Trip type).
+   * `row` — compact equal tiles on one line, for up to four short choices.
    */
-  layout: "pair" | "grid";
+  layout: "pair" | "grid" | "row";
 };
 
 /** Large-tap choice tiles for form-sheet first steps (direction / trip type). */
@@ -43,10 +44,19 @@ export function ChoiceTileGrid<T extends string>({
 
   return (
     <View style={styles.wrap} accessibilityRole="radiogroup">
-      <View style={layout === "pair" ? styles.pairRow : styles.grid}>
+      <View
+        style={
+          layout === "pair"
+            ? styles.pairRow
+            : layout === "row"
+              ? styles.compactRow
+              : styles.grid
+        }
+      >
         {options.map((opt) => {
           const active = value === opt.value;
           const span2 = layout === "grid" && (opt.span ?? 1) === 2;
+          const compact = layout === "row";
           const accent = opt.accent ?? colors.primary;
 
           return (
@@ -59,6 +69,7 @@ export function ChoiceTileGrid<T extends string>({
               style={({ pressed }) => [
                 styles.tile,
                 layout === "pair" && styles.tilePair,
+                compact && styles.tileCompact,
                 layout === "grid" &&
                   (span2 ? styles.tileSpan2 : styles.tileHalf),
                 active
@@ -78,6 +89,7 @@ export function ChoiceTileGrid<T extends string>({
                 <View
                   style={[
                     styles.iconWrap,
+                    compact && styles.iconWrapCompact,
                     {
                       backgroundColor: active
                         ? opt.image
@@ -97,15 +109,21 @@ export function ChoiceTileGrid<T extends string>({
                   ) : (
                     <Icon
                       name={opt.icon!}
-                      size={26}
+                      size={compact ? 22 : 26}
                       color={active ? "#FFFFFF" : accent}
                     />
                   )}
                 </View>
               ) : null}
               <Text
-                style={[styles.tileLabel, { color: colors.onSurface }]}
-                numberOfLines={2}
+                style={[
+                  styles.tileLabel,
+                  compact && styles.tileLabelCompact,
+                  { color: colors.onSurface },
+                ]}
+                numberOfLines={compact ? 1 : 2}
+                adjustsFontSizeToFit={compact}
+                minimumFontScale={0.8}
               >
                 {opt.label}
               </Text>
@@ -187,6 +205,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
   },
+  compactRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -206,6 +228,15 @@ const styles = StyleSheet.create({
   tilePair: {
     flex: 1,
     minHeight: 120,
+  },
+  tileCompact: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.md,
+    minHeight: 88,
+    borderRadius: Radius.lg,
   },
   tileHalf: {
     flexGrow: 1,
@@ -227,6 +258,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconWrapCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   optionImage: { width: 36, height: 36 },
   tileLabel: {
     includeFontPadding: false,
@@ -234,6 +270,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     textAlign: "center",
+  },
+  tileLabelCompact: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   previewCard: {

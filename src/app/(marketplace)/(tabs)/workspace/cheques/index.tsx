@@ -6,7 +6,6 @@ import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs, type ApSide } from "@/components/workspace/ap-side-tabs";
 import {
-    CHEQUE_STATUS_ACCENT,
     CHEQUE_STATUS_ICON,
     ChequePreviewCard,
 } from "@/components/workspace/cheque-preview-card";
@@ -140,7 +139,6 @@ function ChequeRow({
           maturityHint={
             cheque.status === "holding" ? maturityLabel(cheque) : null
           }
-          accent={CHEQUE_STATUS_ACCENT[cheque.status]}
           status={{ label: statusLabel, icon: CHEQUE_STATUS_ICON[cheque.status] }}
           style={pressed ? styles.cardPressed : undefined}
         />

@@ -136,11 +136,14 @@ export function TintHero({
   accent,
   icon,
   height,
+  backdrop,
   children,
 }: {
   accent: string;
   icon?: IconName;
   height: number;
+  /** Drawn over the tint and halos, under the content — e.g. a brand logo. */
+  backdrop?: ReactNode;
   children?: ReactNode;
 }) {
   const { isDark } = useAppTheme();
@@ -164,6 +167,7 @@ export function TintHero({
         pointerEvents="none"
         style={[styles.halo, styles.haloInner, { backgroundColor: `${accent}${isDark ? "2E" : "1C"}` }]}
       />
+      {backdrop}
       {children ??
         (icon ? (
           <View style={[styles.heroIcon, { backgroundColor: accent }]}>
