@@ -14,6 +14,8 @@ import type { TripStatus } from "@/types";
 const HERO_INK = "#0A0A0A";
 /** Height the title band pulls up over the hero (`TitleBand overlapHero`). */
 const TITLE_OVERLAP = 24;
+/** Approximate height of the caption + city block at the hero's foot. */
+const COPY_HEIGHT = 70;
 
 /**
  * Dark trip hero: the destination flag fills the background, desaturated and
@@ -42,10 +44,17 @@ export function TripFlagHero({
   const planeSize = Math.min(width * 0.8, 380);
   const planeLeft = width - planeSize * 0.97;
   const planeTop = insets.top + 52 - planeSize * 0.33;
-  // Trail starts off-screen bottom-left and tucks under the jet's engines.
+  // Trail enters from the left edge just above the destination copy (so it
+  // never crosses the flag chip or city) and tucks under the jet's engines.
+  const copyBottom = TITLE_OVERLAP + Spacing.xl;
+  const trailStartY = height - copyBottom - COPY_HEIGHT - 18;
   const trailEndX = planeLeft + planeSize * 0.42;
   const trailEndY = planeTop + planeSize * 0.56;
-  const trail = `M -12 ${height * 0.86} C ${width * 0.12} ${height * 0.6}, ${trailEndX - width * 0.28} ${trailEndY + 28}, ${trailEndX} ${trailEndY}`;
+  const trail = `M -12 ${trailStartY} C ${width * 0.16} ${trailStartY - 6}, ${trailEndX - width * 0.24} ${trailEndY + 22}, ${trailEndX} ${trailEndY}`;
+  // Darker pool centred on the jet so the white airframe never sits on a
+  // light flag stripe.
+  const poolX = Math.round(((planeLeft + planeSize * 0.5) / width) * 100);
+  const poolY = Math.round(((planeTop + planeSize * 0.47) / height) * 100);
 
   return (
     <View
@@ -60,6 +69,9 @@ export function TripFlagHero({
             source={{ uri: flagUrl(code, 1280) }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
+            // Soft stripe edges: the flag reads as a backdrop, not hard bands
+            // slicing through the plane.
+            blurRadius={12}
             transition={240}
             accessibilityIgnoresInvertColors
           />
@@ -68,6 +80,17 @@ export function TripFlagHero({
         </>
       ) : null}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
+      {code ? (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              experimental_backgroundImage: `radial-gradient(circle at ${poolX}% ${poolY}%, rgba(10,10,10,0.6) 0%, rgba(10,10,10,0) 55%)`,
+            },
+          ]}
+        />
+      ) : null}
 
       <Svg
         pointerEvents="none"
@@ -98,7 +121,7 @@ export function TripFlagHero({
 
       <View
         pointerEvents="none"
-        style={[styles.copy, { bottom: TITLE_OVERLAP + Spacing.xl }]}
+        style={[styles.copy, { bottom: copyBottom }]}
       >
         <View style={styles.captionRow}>
           {code ? (
@@ -261,7 +284,7 @@ const styles = StyleSheet.create({
   },
   scrim: {
     experimental_backgroundImage:
-      "linear-gradient(to bottom, rgba(10,10,10,0.62) 0%, rgba(10,10,10,0.38) 34%, rgba(10,10,10,0.62) 62%, rgba(10,10,10,0.94) 100%)",
+      "linear-gradient(to bottom, rgba(10,10,10,0.7) 0%, rgba(10,10,10,0.52) 34%, rgba(10,10,10,0.72) 62%, rgba(10,10,10,0.96) 100%)",
   },
   plane: { position: "absolute", transform: [{ rotate: "-7deg" }] },
   copy: {
