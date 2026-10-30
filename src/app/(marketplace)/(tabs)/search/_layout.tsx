@@ -11,6 +11,7 @@ export default function SearchLayout() {
     <Stack
       screenOptions={{
         ...silkStackScreenOptions,
+        headerTransparent: false,
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.primary,
         headerTitleStyle: {

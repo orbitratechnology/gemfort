@@ -44,6 +44,9 @@ export default function MarketplaceLayout() {
           headerShown: true,
           title: "Notifications",
           headerBackTitle: "Back",
+          // SDK 58 makes iOS 26 headers transparent (Liquid Glass) by default;
+          // keep this one solid like the app's custom StackHeader screens.
+          headerTransparent: false,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.primary,
           headerTitleStyle: {

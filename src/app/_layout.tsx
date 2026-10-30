@@ -85,6 +85,9 @@ function RootNavigator() {
       screenOptions={{
         ...silkStackScreenOptions,
         headerShown: false,
+        // SDK 58: iOS 26 headers default to transparent; screens that opt into
+        // a native header keep the solid themed bar.
+        headerTransparent: false,
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.primary,
         headerTitleStyle: {
