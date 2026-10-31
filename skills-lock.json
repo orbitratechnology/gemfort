@@ -5,7 +5,7 @@
       "source": "callstack/agent-device",
       "sourceType": "github",
       "skillPath": "skills/agent-device/SKILL.md",
-      "computedHash": "3187ae73a1a8b055e20630d64c86e5bb7576341b495c9a755f5e3ec7927c0302"
+      "computedHash": "f062798176bd92e2e13447292e5c4f66146f42110c512cbcd1e50a36e3170d39"
     },
     "animate-expo": {
       "source": "emilkowalski/skills",
@@ -17,13 +17,13 @@
       "source": "truongduy2611/app-store-preflight-skills",
       "sourceType": "github",
       "skillPath": "SKILL.md",
-      "computedHash": "5d37b39681aa2e325a95a882efcf710185a6a1826c4a7891c2969b4dde0e96e4"
+      "computedHash": "3793858bfa55a75fdb331be5305513e2d3cccac8b6a877e5f01e4eea40eecef7"
     },
     "apple-appstore-reviewer": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
       "skillPath": "skills/apple-appstore-reviewer/SKILL.md",
-      "computedHash": "25cb84d301e17fb5840a4d2409e9a7d341d6e195fb2272b110518512a7f0dbc3"
+      "computedHash": "51a510267e56656f0120930c7ac180494e6e955602e3c5904e8eef0aad5de3dc"
     },
     "apple-design": {
       "source": "emilkowalski/skills",
@@ -41,31 +41,25 @@
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-android-emulator-setup/SKILL.md",
-      "computedHash": "7e0c9f98a63117ba3e9f5cd0c904f9de1e90412f239659ab6939e06215027469"
-    },
-    "argent-create-flow": {
-      "source": "software-mansion/argent",
-      "sourceType": "github",
-      "skillPath": "packages/skills/skills/argent-create-flow/SKILL.md",
-      "computedHash": "458a832971374855fb07d23880d4c7154f27344be29889b3771a66a91162d75a"
+      "computedHash": "12eabfd92af8fbb93db962102f61bcfa4e8bfd3038641aa8bc79009d3a38ce00"
     },
     "argent-device-interact": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-device-interact/SKILL.md",
-      "computedHash": "4d6cbaf8aaf0cc2731ba451dfb43ec800a2374fb6223ba9d1ca5fdc367c3a67a"
+      "computedHash": "b542889e57a86de27ddb5359d8bf910af1432a464c0b77338d30430273a88890"
     },
     "argent-ios-device-interact": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-ios-device-interact/SKILL.md",
-      "computedHash": "6e86ab143b707e1cc056ed64ce2255e77bbbbfe88b59b7b2eff364a1e8cbbb04"
+      "computedHash": "b05b1c4506dd08ebf9963f864b1b61d73c71fb7f3d76fdc43b724e5f041dd6ba"
     },
     "argent-ios-device-setup": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-ios-device-setup/SKILL.md",
-      "computedHash": "e522252ec8fb891265fc6db9e951561b0ef5818b36f147befbb54498d1ec3f6b"
+      "computedHash": "fde046d99190b090dc9c3cebe90f4fc36e19fe29e71622368c0a7e782a3563a1"
     },
     "argent-ios-simulator-setup": {
       "source": "software-mansion/argent",
@@ -77,49 +71,43 @@
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-lens/SKILL.md",
-      "computedHash": "73b34c5717c53c0ceb6dce52430aee190e24f030cda9718465d1f63f6d49f9d8"
+      "computedHash": "7e4a3f9f6f521f86af522316a9eaaf53417ad0692fa9e87c6b3e2126bcb5b3f1"
     },
     "argent-metro-debugger": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-metro-debugger/SKILL.md",
-      "computedHash": "ce03dc4fa2fba68d42c8dd09c3fc67494c6ca7d6abe50f0123b6436a9476ae44"
+      "computedHash": "230b070836914514855e4cd6bba05f5d13384eca49892230061e74476107f174"
     },
     "argent-native-profiler": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-native-profiler/SKILL.md",
-      "computedHash": "947e05f9f9f7df2573175e5c133b0a72404295474db83a26d4eac56899802fe2"
-    },
-    "argent-qa-flows": {
-      "source": "software-mansion/argent",
-      "sourceType": "github",
-      "skillPath": "packages/skills/skills/argent-qa-flows/SKILL.md",
-      "computedHash": "b98b81284470af3b2f78bb90f5dee3417db485a17c9bcef56ee570ba243fa302"
+      "computedHash": "2b6b274373c4fb2374de423ff1133d9983a7cd4135a7248b03a5561e80dae611"
     },
     "argent-react-native-app-workflow": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-react-native-app-workflow/SKILL.md",
-      "computedHash": "1998fe4c78a14707dc7fb82e3fbb78e06a24530c8bc2cdea8fd370b0615a3307"
+      "computedHash": "0bf4cc845d48e97cc98535dd2ae665edcc9d1328b21b907af422f9479ad9a3b8"
     },
     "argent-react-native-optimization": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-react-native-optimization/SKILL.md",
-      "computedHash": "d318479816075aaa88c6f5aab9b7d920684f387c659d8deec32564fb9bc56ee3"
+      "computedHash": "93f8b70aa7f4adf4c2ff3286b9182ca40895f1744dda7f9b9cc16f3162f69a2a"
     },
     "argent-react-native-profiler": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-react-native-profiler/SKILL.md",
-      "computedHash": "2a5ce97d8baa2efa414f2353c0f2017e68d93e3a3ddd7a2c957633c64c9718cd"
+      "computedHash": "0558a067c2a64ffbbc6cf32c7c0502d1e5352d9976fe6c08595dd8ff50e4cee5"
     },
     "argent-screen-recording": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-screen-recording/SKILL.md",
-      "computedHash": "70749b615bdfc6bf3845047e342539c0de3b4a2bdfc26a777b9b06b4aeac7822"
+      "computedHash": "9211d02caf35239432e846c8f2bc4a23015a7af46aa400a6a2eb202357393383"
     },
     "argent-screenshot-diff": {
       "source": "software-mansion/argent",
@@ -137,13 +125,13 @@
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-test-ui-flow/SKILL.md",
-      "computedHash": "9d71488e715631cb404b3ec1345d0731f941bed0a4c8f017a6ac6c329d1564a8"
+      "computedHash": "a121556b5d2793e4f34c1a86d821e1713ddec268d4e6d6cede677c0dc38d4449"
     },
     "argent-tv-interact": {
       "source": "software-mansion/argent",
       "sourceType": "github",
       "skillPath": "packages/skills/skills/argent-tv-interact/SKILL.md",
-      "computedHash": "d6e529a7e9829b39e14fe1a21d3c7b9cd9d67df042ae3e21801860c8d070007e"
+      "computedHash": "0512d361711f19dba98da377ad9483e7252fd8b387402aec5d4c52b35ed03626"
     },
     "assess-react-native-migration": {
       "source": "callstackincubator/agent-skills",
@@ -161,163 +149,157 @@
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/deploy-to-vercel/SKILL.md",
-      "computedHash": "d2b5bcc7c09fdb649129ffc7dd7b647ec1b155736974b974292675afd588cb39"
+      "computedHash": "9b883827e904cd6c93a98457f1ea5aaae1dfdb30ae704bddf5e9e70c9d10de36"
     },
     "eas-app-stores": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-app-stores/SKILL.md",
-      "computedHash": "687009e0cecbbf58674428d2f38a2a2f54ea10551e043ec104e2002087705627"
+      "computedHash": "2ef5251e9991e1b65a657f898b5f171484a833e72cca3913bdc66b299f126ba9"
     },
     "eas-hosting": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-hosting/SKILL.md",
-      "computedHash": "3e1b508e6f93ac890f89b8672eda0aabda3b010b650f1bf50fdfc0fdaae2497b"
+      "computedHash": "a506280a6f7ff6d5d74218fd5e38a0987da7e426911bcf1b17584fee0cf38ba1"
     },
     "eas-observe": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-observe/SKILL.md",
-      "computedHash": "e6c6b69976dd2f287809ca4304fac91faa5a9836bdc676b527f9929bc2c7efd5"
+      "computedHash": "c57c329b89823f302434e3c2105e20f0d57af104c14e87a867f0e3562dec74b4"
     },
     "eas-simulator": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-simulator/SKILL.md",
-      "computedHash": "9b3012124984966c72c661a34e64799862219fd7a9029171c616077fc380db13"
+      "computedHash": "c4fcb46c5063e35128ce2f093ab0c07c08ce0938ac562796e305245697333964"
     },
     "eas-update": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-update/SKILL.md",
-      "computedHash": "aa3d0b12e042c989f575df3f0220cd4121959f38d063dd88a50102dd89f3388d"
+      "computedHash": "0d434ae35de68bfab06735187ce80f3fe221328dd7ed457eeb2d4272c8abe238"
     },
     "eas-update-insights": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-update-insights/SKILL.md",
-      "computedHash": "8cc5e39b6bbdc43e7e596a4fb0bdbaa11111408d7184cdce969bbb2341bfe2fb"
+      "computedHash": "b0093fce4f82b31d2923392b93dcbc01907d7cfbf06875260beb6ef51dd0b747"
     },
     "eas-workflows": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/eas-workflows/SKILL.md",
-      "computedHash": "3d4cb910272bac1bdc5f2a11baede35a3042ae7a776865e9b3a78e354bc6394a"
+      "computedHash": "a6c9af380145afa4eca4cf1ca871a06cc395f41bffc0758eb4e6d10adc77bf3a"
     },
     "expo-animation": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-animation/SKILL.md",
-      "computedHash": "daf380553ca20b8c555f954e340b64dfa874d953a9e4e71891848562351e672f"
+      "computedHash": "887ae52d885a9fe2c7d42cf684cd6ba10d410f44480c2501f822accb02b6c483"
     },
     "expo-app-clip": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-app-clip/SKILL.md",
-      "computedHash": "853c8038af75b31cd17f2148261f4aa6e01a13357e39f743ee01716f7f1b100d"
+      "computedHash": "bdd1e809531bc5d572518979bfdf8935032f6c140936fc09508ee3003ce1e145"
     },
     "expo-brownfield": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-brownfield/SKILL.md",
-      "computedHash": "0b1ad7dc7fca6e18b77341cccecbbf05ef80cc2283348b4efa74f707ddf2bbfb"
+      "computedHash": "f639d2cff2fde28cd4333cb342180f7648ce34811ffcab17279fb3e2d2aa3876"
     },
     "expo-data-fetching": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-data-fetching/SKILL.md",
-      "computedHash": "e3d31524a94bc06915293a1ececfe23b60c13e89c733f0d6780606669ad60ef9"
+      "computedHash": "61e2e98db962edd74389fe74e41c08c502eb6a25e129f4623421c4afe2dae3de"
     },
     "expo-design-system": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-design-system/SKILL.md",
-      "computedHash": "06ee277d251026168256c663648e3de5dda1fbed925a0fb69fb008d78fa54bfa"
+      "computedHash": "597dc0de48357b1217f6b35e44812b7c889aba33d02cdfe5a8490d54dd7b165d"
     },
     "expo-dev-client": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-dev-client/SKILL.md",
-      "computedHash": "9560a3f40e699af7b3317dbd3887cca646901d6addf7d78eb9429922e2d3baf3"
+      "computedHash": "3e38e9402acd8430b98a887de86b1b346a9fb4873b046585e6c20cf78a91cc49"
     },
     "expo-dom": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-dom/SKILL.md",
-      "computedHash": "170214393fb1c6b5f80d60877ef516874b3e52e27c169b4d90507c1cf70307a4"
+      "computedHash": "8f1d2dd30bd944dc2f2b4f2754d1c92cadca415d90391b5965a7777733ca6017"
     },
     "expo-examples": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-examples/SKILL.md",
-      "computedHash": "f6a8135a8222365e7360e139bc5a7cfed883cc1ed53f9ed47cec595b41ca7c74"
+      "computedHash": "4a32ae5dc15bdd383a33102c687c46fbf27f46e26d4fc1d54d56d6b350ef1266"
     },
     "expo-migrate-module": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo-experiments/skills/expo-migrate-module/SKILL.md",
-      "computedHash": "342ad5117ca857bde687d42ff83c6b41edbc4b4b4f02a88fdf1355446f45b669"
+      "computedHash": "297db721775bc5f8273286782f982fdfc7a7dabce0eb655f558a2c6f2294d48d"
     },
     "expo-module": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-module/SKILL.md",
-      "computedHash": "483804366dbb56ad4912596fe0d1de04b4ef06795690c8ec51e0f7c413c9bef9"
+      "computedHash": "5c5e7c413f516794a7fed79a0753c076d51386c2ee0fa1bc303e908dc670e11f"
     },
     "expo-native-ui": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-native-ui/SKILL.md",
-      "computedHash": "3e7374ba3679e4e57cbe6aa97c8bcc17c977b7c526b00e0e67b9e0ccd119ba68"
+      "computedHash": "49d480a3f3b5acd3c027bf2b3a12bcab601be14e9467c956697f9a88bd4fbca0"
     },
     "expo-overview": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-overview/SKILL.md",
-      "computedHash": "ae10834702315c887df298a220712bf5e89ab6a0d9088eb54c6d7fddddb3e8b3"
+      "computedHash": "55fa500c2637fbcc25bc933e3b8efea2b96a2568243d05d6728aee7a651a9246"
     },
     "expo-project-structure": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-project-structure/SKILL.md",
-      "computedHash": "d131a20d31b81e7e04b9ede9f0271bd14e161a8fa525e2e9ba42ba766fe25d2d"
+      "computedHash": "8ef539eb13f9fbb6560f185644f5bcd60230c04a7883f3d148b6295c43847936"
     },
     "expo-router": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-router/SKILL.md",
-      "computedHash": "512978d4ea35857932b79ee9b15a47d7ab78382dc1fcd275601b87e4c80c1e59"
+      "computedHash": "8cd1a4358b14380b259b79e22c4170016a077ec316dc36a09f810efd8120ece3"
     },
     "expo-skill-eval": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": ".claude/skills/expo-skill-eval/SKILL.md",
-      "computedHash": "01213c423623d6f4ceb3f610c05ec3e69f772675c329144c35465162f7794152"
-    },
-    "expo-skill-feedback": {
-      "source": "expo/skills",
-      "sourceType": "github",
-      "skillPath": "plugins/expo/skills/expo-skill-feedback/SKILL.md",
-      "computedHash": "7964b0683a81a9e2932151d5f1ddda27f60f22932e38c1687e60f754fdb45277"
+      "computedHash": "9bfe29f568a34312cda412e6d6969b53bc26cff127bfd5b791e0112d8fbdfee6"
     },
     "expo-ui": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-ui/SKILL.md",
-      "computedHash": "b7cf8d50798a484d84d359c9361c08e80e74fa922a6cb4601e88ce2701f7c449"
+      "computedHash": "49d663ea0d4d5d8a11679317890f907fc08038cfec0de62a8451aeb5657d1095"
     },
     "expo-upgrade": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-upgrade/SKILL.md",
-      "computedHash": "43a39224285e495e0eb4b72ace99c8f1915123f69ee50ce6de4f0cd027374e6a"
+      "computedHash": "1a7b83fc0a5b7aa3552a194c57e1f046d85541e77130f3add7c358868f43f4e2"
     },
     "expo-web-to-native": {
       "source": "expo/skills",
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-web-to-native/SKILL.md",
-      "computedHash": "c2c67dc18f2682f40da0aea1fb1f9846132ce19190f0e63b75e0edab530e8c09"
+      "computedHash": "25c8af32c6b46f26b0948509b80f7d47fe8d1a4505033b5b4ec6f25c574cbc20"
     },
     "extension-to-functions-codebase": {
       "source": "firebase/agent-skills",
@@ -335,43 +317,43 @@
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-ai-logic-basics/SKILL.md",
-      "computedHash": "5aa0c73be69ffe53e022f9b9fc1bd0e8233048b05fb15b288be8ee34e878b4d9"
+      "computedHash": "0c486d8e316cb2d8d2acf04dc66b1f40f8dd046c363ad3c8c7a880057bab7493"
     },
     "firebase-app-hosting-basics": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-app-hosting-basics/SKILL.md",
-      "computedHash": "017ad6e71769b3d7fe58bd54cf208ee91c82b2e32a2fc5f1c55719f22a8ef15b"
+      "computedHash": "5a982e11348d2e1373ce3dfec6e314861e39ccd03139de7cbd8a492942947243"
     },
     "firebase-auth-basics": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-auth-basics/SKILL.md",
-      "computedHash": "8343927347db469da64b3452810f6b2db05328760dd5448bcce80960829e2dfc"
+      "computedHash": "227d25fccccf6ec49af0116e71a2fae21a0058fa871dba44bcc0e8b391324fb8"
     },
     "firebase-basics": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-basics/SKILL.md",
-      "computedHash": "4ad816ea0a837a622920e411b7745dc74b74a8aa429089145e00f94a51a18abf"
+      "computedHash": "56081b5b4f8ae55c32d5bc8dfb03b6b20127a805d36d51be966655f0f39af513"
     },
     "firebase-crashlytics": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-crashlytics/SKILL.md",
-      "computedHash": "7cb04adf4cfaacf94b7bd2f6001e395a1827d15dd29c834ec4efc84c174db2d6"
+      "computedHash": "c36ad50c31d1ef4f81eb64907fcf5020a81d5f8b3f89abe02953d0f9d8a9fac6"
     },
     "firebase-data-connect": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-data-connect-basics/SKILL.md",
-      "computedHash": "b0659a164de50bedfa1514095fc42b67494a35d6b917269604c938c06c8e22c0"
+      "computedHash": "8643db563b7d2dd6e3c9dad73862b8fed4410555fac6a33b530b53d2cab8ba85"
     },
     "firebase-firestore": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-firestore/SKILL.md",
-      "computedHash": "0532fd1754ecb5b61020615b6b4f9bcd902146ea8127b9a872d6659071bd146a"
+      "computedHash": "7be20dbc227195b25d577f660932c7efe8b3df55b336f26c9d1a556cc3db411f"
     },
     "firebase-hosting-basics": {
       "source": "firebase/agent-skills",
@@ -383,19 +365,19 @@
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-remote-config-basics/SKILL.md",
-      "computedHash": "eeac96d95c4637ed15ab60a54bbc36cf0d29d425c3e843d645420ce9bfd1fbc7"
+      "computedHash": "098351eb0cfb9e981b3b19cae595c51e1c60655b0c53372c4be6168baf94e7c0"
     },
     "firebase-security-rules-auditor": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firebase-security-rules-auditor/SKILL.md",
-      "computedHash": "561c8f8ebbb9c2984cfa08cc4ea29ebfe4b2cb9cf524e5fc7d092af0ad208be8"
+      "computedHash": "3f3b4207c2a0243fce4395c4c6597c1811d2d9890274045ec6554e298d7246ba"
     },
     "firestore-rules-creation": {
       "source": "firebase/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/firestore-rules-creation/SKILL.md",
-      "computedHash": "f71ddb7db4502f0ab3a8a510226594e85a26b695f935ba1baef331a90e8f0553"
+      "computedHash": "c69dbffa4ad5165ed6dff2da79b8fc9bb96272b2cea0a90b32372845c93f5946"
     },
     "github-actions": {
       "source": "callstackincubator/agent-skills",
@@ -419,7 +401,7 @@
       "source": "adhhamdev/modern-react-guidance",
       "sourceType": "github",
       "skillPath": "SKILL.md",
-      "computedHash": "c70224dde294b20cc1b9fc80bdb5d66988ee6e2a17a1e9f7920a5fb754982a78"
+      "computedHash": "7c4401d97da6fc01a3d76e87783180c8015316f4935b3fe1a7a15aa8aa03c99f"
     },
     "react-native-best-practices": {
       "source": "callstackincubator/agent-skills",
@@ -431,13 +413,13 @@
       "source": "callstackincubator/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/react-native-brownfield-migration/SKILL.md",
-      "computedHash": "d4aa733c792b2a8d46c91f9bc009b8aeb5c8478d55bd02b8d904b93f7d25a061"
+      "computedHash": "659dfb7ada8725f05fe42a374fb70973f91be2830b8e1ee9ecea05d8ddc6b36e"
     },
     "react-native-expert": {
       "source": "jeffallan/claude-skills",
       "sourceType": "github",
       "skillPath": "skills/react-native-expert/SKILL.md",
-      "computedHash": "9a44b99fc929ab8e470944b5c6c5955dea6ea0945778816680acfcaaccb5a622"
+      "computedHash": "6a6812c7d6c4fb4851e802ced39f58ff9467a5a14bca1f2587c713e28c5fa3a0"
     },
     "react-native-nitro-google-signin": {
       "source": "react-native-nitro-google-signin",
@@ -508,7 +490,7 @@
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/react-view-transitions/SKILL.md",
-      "computedHash": "73fddafed488c308ee0799178432801fe10aa338451948ea05f4200541053040"
+      "computedHash": "fb654c297f52c2771ce64b22a4a18509d0412ef07e020bc09625441df18a750d"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",

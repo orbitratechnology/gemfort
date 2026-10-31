@@ -1,13 +1,19 @@
 import type { ReactNode, Ref } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 import {
   MaskedTextInput,
   type MaskedTextInputProps,
 } from 'react-native-mask-text';
 
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+  useFieldFocus,
+} from '@/components/ui/field-chrome';
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
-import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatGroupedAmount, toFaceAmount } from '@/lib/money/mask';
 
 type MaskMode = 'currency' | 'weight' | 'percent' | 'custom' | 'date' | 'time';
@@ -57,11 +63,16 @@ export function MaskedInput({
   value,
   onChangeText,
   inputRef,
+  onFocus,
+  onBlur,
   ...props
 }: MaskedInputProps) {
-  const { colors } = useAppTheme();
-  const borderColor = error ? colors.error : colors.border;
-  const iconColor = error ? colors.error : colors.textMuted;
+  const { focused, focusProps } = useFieldFocus({ onFocus, onBlur });
+  const chrome = useFieldChrome({
+    focused,
+    error: !!error,
+    disabled: props.editable === false,
+  });
 
   const isMoneyLike =
     mode === 'currency' || mode === 'weight' || mode === 'percent';
@@ -77,30 +88,18 @@ export function MaskedInput({
     mode === 'date' ? 'date' : mode === 'time' ? 'time' : 'custom';
 
   return (
-    <View style={styles.wrap}>
-      {label ? (
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {label}
-        </Text>
-      ) : null}
-      <View
-        style={[
-          styles.field,
-          {
-            backgroundColor: colors.surfaceMuted,
-            borderColor,
-            borderRadius: Radius.lg,
-            borderCurve: 'continuous',
-          },
-        ]}
-      >
+    <FieldWrap>
+      {label ? <FieldLabel>{label}</FieldLabel> : null}
+      <View style={[fieldStyles.box, chrome.box]}>
         {leftElement ??
-          (leftIcon ? <Icon name={leftIcon} size={20} color={iconColor} /> : null)}
+          (leftIcon ? <Icon name={leftIcon} size={20} color={chrome.iconColor} /> : null)}
         {isMoneyLike ? (
           <TextInput
             ref={inputRef}
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { color: colors.text }, style]}
+            placeholderTextColor={chrome.placeholderColor}
+            selectionColor={chrome.selectionColor}
+            cursorColor={chrome.selectionColor}
+            style={[fieldStyles.input, styles.numeric, { color: chrome.textColor }, style]}
             accessibilityLabel={label}
             keyboardType="decimal-pad"
             value={formatGroupedAmount(value ?? '')}
@@ -110,12 +109,15 @@ export function MaskedInput({
             }}
             placeholder={props.placeholder ?? '0'}
             {...props}
+            {...focusProps}
           />
         ) : (
           <MaskedTextInput
             ref={inputRef}
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { color: colors.text }, style]}
+            placeholderTextColor={chrome.placeholderColor}
+            selectionColor={chrome.selectionColor}
+            cursorColor={chrome.selectionColor}
+            style={[fieldStyles.input, styles.numeric, { color: chrome.textColor }, style]}
             accessibilityLabel={label}
             keyboardType={
               mode === 'date' || mode === 'time'
@@ -130,51 +132,16 @@ export function MaskedInput({
               onChangeText(masked, raw);
             }}
             {...props}
+            {...focusProps}
           />
         )}
-        {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
+        {rightElement ? <View style={fieldStyles.right}>{rightElement}</View> : null}
       </View>
-      {error ? (
-        <Text
-          selectable={false}
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : helperText ? (
-        <Text style={[styles.helper, { color: colors.textMuted }]}>
-          {helperText}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} helperText={helperText} />
+    </FieldWrap>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 6 },
-  label: { ...Typography.labelMd },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1.5,
-    paddingHorizontal: Spacing.gutterMd,
-    minHeight: 52,
-  },
-  input: {
-    ...Typography.bodyMd,
-    flex: 1,
-    paddingVertical: 14,
-    minHeight: 52,
-    fontSize: 16,
-    fontVariant: ['tabular-nums'],
-  },
-  right: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-  },
-  error: { ...Typography.bodySmall },
-  helper: { ...Typography.bodySmall },
+  numeric: { fontVariant: ['tabular-nums'] },
 });

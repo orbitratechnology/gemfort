@@ -1,4 +1,5 @@
 import {
+  addDays,
   differenceInCalendarDays,
   eachDayOfInterval,
   eachMonthOfInterval,
@@ -136,6 +137,25 @@ function getPreviousRange(period: MoneyPeriod, ref = new Date()): DateRange {
   }
 }
 
+/**
+ * Date span a dashboard must load: the selected range plus the equivalent
+ * previous span its trend compares against.
+ */
+export function getComparisonWindow(
+  period: MoneyPeriod,
+  customRange: DateRange | null,
+  ref = new Date(),
+): { start: Date; end: Date } {
+  const current = customRange ?? getPeriodRange(period, ref);
+  const previous = customRange
+    ? getPreviousCustomRange(customRange)
+    : getPreviousRange(period, ref);
+  return {
+    start: previous.start < current.start ? previous.start : current.start,
+    end: current.end,
+  };
+}
+
 export function getRangeTotals(transactions: Transaction[], range: DateRange) {
   let income = 0;
   let expense = 0;
@@ -148,13 +168,11 @@ export function getRangeTotals(transactions: Transaction[], range: DateRange) {
   return { income, expense, net: income - expense };
 }
 
-export type Trend = { pct: number; up: boolean };
+/** `pct` is null when the previous span had no net to compare against. */
+export type Trend = { pct: number | null; up: boolean };
 
 function trendFromNets(current: number, previous: number): Trend {
-  if (previous === 0) {
-    if (current === 0) return { pct: 0, up: true };
-    return { pct: 100, up: current > 0 };
-  }
+  if (previous === 0) return { pct: null, up: current >= 0 };
   const pct = ((current - previous) / Math.abs(previous)) * 100;
   return { pct: Math.round(pct * 10) / 10, up: pct >= 0 };
 }
@@ -228,7 +246,10 @@ export function getOutstanding(receivables: Receivable[], payables: Payable[]) {
 
 export type CashFlowBucket = {
   key: string;
+  /** Short axis label: `W2`, `Mar`, `14`. */
   label: string;
+  /** Full span for readouts: `8–14 Oct`, `March 2026`, `Tue 14 Oct`. */
+  title: string;
   income: number;
   expense: number;
 };
@@ -248,12 +269,18 @@ export function getCashFlowBuckets(
   // Weekly buckets within the month (1-7, 8-14, 15-21, 22-end)
   const lastDay = range.end.getDate();
   const weekCount = Math.ceil(lastDay / 7);
-  const buckets: CashFlowBucket[] = Array.from({ length: weekCount }, (_, i) => ({
-    key: `${format(range.start, 'yyyy-MM')}-W${i + 1}`,
-    label: `W${i + 1}`,
-    income: 0,
-    expense: 0,
-  }));
+  const monthLabel = format(range.start, 'MMM');
+  const buckets: CashFlowBucket[] = Array.from({ length: weekCount }, (_, i) => {
+    const from = i * 7 + 1;
+    const to = Math.min(from + 6, lastDay);
+    return {
+      key: `${format(range.start, 'yyyy-MM')}-W${i + 1}`,
+      label: `W${i + 1}`,
+      title: `${from}–${to} ${monthLabel}`,
+      income: 0,
+      expense: 0,
+    };
+  });
   for (const t of transactions) {
     const date = t.date.toDate();
     if (!isWithinInterval(date, { start: range.start, end: range.end })) continue;
@@ -286,6 +313,7 @@ function getMonthlyBuckets(transactions: Transaction[], range: DateRange): CashF
   const buckets = months.map((m) => ({
     key: format(m, 'yyyy-MM'),
     label: format(m, months.length > 6 ? 'MMM' : 'MMM yy'),
+    title: format(m, 'MMMM yyyy'),
     income: 0,
     expense: 0,
   }));
@@ -316,12 +344,18 @@ export function getCashFlowBucketsForRange(
       { start: range.start, end: range.end },
       { weekStartsOn: 0 },
     );
-    const buckets = weeks.map((w, i) => ({
-      key: format(w, 'yyyy-MM-dd'),
-      label: `W${i + 1}`,
-      income: 0,
-      expense: 0,
-    }));
+    const buckets = weeks.map((w, i) => {
+      const from = w < range.start ? range.start : w;
+      const weekEnd = addDays(w, 6);
+      const to = weekEnd > range.end ? range.end : weekEnd;
+      return {
+        key: format(w, 'yyyy-MM-dd'),
+        label: `W${i + 1}`,
+        title: formatDateRangeLabel(from, to),
+        income: 0,
+        expense: 0,
+      };
+    });
     return accumulateInto(
       buckets,
       transactions,
@@ -339,6 +373,7 @@ export function getCashFlowBucketsForRange(
   const buckets = dayList.map((d) => ({
     key: format(d, 'yyyy-MM-dd'),
     label: format(d, 'd'),
+    title: format(d, 'EEE d MMM'),
     income: 0,
     expense: 0,
   }));

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import { Platform } from "react-native";
 
 import { useAppTheme } from "@/hooks/use-app-theme";

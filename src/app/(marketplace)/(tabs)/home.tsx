@@ -1,7 +1,7 @@
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useTourTarget } from "guideway";
+import { useTourTarget } from "@/lib/tour-target";
 import { useMemo, useState } from "react";
 import {
     Pressable,

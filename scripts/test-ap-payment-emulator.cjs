@@ -28,6 +28,81 @@ async function clearNotifications(referenceId) {
   await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()));
 }
 
+// C3 + H3: an AP settles over several payments, only closes at zero balance,
+// rejects overpayment, requires a real cheque, and a bounced cheque reverses
+// the confirmed instalment.
+async function runInstalmentScenario() {
+  const id = 'phase9-ap-instalments';
+  const chequeId = 'phase9-cheque-received';
+  const giverChequeId = 'phase9-cheque-given';
+  const cleanup = async () => {
+    await clearNotifications(id);
+    const payments = await db.collection('gemtrack_ap_payments').where('apId', '==', id).get();
+    const txns = await db.collection('gemtrack_transactions').where('sourceId', '==', id).get();
+    await Promise.all([
+      ...payments.docs.map((doc) => doc.ref.delete()),
+      ...txns.docs.map((doc) => doc.ref.delete()),
+      db.collection('gemtrack_ap_records').doc(id).delete(),
+      db.collection('gemtrack_cheques').doc(chequeId).delete(),
+      db.collection('gemtrack_cheques').doc(giverChequeId).delete(),
+    ]);
+  };
+  await cleanup();
+  try {
+    await db.collection('gemtrack_ap_records').doc(id).set({
+      ownerUid,
+      senderUid: ownerUid,
+      receiverUid,
+      receiverName: 'Phase 9 Receiver',
+      senderName: 'Phase 9 Sender',
+      status: 'accepted',
+      items: [
+        { gemId: 'g1', gemLabel: 'G1', agreedPrice: 1000, currency: 'LKR', lineStatus: 'sold', ownerReceives: 1000 },
+      ],
+      updatedAt: now,
+    });
+    const ap = () => db.collection('gemtrack_ap_records').doc(id).get().then((snap) => snap.data());
+
+    await assert.rejects(
+      apPaymentSentForApi(id, receiverUid, { method: 'cash', amount: 1500 }),
+      (error) => error?.code === 'invalid-argument',
+    );
+
+    // First instalment: 100 of 1000.
+    await apPaymentSentForApi(id, receiverUid, { method: 'cash', amount: 100 });
+    const first = await apPaymentReceivedForApi(id, ownerUid, {});
+    assert.equal(first.status, 'partial');
+    assert.equal((await ap()).amountPaid, 100);
+    assert.equal((await ap()).balance, 900);
+    assert.equal((await ap()).paymentStatus, 'partial');
+
+    // A cheque payment must reference a real cheque the payer recorded.
+    await assert.rejects(
+      apPaymentSentForApi(id, receiverUid, { method: 'cheque', amount: 900, chequeId: 'missing' }),
+      (error) => error?.code === 'permission-denied',
+    );
+    await db.collection('gemtrack_cheques').doc(giverChequeId).set({
+      ownerUid: receiverUid, direction: 'given', status: 'holding', amount: 900, currency: 'LKR', apRecordId: id,
+    });
+    await db.collection('gemtrack_cheques').doc(chequeId).set({
+      ownerUid, direction: 'received', status: 'holding', amount: 900, currency: 'LKR', apRecordId: id,
+    });
+    await apPaymentSentForApi(id, receiverUid, { method: 'cheque', amount: 900, chequeId: giverChequeId });
+    const second = await apPaymentReceivedForApi(id, ownerUid, { method: 'cheque', chequeId });
+    assert.equal(second.status, 'done');
+    assert.equal((await ap()).amountPaid, 1000);
+    assert.equal((await ap()).paymentStatus, 'paid');
+    const ledger = await db.collection('gemtrack_transactions').where('sourceId', '==', id).get();
+    const income = ledger.docs.filter((doc) => doc.data().ownerUid === ownerUid && doc.data().type === 'income');
+    assert.equal(income.reduce((sum, doc) => sum + doc.data().amount, 0), 1000);
+    assert.equal((await db.collection('gemtrack_cheques').doc(chequeId).get()).data().apPaymentSeq, 2);
+
+    console.log('  instalments: partial → paid, overpayment and missing cheque rejected');
+  } finally {
+    await cleanup();
+  }
+}
+
 async function run() {
   const sentId = apPaymentEventId(apId, 'sent');
   const receivedId = apPaymentEventId(apId, 'received');
@@ -126,6 +201,8 @@ async function run() {
       (error) => error?.code === 'failed-precondition',
     );
     assert.equal((await refs[2].get()).data().amount, 800);
+
+    await runInstalmentScenario();
 
     console.log('Phase 9 AP payment emulator tests passed.');
   } finally {

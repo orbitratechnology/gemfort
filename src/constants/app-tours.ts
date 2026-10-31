@@ -65,8 +65,8 @@ export const APP_TOURS: TourDefinition[] = [
       },
       {
         id: "money-record-sale",
-        title: "Record a sale",
-        body: "Tap + when you want to add a sale to your records.",
+        title: "Money actions",
+        body: "Tap + to record a sale, income or expense, add a cheque, or scan a receipt.",
         placement: "top",
       },
     ],

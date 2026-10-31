@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { addDays, startOfDay } from 'date-fns';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
@@ -9,9 +10,13 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { ChipSelect } from '@/components/ui/chip-select';
+import { Accent, Callout } from '@/components/ui/detail-kit';
 import { FormFooter } from '@/components/ui/form-footer';
+import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { ThemedScrollView } from '@/components/ui/screen';
+import { SheetFooter } from '@/components/ui/sheet-footer';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ContactPicker } from '@/components/workspace/contact-picker';
 import { Spacing } from '@/constants/design-tokens';
@@ -22,19 +27,31 @@ import {
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { Timestamp } from '@/lib/firebase/db';
 import { addReceivableSchema, parseForm } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
+
+/** Common credit terms in the gem trade; the due date counts from today. */
+const CREDIT_TERMS = [
+  { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' },
+  { value: '30', label: '30 days' },
+  { value: '60', label: '60 days' },
+  { value: '90', label: '90 days' },
+] as const;
+type CreditTerm = (typeof CREDIT_TERMS)[number]['value'];
 
 export default function AddReceivableScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const { height: windowHeight } = useWindowDimensions();
   const preferred = usePreferredCurrency();
+  const { formatFace } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [contactId, setContactId] = useState('');
@@ -43,6 +60,7 @@ export default function AddReceivableScreen() {
     currency: preferred,
   });
   const [title, setTitle] = useState('');
+  const [termDays, setTermDays] = useState<CreditTerm>('14');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: contacts = [] } = useFirestoreLiveQuery({
@@ -51,6 +69,12 @@ export default function AddReceivableScreen() {
     subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
+
+  const contactName = useMemo(
+    () => contacts.find((c) => c.id === contactId)?.displayName?.trim() || null,
+    [contacts, contactId],
+  );
+  const draftAmount = parseFloat(money.amount) || 0;
 
   function clearField(key: string) {
     setErrors((prev) => {
@@ -61,7 +85,7 @@ export default function AddReceivableScreen() {
     });
   }
 
-  async function handleAdd() {
+  const [adding, handleAdd] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addReceivableSchema, {
       contactId,
@@ -76,23 +100,21 @@ export default function AddReceivableScreen() {
 
     setErrors({});
     try {
-      await withLoading(async () => {
-        const due = Timestamp.fromDate(new Date(Date.now() + 14 * 86400000));
-        await createReceivable(user.uid, {
-          contactId: result.data.contactId ?? null,
-          amount: result.data.amount,
-          currency: money.currency,
-          title: result.data.title,
-          dueDate: due,
-        });
-        await queryClient.invalidateQueries({ queryKey: ['receivables'] });
-        toast.success('Receivable added');
-        router.back();
-      }, 'Adding…');
+      const due = Timestamp.fromDate(addDays(startOfDay(new Date()), Number(termDays)));
+      await createReceivable(user.uid, {
+        contactId: result.data.contactId ?? null,
+        amount: result.data.amount,
+        currency: money.currency,
+        title: result.data.title,
+        dueDate: due,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['receivables'] });
+      toast.success('Receivable added');
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not save receivable.'));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -120,39 +142,61 @@ export default function AddReceivableScreen() {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ContactPicker
-          label="From contact (optional)"
-          contacts={contacts}
-          value={contactId}
-          allowClear
-          onChange={(id) => {
-            setContactId(id);
-            clearField('contactId');
-          }}
-          error={errors.contactId}
-        />
-        <CurrencyAmountField
-          label="Amount"
-          value={money}
-          onChange={(next) => {
-            setMoney(next);
-            clearField('amount');
-          }}
-          error={errors.amount}
-        />
-        <Input
-          label="Title / Reason (required)"
-          value={title}
-          onChangeText={(value) => {
-            setTitle(value);
-            clearField('title');
-          }}
-          placeholder="e.g. Sale on credit"
-          leftIcon="notes"
-          error={errors.title}
-        />
+        <FormSection>
+          <Callout
+            style={styles.summary}
+            icon="south-west"
+            accent={Accent.emerald}
+            label={contactName ? `${contactName} will pay you` : 'Owed to you'}
+            value={draftAmount > 0 ? formatFace(draftAmount, money.currency) : 'Enter an amount'}
+            pill={`Due in ${termDays} days`}
+          />
+        </FormSection>
+        <FormSection title="Contact">
+          <ContactPicker
+            label="From contact (optional)"
+            contacts={contacts}
+            value={contactId}
+            allowClear
+            onChange={(id) => {
+              setContactId(id);
+              clearField('contactId');
+            }}
+            error={errors.contactId}
+          />
+        </FormSection>
+        <FormSection title="Details">
+          <CurrencyAmountField
+            label="Amount"
+            value={money}
+            onChange={(next) => {
+              setMoney(next);
+              clearField('amount');
+            }}
+            error={errors.amount}
+          />
+          <Input
+            label="Title / Reason (required)"
+            value={title}
+            onChangeText={(value) => {
+              setTitle(value);
+              clearField('title');
+            }}
+            placeholder="e.g. Sale on credit"
+            leftIcon="notes"
+            error={errors.title}
+          />
+          <ChipSelect
+            label="Due in"
+            options={[...CREDIT_TERMS]}
+            value={termDays}
+            onChange={setTermDays}
+          />
+        </FormSection>
       </ThemedScrollView>
-      <FormFooter title="Add Receivable" icon="add" onPress={handleAdd} />
+      <SheetFooter>
+        <FormFooter title="Add Receivable" icon="add" loading={adding} onPress={handleAdd} />
+      </SheetFooter>
     </KeyboardAvoidingView>
   );
 }
@@ -161,7 +205,9 @@ const styles = StyleSheet.create({
   /** No flex:1 — required for formSheet fitToContents height measurement. */
   sheet: { gap: Spacing.sm },
   content: {
-    padding: Spacing.containerMargin,
+    paddingTop: Spacing.stackSm,
+    paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
+  summary: { marginTop: 0 },
 });

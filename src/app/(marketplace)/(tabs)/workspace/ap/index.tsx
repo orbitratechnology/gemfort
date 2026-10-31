@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -12,9 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import { Accent, ListItem, ListSectionHeader } from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
-import { Icon, type IconName } from "@/components/ui/icon";
+import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ApSideTabs } from "@/components/workspace/ap-side-tabs";
@@ -23,8 +24,10 @@ import {
     ContextActionsLink,
     type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
+import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Spacing } from "@/constants/design-tokens";
 import {
     fetchBusinessByOwnerUid,
     fetchBusinesses,
@@ -75,7 +78,6 @@ import { friendlyError } from "@/lib/errors";
 import { formatRelativeDue } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     ApLifecycleStatus,
@@ -87,11 +89,19 @@ import type {
 
 type ApSide = "given" | "taken";
 
+/** Which row action is in flight, so only the tapped control spins. */
+type ApRowAction =
+  | "accepted"
+  | "rejected"
+  | "cancel-accepted"
+  | "cancel-rejected"
+  | "request-cancel";
+
 type SectionKey = "pending" | "accepted" | "payment_sent" | "done" | "closed";
 
 type ApListRow =
-  | { kind: "section"; key: string; title: string }
-  | { kind: "record"; key: string; record: ApRecord };
+  | { kind: "section"; key: string; title: string; count: number; accent: string }
+  | { kind: "record"; key: string; record: ApRecord; isLast: boolean };
 
 const SECTION_ORDER: SectionKey[] = [
   "pending",
@@ -103,11 +113,22 @@ const SECTION_ORDER: SectionKey[] = [
 
 const SECTION_TITLE: Record<SectionKey, string> = {
   pending: "Pending",
-  accepted: "Accepted",
+  accepted: "With holder",
   payment_sent: "Payment sent",
   done: "Done",
   closed: "Closed",
 };
+
+/** Section dot colour — same meaning as the status chips below it. */
+const SECTION_ACCENT: Record<SectionKey, string> = {
+  pending: Accent.amber,
+  accepted: Accent.blue,
+  payment_sent: Accent.amber,
+  done: Accent.emerald,
+  closed: Accent.slate,
+};
+
+const THUMB = 52;
 
 function sectionFor(status: ApLifecycleStatus): SectionKey {
   if (status === "pending") return "pending";
@@ -117,64 +138,30 @@ function sectionFor(status: ApLifecycleStatus): SectionKey {
   return "closed";
 }
 
-function statusTone(
-  record: ApRecord,
-  colors: ReturnType<typeof useAppTheme>["colors"],
-): { bg: string; fg: string; accent: string; icon: IconName } {
-  if (isApOverdue(record)) {
-    return {
-      bg: colors.errorContainer,
-      fg: colors.error,
-      accent: colors.error,
-      icon: "warning",
-    };
+/**
+ * Status accent: amber = waiting on someone, blue = out with the holder,
+ * emerald = settled, rose = overdue / rejected, slate = cancelled.
+ */
+function statusAccent(record: ApRecord): string {
+  if (isApOverdue(record)) return Accent.rose;
+  switch (record.status) {
+    case "pending":
+    case "payment_sent":
+    case "cancellation_requested":
+      return Accent.amber;
+    case "accepted":
+    case "with_holder":
+    case "partial":
+      return Accent.blue;
+    case "done":
+    case "sold":
+    case "returned":
+      return Accent.emerald;
+    case "rejected":
+      return Accent.rose;
+    default:
+      return Accent.slate;
   }
-  if (record.status === "pending") {
-    return {
-      bg: colors.secondaryContainer,
-      fg: colors.onSecondaryContainer,
-      accent: colors.secondary,
-      icon: "hourglass-top",
-    };
-  }
-  if (record.status === "payment_sent" || record.status === "sold") {
-    return {
-      bg: colors.primaryContainer,
-      fg: colors.onPrimaryContainer,
-      accent: colors.primary,
-      icon: "payments",
-    };
-  }
-  if (record.status === "cancellation_requested") {
-    return {
-      bg: colors.errorContainer,
-      fg: colors.error,
-      accent: colors.error,
-      icon: "hourglass-top",
-    };
-  }
-  if (record.status === "done") {
-    return {
-      bg: colors.successEmerald + "22",
-      fg: colors.successEmerald,
-      accent: colors.successEmerald,
-      icon: "check-circle",
-    };
-  }
-  if (record.status === "rejected" || record.status === "cancelled") {
-    return {
-      bg: colors.surfaceContainerHighest,
-      fg: colors.onSurfaceVariant,
-      accent: colors.outline,
-      icon: "cancel",
-    };
-  }
-  return {
-    bg: colors.primaryContainer,
-    fg: colors.onPrimaryContainer,
-    accent: colors.primary,
-    icon: "ap",
-  };
 }
 
 function gemHeadline(record: ApRecord): string {
@@ -224,35 +211,35 @@ function resolvePartyPhoto(
   return logoByOwnerUid.get(record.senderUid) ?? null;
 }
 
-function GemThumb({
-  uri,
+/** Gem photo (or its artwork) with the counterparty's avatar tucked on the corner. */
+function ApLeading({
+  gem,
   label,
-  colors,
+  party,
+  partyPhotoUrl,
 }: {
-  uri: string | null;
+  gem: WorkspaceGem | null;
   label: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
+  party: string;
+  partyPhotoUrl: string | null;
 }) {
-  if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        style={styles.gemPhoto}
-        contentFit="cover"
-        recyclingKey={uri}
-        accessibilityLabel={`${label} photo`}
-      />
-    );
-  }
+  const { colors } = useAppTheme();
+  const photo = gem ? gemPrimaryPhotoUrl(gem) : null;
   return (
-    <View
-      style={[
-        styles.gemPhoto,
-        styles.gemFallback,
-        { backgroundColor: colors.surfaceContainerHigh },
-      ]}
-    >
-      <Icon name="diamond" size={22} color={colors.outlineVariant} />
+    <View style={styles.leading}>
+      {photo || !gem ? (
+        <GemThumb uri={photo} label={label} size={THUMB} radius={14} />
+      ) : (
+        <GemArtwork gem={gem} artScale={0.8} style={styles.artwork} />
+      )}
+      <View
+        style={[
+          styles.partyBadge,
+          { borderColor: colors.surfaceContainerLowest },
+        ]}
+      >
+        <ContactAvatar name={party} photoUrl={partyPhotoUrl} size={22} />
+      </View>
     </View>
   );
 }
@@ -260,11 +247,11 @@ function GemThumb({
 function ApRow({
   record,
   side,
-  colors,
-  gemPhotoUrl,
+  gem,
   partyPhotoUrl,
+  isLast,
   onRespond,
-  responding,
+  pendingAction,
   uid,
   onDelete,
   onRequestCancellation,
@@ -272,11 +259,11 @@ function ApRow({
 }: {
   record: ApRecord;
   side: ApSide;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  gemPhotoUrl: string | null;
+  gem: WorkspaceGem | null;
   partyPhotoUrl: string | null;
+  isLast: boolean;
   onRespond?: (action: "accepted" | "rejected") => void;
-  responding?: boolean;
+  pendingAction?: ApRowAction | null;
   uid?: string | null;
   onDelete: (apId: string) => void | Promise<void>;
   onRequestCancellation: (apId: string) => void | Promise<void>;
@@ -285,6 +272,7 @@ function ApRow({
     action: "accepted" | "rejected",
   ) => void | Promise<void>;
 }) {
+  const { colors } = useAppTheme();
   const { formatBase } = usePreferredMoney();
   const overdue = isApOverdue(record);
   const party =
@@ -292,10 +280,12 @@ function ApRow({
       ? record.receiverName || "Holder"
       : record.senderName || "Sender";
   const total = apAgreedTotal(record);
-  const tone = statusTone(record, colors);
+  const accent = statusAccent(record);
+  const statusText = overdue ? "Overdue" : apStatusLabel(record.status);
   const showActions =
     side === "taken" && record.status === "pending" && !!onRespond;
   const showCancelActions = !!uid && canRespondApCancellation(record, uid);
+  const hasActions = showActions || showCancelActions;
   const menuActions: ContextMenuAction[] = [];
   if (canDeleteAp(record)) {
     menuActions.push({
@@ -322,139 +312,100 @@ function ApRow({
       ? formatRelativeDue(record.expectedReturnDate)
       : null;
   const amountColor = overdue
-    ? colors.error
+    ? Accent.rose
     : record.status === "done"
-      ? colors.successEmerald
-      : colors.primary;
-  const cardBg = overdue
-    ? colors.errorContainer + "66"
-    : record.status === "pending"
-      ? colors.secondaryContainer + "55"
-      : colors.surfaceContainerLowest;
+      ? Accent.emerald
+      : colors.onSurface;
+  const headline = gemHeadline(record);
 
   return (
-    <View style={styles.rowWrap}>
+    <View style={{ backgroundColor: colors.surfaceContainerLowest }}>
       <ContextActionsLink
         href={`/(marketplace)/(tabs)/workspace/ap/${record.id}` as never}
-        accessibilityLabel={`${gemHeadline(record)}, ${side === "given" ? "to" : "from"} ${party}, ${formatBase(total)}, ${overdue ? "Overdue" : apStatusLabel(record.status)}`}
+        accessibilityLabel={`${headline}, ${side === "given" ? "to" : "from"} ${party}, ${formatBase(total)}, ${statusText}`}
         actions={menuActions}
       >
-        {({ pressed }) => (
-            <View
-              style={[
-                styles.row,
-                {
-                  backgroundColor: cardBg,
-                  borderColor: overdue
-                    ? colors.error + "66"
-                    : colors.outlineVariant,
-                  opacity: pressed ? 0.88 : 1,
-                },
-              ]}
-            >
-              <View style={styles.mediaCol}>
-                <View style={styles.mediaStack}>
-                  <GemThumb
-                    uri={gemPhotoUrl}
-                    label={gemHeadline(record)}
-                    colors={colors}
-                  />
-                  <View
-                    style={[
-                      styles.partyBadge,
-                      { borderColor: colors.surfaceContainerLowest },
-                    ]}
-                  >
-                    <ContactAvatar
-                      name={party}
-                      photoUrl={partyPhotoUrl}
-                      size={28}
-                    />
-                  </View>
-                </View>
-                <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                  <Icon name={tone.icon} size={11} color={tone.fg} />
-                  <Text
-                    style={[styles.badgeText, { color: tone.fg }]}
-                    numberOfLines={1}
-                  >
-                    {overdue ? "Overdue" : apStatusLabel(record.status)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.rowBody}>
-                <View style={styles.rowTop}>
-                  <Text
-                    style={[styles.rowTitle, { color: colors.onSurface }]}
-                    numberOfLines={1}
-                  >
-                    {gemHeadline(record)}
-                  </Text>
-                  <Text style={[styles.rowAmount, { color: amountColor }]}>
-                    {formatBase(total)}
-                  </Text>
-                </View>
-                <View style={styles.partyRow}>
-                  <Icon
-                    name={side === "given" ? "call-made" : "call-received"}
-                    size={14}
-                    color={colors.onSurfaceVariant}
-                  />
-                  <Text
-                    style={[styles.rowSub, { color: colors.onSurfaceVariant }]}
-                    numberOfLines={1}
-                  >
-                    {side === "given" ? "To" : "From"} {party}
-                  </Text>
-                </View>
+        <ListItem
+          leading={
+            <ApLeading
+              gem={gem}
+              label={headline}
+              party={party}
+              partyPhotoUrl={partyPhotoUrl}
+            />
+          }
+          title={headline}
+          subtitle={`${side === "given" ? "To" : "From"} ${party}`}
+          meta={`${gemBreakdown(record)}${dueLabel ? ` · ${dueLabel}` : ""}`}
+          amount={formatBase(total)}
+          amountColor={amountColor}
+          status={{ label: statusText, accent }}
+          isLast={isLast || hasActions}
+          right={
+            pendingAction === "request-cancel" ? (
+              <View style={styles.trailingBusy}>
                 <Text
-                  style={[styles.rowSub, { color: colors.textMuted }]}
+                  style={[styles.trailingAmount, { color: amountColor }]}
                   numberOfLines={1}
                 >
-                  {gemBreakdown(record)}
-                  {dueLabel ? ` · ${dueLabel}` : ""}
+                  {formatBase(total)}
                 </Text>
+                <ActivityIndicator size="small" color={colors.primary} />
               </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
-            </View>
-        )}
+            ) : undefined
+          }
+        />
       </ContextActionsLink>
 
-      {showActions ? (
-        <View style={styles.actions}>
-          <Button
-            title="Accept"
-            icon="check"
-            loading={responding}
-            onPress={() => onRespond!("accepted")}
-            style={styles.actionBtn}
-          />
-          <Button
-            title="Reject"
-            variant="secondary"
-            loading={responding}
-            onPress={() => onRespond!("rejected")}
-            style={styles.actionBtn}
-          />
-        </View>
-      ) : null}
-
-      {showCancelActions ? (
-        <View style={styles.actions}>
-          <Button
-            title="Accept cancellation"
-            icon="check"
-            loading={responding}
-            onPress={() => onRespondCancellation(record.id, "accepted")}
-            style={styles.actionBtn}
-          />
-          <Button
-            title="Decline"
-            variant="secondary"
-            loading={responding}
-            onPress={() => onRespondCancellation(record.id, "rejected")}
-            style={styles.actionBtn}
-          />
+      {hasActions ? (
+        <View
+          style={[
+            styles.actions,
+            !isLast && {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: colors.outlineVariant,
+            },
+          ]}
+        >
+          {showActions ? (
+            <>
+              <Button
+                title="Accept"
+                icon="check"
+                loading={pendingAction === "accepted"}
+                disabled={!!pendingAction}
+                onPress={() => onRespond!("accepted")}
+                style={styles.actionBtn}
+              />
+              <Button
+                title="Reject"
+                variant="secondary"
+                loading={pendingAction === "rejected"}
+                disabled={!!pendingAction}
+                onPress={() => onRespond!("rejected")}
+                style={styles.actionBtn}
+              />
+            </>
+          ) : (
+            <>
+              <Button
+                title="Accept cancellation"
+                icon="check"
+                loading={pendingAction === "cancel-accepted"}
+                disabled={!!pendingAction}
+                onPress={() => onRespondCancellation(record.id, "accepted")}
+                style={styles.actionBtn}
+              />
+              <Button
+                title="Decline"
+                variant="secondary"
+                loading={pendingAction === "cancel-rejected"}
+                disabled={!!pendingAction}
+                onPress={() => onRespondCancellation(record.id, "rejected")}
+                style={styles.actionBtn}
+              />
+            </>
+          )}
         </View>
       ) : null}
     </View>
@@ -467,7 +418,28 @@ export default function ApListScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [side, setSide] = useState<ApSide>("given");
-  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [rowPending, setRowPending] = useState<{
+    id: string;
+    action: ApRowAction;
+  } | null>(null);
+  const rowPendingRef = useRef(false);
+
+  /** Runs one row action with local loading; ignores taps while one is in flight. */
+  async function runRowAction(
+    apId: string,
+    action: ApRowAction,
+    work: () => Promise<void>,
+  ) {
+    if (rowPendingRef.current) return;
+    rowPendingRef.current = true;
+    setRowPending({ id: apId, action });
+    try {
+      await work();
+    } finally {
+      rowPendingRef.current = false;
+      setRowPending(null);
+    }
+  }
 
   const givenQ = useFirestoreInfiniteQuery({
     queryKey: ["ap", "given", user?.uid, "infinite"],
@@ -581,16 +553,10 @@ export default function ApListScreen() {
     [contacts],
   );
 
-  const gemPhotoById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of ownedGems) {
-      const url = gemPrimaryPhotoUrl(g);
-      if (url) map.set(g.id, url);
-    }
-    for (const g of extraGems) {
-      const url = gemPrimaryPhotoUrl(g);
-      if (url) map.set(g.id, url);
-    }
+  const gemById = useMemo(() => {
+    const map = new Map<string, WorkspaceGem>();
+    for (const g of ownedGems) map.set(g.id, g);
+    for (const g of extraGems) map.set(g.id, g);
     return map;
   }, [ownedGems, extraGems]);
 
@@ -627,6 +593,7 @@ export default function ApListScreen() {
     return SECTION_ORDER.map((key) => ({
       key,
       title: SECTION_TITLE[key],
+      accent: SECTION_ACCENT[key],
       data: map.get(key) ?? [],
     })).filter((s) => s.data.length > 0);
   }, [records]);
@@ -634,11 +601,18 @@ export default function ApListScreen() {
   const listRows = useMemo<ApListRow[]>(
     () =>
       sections.flatMap((section) => [
-        { kind: "section" as const, key: `section:${section.key}`, title: section.title },
-        ...section.data.map((record) => ({
+        {
+          kind: "section" as const,
+          key: `section:${section.key}`,
+          title: section.title,
+          count: section.data.length,
+          accent: section.accent,
+        },
+        ...section.data.map((record, i) => ({
           kind: "record" as const,
           key: record.id,
           record,
+          isLast: i === section.data.length - 1,
         })),
       ]),
     [sections],
@@ -651,22 +625,16 @@ export default function ApListScreen() {
   }
 
   async function onRespond(apId: string, action: "accepted" | "rejected") {
-    setRespondingId(apId);
-    await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
-          await respondApRequest(apId, action);
-          toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
-          await queryClient.invalidateQueries({ queryKey: ["ap"] });
-          await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        }, "Updating…"),
-      )
-      .catch((e) => {
+    await runRowAction(apId, action, async () => {
+      try {
+        await respondApRequest(apId, action);
+        toast.success(action === "accepted" ? "AP accepted" : "AP rejected");
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+        await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      } catch (e) {
         toast.error(friendlyError(e, "Could not respond to AP."));
-      })
-      .finally(() => {
-        setRespondingId(null);
-      });
+      }
+    });
   }
 
   async function onDelete(apId: string) {
@@ -680,39 +648,37 @@ export default function ApListScreen() {
   }
 
   async function onRequestCancellation(apId: string) {
-    try {
-      await withLoading(async () => {
+    await runRowAction(apId, "request-cancel", async () => {
+      try {
         await requestApCancellation(apId);
         toast.success("Cancellation requested");
         await queryClient.invalidateQueries({ queryKey: ["ap"] });
-      }, "Updating…");
-    } catch (e) {
-      toast.error(friendlyError(e, "Could not request cancellation."));
-    }
+      } catch (e) {
+        toast.error(friendlyError(e, "Could not request cancellation."));
+      }
+    });
   }
 
   async function onRespondCancellation(
     apId: string,
     action: "accepted" | "rejected",
   ) {
-    setRespondingId(apId);
-    await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
+    await runRowAction(
+      apId,
+      action === "accepted" ? "cancel-accepted" : "cancel-rejected",
+      async () => {
+        try {
           await respondApCancellation(apId, action);
           toast.success(
             action === "accepted" ? "AP cancelled" : "Cancellation declined",
           );
           await queryClient.invalidateQueries({ queryKey: ["ap"] });
           await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        }, "Updating…"),
-      )
-      .catch((e) => {
-        toast.error(friendlyError(e, "Could not respond to cancellation."));
-      })
-      .finally(() => {
-        setRespondingId(null);
-      });
+        } catch (e) {
+          toast.error(friendlyError(e, "Could not respond to cancellation."));
+        }
+      },
+    );
   }
 
   return (
@@ -767,9 +733,11 @@ export default function ApListScreen() {
         renderItem={({ item }) => {
           if (item.kind === "section") {
             return (
-              <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {item.title}
-              </Text>
+              <ListSectionHeader
+                title={item.title}
+                count={item.count}
+                accent={item.accent}
+              />
             );
           }
           const record = item.record;
@@ -778,10 +746,8 @@ export default function ApListScreen() {
             <ApRow
               record={record}
               side={side}
-              colors={colors}
-              gemPhotoUrl={
-                firstGemId ? (gemPhotoById.get(firstGemId) ?? null) : null
-              }
+              isLast={item.isLast}
+              gem={firstGemId ? (gemById.get(firstGemId) ?? null) : null}
               partyPhotoUrl={resolvePartyPhoto(
                 record,
                 side,
@@ -789,7 +755,9 @@ export default function ApListScreen() {
                 logoByOwnerUid,
                 businesses,
               )}
-              responding={respondingId === record.id}
+              pendingAction={
+                rowPending?.id === record.id ? rowPending.action : null
+              }
               onRespond={
                 side === "taken"
                   ? (action) => onRespond(record.id, action)
@@ -808,13 +776,13 @@ export default function ApListScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Give on AP"
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.primary },
-          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-        ]}
-        onPress={() => router.push("/(marketplace)/ap/add" as never)}
-      >
+          style={({ pressed }) => [
+            styles.fab,
+            { backgroundColor: colors.primary },
+            pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
+          ]}
+          onPress={() => router.push("/(marketplace)/ap/add" as never)}
+        >
           <Icon name="add" size={28} color={colors.onPrimary} />
         </Pressable>
       ) : null}
@@ -824,85 +792,34 @@ export default function ApListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: {
-    paddingHorizontal: Spacing.containerMargin,
-    paddingBottom: 112,
-    gap: Spacing.lg,
-  },
-  subtitle: { ...Typography.bodySmall, lineHeight: 20 },
-  section: { gap: Spacing.md },
-  sectionTitle: { ...Typography.bodyLg, fontWeight: "700" },
-  list: { gap: Spacing.md },
-  rowWrap: { gap: Spacing.sm },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: Radius.xl,
+  content: { paddingBottom: 112 },
+  leading: { width: THUMB, height: THUMB },
+  artwork: {
+    width: THUMB,
+    height: THUMB,
+    borderRadius: 14,
     borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
-  },
-  mediaCol: {
-    width: 72,
-    alignItems: "center",
-    gap: 8,
-  },
-  mediaStack: {
-    width: 56,
-    height: 56,
-  },
-  gemPhoto: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-  },
-  gemFallback: {
-    alignItems: "center",
-    justifyContent: "center",
   },
   partyBadge: {
     position: "absolute",
-    right: -4,
-    bottom: -4,
-    borderRadius: 16,
+    right: -5,
+    bottom: -5,
+    borderRadius: 14,
     borderWidth: 2,
   },
-  rowBody: { flex: 1, gap: 4, minWidth: 0, paddingTop: 2 },
-  rowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  rowTitle: { ...Typography.bodyMd, fontWeight: "700", flex: 1 },
-  rowAmount: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
+  trailingBusy: { alignItems: "flex-end", gap: 6, maxWidth: "45%" },
+  trailingAmount: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
     fontVariant: ["tabular-nums"],
+    includeFontPadding: false,
   },
-  partyRow: {
+  actions: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.md,
   },
-  rowSub: { ...Typography.caption },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-    maxWidth: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
-  actions: { flexDirection: "row", gap: Spacing.sm },
   actionBtn: { flex: 1 },
   fab: {
     position: "absolute",

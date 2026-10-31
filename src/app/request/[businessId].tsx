@@ -36,7 +36,6 @@ import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { WorkspaceGem } from "@/types";
 
@@ -259,30 +258,28 @@ export default function RequestServiceScreen() {
     setErrors({});
     setSubmitting(true);
     await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
-          const gemName = gemDisplayName(gem!);
-          await createServiceRequest({
-            traderUid: user.uid,
-            traderBusinessId: myBusiness?.id ?? null,
-            traderBusinessName: myBusiness?.businessName ?? null,
-            traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
-            lapidaryBusinessId: business.id,
-            providerName: business.businessName,
-            providerBusinessName: business.businessName,
-            providerBusinessLogoUrl: business.logoUrl,
-            gemId: gem!.id,
-            gemName,
-            gemPhotoUrl: gemPrimaryPhotoUrl(gem),
-            serviceTypes: selectedServiceTypes,
-            notes,
-            expectedReturnDays: 14,
-            weightBefore: gem!.currentWeight,
-          });
-          toast.success("Service request sent.");
-          router.back();
-        }, "Sending request…"),
-      )
+      .then(async () => {
+        const gemName = gemDisplayName(gem!);
+        await createServiceRequest({
+          traderUid: user.uid,
+          traderBusinessId: myBusiness?.id ?? null,
+          traderBusinessName: myBusiness?.businessName ?? null,
+          traderBusinessLogoUrl: myBusiness?.logoUrl ?? null,
+          lapidaryBusinessId: business.id,
+          providerName: business.businessName,
+          providerBusinessName: business.businessName,
+          providerBusinessLogoUrl: business.logoUrl,
+          gemId: gem!.id,
+          gemName,
+          gemPhotoUrl: gemPrimaryPhotoUrl(gem),
+          serviceTypes: selectedServiceTypes,
+          notes,
+          expectedReturnDays: 14,
+          weightBefore: gem!.currentWeight,
+        });
+        toast.success("Service request sent.");
+        router.back();
+      })
       .catch((e) => {
         toast.error(friendlyError(e, "Could not send request."));
       })

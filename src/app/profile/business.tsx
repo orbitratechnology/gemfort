@@ -35,7 +35,7 @@ import {
     isBusinessProfileSection,
     type BusinessProfileSection,
 } from "@/constants/business-profile-sections";
-import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
+import { reputationBadgeForOwner } from "@/constants/business-reputation";
 import { cityBelongsToCountry } from "@/constants/cities";
 import type { CurrencyCode } from "@/constants/currencies";
 import {
@@ -60,6 +60,7 @@ import {
 } from "@/features/marketplace/marketplace-service";
 import { subscribeBusinessByOwnerUid } from "@/features/workspace/firestore-subscriptions";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { friendlyError } from "@/lib/errors";
 import type { AuthUser } from "@/lib/firebase/auth-types";
@@ -76,7 +77,6 @@ import {
 } from "@/lib/location/profile-location";
 import { parseAmountInput } from "@/lib/money/mask";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
     Business,
@@ -262,14 +262,7 @@ function BusinessProfileForm({
     !!business?.providerProfile;
   const isVerified =
     isBusinessVerified(business) || profile?.verificationStatus === "verified";
-  const businessReputationBadge = business
-    ? businessReputationBadgeForBusiness(business)
-    : "member";
-  const reputationBadge = profile?.recognizedBadge
-    ? "recognized"
-    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
-      ? "identity"
-      : businessReputationBadge;
+  const reputationBadge = reputationBadgeForOwner(profile, business);
   const businessDisplayName = businessName.trim() || "Your Business";
   const showAllSections = section === null;
   const showPhotos = showAllSections || section === "photos";
@@ -343,7 +336,7 @@ function BusinessProfileForm({
     }
   }
 
-  async function handleSave() {
+  const [saving, handleSave] = usePendingAction(async () => {
     if (!canSave) {
       toast.error("Business name and city are required.");
       return;
@@ -363,120 +356,118 @@ function BusinessProfileForm({
     try {
       const nextLogoLocal = logoLocalRef.current;
       const nextCoverLocal = coverLocalRef.current;
-      await withLoading(async () => {
-        const socialLinks = { website, instagram, tiktok, facebook, wechat };
-        let nextLogo = logoUri;
-        let nextCover = coverUri;
+      const socialLinks = { website, instagram, tiktok, facebook, wechat };
+      let nextLogo = logoUri;
+      let nextCover = coverUri;
 
-        if (nextLogoLocal) {
-          nextLogo = await uploadLocalMedia(
-            nextLogoLocal,
-            `businesses/${user.uid}/logo.${extensionForMedia(nextLogoLocal)}`,
+      if (nextLogoLocal) {
+        nextLogo = await uploadLocalMedia(
+          nextLogoLocal,
+          `businesses/${user.uid}/logo.${extensionForMedia(nextLogoLocal)}`,
+        );
+      }
+      if (nextCoverLocal) {
+        nextCover = await uploadLocalMedia(
+          nextCoverLocal,
+          `businesses/${user.uid}/cover.${extensionForMedia(nextCoverLocal)}`,
+        );
+      }
+
+      const stamp = Date.now();
+      const galleryEntries: Business["galleryPhotos"] = await Promise.all(
+        galleryLocal.map(async (item, i) => {
+          const existing = existingGalleryByUrl.get(item.uri);
+          if (existing) {
+            return existing;
+          }
+          const url = await uploadLocalMedia(
+            item,
+            `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
+          );
+          return {
+            photoId: `${stamp}_${i}`,
+            url,
+            type: "work",
+            beforeUrl: null,
+            afterUrl: null,
+            caption: null,
+            uploadedAt: Timestamp.now(),
+          };
+        }),
+      );
+
+      if (business) {
+        await updateBusinessProfile(business.id, {
+          businessName,
+          shortDescription,
+          city,
+          country,
+          address,
+          location,
+          whatsapp,
+          phone,
+          socialLinks,
+          logoUrl: nextLogo,
+          coverPhotoUrl: nextCover,
+          galleryPhotos: galleryEntries,
+          ...(isLapidary
+            ? {
+                lapidaryServiceOfferings: lapidaryOfferingsFromDrafts(
+                  lapidaryServiceDrafts,
+                ),
+              }
+            : {}),
+        });
+      } else {
+        if (!derivedBusinessType) {
+          toast.error(
+            "Create a business profile after registering as Trader or Lapidary.",
+          );
+          return;
+        }
+        const id = await createBusinessProfile(user.uid, {
+          businessName,
+          businessType: derivedBusinessType,
+          city,
+          country,
+          address,
+          location,
+          shortDescription: shortDescription || "Gem business in Beruwala.",
+          whatsapp: whatsapp || undefined,
+          phone: phone || undefined,
+          socialLinks,
+        });
+        const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
+        if (nextLogo) mediaUpdates.logoUrl = nextLogo;
+        if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
+        if (galleryEntries.length > 0) mediaUpdates.galleryPhotos = galleryEntries;
+        if (isLapidary) {
+          mediaUpdates.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
+            lapidaryServiceDrafts,
           );
         }
-        if (nextCoverLocal) {
-          nextCover = await uploadLocalMedia(
-            nextCoverLocal,
-            `businesses/${user.uid}/cover.${extensionForMedia(nextCoverLocal)}`,
-          );
+        if (Object.keys(mediaUpdates).length > 0) {
+          await updateBusinessProfile(id, mediaUpdates);
         }
+      }
 
-        const stamp = Date.now();
-        const galleryEntries: Business["galleryPhotos"] = await Promise.all(
-          galleryLocal.map(async (item, i) => {
-            const existing = existingGalleryByUrl.get(item.uri);
-            if (existing) {
-              return existing;
-            }
-            const url = await uploadLocalMedia(
-              item,
-              `businesses/${user.uid}/gallery/${stamp}_${i}.${extensionForMedia(item)}`,
-            );
-            return {
-              photoId: `${stamp}_${i}`,
-              url,
-              type: "work",
-              beforeUrl: null,
-              afterUrl: null,
-              caption: null,
-              uploadedAt: Timestamp.now(),
-            };
-          }),
-        );
-
-        if (business) {
-          await updateBusinessProfile(business.id, {
-            businessName,
-            shortDescription,
-            city,
-            country,
-            address,
-            location,
-            whatsapp,
-            phone,
-            socialLinks,
-            logoUrl: nextLogo,
-            coverPhotoUrl: nextCover,
-            galleryPhotos: galleryEntries,
-            ...(isLapidary
-              ? {
-                  lapidaryServiceOfferings: lapidaryOfferingsFromDrafts(
-                    lapidaryServiceDrafts,
-                  ),
-                }
-              : {}),
-          });
-        } else {
-          if (!derivedBusinessType) {
-            toast.error(
-              "Create a business profile after registering as Trader or Lapidary.",
-            );
-            return;
-          }
-          const id = await createBusinessProfile(user.uid, {
-            businessName,
-            businessType: derivedBusinessType,
-            city,
-            country,
-            address,
-            location,
-            shortDescription: shortDescription || "Gem business in Beruwala.",
-            whatsapp: whatsapp || undefined,
-            phone: phone || undefined,
-            socialLinks,
-          });
-          const mediaUpdates: Parameters<typeof updateBusinessProfile>[1] = {};
-          if (nextLogo) mediaUpdates.logoUrl = nextLogo;
-          if (nextCover) mediaUpdates.coverPhotoUrl = nextCover;
-          if (galleryEntries.length > 0) mediaUpdates.galleryPhotos = galleryEntries;
-          if (isLapidary) {
-            mediaUpdates.lapidaryServiceOfferings = lapidaryOfferingsFromDrafts(
-              lapidaryServiceDrafts,
-            );
-          }
-          if (Object.keys(mediaUpdates).length > 0) {
-            await updateBusinessProfile(id, mediaUpdates);
-          }
-        }
-
-        coverLocalRef.current = null;
-        logoLocalRef.current = null;
-        setCoverUri(nextCover);
-        setLogoUri(nextLogo);
-        await queryClient.invalidateQueries({ queryKey: ["my-business"] });
-        if (business) {
-          await queryClient.invalidateQueries({
-            queryKey: ["business", business.id],
-          });
-        }
-        toast.success(
-          business ? "Business profile updated." : "Business profile created.",
-        );
-      }, "Saving…");
+      coverLocalRef.current = null;
+      logoLocalRef.current = null;
+      setCoverUri(nextCover);
+      setLogoUri(nextLogo);
+      await queryClient.invalidateQueries({ queryKey: ["my-business"] });
+      if (business) {
+        await queryClient.invalidateQueries({
+          queryKey: ["business", business.id],
+        });
+      }
+      toast.success(
+        business ? "Business profile updated." : "Business profile created.",
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not save."));
     }
-  }
+  });
 
   return (
     <>
@@ -905,6 +896,7 @@ function BusinessProfileForm({
           title={business ? "Save changes" : "Create business profile"}
           icon="shield"
           disabled={!canSave}
+          loading={saving}
           onPress={handleSave}
         />
 

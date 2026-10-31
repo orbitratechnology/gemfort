@@ -47,11 +47,11 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { formatRelativeTime, openPhone, openWhatsApp } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirmDelete } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function ContactDetailScreen() {
@@ -129,29 +129,27 @@ export default function ContactDetailScreen() {
     );
   }
 
-  async function handleSave() {
+  const [saving, handleSave] = usePendingAction(async () => {
     if (!contact || !displayName.trim()) {
       toast.error("Contact name is required.");
       return;
     }
     try {
-      await withLoading(async () => {
-        await updateContact(contact.id, {
-          displayName: displayName.trim(),
-          phone: phone || null,
-          whatsapp: whatsapp || null,
-          email: email || null,
-          contactTypes,
-          notes: notes || null,
-        });
-        await queryClient.invalidateQueries({ queryKey: ["contacts"] });
-        toast.success("Contact updated");
-        setEditing(false);
-      }, "Saving…");
+      await updateContact(contact.id, {
+        displayName: displayName.trim(),
+        phone: phone || null,
+        whatsapp: whatsapp || null,
+        email: email || null,
+        contactTypes,
+        notes: notes || null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success("Contact updated");
+      setEditing(false);
     } catch (e) {
       toast.error(friendlyError(e, "Could not save contact."));
     }
-  }
+  });
 
   function handleDelete() {
     if (!contact) return;
@@ -296,6 +294,7 @@ export default function ContactDetailScreen() {
             <Button
               title="Save Changes"
               icon="check"
+              loading={saving}
               onPress={handleSave}
             />
           </ScreenInset>

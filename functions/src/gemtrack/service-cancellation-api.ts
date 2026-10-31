@@ -6,6 +6,7 @@ import {
 
 import { ApiError } from '../api/errors';
 import { db } from '../admin';
+import { isLiveUid } from '../account/deleted-uid';
 import { ensureDeterministicNotificationDoc } from '../notifications/create';
 import {
   decideServiceCancellationRequest,
@@ -32,6 +33,8 @@ type ServiceDoc = {
   previousGemStatus?: string | null;
   previousOutcome?: string | null;
   cancellationPreviousStatus?: string | null;
+  cancellationDeadline?: Timestamp | null;
+  updatedAt?: Timestamp | null;
   status: string;
 };
 
@@ -41,6 +44,9 @@ export type ServiceCancellationResult = {
 };
 
 type ServiceCancellationAction = 'accepted' | 'rejected';
+
+/** How long a provider has to answer a cancellation request. */
+export const CANCELLATION_RESPONSE_MS = 7 * 24 * 60 * 60 * 1000;
 type ServiceCancellationNotification = {
   recipientUid: string;
   type:
@@ -174,7 +180,13 @@ export async function requestServiceCancellationForApi(
     transaction.update(ref, {
       status: decision.status,
       ...(decision.status === 'cancellation_requested'
-        ? { cancellationPreviousStatus: service.status }
+        ? {
+            cancellationPreviousStatus: service.status,
+            cancellationRequestedAt: now,
+            // An unanswered request auto-cancels after this so a silent
+            // provider cannot keep the owner's gem locked indefinitely.
+            cancellationDeadline: Timestamp.fromMillis(now.toMillis() + CANCELLATION_RESPONSE_MS),
+          }
         : {}),
       updatedAt: now,
     });
@@ -302,4 +314,62 @@ export async function respondServiceCancellationForApi(
   }
 
   return { ok: true, status: result.status };
+}
+
+/**
+ * Cancel service jobs whose cancellation request went unanswered past its
+ * deadline, releasing the gem back to the owner. Run by the daily scheduler;
+ * each job is its own transaction, so a retry only finishes what is left.
+ */
+export async function autoCancelStaleServiceCancellations(now = Timestamp.now()): Promise<number> {
+  const snap = await db
+    .collection('gemtrack_services')
+    .where('status', '==', 'cancellation_requested')
+    .get();
+  let cancelled = 0;
+
+  for (const doc of snap.docs) {
+    const service = doc.data() as ServiceDoc;
+    // Requests made before deadlines existed fall back to their last update.
+    const deadline =
+      service.cancellationDeadline?.toMillis() ??
+      (service.updatedAt?.toMillis() ?? now.toMillis()) + CANCELLATION_RESPONSE_MS;
+    if (deadline > now.toMillis()) continue;
+
+    const done = await db.runTransaction(async (transaction) => {
+      const fresh = await transaction.get(doc.ref);
+      const current = fresh.data() as ServiceDoc | undefined;
+      if (!current || current.status !== 'cancellation_requested') return false;
+      const gemRef = db.collection('gemtrack_gems').doc(current.gemId);
+      const gemSnap = await transaction.get(gemRef);
+      transaction.update(doc.ref, {
+        status: 'cancelled',
+        cancelledBy: 'timeout',
+        updatedAt: now,
+      });
+      const gem = gemSnap.data() as { ownerUid?: string; status?: string; stoneStage?: string; custody?: string } | undefined;
+      if (gemSnap.exists && gem?.ownerUid === current.ownerUid && (isGemLockedByService(gem.status) || isGemLockedByService(gem.custody))) {
+        transaction.update(gemRef, { ...restoredGemFields(current, gem), updatedAt: now });
+      }
+      return true;
+    });
+    if (!done) continue;
+    cancelled += 1;
+
+    const recipients = [service.ownerUid, service.providerUid].filter(isLiveUid);
+    await Promise.all(
+      recipients.map((recipientUid) =>
+        ensureServiceNotification({
+          recipientUid,
+          type: 'service_cancellation_accepted',
+          title: 'Service cancelled',
+          message: 'The cancellation request was not answered within 7 days, so the job was cancelled.',
+          serviceId: doc.id,
+          imageUrl: service.gemPhotoUrl ?? null,
+        }),
+      ),
+    );
+  }
+
+  return cancelled;
 }

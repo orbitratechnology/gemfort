@@ -1,30 +1,61 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useRef, useState } from "react";
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import {
-  FormSection,
-  ScreenInset,
-} from "@/components/ui/form-section";
+  Accent,
+  Callout,
+  DetailBand,
+  DetailHeader,
+  DetailRows,
+  KeyStats,
+  StatusChip,
+  TintHero,
+  TitleBand,
+  detailStyles,
+  useCollapsingHeader,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { BankAvatar } from "@/components/workspace/bank-picker-sheet";
+import {
+  CHEQUE_ACCENT,
+  CHEQUE_STATUS_ACCENT,
+  CHEQUE_STATUS_ICON,
+  ChequePreviewCard,
+} from "@/components/workspace/cheque-preview-card";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
-import { getBankByCode, getBankByName } from "@/constants/sri-lanka-banks";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Palette, Radius, Spacing } from "@/constants/design-tokens";
+import { bankLogo } from "@/constants/bank-logos";
 import { formatGemType } from "@/constants/gem-options";
+import {
+  getBankByCode,
+  getBankByName,
+  type SriLankaBank,
+} from "@/constants/sri-lanka-banks";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
 import {
   CHEQUE_STATUS_LABELS,
+  daysUntilMaturity,
   maturityLabel,
+  toDate,
 } from "@/features/workspace/cheque-utils";
 import {
   subscribeCheque,
@@ -48,53 +79,26 @@ import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import {
   formatDate,
-  formatRelativeDue,
   formatRelativeTime,
   openPhone,
   openWhatsApp,
 } from "@/lib/utils";
 import { confirm } from "@/providers/confirm-bridge";
-import { useIsBusy } from "@/providers/loading-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { Cheque, ChequeStatus } from "@/types";
 
 type StepState = "done" | "active" | "pending" | "overdue";
+type TimelineStep = { key: string; label: string; sub: string; state: StepState };
 
-function chequeStatusMeta(
-  status: ChequeStatus,
-): {
-  label: string;
-  icon: IconName;
-  tone: "neutral" | "warning" | "success" | "error";
-} {
-  switch (status) {
-    case "holding":
-      return { label: "Holding", icon: "schedule", tone: "warning" };
-    case "deposited":
-      return { label: "Deposited", icon: "account-balance", tone: "warning" };
-    case "cleared":
-      return { label: "Cleared", icon: "check-circle", tone: "success" };
-    case "bounced":
-      return { label: "Bounced", icon: "error-outline", tone: "error" };
-    case "replaced":
-      return { label: "Replaced", icon: "swap-horiz", tone: "neutral" };
-    case "cancelled":
-      return { label: "Cancelled", icon: "cancel", tone: "neutral" };
-    default:
-      return { label: CHEQUE_STATUS_LABELS[status], icon: "cheque", tone: "neutral" };
-  }
-}
+/** Estimated cheque height until the hero card reports its real size. */
+const INITIAL_CARD_HEIGHT = 236;
 
-function chequeTimelineSteps(
-  cheque: Cheque,
-): { key: string; label: string; sub: string; state: StepState }[] {
+function chequeTimelineSteps(cheque: Cheque): TimelineStep[] {
   const status = cheque.status;
   const cleared = status === "cleared";
   const bounced = status === "bounced";
   const cancelled = status === "cancelled" || status === "replaced";
-  const deposited =
-    status === "deposited" || cleared || bounced;
+  const deposited = status === "deposited" || cleared || bounced;
   const holdingActive = status === "holding";
 
   return [
@@ -147,15 +151,226 @@ function chequeTimelineSteps(
   ];
 }
 
+/** Headline callout under the title: what the cheque is waiting on. */
+function statusCallout(cheque: Cheque): {
+  icon: IconName;
+  accent: string;
+  label: string;
+  value: string;
+  pill?: string | null;
+} {
+  const maturity = toDate(cheque.maturityDate);
+  const shortMaturity = maturity ? format(maturity, "d MMM") : null;
+  switch (cheque.status) {
+    case "holding": {
+      const days = daysUntilMaturity(cheque);
+      if (days > 0) {
+        return {
+          icon: "event",
+          accent: CHEQUE_ACCENT,
+          label: "Matures",
+          value: maturityLabel(cheque),
+          pill: shortMaturity,
+        };
+      }
+      if (days === 0) {
+        return {
+          icon: "event-available",
+          accent: CHEQUE_ACCENT,
+          label: "Maturity",
+          value: "Matures today",
+        };
+      }
+      return {
+        icon: "event-busy",
+        accent: CHEQUE_ACCENT,
+        label: "Matured · awaiting deposit",
+        value: maturityLabel(cheque),
+        pill: shortMaturity,
+      };
+    }
+    case "deposited":
+      return {
+        icon: "account-balance",
+        accent: Accent.blue,
+        label: "Deposited · awaiting clearance",
+        value: cheque.depositedDate
+          ? formatRelativeTime(cheque.depositedDate)
+          : "With the bank",
+      };
+    case "cleared":
+      return {
+        icon: "check-circle",
+        accent: Accent.emerald,
+        label: "Cleared",
+        value: cheque.clearedDate
+          ? formatRelativeTime(cheque.clearedDate)
+          : "Funds received",
+      };
+    case "bounced":
+      return {
+        icon: "error-outline",
+        accent: Accent.rose,
+        label: "Bounced",
+        value: cheque.bouncedReason?.trim() || "Did not clear",
+      };
+    default:
+      return {
+        icon: CHEQUE_STATUS_ICON[cheque.status],
+        accent: Accent.slate,
+        label: CHEQUE_STATUS_LABELS[cheque.status],
+        value: "No longer pending",
+      };
+  }
+}
+
+function ChequeTimeline({
+  steps,
+  activeAccent,
+  doneAccent,
+}: {
+  steps: TimelineStep[];
+  activeAccent: string;
+  doneAccent: string;
+}) {
+  const { colors } = useAppTheme();
+  const toneFor = (state: StepState) =>
+    state === "overdue"
+      ? Accent.rose
+      : state === "active"
+        ? activeAccent
+        : state === "done"
+          ? doneAccent
+          : colors.outlineVariant;
+
+  return (
+    <View>
+      {steps.map((step, i) => {
+        const reached = step.state !== "pending";
+        const tone = toneFor(step.state);
+        const next = steps[i + 1];
+        const isLast = !next;
+        return (
+          <View key={step.key} style={styles.stepRow}>
+            <View style={styles.stepRail}>
+              <View
+                style={[
+                  styles.stepDot,
+                  reached
+                    ? { backgroundColor: tone }
+                    : {
+                        backgroundColor: colors.surfaceContainerLowest,
+                        borderWidth: 2,
+                        borderColor: colors.outlineVariant,
+                      },
+                ]}
+              >
+                {step.state === "done" ? (
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                ) : step.state === "active" ? (
+                  <View style={styles.stepPulse} />
+                ) : step.state === "overdue" ? (
+                  <Icon name="priority-high" size={14} color="#FFFFFF" />
+                ) : null}
+              </View>
+              {!isLast ? (
+                <View
+                  style={[
+                    styles.stepLine,
+                    {
+                      backgroundColor:
+                        next.state !== "pending"
+                          ? toneFor(next.state)
+                          : colors.outlineVariant,
+                    },
+                  ]}
+                />
+              ) : null}
+            </View>
+            <View style={[styles.stepBody, !isLast && styles.stepBodySpaced]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  {
+                    color:
+                      step.state === "overdue"
+                        ? Accent.rose
+                        : reached
+                          ? colors.onSurface
+                          : colors.textMuted,
+                  },
+                ]}
+              >
+                {step.label}
+              </Text>
+              <Text
+                style={[styles.stepSub, { color: colors.onSurfaceVariant }]}
+                selectable={false}
+              >
+                {step.sub}
+              </Text>
+            </View>
+            {step.state === "active" ? (
+              <StatusChip label="Now" accent={tone} size="sm" />
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Smallest bundled logo worth enlarging; smaller ones would blur. */
+const HERO_LOGO_MIN_SOURCE_PX = 128;
+
+/**
+ * The bank's logo in place of the hero's status tint and halos. Covers the
+ * tint only once a logo big enough to enlarge has loaded, so a bank without
+ * one keeps the tinted hero.
+ */
+function BankHeroBackdrop({ bank }: { bank: SriLankaBank }) {
+  const { colors } = useAppTheme();
+  const logo = bankLogo(bank);
+  const [ready, setReady] = useState(false);
+  if (!logo) return null;
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.heroBackdrop,
+        { backgroundColor: colors.background, opacity: ready ? 1 : 0 },
+      ]}
+    >
+      <Image
+        source={logo}
+        style={styles.heroLogo}
+        contentFit="contain"
+        onLoad={(e) => setReady(e.source.width >= HERO_LOGO_MIN_SOURCE_PX)}
+      />
+    </View>
+  );
+}
+
 export default function ChequeDetailScreen() {
   const { chequeId } = useLocalSearchParams<{ chequeId: string }>();
   const { colors } = useAppTheme();
   const { formatStored } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const busy = useIsBusy();
+  const insets = useSafeAreaInsets();
+  // Status update in flight, so only the tapped action spins.
+  const [pendingStatus, setPendingStatus] = useState<ChequeStatus | null>(
+    null,
+  );
+  const pendingRef = useRef(false);
+  const busy = pendingStatus !== null;
   const [bounceReason, setBounceReason] = useState("");
   const [showBounceForm, setShowBounceForm] = useState(false);
+  const [cardHeight, setCardHeight] = useState(INITIAL_CARD_HEIGHT);
+  // Hero = status bar + header clearance + cheque + room for the title band.
+  const heroHeight = insets.top + 112 + cardHeight;
+  const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
 
   const { data: cheque, isLoading } = useFirestoreLiveQuery({
     queryKey: ["cheque", chequeId],
@@ -235,25 +450,28 @@ export default function ChequeDetailScreen() {
   }
 
   async function applyStatus(status: ChequeStatus, reason?: string) {
-    if (!cheque) return;
+    if (!cheque || pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingStatus(status);
     try {
-      await withLoading(async () => {
-        await updateChequeStatus(
-          cheque.id,
-          status,
-          reason ? { bouncedReason: reason } : undefined,
-        );
-        await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-        await queryClient.invalidateQueries({
-          queryKey: ["cheque", chequeId],
-        });
-        await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        toast.success(
-          `Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`,
-        );
-      }, "Updating…");
+      await updateChequeStatus(
+        cheque.id,
+        status,
+        reason ? { bouncedReason: reason } : undefined,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["cheque", chequeId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(
+        `Cheque marked as ${CHEQUE_STATUS_LABELS[status].toLowerCase()}.`,
+      );
     } catch (e) {
       toast.error(friendlyError(e, "Could not update status."));
+    } finally {
+      pendingRef.current = false;
+      setPendingStatus(null);
     }
   }
 
@@ -270,11 +488,18 @@ export default function ChequeDetailScreen() {
     });
   }
 
+  function handleCardLayout(e: LayoutChangeEvent) {
+    const next = Math.ceil(e.nativeEvent.layout.height);
+    setCardHeight((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+  }
+
   if (isLoading || !cheque) {
     return (
-      <SafeAreaView
-        style={[styles.safe, { backgroundColor: colors.background }]}
-        edges={["top"]}
+      <View
+        style={[
+          styles.safe,
+          { backgroundColor: colors.background, paddingTop: insets.top },
+        ]}
       >
         <StackHeader title="Cheque" />
         <View style={styles.center}>
@@ -282,7 +507,7 @@ export default function ChequeDetailScreen() {
             {isLoading ? "Loading…" : "Cheque not found."}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -291,10 +516,18 @@ export default function ChequeDetailScreen() {
     cheque.status === "holding" || cheque.status === "deposited";
   const isReceived = cheque.direction === "received";
   const directionLabel = isReceived ? "Taken" : "Given";
-  const meta = chequeStatusMeta(cheque.status);
+  // Pending cheques wear cheque blue here rather than the shared amber.
+  const statusAccent =
+    cheque.status === "holding"
+      ? CHEQUE_ACCENT
+      : CHEQUE_STATUS_ACCENT[cheque.status];
+  const isClosed =
+    cheque.status === "cancelled" || cheque.status === "replaced";
   const steps = chequeTimelineSteps(cheque);
+  const callout = statusCallout(cheque);
   const bank =
     getBankByCode(cheque.bankCode) ?? getBankByName(cheque.bankName) ?? null;
+  const bankLabel = cheque.bankName || bank?.name || "Bank";
   const amountLabel = formatStored({
     amount: cheque.amount,
     currency: cheque.currency,
@@ -306,23 +539,6 @@ export default function ChequeDetailScreen() {
     (gem ? formatGemType(gem.gemType) : null) ||
     (cheque.gemId ? `Gem · ${cheque.gemId.slice(0, 8)}` : null);
 
-  const toneColor =
-    meta.tone === "success"
-      ? colors.successEmerald
-      : meta.tone === "error"
-        ? colors.error
-        : meta.tone === "warning"
-          ? colors.warningAmber
-          : colors.onSurfaceVariant;
-  const toneBg =
-    meta.tone === "success"
-      ? colors.successEmerald + "18"
-      : meta.tone === "error"
-        ? colors.errorContainer
-        : meta.tone === "warning"
-          ? colors.warningAmber + "18"
-          : colors.surfaceContainerHighest;
-
   const phone = contact?.phone?.trim() || null;
   const whatsapp =
     contact?.whatsapp?.trim() || contact?.phone?.trim() || null;
@@ -330,37 +546,32 @@ export default function ChequeDetailScreen() {
   const allStatusActions: {
     status: ChequeStatus;
     label: string;
-    sub: string;
     icon: IconName;
-    tone: "primary" | "danger";
+    tone: "primary" | "danger" | "neutral";
   }[] = [
     {
       status: "deposited",
       label: "Mark deposited",
-      sub: "Sent to the bank",
       icon: "account-balance",
       tone: "primary",
     },
     {
       status: "cleared",
       label: "Mark cleared",
-      sub: "Funds received",
       icon: "check-circle",
       tone: "primary",
     },
     {
       status: "bounced",
       label: "Mark bounced",
-      sub: "Did not clear",
-      icon: "cancel",
+      icon: "error-outline",
       tone: "danger",
     },
     {
       status: "cancelled",
       label: "Cancel cheque",
-      sub: "Void this record",
       icon: "cancel",
-      tone: "danger",
+      tone: "neutral",
     },
   ];
   const directionalStatus = isReceived
@@ -375,876 +586,468 @@ export default function ChequeDetailScreen() {
       a.status === directionalStatus ||
       (isPending && (a.status === "bounced" || a.status === "cancelled")),
   );
+  const primaryAction = statusActions.find((a) => a.tone === "primary");
+  const secondaryActions = statusActions.filter((a) => a.tone !== "primary");
 
-  return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title={directionLabel} />
+  const hasActionBar = (isPending && statusActions.length > 0) || isBounced;
+  const bottomBarPad = Math.max(insets.bottom, 12);
+  const actionRows =
+    isPending && primaryAction && secondaryActions.length ? 2 : 1;
+  const scrollBottomPad = hasActionBar
+    ? Spacing.md + actionRows * 50 + (actionRows - 1) * Spacing.sm +
+      bottomBarPad + 32
+    : 48;
 
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        {/* Hero */}
-        <ScreenInset>
-          <Animated.View entering={FadeIn.duration(280)} style={styles.hero}>
-            <View style={[styles.statusPill, { backgroundColor: toneBg }]}>
-              <Icon name={meta.icon} size={14} color={toneColor} />
-              <Text style={[styles.statusPillText, { color: toneColor }]}>
-                {meta.label}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.amount,
-                {
-                  color: isBounced ? colors.error : colors.primary,
-                },
-              ]}
-              selectable={false}
-            >
-              {amountLabel}
-            </Text>
-            <Text style={[styles.amountMeta, { color: colors.textMuted }]}>
-              {maturityLabel(cheque)}
-              {cheque.chequeNumber ? ` · No. ${cheque.chequeNumber}` : ""}
-            </Text>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Bank ↔ Party (left-to-right relation) */}
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(60).duration(320)}
-            style={styles.relation}
-          >
-            <View style={styles.partySide}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.partyBlock,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => {
-                  if (cheque.counterpartyContactId) {
-                    router.push(
-                      `/(marketplace)/(tabs)/workspace/contacts/${cheque.counterpartyContactId}` as never,
-                    );
-                  }
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Open contact ${contactName}`}
-              >
-                <ContactAvatar
-                  name={contactName}
-                  photoUrl={contactPhoto}
-                  size={88}
-                />
-                <Text
-                  style={[styles.partyName, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {contactName}
-                </Text>
-                <Text style={[styles.partyRole, { color: colors.textMuted }]}>
-                  {isReceived ? "Cheque from them" : "Cheque you gave"}
-                </Text>
-              </Pressable>
-
-              {phone || whatsapp ? (
-                <View style={styles.partyActions}>
-                  {phone ? (
-                    <Pressable
-                      onPress={() => void Linking.openURL(openPhone(phone))}
-                      style={[
-                        styles.roundBtn,
-                        { backgroundColor: colors.primary },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Call contact"
-                    >
-                      <Icon name="call" size={18} color={colors.onPrimary} />
-                    </Pressable>
-                  ) : null}
-                  {whatsapp ? (
-                    <Pressable
-                      onPress={() =>
-                        void Linking.openURL(openWhatsApp(whatsapp))
-                      }
-                      style={[styles.roundBtn, { backgroundColor: "#25D366" }]}
-                      accessibilityRole="button"
-                      accessibilityLabel="WhatsApp contact"
-                    >
-                      <Icon name="whatsapp" size={18} color="#FFFFFF" />
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-
-            <View
-              style={[
-                styles.relationMid,
-                isReceived && styles.relationMidReverse,
-              ]}
-              pointerEvents="none"
-            >
-              <View
-                style={[
-                  styles.relationLine,
-                  { backgroundColor: colors.outlineVariant },
-                ]}
-              />
-              <View
-                style={[
-                  styles.directionBadge,
-                  {
-                    backgroundColor: isBounced
-                      ? colors.errorContainer
-                      : colors.primaryContainer,
-                    borderColor: colors.background,
-                  },
-                ]}
-              >
-                <Icon
-                  name={isReceived ? "call-received" : "call-made"}
-                  size={16}
-                  color={
-                    isBounced ? colors.error : colors.onPrimaryContainer
-                  }
-                />
-                <Text
-                  style={[
-                    styles.directionBadgeText,
-                    {
-                      color: isBounced
-                        ? colors.error
-                        : colors.onPrimaryContainer,
-                    },
-                  ]}
-                >
-                  {directionLabel}
-                </Text>
-              </View>
-              <Icon
-                name={isReceived ? "keyboard-arrow-left" : "keyboard-arrow-right"}
-                size={22}
-                color={colors.outline}
-              />
-            </View>
-
-            <View style={styles.bankBlock}>
-              {bank ? (
-                <BankAvatar bank={bank} size={64} />
-              ) : (
-                <View
-                  style={[
-                    styles.bankPlaceholder,
-                    { backgroundColor: colors.surfaceContainerHigh },
-                  ]}
-                >
-                  <Icon
-                    name="account-balance"
-                    size={28}
-                    color={colors.outline}
-                  />
-                </View>
-              )}
-              <Text
-                style={[styles.bankName, { color: colors.onSurface }]}
-                numberOfLines={2}
-              >
-                {cheque.bankName || bank?.name || "Bank"}
-              </Text>
-              {cheque.branch ? (
-                <Text
-                  style={[styles.bankBranch, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {cheque.branch}
-                </Text>
-              ) : null}
-            </View>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Paper cheque card */}
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(100).duration(300)}
-            style={[
-              styles.chequeCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: isBounced
-                  ? colors.error + "55"
-                  : colors.outlineVariant,
-              },
-            ]}
-          >
-            <View style={styles.chequeTop}>
-              <View style={styles.chequeBankRow}>
-                {bank ? (
-                  <BankAvatar bank={bank} size={40} />
-                ) : (
-                  <View
-                    style={[
-                      styles.bankPlaceholderSm,
-                      { backgroundColor: colors.surfaceContainerHigh },
-                    ]}
-                  >
-                    <Icon
-                      name="account-balance"
-                      size={18}
-                      color={colors.outline}
-                    />
-                  </View>
-                )}
-                <View style={styles.chequeBankText}>
-                  <Text
-                    style={[styles.chequeBankName, { color: colors.onSurface }]}
-                    numberOfLines={1}
-                  >
-                    {cheque.bankName}
-                  </Text>
-                  <Text
-                    style={[styles.microLabel, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {cheque.branch || "Branch"}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.chequeMeta}>
-                <Text
-                  style={[styles.microLabel, { color: colors.textMuted }]}
-                >
-                  No.
-                </Text>
-                <Text
-                  style={[styles.chequeNo, { color: colors.onSurface }]}
-                  selectable={false}
-                >
-                  {cheque.chequeNumber || "—"}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.chequeLine}>
-              <Text style={[styles.microLabel, { color: colors.textMuted }]}>
-                {isReceived ? "From" : "Pay to"}
-              </Text>
-              <Text
-                style={[
-                  styles.chequeLineValue,
-                  {
-                    color: colors.onSurface,
-                    borderBottomColor: colors.outlineVariant,
-                  },
-                ]}
-                selectable={false}
-                numberOfLines={1}
-              >
-                {cheque.issuedBy}
-              </Text>
-            </View>
-
-            <View style={styles.chequeBottom}>
-              <View
-                style={[
-                  styles.amountBox,
-                  {
-                    backgroundColor: colors.surfaceContainerLow,
-                    borderColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <Text style={[styles.microLabel, { color: colors.textMuted }]}>
-                  Amount
-                </Text>
-                <Text
-                  style={[
-                    styles.amountBoxValue,
-                    { color: isBounced ? colors.error : colors.onSurface },
-                  ]}
-                  selectable={false}
-                  numberOfLines={1}
-                >
-                  {amountLabel}
-                </Text>
-              </View>
-              <View style={styles.maturityBlock}>
-                <Text style={[styles.microLabel, { color: colors.textMuted }]}>
-                  Matures
-                </Text>
-                <Text
-                  style={[styles.maturityValue, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {formatRelativeDue(cheque.maturityDate)}
-                </Text>
-                <Text
-                  style={[styles.maturityDate, { color: colors.textMuted }]}
-                >
-                  {formatDate(cheque.maturityDate)}
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-        </ScreenInset>
-
-        {/* Timeline */}
-        <FormSection title="Timeline">
-          <View style={styles.timeline}>
-            {steps.map((step, i) => {
-              const active = step.state === "active";
-              const done = step.state === "done";
-              const overdue = step.state === "overdue";
-              const filled = done || active || overdue;
-              const nextFilled =
-                i < steps.length - 1 &&
-                (steps[i + 1]!.state === "done" ||
-                  steps[i + 1]!.state === "active" ||
-                  steps[i + 1]!.state === "overdue");
-              const dotColor = overdue
-                ? colors.error
-                : done || active
-                  ? colors.primary
-                  : colors.surfaceVariant;
-              const labelColor = overdue
-                ? colors.error
-                : done || active
-                  ? colors.primary
-                  : colors.textMuted;
-
-              return (
-                <Animated.View
-                  key={step.key}
-                  entering={FadeInDown.delay(80 + i * 50).duration(280)}
-                  style={styles.timelineRow}
-                >
-                  <View style={styles.timelineRail}>
-                    <View
-                      style={[
-                        styles.timelineDot,
-                        {
-                          backgroundColor: dotColor,
-                          borderColor: colors.surfaceContainerLowest,
-                        },
-                      ]}
-                    >
-                      {done ? (
-                        <Icon name="check" size={12} color={colors.onPrimary} />
-                      ) : null}
-                      {active ? (
-                        <View
-                          style={[
-                            styles.pulse,
-                            { backgroundColor: colors.onPrimary },
-                          ]}
-                        />
-                      ) : null}
-                      {overdue ? (
-                        <Icon
-                          name="priority-high"
-                          size={12}
-                          color={colors.onError}
-                        />
-                      ) : null}
-                    </View>
-                    {i < steps.length - 1 ? (
-                      <View
-                        style={[
-                          styles.timelineConnector,
-                          {
-                            backgroundColor:
-                              nextFilled || filled
-                                ? overdue ||
-                                  steps[i + 1]?.state === "overdue"
-                                  ? colors.error
-                                  : colors.primary
-                                : colors.outlineVariant,
-                            opacity: nextFilled ? 1 : filled ? 0.45 : 1,
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.timelineCard,
-                      {
-                        backgroundColor:
-                          active || overdue
-                            ? toneBg
-                            : colors.surfaceContainerLow,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.timelineLabel, { color: labelColor }]}>
-                      {step.label}
-                    </Text>
-                    <Text
-                      style={[styles.timelineSub, { color: colors.textMuted }]}
-                      selectable={false}
-                    >
-                      {step.sub}
-                    </Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </View>
-        </FormSection>
-
-        {cheque.photoUrl ? (
-          <FormSection title="Photo" padded={false}>
-            <Animated.View
-              entering={FadeInDown.delay(160).duration(280)}
-              style={styles.photoWrap}
-            >
-              <Image
-                source={{ uri: cheque.photoUrl }}
-                style={styles.photo}
-                contentFit="contain"
-                recyclingKey={cheque.photoUrl}
-                accessibilityLabel="Cheque photo"
-              />
-            </Animated.View>
-          </FormSection>
-        ) : null}
-
-        {gemTitle && cheque.gemId ? (
-          <ScreenInset>
-            <Pressable
-              onPress={() =>
-                router.push(
-                  `/(marketplace)/(tabs)/workspace/gems/${cheque.gemId}` as never,
-                )
-              }
-              style={({ pressed }) => [
-                styles.gemLink,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                  opacity: pressed ? 0.88 : 1,
-                },
-              ]}
-              accessibilityRole="link"
-              accessibilityLabel={`Open gem ${gemTitle}`}
-            >
+  const detailRows: ({ key: string } & DetailRowProps)[] = [
+    {
+      key: "bank",
+      leading: bank ? <BankAvatar bank={bank} size={34} /> : undefined,
+      icon: "account-balance",
+      accent: Accent.blue,
+      label: "Bank",
+      value: bankLabel,
+    },
+    ...(cheque.branch
+      ? [
+          {
+            key: "branch",
+            icon: "place" as IconName,
+            label: "Branch",
+            value: cheque.branch,
+          },
+        ]
+      : []),
+    {
+      key: "name",
+      icon: "person",
+      label: isReceived ? "From" : "Pay to",
+      hint: "Name on cheque",
+      value: cheque.issuedBy || "—",
+    },
+    ...(cheque.depositedDate
+      ? [
+          {
+            key: "deposited",
+            icon: "account-balance" as IconName,
+            accent: Accent.blue,
+            label: "Deposited",
+            value: formatDate(cheque.depositedDate),
+          },
+        ]
+      : []),
+    ...(cheque.clearedDate
+      ? [
+          {
+            key: "cleared",
+            icon: "check-circle" as IconName,
+            accent: Accent.emerald,
+            label: "Cleared",
+            value: formatDate(cheque.clearedDate),
+          },
+        ]
+      : []),
+    ...(gemTitle && cheque.gemId
+      ? [
+          {
+            key: "gem",
+            leading: (
               <GemThumb
                 uri={gemPrimaryPhotoUrl(gem)}
                 label={gemTitle}
-                size={48}
-                radius={12}
+                size={34}
+                radius={10}
               />
-              <View style={styles.gemLinkBody}>
+            ),
+            label: "Linked gem",
+            value: gemTitle,
+            onPress: () =>
+              router.push(
+                `/(marketplace)/(tabs)/workspace/gems/${cheque.gemId}` as never,
+              ),
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <ThemedScrollView
+        contentContainerStyle={{ paddingBottom: scrollBottomPad }}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+      >
+        <TintHero
+          accent={statusAccent}
+          height={heroHeight}
+          backdrop={bank ? <BankHeroBackdrop key={bank.code} bank={bank} /> : null}
+        >
+          <View style={styles.heroCardWrap}>
+            <View onLayout={handleCardLayout}>
+              <ChequePreviewCard
+                direction={cheque.direction}
+                chequeNumber={cheque.chequeNumber}
+                bankName={cheque.bankName}
+                bankCode={cheque.bankCode}
+                branch={cheque.branch}
+                amount={String(cheque.amount)}
+                amountLabel={amountLabel}
+                issuedBy={cheque.issuedBy}
+                maturityDateLabel={formatDate(cheque.maturityDate)}
+              />
+            </View>
+          </View>
+        </TintHero>
+
+        <TitleBand
+          overlapHero
+          chips={
+            <>
+              <StatusChip
+                label={CHEQUE_STATUS_LABELS[cheque.status]}
+                accent={statusAccent}
+              />
+              <StatusChip label={directionLabel} accent={Accent.teal} />
+            </>
+          }
+          title={amountLabel}
+          subtitle={`${isReceived ? "From" : "To"} ${contactName}`}
+        >
+          <KeyStats
+            items={[
+              {
+                label: "Matures",
+                value: formatDate(cheque.maturityDate),
+                sub: maturityLabel(cheque),
+              },
+              { label: "Issued", value: formatDate(cheque.issueDate) },
+              { label: "Cheque no.", value: cheque.chequeNumber || "—" },
+            ]}
+          />
+          <Callout
+            icon={callout.icon}
+            accent={callout.accent}
+            label={callout.label}
+            value={callout.value}
+            pill={callout.pill}
+          />
+        </TitleBand>
+
+        <DetailBand title="Progress">
+          <ChequeTimeline
+            steps={steps}
+            activeAccent={statusAccent}
+            doneAccent={isClosed ? Accent.slate : Accent.emerald}
+          />
+        </DetailBand>
+
+        <DetailBand title="Counterparty">
+          <View style={styles.partyRow}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.partyMain,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => {
+                if (cheque.counterpartyContactId) {
+                  router.push(
+                    `/(marketplace)/(tabs)/workspace/contacts/${cheque.counterpartyContactId}` as never,
+                  );
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Open contact ${contactName}`}
+            >
+              <ContactAvatar
+                name={contactName}
+                photoUrl={contactPhoto}
+                size={48}
+              />
+              <View style={styles.partyText}>
                 <Text
-                  style={[styles.gemLinkTitle, { color: colors.onSurface }]}
+                  style={[styles.partyName, { color: colors.onSurface }]}
                   numberOfLines={1}
                 >
-                  {gemTitle}
+                  {contactName}
                 </Text>
-                <Text style={[styles.gemLinkSub, { color: colors.textMuted }]}>
-                  Linked gem
+                <Text
+                  style={[styles.partyRole, { color: colors.onSurfaceVariant }]}
+                  numberOfLines={1}
+                >
+                  {isReceived ? "Cheque from them" : "Cheque you gave"}
                 </Text>
               </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
+              {!phone && !whatsapp ? (
+                <Icon name="chevron-right" size={20} color={colors.outline} />
+              ) : null}
             </Pressable>
-          </ScreenInset>
+            {phone ? (
+              <Pressable
+                onPress={() => void Linking.openURL(openPhone(phone))}
+                style={({ pressed }) => [
+                  styles.roundBtn,
+                  { backgroundColor: `${Accent.blue}1F` },
+                  pressed && styles.pressed,
+                ]}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="Call contact"
+              >
+                <Icon name="call" size={20} color={Accent.blue} />
+              </Pressable>
+            ) : null}
+            {whatsapp ? (
+              <Pressable
+                onPress={() => void Linking.openURL(openWhatsApp(whatsapp))}
+                style={({ pressed }) => [
+                  styles.roundBtn,
+                  { backgroundColor: `${Palette.whatsapp}1F` },
+                  pressed && styles.pressed,
+                ]}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="WhatsApp contact"
+              >
+                <Icon name="whatsapp" size={20} color={Palette.whatsapp} />
+              </Pressable>
+            ) : null}
+          </View>
+        </DetailBand>
+
+        <DetailBand title="Cheque details">
+          <DetailRows rows={detailRows} />
+        </DetailBand>
+
+        {cheque.photoUrl ? (
+          <DetailBand title="Photo">
+            <Image
+              source={{ uri: cheque.photoUrl }}
+              style={[
+                styles.photo,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+              contentFit="contain"
+              recyclingKey={cheque.photoUrl}
+              accessibilityLabel="Cheque photo"
+            />
+          </DetailBand>
         ) : null}
 
         {cheque.notes ? (
-          <FormSection title="Notes">
+          <DetailBand title="Notes">
             <Text
               style={[styles.notes, { color: colors.onSurfaceVariant }]}
               selectable={false}
             >
               {cheque.notes}
             </Text>
-          </FormSection>
-        ) : null}
-
-        {showBounceForm ? (
-          <FormSection title="Bounce reason">
-            <Input
-              label="Why did it bounce?"
-              value={bounceReason}
-              onChangeText={setBounceReason}
-              placeholder="Insufficient funds, signature mismatch…"
-              leftIcon="notes"
-            />
-            <View style={styles.bounceActions}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => setShowBounceForm(false)}
-              />
-              <Button
-                title="Confirm bounce"
-                icon="cancel"
-                onPress={() => {
-                  if (!bounceReason.trim()) {
-                    toast.error("Enter a reason for the bounce.");
-                    return;
-                  }
-                  void applyStatus("bounced", bounceReason).then(() =>
-                    setShowBounceForm(false),
-                  );
-                }}
-              />
-            </View>
-          </FormSection>
-        ) : null}
-
-        {isPending && !showBounceForm ? (
-          <ScreenInset style={styles.bottomActions}>
-            {statusActions.map((a, i) => (
-              <Animated.View
-                key={a.status}
-                entering={FadeInDown.delay(180 + i * 40).duration(260)}
-              >
-                <Pressable
-                  onPress={() => handleStatus(a.status)}
-                  disabled={busy}
-                  style={({ pressed }) => [
-                    styles.actionBtn,
-                    {
-                      backgroundColor: colors.surfaceContainerLowest,
-                      borderColor:
-                        a.tone === "danger" ? colors.error : colors.primary,
-                      opacity: pressed || busy ? 0.85 : 1,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={a.label}
-                >
-                  <View
-                    style={[
-                      styles.actionIconWrap,
-                      {
-                        backgroundColor:
-                          a.tone === "danger"
-                            ? colors.errorContainer
-                            : colors.primary + "22",
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={a.icon}
-                      size={20}
-                      color={
-                        a.tone === "danger" ? colors.error : colors.primary
-                      }
-                    />
-                  </View>
-                  <View style={styles.actionTextCol}>
-                    <Text
-                      style={[
-                        styles.actionTitle,
-                        {
-                          color:
-                            a.tone === "danger"
-                              ? colors.error
-                              : colors.onSurface,
-                        },
-                      ]}
-                    >
-                      {a.label}
-                    </Text>
-                    <Text
-                      style={[styles.actionSub, { color: colors.textMuted }]}
-                    >
-                      {a.sub}
-                    </Text>
-                  </View>
-                </Pressable>
-              </Animated.View>
-            ))}
-          </ScreenInset>
-        ) : null}
-
-        {isBounced ? (
-          <ScreenInset>
-            <Pressable
-              onPress={handleReplace}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.primary,
-                  opacity: pressed ? 0.88 : 1,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Add replacement cheque"
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: colors.primary + "22" },
-                ]}
-              >
-                <Icon name="swap-horiz" size={20} color={colors.primary} />
-              </View>
-              <View style={styles.actionTextCol}>
-                <Text
-                  style={[styles.actionTitle, { color: colors.onSurface }]}
-                >
-                  Add replacement
-                </Text>
-                <Text style={[styles.actionSub, { color: colors.textMuted }]}>
-                  Issue a new cheque for the same amount
-                </Text>
-              </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
-            </Pressable>
-          </ScreenInset>
+          </DetailBand>
         ) : null}
       </ThemedScrollView>
-    </SafeAreaView>
+
+      <DetailHeader
+        title={`${directionLabel} cheque`}
+        solid={headerSolid}
+      />
+
+      {hasActionBar ? (
+        <View
+          style={[
+            detailStyles.actionBar,
+            styles.actionBarStack,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.outlineVariant,
+              paddingBottom: bottomBarPad,
+            },
+          ]}
+        >
+          {isPending ? (
+            <>
+              {primaryAction ? (
+                <Button
+                  title={primaryAction.label}
+                  icon={primaryAction.icon}
+                  loading={pendingStatus === primaryAction.status}
+                  disabled={busy}
+                  onPress={() => void handleStatus(primaryAction.status)}
+                  accessibilityState={{
+                    disabled: busy,
+                    busy: pendingStatus === primaryAction.status,
+                  }}
+                />
+              ) : null}
+              {secondaryActions.length ? (
+                <View style={styles.actionRow}>
+                  {secondaryActions.map((a) => {
+                    const tint =
+                      a.tone === "danger"
+                        ? Accent.rose
+                        : colors.onSurfaceVariant;
+                    return (
+                      <Button
+                        key={a.status}
+                        title={a.label}
+                        icon={a.icon}
+                        variant="secondary"
+                        iconColor={tint}
+                        textStyle={{ color: tint }}
+                        loading={pendingStatus === a.status}
+                        disabled={busy}
+                        onPress={() => void handleStatus(a.status)}
+                        style={[
+                          styles.actionBtn,
+                          { borderColor: colors.outlineVariant },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Button
+              title="Add replacement"
+              icon="swap-horiz"
+              onPress={handleReplace}
+              accessibilityLabel="Add replacement cheque"
+              accessibilityHint="Issue a new cheque for the same amount"
+            />
+          )}
+        </View>
+      ) : null}
+
+      <BottomSheet
+        visible={showBounceForm}
+        onClose={() => {
+          if (!busy) setShowBounceForm(false);
+        }}
+        title="Mark bounced"
+        footer={
+          <View style={styles.actionRow}>
+            <Button
+              title="Cancel"
+              variant="ghost"
+              disabled={busy}
+              onPress={() => setShowBounceForm(false)}
+              style={styles.actionBtn}
+            />
+            <Button
+              title="Confirm bounce"
+              icon="error-outline"
+              variant="destructive"
+              loading={pendingStatus === "bounced"}
+              onPress={() => {
+                if (!bounceReason.trim()) {
+                  toast.error("Enter a reason for the bounce.");
+                  return;
+                }
+                void applyStatus("bounced", bounceReason).then(() =>
+                  setShowBounceForm(false),
+                );
+              }}
+              style={styles.actionBtn}
+            />
+          </View>
+        }
+      >
+        <Callout
+          icon="error-outline"
+          accent={Accent.rose}
+          label={`No. ${cheque.chequeNumber || "—"} · ${bankLabel}`}
+          value={amountLabel}
+          style={styles.sheetCallout}
+        />
+        <DetailRows
+          rows={[
+            {
+              key: "party",
+              icon: "person",
+              label: isReceived ? "From" : "Pay to",
+              value: contactName,
+            },
+            {
+              key: "maturity",
+              icon: "event",
+              label: "Matures",
+              value: formatDate(cheque.maturityDate),
+            },
+          ]}
+        />
+        <Input
+          label="Why did it bounce?"
+          value={bounceReason}
+          onChangeText={setBounceReason}
+          placeholder="Insufficient funds, signature mismatch…"
+          leftIcon="notes"
+        />
+      </BottomSheet>
+    </View>
   );
 }
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { gap: Spacing.sectionGap, paddingBottom: 48 },
+  pressed: { opacity: 0.7 },
 
-  hero: { gap: Spacing.stackSm, alignItems: "center" },
-  statusPill: {
-    flexDirection: "row",
+  heroBackdrop: {
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
-    alignSelf: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
+    justifyContent: "center",
   },
-  statusPillText: { ...Typography.labelMd, fontWeight: "600" },
-  amount: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
-  },
-  amountMeta: { ...Typography.bodyMd, textAlign: "center" },
-
-  relation: {
+  heroLogo: { width: "96%", maxWidth: 520, aspectRatio: 1 },
+  heroCardWrap: {
     width: "100%",
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 10,
-  },
-  partySide: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 10,
-  },
-  partyBlock: {
-    width: "100%",
-    alignItems: "center",
-    gap: 8,
-  },
-  partyName: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
-    textAlign: "center",
-    width: "100%",
-  },
-  partyRole: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  partyActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  roundBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  relationMid: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    height: 48,
-    width: 140,
-  },
-  relationMidReverse: { flexDirection: "row-reverse" },
-  relationLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 23,
-    height: 2,
-  },
-  directionBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: 3,
-    zIndex: 1,
-  },
-  directionBadgeText: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-  },
-  bankBlock: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 8,
-  },
-  bankPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankPlaceholderSm: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankName: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  bankBranch: {
-    ...Typography.bodyMd,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-
-  chequeCard: {
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.gutterMd,
-    gap: Spacing.lg,
-  },
-  chequeTop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  chequeBankRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minWidth: 0,
-  },
-  chequeBankText: { flex: 1, minWidth: 0, gap: 2 },
-  chequeBankName: { ...Typography.bodyLg, fontWeight: "700" },
-  chequeMeta: { alignItems: "flex-end", gap: 2 },
-  microLabel: {
-    ...Typography.caption,
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  chequeNo: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  chequeLine: { gap: 4 },
-  chequeLineValue: {
-    ...Typography.bodyLg,
-    fontWeight: "500",
-    paddingBottom: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  chequeBottom: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 12,
-  },
-  amountBox: {
-    flex: 1.5,
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  amountBoxValue: {
-    ...Typography.headlineMdMobile,
-    fontVariant: ["tabular-nums"],
-    letterSpacing: -0.3,
-  },
-  maturityBlock: {
-    flex: 1,
-    justifyContent: "center",
-    gap: 2,
-  },
-  maturityValue: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
-  },
-  maturityDate: { ...Typography.caption },
-
-  timeline: { gap: 0 },
-  timelineRow: {
-    flexDirection: "row",
-    gap: 14,
-    minHeight: 72,
-  },
-  timelineRail: {
-    width: 24,
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  pulse: { width: 8, height: 8, borderRadius: 4 },
-  timelineConnector: {
-    flex: 1,
-    width: 2,
-    marginTop: 2,
-    marginBottom: 2,
-    borderRadius: 1,
-  },
-  timelineCard: {
-    flex: 1,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    gap: 2,
-  },
-  timelineLabel: { ...Typography.labelMd, fontWeight: "700" },
-  timelineSub: { ...Typography.bodyMd, fontSize: 13 },
-
-  photoWrap: {
+    maxWidth: 480,
     paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.lg,
+    paddingTop: 40,
+    paddingBottom: 48,
   },
+
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  stepRail: { width: 26, alignItems: "center", alignSelf: "stretch" },
+  stepDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+  },
+  stepLine: { flex: 1, width: 2, marginVertical: 4, borderRadius: 1 },
+  stepBody: { flex: 1, minWidth: 0, gap: 2, paddingTop: 2 },
+  stepBodySpaced: { paddingBottom: Spacing.xl },
+  stepLabel: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 22 },
+  stepSub: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+
+  partyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  partyMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 56,
+  },
+  partyText: { flex: 1, minWidth: 0, gap: 2 },
+  partyName: { ...text, fontFamily: FontFamily.semibold, fontSize: 16, lineHeight: 22 },
+  partyRole: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   photo: {
     width: "100%",
     height: 220,
@@ -1252,45 +1055,10 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
   },
 
-  gemLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  gemLinkBody: { flex: 1, gap: 2, minWidth: 0 },
-  gemLinkTitle: { ...Typography.labelMd, fontWeight: "700" },
-  gemLinkSub: { ...Typography.bodyMd, fontSize: 13 },
+  notes: { ...text, fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 24 },
 
-  notes: { ...Typography.bodyMd, lineHeight: 22 },
-
-  bounceActions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    justifyContent: "flex-end",
-  },
-
-  bottomActions: { gap: Spacing.sm },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 14,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1.5,
-  },
-  actionIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionTextCol: { flex: 1, gap: 2, minWidth: 0 },
-  actionTitle: { ...Typography.labelMd, fontWeight: "700" },
-  actionSub: { ...Typography.bodyMd, fontSize: 13 },
+  actionBarStack: { flexDirection: "column" },
+  actionRow: { flexDirection: "row", gap: Spacing.sm },
+  actionBtn: { flex: 1 },
+  sheetCallout: { marginTop: 0 },
 });

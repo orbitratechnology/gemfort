@@ -11,7 +11,6 @@ import {
 
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { withLoading } from "@/providers/loading-bridge";
 import {
   setConfirmBridge,
   type ConfirmApi,
@@ -85,18 +84,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      // Mark global busy (disables buttons) without a second overlay —
-      // the confirm dialog already shows its own spinner.
-      await withLoading(
-        async () => {
-          await current.onConfirm!();
-        },
-        {
-          overlay: false,
-          message:
-            current.tone === "destructive" ? "Deleting…" : "Working…",
-        },
-      );
+      await current.onConfirm!();
       close(true);
     } catch {
       setLoading(false);

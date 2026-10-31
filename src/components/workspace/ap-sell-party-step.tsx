@@ -1,12 +1,15 @@
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
-import { ContactAvatar } from "@/components/workspace/contact-avatar";
-import { GemThumb } from "@/components/workspace/gem-thumb";
+import { Accent, IconBubble } from "@/components/ui/detail-kit";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
+import { GemThumb } from "@/components/workspace/gem-thumb";
+import { FontFamily, Spacing } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import type { WorkspaceGem } from "@/types";
 
 type ApSellPartyStepProps = {
   /** Large person/money face for this step. */
@@ -15,6 +18,8 @@ type ApSellPartyStepProps = {
   /** Accent icon on the flow arrow (send vs wallet). */
   flowIcon: IconName;
   gemUri?: string | null;
+  /** The gem itself — used for its artwork when there is no photo. */
+  gem?: WorkspaceGem | null;
   gemLabel: string;
   amount: string;
   onChangeAmount: (value: string) => void;
@@ -24,15 +29,18 @@ type ApSellPartyStepProps = {
   moneyTone?: boolean;
 };
 
+const FACE = 64;
+
 /**
- * One full-screen price beat: gem → flow arrow → party face → one big amount.
- * No instructional copy — layout and icons carry the meaning.
+ * One price beat of the AP sale: gem → flow → party, then one big amount.
+ * Amber = the sender's share (owed), emerald = what you keep.
  */
 export function ApSellPartyStep({
   partyName,
   partyPhotoUrl,
   flowIcon,
   gemUri,
+  gem,
   gemLabel,
   amount,
   onChangeAmount,
@@ -41,16 +49,46 @@ export function ApSellPartyStep({
   moneyTone,
 }: ApSellPartyStepProps) {
   const { colors } = useAppTheme();
+  const accent = moneyTone ? Accent.emerald : Accent.amber;
 
   return (
     <View style={styles.root}>
+      <Animated.View entering={FadeIn.duration(280)} style={styles.flowRow}>
+        {gemUri || !gem ? (
+          <GemThumb uri={gemUri ?? null} label={gemLabel} size={FACE} radius={18} />
+        ) : (
+          <GemArtwork gem={gem} artScale={0.8} style={styles.artwork} />
+        )}
+
+        <View style={styles.flow} pointerEvents="none">
+          <View style={[styles.flowLine, { backgroundColor: `${accent}40` }]} />
+          <View style={[styles.flowBadge, { backgroundColor: colors.background }]}>
+            <IconBubble icon={flowIcon} accent={accent} size={36} />
+          </View>
+          <View style={styles.flowArrow}>
+            <Icon name="chevron-right" size={18} color={accent} />
+          </View>
+        </View>
+
+        {moneyTone ? (
+          <IconBubble icon="account-balance-wallet" accent={accent} size={FACE} />
+        ) : (
+          <ContactAvatar name={partyName} photoUrl={partyPhotoUrl} size={FACE} />
+        )}
+      </Animated.View>
+
       <Animated.View
-        entering={FadeIn.duration(280)}
-        style={styles.gemBlock}
+        entering={FadeInDown.delay(60).duration(300)}
+        style={styles.copy}
       >
-        <GemThumb uri={gemUri ?? null} label={gemLabel} size={72} radius={16} />
         <Text
-          style={[styles.gemLabel, { color: colors.onSurface }]}
+          style={[styles.partyName, { color: colors.onSurface }]}
+          numberOfLines={1}
+        >
+          {partyName}
+        </Text>
+        <Text
+          style={[styles.gemLabel, { color: colors.onSurfaceVariant }]}
           numberOfLines={1}
         >
           {gemLabel}
@@ -58,78 +96,12 @@ export function ApSellPartyStep({
       </Animated.View>
 
       <Animated.View
-        entering={FadeInDown.delay(40).duration(280)}
-        style={styles.flow}
-        pointerEvents="none"
-      >
-        <View
-          style={[
-            styles.flowLine,
-            { backgroundColor: colors.outlineVariant },
-          ]}
-        />
-        <View
-          style={[
-            styles.flowBadge,
-            {
-              backgroundColor: moneyTone
-                ? colors.successEmerald + "22"
-                : colors.primaryContainer,
-              borderColor: colors.background,
-            },
-          ]}
-        >
-          <Icon
-            name={flowIcon}
-            size={22}
-            color={
-              moneyTone ? colors.successEmerald : colors.onPrimaryContainer
-            }
-          />
-        </View>
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.delay(80).duration(300)}
-        style={styles.partyBlock}
-      >
-        {moneyTone ? (
-          <View
-            style={[
-              styles.moneyAvatar,
-              { backgroundColor: colors.successEmerald + "22" },
-            ]}
-          >
-            <Icon
-              name="account-balance-wallet"
-              size={44}
-              color={colors.successEmerald}
-            />
-          </View>
-        ) : (
-          <ContactAvatar
-            name={partyName}
-            photoUrl={partyPhotoUrl}
-            size={96}
-          />
-        )}
-        <Text
-          style={[styles.partyName, { color: colors.onSurface }]}
-          numberOfLines={1}
-        >
-          {partyName}
-        </Text>
-      </Animated.View>
-
-      <Animated.View
         entering={FadeInDown.delay(120).duration(300)}
         style={styles.amountBlock}
       >
-        <Text style={[styles.currencyTag, { color: colors.textMuted }]}>
-          {currencyLabel}
-        </Text>
         <MaskedInput
           mode="currency"
+          label={moneyTone ? `You keep (${currencyLabel})` : `To ${partyName} (${currencyLabel})`}
           value={amount}
           onChangeText={onChangeAmount}
           leftIcon="payments"
@@ -156,11 +128,14 @@ export function ApSellStepRail({
   ];
 
   return (
-    <View style={styles.rail} accessibilityRole="progressbar">
+    <View
+      style={styles.rail}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 1, max: icons.length, now: step + 1 }}
+    >
       {icons.map((icon, i) => {
         const active = i === step;
         const done = i < step;
-        const tone = active || done ? colors.primary : colors.outlineVariant;
         return (
           <View key={icon} style={styles.railItem}>
             {i > 0 ? (
@@ -177,16 +152,23 @@ export function ApSellStepRail({
             <View
               style={[
                 styles.railDot,
-                {
-                  backgroundColor: active || done ? colors.primary : colors.surfaceContainerHighest,
-                  borderColor: colors.background,
-                },
+                active
+                  ? { backgroundColor: colors.primary }
+                  : done
+                    ? { backgroundColor: `${colors.primary}1F` }
+                    : { backgroundColor: colors.surfaceContainerHigh },
               ]}
             >
               <Icon
-                name={icon}
+                name={done ? "check" : icon}
                 size={14}
-                color={active || done ? colors.onPrimary : tone}
+                color={
+                  active
+                    ? colors.onPrimary
+                    : done
+                      ? colors.primary
+                      : colors.onSurfaceVariant
+                }
               />
             </View>
           </View>
@@ -198,69 +180,56 @@ export function ApSellStepRail({
 
 const styles = StyleSheet.create({
   root: {
-    alignItems: "center",
-    gap: Spacing.md,
+    gap: Spacing.lg,
     paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.md,
   },
-  gemBlock: { alignItems: "center", gap: 8 },
-  gemLabel: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    maxWidth: 220,
-    textAlign: "center",
-  },
-  flow: {
+  flowRow: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    height: 48,
-    width: 80,
+  },
+  artwork: {
+    width: FACE,
+    height: FACE,
+    borderRadius: 18,
+    borderCurve: "continuous",
+  },
+  flow: {
+    width: 96,
+    height: FACE,
+    alignItems: "center",
+    justifyContent: "center",
   },
   flowLine: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 2,
+    left: 8,
+    right: 8,
+    top: FACE / 2 - 1,
+    height: 2,
+    borderRadius: 1,
   },
-  flowBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  partyBlock: { alignItems: "center", gap: 10, maxWidth: "85%" },
+  flowBadge: { padding: 3, borderRadius: 24 },
+  flowArrow: { position: "absolute", right: 0 },
+  copy: { alignItems: "center", gap: 2 },
   partyName: {
-    ...Typography.headlineSm,
-    fontWeight: "700",
+    fontFamily: FontFamily.semibold,
+    fontSize: 20,
+    lineHeight: 28,
     textAlign: "center",
+    includeFontPadding: false,
   },
-  moneyAvatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  amountBlock: {
-    width: "100%",
-    gap: 6,
-    marginTop: Spacing.sm,
-  },
-  currencyTag: {
-    ...Typography.caption,
-    fontWeight: "700",
-    letterSpacing: 0.6,
+  gemLabel: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
+    includeFontPadding: false,
   },
+  amountBlock: { width: "100%" },
   amountInput: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    textAlign: "center",
-    fontSize: 28,
+    fontFamily: FontFamily.semibold,
+    fontSize: 22,
   },
 
   rail: {
@@ -268,14 +237,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.sm,
-    gap: 0,
   },
   railItem: {
     flexDirection: "row",
     alignItems: "center",
   },
   railConnector: {
-    width: 28,
+    width: 32,
     height: 2,
     borderRadius: 1,
   },
@@ -283,7 +251,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },

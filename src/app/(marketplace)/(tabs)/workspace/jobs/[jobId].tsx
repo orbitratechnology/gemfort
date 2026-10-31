@@ -1,21 +1,48 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format as formatCalendarDate } from "date-fns";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useMemo, useRef, useState } from "react";
+import {
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
+import {
+  Accent,
+  Callout,
+  DetailBand,
+  DetailHeader,
+  DetailRow,
+  DetailRows,
+  KeyStats,
+  StatusChip,
+  TintHero,
+  TitleBand,
+  TotalRow,
+  detailStyles,
+  useCollapsingHeader,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork, gemTint } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { formatGemType } from "@/constants/gem-options";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -54,43 +81,50 @@ import {
 } from "@/lib/validation/form-schemas";
 import { pushWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ServiceRecord } from "@/types";
 
 type StepState = "done" | "active" | "pending" | "error";
+
+const WHATSAPP_GREEN = "#25D366";
 
 function serviceIcon(type: string): IconName {
   const normalized = type.toLowerCase();
   if (normalized.includes("heat")) return "local-fire-department";
   if (normalized.includes("polish")) return "auto-fix-high";
   if (normalized.includes("cut")) return "content-cut";
-  return "service";
+  return "handyman";
 }
 
+function titleCase(type: string) {
+  return type
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+/** Status label + semantic accent (see `Accent` in the detail kit). */
 function statusMeta(status: ServiceRecord["status"]): {
   label: string;
-  icon: IconName;
-  tone: "neutral" | "warning" | "success" | "error";
+  accent: string;
 } {
   switch (status) {
     case "given":
-      return { label: "Queued", icon: "hourglass-top", tone: "neutral" };
+      return { label: "Queued", accent: Accent.amber };
     case "in_progress":
-      return { label: "In progress", icon: "sync", tone: "warning" };
+      return { label: "In progress", accent: Accent.blue };
     case "ready":
-      return { label: "Ready", icon: "check-circle", tone: "success" };
+      return { label: "Ready", accent: Accent.emerald };
     case "received_back":
     case "completed":
-      return { label: "Completed", icon: "done-all", tone: "success" };
+      return { label: "Completed", accent: Accent.emerald };
     case "cancellation_requested":
-      return { label: "Cancel requested", icon: "hourglass-top", tone: "warning" };
+      return { label: "Cancel requested", accent: Accent.amber };
     case "cancelled":
-      return { label: "Cancelled", icon: "cancel", tone: "neutral" };
+      return { label: "Cancelled", accent: Accent.slate };
     case "rejected":
-      return { label: "Declined", icon: "block", tone: "error" };
+      return { label: "Declined", accent: Accent.rose };
     default:
-      return { label: "Awaiting response", icon: "schedule", tone: "neutral" };
+      return { label: "Awaiting response", accent: Accent.amber };
   }
 }
 
@@ -143,6 +177,80 @@ function progressSteps(service: ServiceRecord): {
   ];
 }
 
+const STEP_ACCENT: Record<StepState, string> = {
+  done: Accent.emerald,
+  active: Accent.blue,
+  error: Accent.rose,
+  pending: Accent.slate,
+};
+
+/** Vertical stepper: tinted dots on a hairline rail, label + date beside. */
+function ProgressSteps({
+  steps,
+}: {
+  steps: ReturnType<typeof progressSteps>;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View>
+      {steps.map((step, i) => {
+        const accent = STEP_ACCENT[step.state];
+        const pending = step.state === "pending";
+        const next = steps[i + 1];
+        const lineColor =
+          next && next.state !== "pending"
+            ? `${STEP_ACCENT[next.state]}66`
+            : colors.outlineVariant;
+        return (
+          <View key={step.key} style={styles.stepRow}>
+            <View style={styles.stepRail}>
+              <View
+                style={[
+                  styles.stepDot,
+                  pending
+                    ? { borderWidth: 2, borderColor: colors.outlineVariant }
+                    : { backgroundColor: accent },
+                ]}
+              >
+                {step.state === "done" ? (
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                ) : step.state === "error" ? (
+                  <Icon name="priority-high" size={14} color="#FFFFFF" />
+                ) : step.state === "active" ? (
+                  <View style={styles.stepPulse} />
+                ) : null}
+              </View>
+              {next ? (
+                <View style={[styles.stepLine, { backgroundColor: lineColor }]} />
+              ) : null}
+            </View>
+            <View style={[styles.stepCopy, !next && styles.stepCopyLast]}>
+              <Text
+                style={[
+                  styles.stepLabel,
+                  {
+                    color:
+                      step.state === "error"
+                        ? Accent.rose
+                        : pending
+                          ? colors.onSurfaceVariant
+                          : colors.onSurface,
+                  },
+                ]}
+              >
+                {step.label}
+              </Text>
+              <Text style={[styles.stepSub, { color: colors.textMuted }]}>
+                {step.sub}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function LapidaryJobDetailScreen() {
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const { user } = useAuth();
@@ -150,10 +258,30 @@ export default function LapidaryJobDetailScreen() {
   const { formatFace, preferred } = usePreferredMoney();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const heroHeight = Math.round(windowWidth * 0.78);
+  const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
   const [weightAfter, setWeightAfter] = useState("");
   const [finalCost, setFinalCost] = useState("");
   const [paymentDueDays, setPaymentDueDays] = useState("7");
   const [completionErrors, setCompletionErrors] = useState<Record<string, string>>({});
+  // Action in flight, so only the tapped button spins.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const pendingRef = useRef(false);
+  const busy = pendingKey !== null;
+
+  async function track(key: string, work: () => Promise<void>) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingKey(key);
+    try {
+      await work();
+    } finally {
+      pendingRef.current = false;
+      setPendingKey(null);
+    }
+  }
 
   const { data: service, isLoading } = useFirestoreLiveQuery({
     queryKey: ["service", jobId],
@@ -222,23 +350,23 @@ export default function LapidaryJobDetailScreen() {
 
   async function handleRequestDecision(action: "accepted" | "rejected") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track(`request-${action}`, async () => {
+      try {
         await respondServiceRequest(service.id, action);
         await invalidate(service.id, service.gemId);
         toast.success(
           action === "accepted" ? "Job accepted." : "Request declined.",
         );
-      }, action === "accepted" ? "Accepting…" : "Declining…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not respond to request."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not respond to request."));
+      }
+    });
   }
 
   async function handleStatus(status: "in_progress" | "ready" | "returned") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track("status", async () => {
+      try {
         await updateLapidaryJobStatus(service.id, status);
         await invalidate(service.id, service.gemId);
         toast.success(
@@ -248,10 +376,10 @@ export default function LapidaryJobDetailScreen() {
               ? "Job marked ready."
               : "Job started.",
         );
-      }, "Updating…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not update job."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not update job."));
+      }
+    });
   }
 
   async function handleComplete() {
@@ -267,8 +395,8 @@ export default function LapidaryJobDetailScreen() {
       return;
     }
     setCompletionErrors({});
-    try {
-      await withLoading(async () => {
+    await track("complete", async () => {
+      try {
         await completeLapidaryJob(service.id, {
           weightAfter: result.data.weightAfter,
           finalCost: result.data.finalCost,
@@ -277,10 +405,10 @@ export default function LapidaryJobDetailScreen() {
         });
         await invalidate(service.id, service.gemId);
         toast.success("Completion details sent to sender.");
-      }, "Sending…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not send completion details."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not send completion details."));
+      }
+    });
   }
 
   function openReceiveBill() {
@@ -301,8 +429,8 @@ export default function LapidaryJobDetailScreen() {
 
   async function handleCancellation(action: "accepted" | "rejected") {
     if (!service) return;
-    try {
-      await withLoading(async () => {
+    await track(`cancel-${action}`, async () => {
+      try {
         await respondServiceCancellation(service.id, action);
         await invalidate(service.id, service.gemId);
         toast.success(
@@ -310,10 +438,10 @@ export default function LapidaryJobDetailScreen() {
             ? "Service cancellation accepted."
             : "Cancellation declined.",
         );
-      }, "Updating…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not respond to cancellation."));
-    }
+      } catch (error) {
+        toast.error(friendlyError(error, "Could not respond to cancellation."));
+      }
+    });
   }
 
   if (!service) {
@@ -354,22 +482,6 @@ export default function LapidaryJobDetailScreen() {
   }
 
   const meta = statusMeta(service.status);
-  const toneColor =
-    meta.tone === "success"
-      ? colors.successEmerald
-      : meta.tone === "warning"
-        ? colors.warningAmber
-        : meta.tone === "error"
-          ? colors.error
-          : colors.onSurfaceVariant;
-  const toneBackground =
-    meta.tone === "success"
-      ? colors.successEmerald + "18"
-      : meta.tone === "warning"
-        ? colors.warningAmber + "18"
-        : meta.tone === "error"
-          ? colors.errorContainer
-          : colors.surfaceContainerHighest;
   const steps = progressSteps(service);
   const serviceTypes = [
     ...new Set(
@@ -397,32 +509,190 @@ export default function LapidaryJobDetailScreen() {
       : null;
   })();
 
-  return (
-    <SafeAreaView
-      style={[styles.safe, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <StackHeader title="Workshop job" />
-      <ThemedScrollView contentContainerStyle={styles.content}>
-        <ScreenInset>
-          <Animated.View entering={FadeIn.duration(280)} style={styles.hero}>
-            <View style={[styles.statusPill, { backgroundColor: toneBackground }]}>
-              <Icon name={meta.icon} size={15} color={toneColor} />
-              <Text style={[styles.statusText, { color: toneColor }]}>{meta.label}</Text>
-            </View>
-            <Text style={[styles.heroSub, { color: colors.textMuted }]}>
-              Updated {formatRelativeTime(service.updatedAt)}
-            </Text>
-          </Animated.View>
-        </ScreenInset>
+  const tint = gem ? gemTint(gem) : null;
+  const hasAfterWeight = service.weightAfter != null;
+  const typesLabel = serviceTypes.map(titleCase).join(", ");
+  const workshopActive =
+    service.status === "given" ||
+    service.status === "in_progress" ||
+    service.status === "ready";
+  const showStatusAction =
+    service.status !== "pending" &&
+    service.status !== "cancellation_requested" &&
+    nextStatus != null &&
+    !(nextStatus === "ready" && canCompleteJob);
+  const hasActionBar =
+    service.status === "pending" ||
+    service.status === "cancellation_requested" ||
+    showStatusAction;
+  const bottomBarPad = Math.max(insets.bottom, 12);
+  const feeValue =
+    service.finalCost != null
+      ? formatFace(service.finalCost, service.finalCostCurrency)
+      : service.agreedPrice != null
+        ? formatFace(service.agreedPrice, service.agreedPriceCurrency)
+        : null;
 
-        <ScreenInset>
-          <Animated.View
-            entering={FadeInDown.delay(60).duration(320)}
-            style={styles.flow}
-          >
+  const detailRows: ({ key: string } & DetailRowProps)[] = [
+    {
+      key: "gem",
+      leading: gemPhoto ? (
+        <GemThumb uri={gemPhoto} label={gemTitle} size={34} radius={10} />
+      ) : gem ? (
+        <GemArtwork gem={gem} style={styles.gemArtSmall} />
+      ) : (
+        <GemThumb uri={null} label={gemTitle} size={34} radius={10} />
+      ),
+      label: "Service gem",
+      value: gemTitle,
+    },
+    {
+      key: "before",
+      icon: "scale",
+      label: "Weight before",
+      value: `${service.weightBefore} ct`,
+    },
+    {
+      key: "after",
+      icon: hasAfterWeight ? "auto-awesome" : "schedule",
+      accent: hasAfterWeight ? Accent.emerald : Accent.amber,
+      label: "Weight after",
+      value: hasAfterWeight ? `${service.weightAfter} ct` : "Pending",
+    },
+    {
+      key: "updated",
+      icon: "history",
+      label: "Last update",
+      value: formatRelativeTime(service.updatedAt),
+    },
+  ];
+
+  return (
+    <View style={[styles.safe, { backgroundColor: colors.background }]}>
+      <StatusBar style={gemPhoto && !headerSolid ? "light" : "auto"} />
+
+      <ThemedScrollView
+        contentContainerStyle={{
+          paddingBottom: hasActionBar ? 96 + bottomBarPad : 56,
+        }}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+      >
+        {gemPhoto ? (
+          <Image
+            source={{ uri: gemPhoto }}
+            style={{ width: windowWidth, height: heroHeight }}
+            contentFit="cover"
+            accessibilityLabel={`${gemTitle} photo`}
+          />
+        ) : gem ? (
+          <GemArtwork
+            gem={gem}
+            artScale={0.7}
+            style={{
+              width: windowWidth,
+              height: heroHeight,
+              paddingTop: insets.top,
+            }}
+          />
+        ) : (
+          <TintHero
+            accent={Accent.violet}
+            icon={serviceIcon(serviceTypes[0] ?? service.serviceType)}
+            height={heroHeight}
+          />
+        )}
+
+        <TitleBand
+          overlapHero
+          chips={<StatusChip label={meta.label} accent={meta.accent} />}
+          title={gemTitle}
+          subtitle={`${typesLabel} · From ${senderName}`}
+          subtitleDot={tint}
+        >
+          <KeyStats
+            items={[
+              { label: "Before", value: `${service.weightBefore} ct` },
+              {
+                label: "After",
+                value: hasAfterWeight ? `${service.weightAfter} ct` : "Pending",
+                color: hasAfterWeight ? Accent.emerald : colors.textMuted,
+              },
+              {
+                label: service.finalCost != null ? "Final cost" : "Fee",
+                value: feeValue ?? "—",
+                sub:
+                  service.finalCost == null && service.agreedPrice != null
+                    ? "Agreed"
+                    : null,
+                color: feeValue ? undefined : colors.textMuted,
+              },
+            ]}
+          />
+          {service.status === "pending" ? (
+            <Callout
+              icon="inbox"
+              accent={Accent.amber}
+              label="Review the gem and requested work before choosing whether to take this job."
+              value="Incoming request"
+            />
+          ) : service.status === "cancellation_requested" ? (
+            <Callout
+              icon="hourglass-top"
+              accent={Accent.amber}
+              label="The sender asked to cancel this service."
+              value="Cancellation request"
+            />
+          ) : service.finalCost != null && service.paymentDueDate ? (
+            <Callout
+              icon="payments"
+              accent={Accent.amber}
+              label="Expected payment"
+              value={formatCalendarDate(service.paymentDueDate.toDate(), "d MMM yyyy")}
+            />
+          ) : workshopActive ? (
+            <Callout
+              icon="event"
+              accent={Accent.blue}
+              label={`Return to sender · ${formatDate(service.expectedReturnDate)}`}
+              value={formatRelativeDue(service.expectedReturnDate)}
+            />
+          ) : null}
+        </TitleBand>
+
+        <DetailBand title="Services">
+          <View style={styles.workTags}>
+            {serviceTypes.map((type) => (
+              <View
+                key={type}
+                style={[styles.workTag, { backgroundColor: `${Accent.violet}14` }]}
+              >
+                <Icon name={serviceIcon(type)} size={16} color={Accent.violet} />
+                <Text style={[styles.workTagText, { color: colors.onSurface }]}>
+                  {titleCase(type)}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {service.instructions ? (
+            <Text style={[styles.body, { color: colors.onSurfaceVariant }]}>
+              {service.instructions}
+            </Text>
+          ) : null}
+        </DetailBand>
+
+        <DetailBand title="Progress">
+          <ProgressSteps steps={steps} />
+        </DetailBand>
+
+        <DetailBand title="Sender">
+          <View style={styles.partyRow}>
             <Pressable
-              style={({ pressed }) => [styles.flowSide, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.partyMain,
+                pressed && senderBusinessId ? styles.pressed : null,
+              ]}
               onPress={
                 senderBusinessId
                   ? () => router.push(`/business/${senderBusinessId}` as never)
@@ -435,167 +705,100 @@ export default function LapidaryJobDetailScreen() {
                   : `Sender ${senderName}`
               }
             >
-              <ContactAvatar name={senderName} photoUrl={senderPhoto} size={84} />
-              <Text style={[styles.flowName, { color: colors.onSurface }]} numberOfLines={2}>
-                {senderName}
-              </Text>
-              <Text style={[styles.flowCaption, { color: colors.textMuted }]}>Sender</Text>
-              {senderPhone || senderWhatsApp ? (
-                <View style={styles.contactActions}>
-                  {senderPhone ? (
-                    <Pressable
-                      style={[styles.roundButton, { backgroundColor: colors.primary }]}
-                      onPress={() => void Linking.openURL(openPhone(senderPhone))}
-                      accessibilityRole="button"
-                      accessibilityLabel="Call sender"
-                    >
-                      <Icon name="call" size={17} color={colors.onPrimary} />
-                    </Pressable>
-                  ) : null}
-                  {senderWhatsApp ? (
-                    <Pressable
-                      style={[styles.roundButton, { backgroundColor: "#25D366" }]}
-                      onPress={() => void Linking.openURL(openWhatsApp(senderWhatsApp))}
-                      accessibilityRole="button"
-                      accessibilityLabel="WhatsApp sender"
-                    >
-                      <Icon name="whatsapp" size={17} color="#FFFFFF" />
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </Pressable>
-
-            <View style={styles.flowConnector} pointerEvents="none">
-              <View style={[styles.connectorLine, { backgroundColor: colors.outlineVariant }]} />
-              <View
-                style={[
-                  styles.connectorBadge,
-                  { backgroundColor: colors.primaryContainer, borderColor: colors.background },
-                ]}
-              >
-                <Icon name={serviceIcon(serviceTypes[0] ?? service.serviceType)} size={20} color={colors.onPrimaryContainer} />
-              </View>
-              <Icon name="arrow-forward" size={22} color={colors.outline} />
-            </View>
-
-            <View
-              style={styles.flowSide}
-              accessible
-              accessibilityLabel={`${gemTitle}, shared service gem`}
-            >
-              <GemThumb uri={gemPhoto} label={gemTitle} size={96} radius={18} />
-              <Text style={[styles.flowName, { color: colors.onSurface }]} numberOfLines={2}>
-                {gemTitle}
-              </Text>
-              <Text style={[styles.flowCaption, { color: colors.textMuted }]}>Service gem</Text>
-            </View>
-          </Animated.View>
-        </ScreenInset>
-
-        <FormSection title="Services">
-          <View style={styles.serviceList}>
-            {serviceTypes.map((type) => (
-              <View key={type} style={styles.serviceChip}>
-                <Icon
-                  name={serviceIcon(type)}
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text style={[styles.serviceLabel, { color: colors.onSurface }]}>
-                  {type.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase())}
+              <ContactAvatar name={senderName} photoUrl={senderPhoto} size={48} />
+              <View style={styles.partyCopy}>
+                <Text
+                  style={[styles.partyName, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {senderName}
+                </Text>
+                <Text
+                  style={[styles.partyCaption, { color: colors.onSurfaceVariant }]}
+                >
+                  Sender
                 </Text>
               </View>
-            ))}
+            </Pressable>
+            {senderPhone ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.roundBtn,
+                  { backgroundColor: `${Accent.blue}1F` },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void Linking.openURL(openPhone(senderPhone))}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="Call sender"
+              >
+                <Icon name="call" size={20} color={Accent.blue} />
+              </Pressable>
+            ) : null}
+            {senderWhatsApp ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.roundBtn,
+                  { backgroundColor: `${WHATSAPP_GREEN}1F` },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => void Linking.openURL(openWhatsApp(senderWhatsApp))}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel="WhatsApp sender"
+              >
+                <Icon name="whatsapp" size={20} color={WHATSAPP_GREEN} />
+              </Pressable>
+            ) : null}
           </View>
-          {service.instructions ? (
-            <Text style={[styles.notes, { color: colors.onSurfaceVariant }]}>
-              {service.instructions}
-            </Text>
-          ) : null}
-        </FormSection>
+        </DetailBand>
 
-        <FormSection title="Progress">
-          <View style={styles.timeline}>
-            {steps.map((step, index) => {
-              const filled = step.state === "done" || step.state === "active";
-              const dotColor =
-                step.state === "error"
-                  ? colors.error
-                  : filled
-                    ? colors.primary
-                    : colors.surfaceVariant;
-              return (
-                <Animated.View
-                  key={step.key}
-                  entering={FadeInDown.delay(80 + index * 45).duration(260)}
-                  style={styles.timelineRow}
-                >
-                  <View style={styles.timelineRail}>
-                    <View style={[styles.timelineDot, { backgroundColor: dotColor }]}>
-                      {step.state === "done" ? <Icon name="check" size={12} color={colors.onPrimary} /> : null}
-                      {step.state === "error" ? <Icon name="priority-high" size={12} color={colors.onError} /> : null}
-                      {step.state === "active" ? <View style={[styles.pulse, { backgroundColor: colors.onPrimary }]} /> : null}
-                    </View>
-                    {index < steps.length - 1 ? (
-                      <View
-                        style={[
-                          styles.timelineConnector,
-                          { backgroundColor: filled ? colors.primary : colors.outlineVariant },
-                        ]}
-                      />
-                    ) : null}
-                  </View>
-                  <View style={[styles.timelineCard, { backgroundColor: step.state === "error" ? toneBackground : colors.surfaceContainerLow }]}>
-                    <Text style={[styles.timelineLabel, { color: step.state === "error" ? colors.error : colors.onSurface }]}>{step.label}</Text>
-                    <Text style={[styles.timelineSub, { color: colors.textMuted }]}>{step.sub}</Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </View>
-        </FormSection>
-
-        <ScreenInset>
-          <View style={styles.weightRow}>
-            <View style={[styles.metricCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Icon name="scale" size={22} color={colors.textMuted} />
-              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>BEFORE</Text>
-              <Text style={[styles.metricValue, { color: colors.primary }]}>{service.weightBefore} ct</Text>
-            </View>
-            <Icon name="trending-flat" size={20} color={colors.outline} />
-            <View style={[styles.metricCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <Icon name={service.weightAfter != null ? "auto-awesome" : "schedule"} size={22} color={service.weightAfter != null ? colors.accent : colors.warningAmber} />
-              <Text style={[styles.metricLabel, { color: colors.textMuted }]}>{service.weightAfter != null ? "AFTER" : "PENDING"}</Text>
-              <Text style={[styles.metricValue, { color: colors.primary }]}>{service.weightAfter != null ? `${service.weightAfter} ct` : "…"}</Text>
-            </View>
-          </View>
-        </ScreenInset>
+        <DetailBand title="Details">
+          <DetailRows rows={detailRows} />
+        </DetailBand>
 
         {service.agreedPrice != null || service.finalCost != null ? (
-          <FormSection title="Cost summary">
+          <DetailBand title="Cost summary">
             {service.agreedPrice != null ? (
-              <View style={styles.costRow}>
-                <Text style={[styles.costLabel, { color: colors.onSurfaceVariant }]}>Agreed price</Text>
-                <Text style={[styles.costValue, { color: colors.onSurface }]}>
-                  {formatFace(service.agreedPrice, service.agreedPriceCurrency)}
-                </Text>
-              </View>
+              <DetailRow
+                icon="handshake"
+                accent={Accent.blue}
+                label="Agreed price"
+                value={formatFace(service.agreedPrice, service.agreedPriceCurrency)}
+                isLast
+              />
             ) : null}
             {service.finalCost != null ? (
-              <View style={[styles.costRow, styles.costTotalRow, { borderTopColor: colors.surfaceVariant }]}>
-                <Text style={[styles.costLabel, { color: colors.primary }]}>Final cost</Text>
-                <Text style={[styles.costValue, { color: colors.primary }]}>
-                  {formatFace(service.finalCost, service.finalCostCurrency)}
-                </Text>
-              </View>
+              <TotalRow
+                label="Final cost"
+                value={formatFace(service.finalCost, service.finalCostCurrency)}
+                accent={Accent.emerald}
+              />
             ) : null}
-          </FormSection>
+          </DetailBand>
+        ) : null}
+
+        {service.finalCost != null && service.paymentDueDate ? (
+          <DetailBand title="Payment">
+            <DetailRow
+              icon="event"
+              accent={Accent.amber}
+              label="Expected payment"
+              value={formatCalendarDate(service.paymentDueDate.toDate(), "d MMM yyyy")}
+              isLast
+            />
+            <Button
+              title="Add as receive bill"
+              icon="bill"
+              variant="secondary"
+              onPress={openReceiveBill}
+            />
+          </DetailBand>
         ) : null}
 
         {canCompleteJob ? (
-          <FormSection title="Send completion details">
-            <Text style={[styles.notes, { color: colors.textMuted }]}>
+          <DetailBand title="Send completion details">
+            <Text style={[styles.bandHint, { color: colors.textMuted }]}>
               Send the final weight, service fee, and expected payment date to the sender.
             </Text>
             <MaskedInput
@@ -625,45 +828,44 @@ export default function LapidaryJobDetailScreen() {
               error={completionErrors.paymentDueDays}
             />
             {paymentDuePreview ? (
-              <View style={styles.paymentRow}>
-                <Text style={[styles.paymentLabel, { color: colors.textMuted }]}>Expected payment date</Text>
-                <Text style={[styles.paymentValue, { color: colors.onSurface }]}>{paymentDuePreview}</Text>
-              </View>
+              <DetailRow
+                icon="event-available"
+                accent={Accent.amber}
+                label="Expected payment date"
+                value={paymentDuePreview}
+                isLast
+              />
             ) : null}
             <Button
               title="Send to sender"
               icon="send"
+              loading={pendingKey === "complete"}
               onPress={() => void handleComplete()}
             />
-          </FormSection>
+          </DetailBand>
         ) : null}
+      </ThemedScrollView>
 
-        {service.finalCost != null && service.paymentDueDate ? (
-          <FormSection title="Payment">
-            <View style={styles.paymentRow}>
-              <Text style={[styles.paymentLabel, { color: colors.textMuted }]}>Expected payment</Text>
-              <Text style={[styles.paymentValue, { color: colors.onSurface }]}>
-                {formatCalendarDate(service.paymentDueDate.toDate(), "d MMM yyyy")}
-              </Text>
-            </View>
-            <Button
-              title="Add as receive bill"
-              icon="bill"
-              variant="secondary"
-              onPress={openReceiveBill}
-            />
-          </FormSection>
-        ) : null}
+      <DetailHeader title="Workshop job" solid={headerSolid} />
 
-        {service.status === "pending" ? (
-          <FormSection title="Incoming request">
-            <Text style={[styles.notes, { color: colors.textMuted }]}>
-              Review the gem and requested work before choosing whether to take this job.
-            </Text>
-            <View style={styles.actionRow}>
+      {hasActionBar ? (
+        <View
+          style={[
+            detailStyles.actionBar,
+            {
+              backgroundColor: colors.background,
+              borderTopColor: colors.outlineVariant,
+              paddingBottom: bottomBarPad,
+            },
+          ]}
+        >
+          {service.status === "pending" ? (
+            <>
               <Button
                 title="Accept"
                 icon="check"
+                loading={pendingKey === "request-accepted"}
+                disabled={busy}
                 onPress={() => void handleRequestDecision("accepted")}
                 style={styles.flex}
               />
@@ -671,84 +873,108 @@ export default function LapidaryJobDetailScreen() {
                 title="Reject"
                 icon="close"
                 variant="destructive"
+                loading={pendingKey === "request-rejected"}
+                disabled={busy}
                 onPress={() => void handleRequestDecision("rejected")}
                 style={styles.flex}
               />
-            </View>
-          </FormSection>
-        ) : service.status === "cancellation_requested" ? (
-          <FormSection title="Cancellation request">
-            <Text style={[styles.notes, { color: colors.textMuted }]}>The sender asked to cancel this service.</Text>
-            <View style={styles.actionRow}>
-              <Button title="Accept" icon="check" onPress={() => void handleCancellation("accepted")} style={styles.flex} />
-              <Button title="Decline" icon="close" variant="secondary" onPress={() => void handleCancellation("rejected")} style={styles.flex} />
-            </View>
-          </FormSection>
-        ) : nextStatus && !(nextStatus === "ready" && canCompleteJob) ? (
-          <ScreenInset>
+            </>
+          ) : service.status === "cancellation_requested" ? (
+            <>
+              <Button
+                title="Accept"
+                icon="check"
+                loading={pendingKey === "cancel-accepted"}
+                disabled={busy}
+                onPress={() => void handleCancellation("accepted")}
+                style={styles.flex}
+              />
+              <Button
+                title="Decline"
+                icon="close"
+                variant="secondary"
+                loading={pendingKey === "cancel-rejected"}
+                disabled={busy}
+                onPress={() => void handleCancellation("rejected")}
+                style={styles.flex}
+              />
+            </>
+          ) : showStatusAction && nextStatus ? (
             <Button
               title={nextStatus === "in_progress" ? "Start job" : nextStatus === "ready" ? "Mark ready" : "Mark returned"}
               icon={nextStatus === "in_progress" ? "play-arrow" : nextStatus === "ready" ? "check" : "done-all"}
               variant={nextStatus === "returned" ? "secondary" : "primary"}
+              loading={pendingKey === "status"}
               onPress={() => void handleStatus(nextStatus)}
+              style={styles.flex}
             />
-          </ScreenInset>
-        ) : null}
-      </ThemedScrollView>
-    </SafeAreaView>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   loading: { padding: Spacing.containerMargin, ...Typography.bodyMd },
-  content: { gap: Spacing.sectionGap, paddingBottom: 56 },
-  hero: { alignItems: "center", gap: 5 },
-  statusPill: {
+  pressed: { opacity: 0.7 },
+  flex: { flex: 1 },
+
+  gemArtSmall: { width: 34, height: 34, borderRadius: 10 },
+
+  workTags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  workTag: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    height: 34,
     paddingHorizontal: 12,
-    paddingVertical: 6,
     borderRadius: Radius.full,
   },
-  statusText: { ...Typography.labelMd, fontWeight: "700" },
-  heroTitle: { ...Typography.headlineMdMobile, fontWeight: "800" },
-  heroSub: { ...Typography.caption },
-  flow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  flowSide: { flex: 1, minWidth: 0, alignItems: "center", gap: 7 },
-  flowName: { ...Typography.bodyMd, fontWeight: "700", textAlign: "center", width: "100%" },
-  flowCaption: { ...Typography.caption },
-  pressed: { opacity: 0.82 },
-  contactActions: { flexDirection: "row", gap: 9 },
-  roundButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  flowConnector: { width: 58, height: 54, alignItems: "center", justifyContent: "center", gap: 1 },
-  connectorLine: { position: "absolute", left: 0, right: 0, top: 26, height: 2 },
-  connectorBadge: { width: 38, height: 38, borderRadius: 19, borderWidth: 3, alignItems: "center", justifyContent: "center", zIndex: 1 },
-  serviceList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  serviceChip: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 11, paddingVertical: 9, borderRadius: Radius.full, backgroundColor: "rgba(128,128,128,0.10)" },
-  serviceLabel: { ...Typography.labelMd, fontWeight: "700" },
-  notes: { ...Typography.bodyMd, lineHeight: 22 },
-  paymentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  paymentLabel: { ...Typography.bodyMd, fontWeight: "600" },
-  paymentValue: { ...Typography.bodyMd, fontWeight: "800" },
-  timeline: { gap: 8 },
-  timelineRow: { flexDirection: "row", minHeight: 64 },
-  timelineRail: { width: 28, alignItems: "center" },
-  timelineDot: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  timelineConnector: { width: 2, flex: 1, marginVertical: 3 },
-  pulse: { width: 8, height: 8, borderRadius: 4 },
-  timelineCard: { flex: 1, borderRadius: Radius.lg, paddingHorizontal: 12, paddingVertical: 9, gap: 3 },
-  timelineLabel: { ...Typography.labelMd, fontWeight: "700" },
-  timelineSub: { ...Typography.caption },
-  weightRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
-  metricCard: { flex: 1, minHeight: 112, borderRadius: Radius.xl, alignItems: "center", justifyContent: "center", gap: 5, padding: 10 },
-  metricLabel: { ...Typography.labelMd, letterSpacing: 0.8 },
-  metricValue: { ...Typography.headlineSm, fontWeight: "800" },
-  costRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  costTotalRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.md, marginTop: 2 },
-  costLabel: { ...Typography.bodyMd, fontWeight: "600" },
-  costValue: { ...Typography.bodyMd, fontWeight: "800" },
-  actionRow: { flexDirection: "row", gap: Spacing.stackSm },
-  flex: { flex: 1 },
+  workTagText: { ...text, fontFamily: FontFamily.semibold, fontSize: 14 },
+  body: { ...text, fontFamily: FontFamily.regular, fontSize: 15, lineHeight: 23 },
+  bandHint: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 19, marginTop: -4 },
+
+  stepRow: { flexDirection: "row", gap: 14 },
+  stepRail: { width: 26, alignItems: "center" },
+  stepDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
+  },
+  stepLine: { flex: 1, width: 2, marginVertical: 4, borderRadius: 1 },
+  stepCopy: { flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 20, gap: 2 },
+  stepCopyLast: { paddingBottom: 0 },
+  stepLabel: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 21 },
+  stepSub: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+
+  partyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  partyMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  partyCopy: { flex: 1, minWidth: 0, gap: 1 },
+  partyName: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 21 },
+  partyCaption: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

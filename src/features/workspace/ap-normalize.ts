@@ -5,13 +5,74 @@ import type {
 } from '@/types';
 import type { Timestamp } from 'firebase/firestore';
 
+import { convertFromBaseSync, convertToBaseSync } from '@/lib/exchange-rates';
+
 /** True when AP is actively out with the holder (ongoing). */
 export function isApOngoing(status: ApLifecycleStatus): boolean {
   return (
     status === 'accepted' ||
+    status === 'partial' ||
     status === 'with_holder' ||
     status === 'cancellation_requested'
   );
+}
+
+/** The holder can still sell, return, or pay on these statuses. */
+export function isApActive(status: ApLifecycleStatus): boolean {
+  return status === 'accepted' || status === 'partial';
+}
+
+/** False once this party removed the AP from their own lists. */
+export function isApVisibleTo(ap: Pick<ApRecord, 'hiddenFor'>, uid: string): boolean {
+  return !ap.hiddenFor?.includes(uid);
+}
+
+export function visibleApRecords(records: ApRecord[], uid: string): ApRecord[] {
+  return records.filter((record) => isApVisibleTo(record, uid));
+}
+
+/**
+ * Currency the holder settles in. Fixed by the first payment; before that it
+ * is the first sold gem's currency (matching gemfortApi).
+ */
+export function apSettlementCurrency(ap: ApRecord): string {
+  return (
+    ap.paymentCurrency ||
+    ap.items?.find((item) => item.lineStatus === 'sold')?.currency ||
+    ap.items?.[0]?.currency ||
+    'LKR'
+  ).toUpperCase();
+}
+
+/**
+ * Balance still owed to the sender, in apSettlementCurrency. Uses the
+ * server-maintained balance when present; otherwise sums sold lines the same
+ * way the server does (same-currency lines exactly, others via LKR).
+ */
+export function apBalanceDue(ap: ApRecord, rates: Record<string, number> | null): number {
+  if (typeof ap.balance === 'number' && ap.paymentCurrency) return Math.max(0, ap.balance);
+  const currency = apSettlementCurrency(ap);
+  let owed = 0;
+  for (const line of ap.items ?? []) {
+    if (line.lineStatus !== 'sold') continue;
+    const amount = line.ownerReceives ?? line.agreedPrice;
+    const lineCurrency = (line.currency || 'LKR').toUpperCase();
+    if (lineCurrency === currency) {
+      owed += amount;
+    } else if (rates) {
+      const base = typeof line.ownerReceivesBase === 'number'
+        ? line.ownerReceivesBase
+        : convertToBaseSync(amount, lineCurrency, rates);
+      owed += convertFromBaseSync(base, currency, rates);
+    }
+  }
+  return Math.max(0, Math.round((owed - apAmountPaid(ap)) * 100) / 100);
+}
+
+/** Confirmed payments so far, in the AP's payment currency. */
+export function apAmountPaid(ap: ApRecord): number {
+  if (typeof ap.amountPaid === 'number') return ap.amountPaid;
+  return ap.status === 'done' && ap.paymentReceivedAt ? ap.paymentAmount ?? 0 : 0;
 }
 
 export function isApPending(status: ApLifecycleStatus): boolean {
@@ -149,6 +210,11 @@ export function normalizeApRecord(raw: ApRecord & Record<string, unknown>): ApRe
     paymentChequeId: (raw.paymentChequeId as string | null) ?? null,
     paymentReceiptUrl: (raw.paymentReceiptUrl as string | null) ?? null,
     rejectionReason: (raw.rejectionReason as string | null) ?? null,
+    paymentSeq: (raw.paymentSeq as number | null) ?? null,
+    amountPaid: (raw.amountPaid as number | null) ?? null,
+    balance: (raw.balance as number | null) ?? null,
+    hiddenFor: Array.isArray(raw.hiddenFor) ? (raw.hiddenFor as string[]) : [],
+    partyDeleted: raw.partyDeleted === true,
     createdAt: raw.createdAt as Timestamp,
     updatedAt: raw.updatedAt as Timestamp,
     // preserve legacy for any remaining callers
@@ -170,7 +236,7 @@ export function apStatusLabel(status: ApLifecycleStatus): string {
       return 'Pending';
     case 'accepted':
     case 'with_holder':
-      return 'Accepted';
+      return 'With holder';
     case 'rejected':
       return 'Rejected';
     case 'cancelled':
@@ -179,12 +245,12 @@ export function apStatusLabel(status: ApLifecycleStatus): string {
       return 'Cancel requested';
     case 'payment_sent':
       return 'Payment sent';
+    case 'partial':
+      return 'Part paid';
     case 'done':
-      return 'Done';
     case 'sold':
-      return 'Sold';
     case 'returned':
-      return 'Returned';
+      return 'Done';
     default:
       return status;
   }

@@ -1,3 +1,4 @@
+import { getAuth } from 'firebase-admin/auth';
 import { logger } from 'firebase-functions/logger';
 
 import { wipeUserData } from './wipe-user-data';
@@ -26,6 +27,14 @@ export async function deleteMyAccountForApi(
 
   logger.info('deleteMyAccount API started', { uid });
   const summary = await wipeUserData(uid);
+  // Delete the Auth user here too, so a client that crashes after the wipe
+  // cannot leave a signed-in account with no profile behind. The client's own
+  // deleteUser call becomes a no-op (user-not-found is treated as success).
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (error) {
+    if ((error as { code?: string }).code !== 'auth/user-not-found') throw error;
+  }
   logger.info('deleteMyAccount API finished', { uid, ...summary });
   return { ok: true, ...summary };
 }

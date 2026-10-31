@@ -15,6 +15,7 @@ import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import {
     changePassword,
@@ -29,7 +30,6 @@ import {
 } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 export default function AccountSettingsScreen() {
@@ -45,6 +45,43 @@ export default function AccountSettingsScreen() {
   const [deletePassword, setDeletePassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
+
+  const [updatingPassword, handleChangePassword] = usePendingAction(async () => {
+    Keyboard.dismiss();
+    const result = parseForm(changePasswordSchema, {
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+    if (!result.success) {
+      setPasswordErrors(result.errors);
+      return;
+    }
+
+    setPasswordErrors({});
+    try {
+      await changePassword(
+        result.data.currentPassword,
+        result.data.newPassword,
+      );
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated.");
+    } catch (error) {
+      toast.error(friendlyError(error, "Could not update password."));
+    }
+  });
+
+  const [sendingReset, handleSendResetLink] = usePendingAction(async () => {
+    Keyboard.dismiss();
+    try {
+      await sendPasswordResetForCurrentUser();
+      toast.success("Reset link sent. Check your inbox.");
+    } catch (error) {
+      toast.error(friendlyError(error, "Could not send reset email."));
+    }
+  });
 
   if (!user) return <Redirect href="/(auth)/login" />;
 
@@ -63,47 +100,6 @@ export default function AccountSettingsScreen() {
         ? "Google"
         : "Your original sign-in method";
   const canDelete = hasPasswordProvider || Boolean(socialProvider);
-
-  async function handleChangePassword() {
-    Keyboard.dismiss();
-    const result = parseForm(changePasswordSchema, {
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    });
-    if (!result.success) {
-      setPasswordErrors(result.errors);
-      return;
-    }
-
-    setPasswordErrors({});
-    try {
-      await withLoading(async () => {
-        await changePassword(
-          result.data.currentPassword,
-          result.data.newPassword,
-        );
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        toast.success("Password updated.");
-      }, "Updating password…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not update password."));
-    }
-  }
-
-  async function handleSendResetLink() {
-    Keyboard.dismiss();
-    try {
-      await withLoading(async () => {
-        await sendPasswordResetForCurrentUser();
-        toast.success("Reset link sent. Check your inbox.");
-      }, "Sending reset link…");
-    } catch (error) {
-      toast.error(friendlyError(error, "Could not send reset email."));
-    }
-  }
 
   function confirmDeleteAccount() {
     Keyboard.dismiss();
@@ -249,12 +245,16 @@ export default function AccountSettingsScreen() {
                   title="Update password"
                   icon="check"
                   onPress={handleChangePassword}
+                  loading={updatingPassword}
+                  disabled={sendingReset}
                 />
                 <Button
                   title="Email me a reset link"
                   icon="send"
                   variant="ghost"
                   onPress={handleSendResetLink}
+                  loading={sendingReset}
+                  disabled={updatingPassword}
                 />
               </View>
             </FormSection>

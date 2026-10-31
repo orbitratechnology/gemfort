@@ -1,3 +1,5 @@
+import { isLiveUid } from '../account/deleted-uid';
+
 export const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -80,7 +82,8 @@ export function decideServiceCancellationRequest(
   if (service.status === 'given' || service.status === 'in_progress' || service.status === 'ready' || service.status === 'overdue') {
     return {
       kind: 'transition',
-      status: service.providerUid?.trim() ? 'cancellation_requested' : 'cancelled',
+      // A deleted provider can never answer, so cancel directly.
+      status: isLiveUid(service.providerUid) ? 'cancellation_requested' : 'cancelled',
     };
   }
 
@@ -146,7 +149,7 @@ export function decideApStatusTransition(
       if (status === 'cancelled') return { kind: 'replay', status };
       return { kind: 'reject', code: 'failed-precondition', message: 'Only pending APs can be cancelled.' };
     case 'request-cancellation':
-      if (new Set(['accepted', 'with_holder', 'payment_sent', 'sold', 'overdue', 'disputed']).has(status)) {
+      if (new Set(['accepted', 'partial', 'with_holder', 'payment_sent', 'sold', 'overdue', 'disputed']).has(status)) {
         return { kind: 'transition', status: 'cancellation_requested' };
       }
       if (status === 'cancellation_requested') return { kind: 'replay', status };
@@ -161,7 +164,9 @@ export function decideApStatusTransition(
       return { kind: 'reject', code: 'failed-precondition', message: 'No cancellation request pending.' };
     case 'respond-cancellation-rejected':
       if (status === 'cancellation_requested') return { kind: 'transition', status: 'accepted' };
-      if (status === 'accepted') return { kind: 'replay', status };
+      if (status === 'accepted' || status === 'partial' || status === 'payment_sent') {
+        return { kind: 'replay', status };
+      }
       return { kind: 'reject', code: 'failed-precondition', message: 'No cancellation request pending.' };
   }
 }

@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Spacing, Typography } from '@/constants/design-tokens';
 import { submitFraudReport } from '@/features/marketplace/marketplace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { friendlyError } from '@/lib/errors';
-import { withLoading } from '@/providers/loading-bridge';
 import { useToast } from '@/providers/toast-provider';
 import type { FraudReportType } from '@/types';
 
@@ -43,29 +43,27 @@ export function FraudReportSheet({
   const [reportType, setReportType] = useState<FraudReportType>('scammer');
   const [description, setDescription] = useState('');
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (description.trim().length < 10) {
       toast.error('Please describe the issue in at least 10 characters.');
       return;
     }
 
     try {
-      await withLoading(async () => {
-        await submitFraudReport({
-          reporterUid,
-          reportedBusinessId,
-          reportedUserUid,
-          reportType,
-          description,
-        });
-        toast.success('Report submitted. Our team will review it.');
-        setDescription('');
-        onClose();
-      }, 'Submitting…');
+      await submitFraudReport({
+        reporterUid,
+        reportedBusinessId,
+        reportedUserUid,
+        reportType,
+        description,
+      });
+      toast.success('Report submitted. Our team will review it.');
+      setDescription('');
+      onClose();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not submit report.'));
     }
-  }
+  });
 
   return (
     <BottomSheet
@@ -73,7 +71,7 @@ export function FraudReportSheet({
       onClose={onClose}
       title="Report a concern"
       footer={
-        <Button title="Submit report" onPress={handleSubmit} />
+        <Button title="Submit report" onPress={handleSubmit} loading={submitting} />
       }>
       <Text style={[styles.intro, { color: colors.onSurfaceVariant }]}>
         Report {businessName}. Reports are reviewed by GemFort. The business will not be notified who

@@ -1,17 +1,20 @@
-import { Image } from "expo-image";
 import { router } from "expo-router";
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import {
   Pressable,
   StyleSheet,
   Text,
   View,
+  type HostInstance,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScanSheet } from "@/components/scan/scan-sheet";
+import { SHEET_CLOSE_MS } from "@/components/scan/scan-to-add-row";
+import { ActionTile, ActionTileGrid } from "@/components/ui/action-tile";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, Typography } from "@/constants/design-tokens";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
 export type QuickActionSheetItem = {
@@ -36,15 +39,17 @@ export function QuickActionsSheet({
   onActionPress,
 }: QuickActionsSheetProps) {
   const { colors } = useAppTheme();
+  const [scanOpen, setScanOpen] = useState(false);
 
   const openCertificatePortals = () => {
     onClose();
     router.push("/verify-certificate-portals");
   };
 
-  const scanCertificate = () => {
+  const openScanSheet = () => {
     onClose();
-    router.push("/scan-certificate");
+    // Let this sheet finish dismissing before presenting the next one.
+    setTimeout(() => setScanOpen(true), SHEET_CLOSE_MS);
   };
 
   const selectAction = (action: QuickActionSheetItem) => {
@@ -57,123 +62,68 @@ export function QuickActionsSheet({
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Quick actions">
-      <View style={styles.section}>
-        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-          Verify certificate
-        </Text>
-        <View style={styles.verifyOptions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="List verification portals"
-            onPress={openCertificatePortals}
-            style={({ pressed }) => [
-              styles.verifyOption,
-              { backgroundColor: colors.surfaceContainerLow },
-              { opacity: pressed ? 0.72 : 1 },
-            ]}
-          >
-            <View
-              style={[
-                styles.verifyOptionIcon,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              <Icon name="list" size={24} color={colors.primary} />
-            </View>
-            <Text
-              style={[styles.optionTitle, { color: colors.onSurface }]}
-            >
-              List
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Scan certificate"
-            onPress={scanCertificate}
-            style={({ pressed }) => [
-              styles.verifyOption,
-              { backgroundColor: colors.surfaceContainerLow },
-              { opacity: pressed ? 0.72 : 1 },
-            ]}
-          >
-            <View
-              style={[
-                styles.verifyOptionIcon,
-                { backgroundColor: colors.primaryContainer },
-              ]}
-            >
-              <Icon name="qr-code-scanner" size={24} color={colors.primary} />
-            </View>
-            <Text
-              style={[styles.optionTitle, { color: colors.onSurface }]}
-            >
-              Scan
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {actions.length > 0 ? (
+    <>
+      <BottomSheet visible={visible} onClose={onClose} title="Quick actions">
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
-            Quick actions
+            Scan & verify
           </Text>
-          <View style={styles.actionGrid}>
-            {actions.map((action) => (
-              <Pressable
-                key={action.id}
-                accessibilityRole="button"
-                accessibilityLabel={action.label}
-                onPress={() => selectAction(action)}
-                style={({ pressed }) => [
-                  styles.action,
-                  { backgroundColor: colors.surfaceContainerLow },
-                  { opacity: pressed ? 0.72 : 1 },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.actionIcon,
-                    !action.image && { backgroundColor: colors.primaryContainer },
-                  ]}
-                >
-                  {action.image ? (
-                    <Image
-                      source={action.image}
-                      style={styles.actionImage}
-                      contentFit="cover"
-                      accessibilityIgnoresInvertColors
-                    />
-                  ) : (
-                    <Icon
-                      name={action.icon}
-                      size={22}
-                      color={colors.onPrimaryContainer}
-                    />
-                  )}
-                </View>
-                <Text
-                  style={[styles.optionTitle, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <ActionTileGrid>
+            <ActionTile
+              label="List"
+              accessibilityLabel="List verification portals"
+              icon="list"
+              accent={colors.onSurfaceVariant}
+              onPress={openCertificatePortals}
+            />
+            <ActionTile
+              label="Scan"
+              hint="Scan a document or a certificate code"
+              icon="document-scanner"
+              accent={colors.primary}
+              onPress={openScanSheet}
+            />
+          </ActionTileGrid>
         </View>
-      ) : null}
-    </BottomSheet>
+
+        {actions.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+              Quick actions
+            </Text>
+            <ActionTileGrid>
+              {actions.map((action) => (
+                <ActionTile
+                  key={action.id}
+                  label={action.label}
+                  icon={action.icon}
+                  image={action.image}
+                  accent={colors.primary}
+                  onPress={() => selectAction(action)}
+                />
+              ))}
+            </ActionTileGrid>
+          </View>
+        ) : null}
+      </BottomSheet>
+      <ScanSheet visible={scanOpen} onClose={() => setScanOpen(false)} />
+    </>
   );
 }
 
 type QuickActionsFabProps = {
   onPress: () => void;
-  targetRef?: RefObject<View | null>;
+  targetRef?: RefObject<HostInstance | null>;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 };
 
-export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {
+export function QuickActionsFab({
+  onPress,
+  targetRef,
+  accessibilityLabel = "Open quick actions",
+  accessibilityHint = "Add something or verify a certificate",
+}: QuickActionsFabProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -181,8 +131,8 @@ export function QuickActionsFab({ onPress, targetRef }: QuickActionsFabProps) {
     <Pressable
       ref={targetRef}
       accessibilityRole="button"
-      accessibilityLabel="Open quick actions"
-      accessibilityHint="Add something or verify a certificate"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       onPress={onPress}
       style={({ pressed }) => [
         styles.fab,
@@ -205,53 +155,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  verifyOptions: { flexDirection: "row", gap: Spacing.md },
-  verifyOption: {
-    flex: 1,
-    minHeight: 88,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.md,
-  },
-  verifyOptionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  action: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    minHeight: 76,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  actionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  actionImage: { width: 42, height: 42 },
-  optionTitle: { ...Typography.bodyMd, fontWeight: "700" },
   fab: {
     position: "absolute",
     right: Spacing.containerMargin,

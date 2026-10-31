@@ -1,6 +1,7 @@
 import type {
   Business,
   BusinessReputationBadge as BusinessReputationBadgeType,
+  UserProfile,
 } from "@/types";
 
 export const BUSINESS_REPUTATION_BADGE_LABELS: Record<
@@ -14,16 +15,20 @@ export const BUSINESS_REPUTATION_BADGE_LABELS: Record<
   recognized: "Recognized",
 };
 
-/** Shared tier colors used anywhere a verification level is represented by color. */
+/**
+ * Shared tier colors used anywhere a verification level is represented by color.
+ * Member stays in GemFort graphite; verified tiers step through jewel tones
+ * (emerald → sapphire → gold → ruby), kept deep and muted.
+ */
 export const BUSINESS_REPUTATION_BADGE_COLORS: Record<
   Exclude<BusinessReputationBadgeType, "none">,
   string
 > = {
-  member: "#D65B9A",
-  identity: "#26A96B",
-  business: "#4D8CF4",
-  gem: "#E3B33C",
-  recognized: "#B13B52",
+  member: "#5C5C5C",
+  identity: "#2E7553",
+  business: "#3A5A8E",
+  gem: "#A9842F",
+  recognized: "#8C2F42",
 };
 
 export function parseBusinessReputationBadge(
@@ -67,4 +72,18 @@ export function businessReputationBadgeForBusiness(
   if (business.verificationStatus !== "verified") return "member";
   if (configured && configured !== "none") return configured;
   return parseBusinessReputationBadge(business.verificationTier) ?? "member";
+}
+
+/** Badge shown for the signed-in owner: profile-level overrides on top of the business tier. */
+export function reputationBadgeForOwner(
+  profile: Pick<UserProfile, "recognizedBadge" | "verificationStatus"> | null | undefined,
+  business: Parameters<typeof businessReputationBadgeForBusiness>[0],
+): Exclude<BusinessReputationBadgeType, "none"> {
+  if (profile?.recognizedBadge) return "recognized";
+  const fromBusiness = business ? businessReputationBadgeForBusiness(business) : "member";
+  if (fromBusiness === "none") return "member";
+  if (profile?.verificationStatus === "verified" && fromBusiness === "member") {
+    return "identity";
+  }
+  return fromBusiness;
 }

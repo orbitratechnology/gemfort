@@ -26,6 +26,7 @@ import { MaskedInput } from "@/components/ui/masked-input";
 import { MediaAlbumField } from "@/components/ui/media-album-field";
 import { MediaField } from "@/components/ui/media-field";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
   AttributePickerField,
@@ -64,6 +65,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import {
   extensionForMedia,
@@ -72,7 +74,6 @@ import {
 } from "@/lib/firebase/storage-service";
 import { addGemSchema, parseForm } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { GemCertificate, WorkspaceGem } from "@/types";
 
@@ -254,7 +255,7 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
     setShowOptional((prev) => !prev);
   }
 
-  async function handleSubmit() {
+  const [saving, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
     if (gem.ownerUid !== user.uid) {
       toast.error("You can only edit your own gems.");
@@ -285,142 +286,61 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
     const data = result.data;
 
     try {
-      await withLoading(async () => {
-        const stamp = Date.now();
-        const remoteUrls = photos
-          .map((p) => p.uri)
-          .filter((uri) => isRemoteUri(uri));
-        const hasLocalPhotos = photos.some((p) => !isRemoteUri(p.uri));
-        let photoUrls = remoteUrls;
-        let photosDeferred = false;
-        let certificateData: GemCertificate | null = certificate
-          ? isRemoteUri(certificate.uri)
-            ? {
-                url: certificate.uri,
-                kind: certificate.kind === "image" ? "image" : "file",
-                fileName: certificate.fileName ?? null,
-                mimeType: certificate.mimeType ?? null,
-              }
-            : null
-          : null;
-        let certificateDeferred = false;
-        let certificateUploadTask: Promise<string> | null = null;
-
-        if (photos.length > 0 && hasLocalPhotos) {
-          const uploadTask = Promise.all(
-            photos.map((photo, index) => {
-              if (isRemoteUri(photo.uri)) return Promise.resolve(photo.uri);
-              const ext = extensionForMedia(photo);
-              return uploadLocalMedia(
-                photo,
-                `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
-              );
-            }),
-          );
-
-          try {
-            // Await the real upload — do not race-abandon it (8s was wiping URLs).
-            photoUrls = await Promise.race([
-              uploadTask,
-              new Promise<never>((_, reject) => {
-                setTimeout(
-                  () => reject(new Error("photo-upload-timeout")),
-                  45_000,
-                );
-              }),
-            ]);
-          } catch {
-            photosDeferred = true;
-            // Never blank existing / remote photos when new uploads are slow.
-            photoUrls =
-              remoteUrls.length > 0 ? remoteUrls : (gem.photoUrls ?? []);
-            void uploadTask
-              .then((urls) => {
-                queueGemPhotoUrls(gem.id, urls);
-                queryClient.setQueryData(
-                  ["gem", gem.id],
-                  (prev: WorkspaceGem | null | undefined) =>
-                    prev ? { ...prev, photoUrls: urls } : prev,
-                );
-                void queryClient.invalidateQueries({ queryKey: ["gems"] });
-                void queryClient.invalidateQueries({
-                  queryKey: ["gem", gem.id],
-                });
-              })
-              .catch(() => {
-                // Offline / hard failure — field edits below still save.
-              });
-          }
-        } else if (photos.length === 0) {
-          photoUrls = [];
-        }
-
-        if (certificate && !isRemoteUri(certificate.uri)) {
-          certificateUploadTask = uploadLocalMedia(
-            certificate,
-            `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
-          );
-          try {
-            const certificateUrl = await Promise.race([
-              certificateUploadTask,
-              new Promise<never>((_, reject) => {
-                setTimeout(
-                  () => reject(new Error("certificate-upload-timeout")),
-                  45_000,
-                );
-              }),
-            ]);
-            certificateData = {
-              url: certificateUrl,
+      const stamp = Date.now();
+      const remoteUrls = photos
+        .map((p) => p.uri)
+        .filter((uri) => isRemoteUri(uri));
+      const hasLocalPhotos = photos.some((p) => !isRemoteUri(p.uri));
+      let photoUrls = remoteUrls;
+      let photosDeferred = false;
+      let certificateData: GemCertificate | null = certificate
+        ? isRemoteUri(certificate.uri)
+          ? {
+              url: certificate.uri,
               kind: certificate.kind === "image" ? "image" : "file",
               fileName: certificate.fileName ?? null,
               mimeType: certificate.mimeType ?? null,
-            };
-          } catch {
-            certificateDeferred = true;
-            // Keep the existing certificate visible until its replacement uploads.
-            certificateData = gem.certificate ?? null;
-          }
-        }
+            }
+          : null
+        : null;
+      let certificateDeferred = false;
+      let certificateUploadTask: Promise<string> | null = null;
 
-        const colorLabel = data.colorPrimary
-          ? formatColorLabel(data.colorPrimary)
-          : "";
+      if (photos.length > 0 && hasLocalPhotos) {
+        const uploadTask = Promise.all(
+          photos.map((photo, index) => {
+            if (isRemoteUri(photo.uri)) return Promise.resolve(photo.uri);
+            const ext = extensionForMedia(photo);
+            return uploadLocalMedia(
+              photo,
+              `gemtrack_gems/${user.uid}/${stamp}_${index}.${ext}`,
+            );
+          }),
+        );
 
-        await updateGemDetails(gem.id, user.uid, {
-          title: data.title,
-          gemType: data.gemType,
-          originCountry: data.originCountry ?? "",
-          roughWeight: data.roughWeight,
-          acquisitionCost: data.acquisitionCost,
-          acquisitionCurrency: acquisition.currency,
-          colorPrimary: colorLabel || data.colorPrimary || null,
-          clarity: data.clarity
-            ? formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity
-            : null,
-          shape: data.shape
-            ? formatOptionLabel(GEM_SHAPES, data.shape) || data.shape
-            : null,
-          isNatural: !data.treatment || data.treatment === "natural",
-          treatmentStatus: data.treatment ?? "natural",
-          photoUrls,
-          certificate: certificateData,
-        });
-
-        if (certificateDeferred && certificateUploadTask && certificate) {
-          void certificateUploadTask
-            .then((url) => {
-              const uploadedCertificate: GemCertificate = {
-                url,
-                kind: certificate.kind === "image" ? "image" : "file",
-                fileName: certificate.fileName ?? null,
-                mimeType: certificate.mimeType ?? null,
-              };
-              queueGemCertificate(gem.id, uploadedCertificate);
+        try {
+          // Await the real upload — do not race-abandon it (8s was wiping URLs).
+          photoUrls = await Promise.race([
+            uploadTask,
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error("photo-upload-timeout")),
+                45_000,
+              );
+            }),
+          ]);
+        } catch {
+          photosDeferred = true;
+          // Never blank existing / remote photos when new uploads are slow.
+          photoUrls =
+            remoteUrls.length > 0 ? remoteUrls : (gem.photoUrls ?? []);
+          void uploadTask
+            .then((urls) => {
+              queueGemPhotoUrls(gem.id, urls);
               queryClient.setQueryData(
                 ["gem", gem.id],
                 (prev: WorkspaceGem | null | undefined) =>
-                  prev ? { ...prev, certificate: uploadedCertificate } : prev,
+                  prev ? { ...prev, photoUrls: urls } : prev,
               );
               void queryClient.invalidateQueries({ queryKey: ["gems"] });
               void queryClient.invalidateQueries({
@@ -428,24 +348,103 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
               });
             })
             .catch(() => {
-              // Offline / hard failure — keep the prior certificate.
+              // Offline / hard failure — field edits below still save.
             });
         }
+      } else if (photos.length === 0) {
+        photoUrls = [];
+      }
 
-        void queryClient.invalidateQueries({ queryKey: ["gems"] });
-        void queryClient.invalidateQueries({ queryKey: ["gem", gem.id] });
-
-        toast.success(
-          photosDeferred || certificateDeferred
-            ? "Gem updated — attachments still uploading in the background"
-            : "Gem updated",
+      if (certificate && !isRemoteUri(certificate.uri)) {
+        certificateUploadTask = uploadLocalMedia(
+          certificate,
+          `gemtrack_gems/${user.uid}/certificates/${stamp}.${extensionForMedia(certificate)}`,
         );
-        if (router.canGoBack()) router.back();
-      }, "Saving gem…");
+        try {
+          const certificateUrl = await Promise.race([
+            certificateUploadTask,
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error("certificate-upload-timeout")),
+                45_000,
+              );
+            }),
+          ]);
+          certificateData = {
+            url: certificateUrl,
+            kind: certificate.kind === "image" ? "image" : "file",
+            fileName: certificate.fileName ?? null,
+            mimeType: certificate.mimeType ?? null,
+          };
+        } catch {
+          certificateDeferred = true;
+          // Keep the existing certificate visible until its replacement uploads.
+          certificateData = gem.certificate ?? null;
+        }
+      }
+
+      const colorLabel = data.colorPrimary
+        ? formatColorLabel(data.colorPrimary)
+        : "";
+
+      await updateGemDetails(gem.id, user.uid, {
+        title: data.title,
+        gemType: data.gemType,
+        originCountry: data.originCountry ?? "",
+        roughWeight: data.roughWeight,
+        acquisitionCost: data.acquisitionCost,
+        acquisitionCurrency: acquisition.currency,
+        colorPrimary: colorLabel || data.colorPrimary || null,
+        clarity: data.clarity
+          ? formatOptionLabel(GEM_CLARITIES, data.clarity) || data.clarity
+          : null,
+        shape: data.shape
+          ? formatOptionLabel(GEM_SHAPES, data.shape) || data.shape
+          : null,
+        isNatural: !data.treatment || data.treatment === "natural",
+        treatmentStatus: data.treatment ?? "natural",
+        photoUrls,
+        certificate: certificateData,
+      });
+
+      if (certificateDeferred && certificateUploadTask && certificate) {
+        void certificateUploadTask
+          .then((url) => {
+            const uploadedCertificate: GemCertificate = {
+              url,
+              kind: certificate.kind === "image" ? "image" : "file",
+              fileName: certificate.fileName ?? null,
+              mimeType: certificate.mimeType ?? null,
+            };
+            queueGemCertificate(gem.id, uploadedCertificate);
+            queryClient.setQueryData(
+              ["gem", gem.id],
+              (prev: WorkspaceGem | null | undefined) =>
+                prev ? { ...prev, certificate: uploadedCertificate } : prev,
+            );
+            void queryClient.invalidateQueries({ queryKey: ["gems"] });
+            void queryClient.invalidateQueries({
+              queryKey: ["gem", gem.id],
+            });
+          })
+          .catch(() => {
+            // Offline / hard failure — keep the prior certificate.
+          });
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ["gems"] });
+      void queryClient.invalidateQueries({ queryKey: ["gem", gem.id] });
+
+      toast.success(
+        photosDeferred || certificateDeferred
+          ? "Gem updated — attachments still uploading in the background"
+          : "Gem updated",
+      );
+      if (router.canGoBack()) router.back();
     } catch (e) {
       toast.error(friendlyError(e, "Could not update gem."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -687,11 +686,14 @@ function EditGemForm({ gem }: { gem: WorkspaceGem }) {
         </FormSection>
       </ThemedScrollView>
 
-      <FormFooter
-        title="Save changes"
-        icon="check"
-        onPress={() => void handleSubmit()}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Save changes"
+          icon="check"
+          loading={saving}
+          onPress={() => void handleSubmit()}
+        />
+      </SheetFooter>
 
       <GemTypePickerSheet
         visible={sheet === "type"}

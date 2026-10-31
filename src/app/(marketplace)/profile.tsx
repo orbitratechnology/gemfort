@@ -15,11 +15,12 @@ import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { CurrencyFlag } from "@/components/ui/country-flag";
 import { COVER_BANNER_HEIGHT, CoverBanner } from "@/components/ui/cover-banner";
 import { CurrencyPickerSheet } from "@/components/ui/currency-picker-sheet";
-import { FormSection, FormSectionLabel } from "@/components/ui/form-section";
+import { FormSection, FormSectionLabel, ScreenInset } from "@/components/ui/form-section";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { StackHeader } from "@/components/ui/stack-header";
 import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
-import { businessReputationBadgeForBusiness } from "@/constants/business-reputation";
+import { VerificationStatusCard } from "@/components/verification/verification-status-card";
+import { reputationBadgeForOwner } from "@/constants/business-reputation";
 import {
     getCurrencyLabel,
     type CurrencyCode,
@@ -169,7 +170,6 @@ export default function ProfileScreen() {
   }
 
   const effectiveRole = resolveProfileRole(profile);
-  const isVerified = profile?.verificationStatus === "verified";
   const businessName = business?.businessName?.trim() || "Your Business";
   const initial = businessName.charAt(0).toUpperCase();
   const roleLabel = ROLE_LABELS[effectiveRole] ?? "Member";
@@ -178,14 +178,7 @@ export default function ProfileScreen() {
     : new Date().getFullYear();
   const coverUri = business?.coverPhotoUrl ?? null;
   const avatarUri = business?.logoUrl ?? null;
-  const businessReputationBadge = business
-    ? businessReputationBadgeForBusiness(business)
-    : "member";
-  const reputationBadge = profile?.recognizedBadge
-    ? "recognized"
-    : profile?.verificationStatus === "verified" && businessReputationBadge === "member"
-      ? "identity"
-      : businessReputationBadge;
+  const reputationBadge = reputationBadgeForOwner(profile, business);
 
   return (
     <View
@@ -250,46 +243,17 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.body}>
+          <FormSectionLabel title="VERIFICATION" />
+          <ScreenInset>
+            <VerificationStatusCard
+              tier={reputationBadge}
+              status={profile?.verificationStatus}
+              onPress={() => router.push("/profile/verify")}
+            />
+          </ScreenInset>
+
           <FormSectionLabel title="BUSINESS PROFILE" />
           <FormSection padded={false}>
-            {isVerified ? (
-              <>
-                <Row
-                  colors={colors}
-                  icon="verified-user"
-                  label="Promote Verification"
-                  subtitle="Submit additional documents for a higher tier"
-                  onPress={() => router.push("/profile/verify")}
-                  trailing={
-                    <Text style={[styles.trailingValue, { color: colors.primary }]}>
-                      Promote
-                    </Text>
-                  }
-                />
-                <Divider colors={colors} />
-              </>
-            ) : (
-              <>
-                <Row
-                  colors={colors}
-                  icon="verified-user"
-                  label="Verification Status"
-                  subtitle="Not verified yet"
-                  onPress={() => router.push("/profile/verify")}
-                  trailing={
-                    <Text
-                      style={[
-                        styles.trailingValue,
-                        { color: colors.warningAmber },
-                      ]}
-                    >
-                      Pending
-                    </Text>
-                  }
-                />
-                <Divider colors={colors} />
-              </>
-            )}
             <Row
               colors={colors}
               icon="storefront"

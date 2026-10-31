@@ -6,7 +6,7 @@ export { syncExchangeRates } from './gemtrack/exchange-rates';
 
 export { onUserAccountAction } from './gemnet/account-action';
 export { onAnnouncementPublished } from './gemnet/announcement';
-export { onLikeCreated } from './gemnet/likes';
+export { onLikeCreated, onLikeDeleted } from './gemnet/likes';
 export { onListingOfferCreated } from './gemnet/listing-offers';
 export { syncPublicBusinessProjection } from './gemnet/public-businesses';
 export { onReportResolved } from './gemnet/report-resolved';

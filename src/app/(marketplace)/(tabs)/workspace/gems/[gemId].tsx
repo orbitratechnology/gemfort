@@ -1,29 +1,44 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Link, router, useLocalSearchParams } from "expo-router";
+import { format } from "date-fns";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    useWindowDimensions
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { CountryLabel } from "@/components/ui/country-flag";
+import {
+  Accent,
+  Callout,
+  DetailBand,
+  DetailHeader,
+  DetailRows,
+  KeyStats,
+  StatusChip,
+  StatusGrid,
+  TitleBand,
+  useCollapsingHeader,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
 import { AvatarVerificationBadge } from "@/components/ui/verification-badge";
 import {
   GemCertificateBadge,
   GemCertificateCard,
 } from "@/components/workspace/gem-certificate";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork, gemTint } from "@/components/workspace/gem-artwork";
 import {
-    CurrencyAmountField,
-    type CurrencyAmountValue,
+  CurrencyAmountField,
+  type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
@@ -31,8 +46,8 @@ import { ImagePager } from "@/components/ui/image-pager";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
 import {
-    PartyPickerSheet,
-    type PartySelection,
+  PartyPickerSheet,
+  type PartySelection,
 } from "@/components/workspace/contact-picker-sheet";
 import {
   GemActionsSheet,
@@ -40,18 +55,21 @@ import {
 } from "@/components/workspace/gem-actions-sheet";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
 import {
-    FontFamily,
-    Radius,
-    Spacing,
-    type ThemeColors,
-    Typography,
+  FontFamily,
+  Radius,
+  Spacing,
+  type ThemeColors,
+  Typography,
 } from "@/constants/design-tokens";
 import {
-    formatCostTypeLabel,
-    formatGemStatusLabel,
-    formatGemType,
-    formatShapeLabel,
-    formatTreatmentLabel,
+  findColorShade,
+  formatCostTypeLabel,
+  formatGemStatusLabel,
+  formatGemType,
+  formatOptionLabel,
+  formatShapeLabel,
+  formatTreatmentLabel,
+  GEM_CLARITIES,
 } from "@/constants/gem-options";
 import { ROLE_LABELS, resolveProfileRole } from "@/constants/roles";
 import { paymentMethodOptions } from "@/constants/payment-methods";
@@ -61,20 +79,20 @@ import {
   fetchBusinessByOwnerUid,
 } from "@/features/marketplace/marketplace-service";
 import {
-    subscribeBusiness,
-    subscribeBusinessByOwnerUid,
-    subscribeContacts,
-    subscribeGem,
-    subscribeGemCosts,
-    subscribeGemEvents,
-    subscribeGemServices,
+  subscribeBusiness,
+  subscribeBusinessByOwnerUid,
+  subscribeContacts,
+  subscribeGem,
+  subscribeGemCosts,
+  subscribeGemEvents,
+  subscribeGemServices,
 } from "@/features/workspace/firestore-subscriptions";
 import {
-    formatLifecycleSummary,
-    gemActionAvailability,
-    normalizeGemTreatment,
-    resolveGemLifecycle,
-    resolveGemSaleStatus,
+  formatLifecycleSummary,
+  gemActionAvailability,
+  normalizeGemTreatment,
+  resolveGemLifecycle,
+  resolveGemSaleStatus,
 } from "@/features/workspace/gem-lifecycle";
 import {
   cancelGemTransferRequest,
@@ -82,12 +100,12 @@ import {
   recordGemSale,
 } from "@/features/workspace/gem-transfer-api";
 import {
-    fetchContacts,
-    fetchGem,
-    fetchGemCosts,
-    fetchGemEvents,
-    fetchGemServices,
-    removeGemFromMarket,
+  fetchContacts,
+  fetchGem,
+  fetchGemCosts,
+  fetchGemEvents,
+  fetchGemServices,
+  removeGemFromMarket,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
@@ -98,13 +116,12 @@ import { listingShareUrl, shareFile, shareLink } from "@/lib/share";
 import { formatRelativeTime, shortGemId, toJsDate } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type {
-    GemEvent,
-    GemPaymentMethod,
-    GemStatus,
-    ServiceRecord,
+  GemEvent,
+  GemPaymentMethod,
+  GemStatus,
+  ServiceRecord,
 } from "@/types";
 
 const INITIAL_HISTORY_COUNT = 4;
@@ -115,15 +132,6 @@ const GEM_PAYMENT_METHODS = paymentMethodOptions([
   "bill",
   "other",
 ] as const);
-
-const SPEC_ICONS: Record<string, IconName> = {
-  Weight: "scale",
-  Color: "palette",
-  Clarity: "visibility",
-  Shape: "category",
-  Treatment: "science",
-  Origin: "location-on",
-};
 
 const STATUS_ICONS: Partial<Record<GemStatus, IconName>> = {
   rough: "spa",
@@ -216,9 +224,7 @@ function GemHistoryRow({
             name={eventIcon(event.eventType || event.description)}
             size={14}
             color={
-              index === 0
-                ? colors.onPrimaryContainer
-                : colors.onSurfaceVariant
+              index === 0 ? colors.onPrimaryContainer : colors.onSurfaceVariant
             }
           />
         </View>
@@ -240,12 +246,10 @@ function GemHistoryRow({
         </Text>
         {event.weightAtEvent != null ? (
           <View style={styles.timelineMetaRow}>
-            <Icon
-              name="scale"
-              size={12}
-              color={colors.onSurfaceVariant}
-            />
-            <Text style={[styles.timelineMeta, { color: colors.onSurfaceVariant }]}>
+            <Icon name="scale" size={12} color={colors.onSurfaceVariant} />
+            <Text
+              style={[styles.timelineMeta, { color: colors.onSurfaceVariant }]}
+            >
               {event.weightAtEvent} ct
             </Text>
           </View>
@@ -277,6 +281,13 @@ function GemHistoryTimeline({
   );
 }
 
+function isListedState(
+  gem: { isListedOnMarketplace: boolean },
+  outcome: string | null,
+): boolean {
+  return gem.isListedOnMarketplace || outcome === "listed";
+}
+
 export default function GemDetailScreen() {
   const { gemId, sell, tripId, tripGemId } = useLocalSearchParams<{
     gemId: string;
@@ -292,14 +303,20 @@ export default function GemDetailScreen() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
+  const heroHeight = Math.round(windowWidth * 0.9);
+  // Floating hero controls become a solid titled bar once the hero scrolls away.
+  const { solid: headerSolid, scrollProps } = useCollapsingHeader(heroHeight);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [partyPickerOpen, setPartyPickerOpen] = useState(false);
   const [transferSaving, setTransferSaving] = useState(false);
-  const [transferParty, setTransferParty] = useState<PartySelection | null>(null);
-  const [transferPaymentMethod, setTransferPaymentMethod] = useState<GemPaymentMethod>("cash");
+  const [transferParty, setTransferParty] = useState<PartySelection | null>(
+    null,
+  );
+  const [transferPaymentMethod, setTransferPaymentMethod] =
+    useState<GemPaymentMethod>("cash");
   const [soldAmount, setSoldAmount] = useState<CurrencyAmountValue>({
     amount: "",
     currency: preferred,
@@ -357,7 +374,8 @@ export default function GemDetailScreen() {
   const { data: contacts = [] } = useFirestoreLiveQuery({
     queryKey: ["contacts", user?.uid],
     queryFn: () => fetchContacts(user!.uid),
-    subscribe: (onData, onError) => subscribeContacts(user!.uid, onData, onError),
+    subscribe: (onData, onError) =>
+      subscribeContacts(user!.uid, onData, onError),
     enabled: !!user,
   });
 
@@ -401,43 +419,41 @@ export default function GemDetailScreen() {
     }
     setTransferSaving(true);
     await Promise.resolve()
-      .then(() =>
-        withLoading(async () => {
-          if (transferParty.source === "business") {
-            await createGemTransferRequest({
-              gemId: gem.id,
-              recipientBusinessId: transferParty.businessId,
-              recipientContactId: transferParty.linkedContactId ?? null,
-              recipientName: transferParty.label,
-              amount,
-              currency: soldAmount.currency,
-              paymentMethod: transferPaymentMethod,
-              sourceTripId: sell === "1" ? tripId : null,
-              sourceTripGemId: sell === "1" ? tripGemId : null,
-            });
-          } else {
-            await recordGemSale({
-              gemId: gem.id,
-              recipientContactId: transferParty.contactId,
-              recipientName: transferParty.label,
-              amount,
-              currency: soldAmount.currency,
-              paymentMethod: transferPaymentMethod,
-              sourceTripId: sell === "1" ? tripId : null,
-              sourceTripGemId: sell === "1" ? tripGemId : null,
-            });
-          }
-          await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
-          await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
-          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-          setTransferOpen(false);
-          toast.success(
-            transferParty.source === "business"
-              ? "Sale request sent — waiting for the trader to accept"
-              : `Sale recorded to ${transferParty.label}.`,
-          );
-        }, transferParty.source === "business" ? "Sending sale request…" : "Recording sale…"),
-      )
+      .then(async () => {
+        if (transferParty.source === "business") {
+          await createGemTransferRequest({
+            gemId: gem.id,
+            recipientBusinessId: transferParty.businessId,
+            recipientContactId: transferParty.linkedContactId ?? null,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        } else {
+          await recordGemSale({
+            gemId: gem.id,
+            recipientContactId: transferParty.contactId,
+            recipientName: transferParty.label,
+            amount,
+            currency: soldAmount.currency,
+            paymentMethod: transferPaymentMethod,
+            sourceTripId: sell === "1" ? tripId : null,
+            sourceTripGemId: sell === "1" ? tripGemId : null,
+          });
+        }
+        await queryClient.invalidateQueries({ queryKey: ["gem", gemId] });
+        await queryClient.invalidateQueries({ queryKey: ["gems", user.uid] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        setTransferOpen(false);
+        toast.success(
+          transferParty.source === "business"
+            ? "Sale request sent — waiting for the trader to accept"
+            : `Sale recorded to ${transferParty.label}.`,
+        );
+      })
       .catch((e) => {
         setSoldError(
           friendlyError(
@@ -457,7 +473,8 @@ export default function GemDetailScreen() {
     if (!user || !gem?.saleTransferRequestId || transferSaving) return;
     const ok = await confirm({
       title: "Mark unsold?",
-      message: "Cancel the pending trader request and return the gem to active inventory.",
+      message:
+        "Cancel the pending trader request and return the gem to active inventory.",
       confirmLabel: "Mark unsold",
       tone: "destructive",
       onConfirm: async () => {
@@ -511,13 +528,22 @@ export default function GemDetailScreen() {
   const lifecycle = resolveGemLifecycle(gem);
   const statusLabel = formatLifecycleSummary(lifecycle);
   const stoneLabel = formatGemStatusLabel(lifecycle.stoneStage);
-  const locationLabel = gem.currentLocation?.trim() || (lifecycle.custody
-    ? lifecycle.custody === "with_cutter" || lifecycle.custody === "with_heater" || lifecycle.custody === "with_polisher"
-      ? "Lapidary"
-      : formatGemStatusLabel(lifecycle.custody)
-    : "With me");
+  const locationLabel =
+    gem.currentLocation?.trim() ||
+    (lifecycle.custody
+      ? lifecycle.custody === "with_cutter" ||
+        lifecycle.custody === "with_heater" ||
+        lifecycle.custody === "with_polisher"
+        ? "Lapidary"
+        : formatGemStatusLabel(lifecycle.custody)
+      : "With me");
   const saleStatus = resolveGemSaleStatus(gem);
-  const saleLabel = saleStatus === "pending" ? "Awaiting trader" : saleStatus === "sold" ? "Sold" : "Unsold";
+  const saleLabel =
+    saleStatus === "pending"
+      ? "Awaiting trader"
+      : saleStatus === "sold"
+        ? "Sold"
+        : "Unsold";
   const soldTraderName =
     gem.soldToBusinessName?.split(" · ")[0]?.trim() ||
     soldToBusiness?.businessName?.trim() ||
@@ -533,19 +559,6 @@ export default function GemDetailScreen() {
       gem.isNatural,
     ).treatmentStatus,
   );
-  const specs = [
-    { label: "Weight", value: `${gem.currentWeight} ct` },
-    ...(shapeLabel ? [{ label: "Shape", value: shapeLabel }] : []),
-    ...(gem.colorPrimary ? [{ label: "Color", value: gem.colorPrimary }] : []),
-    ...(gem.clarity ? [{ label: "Clarity", value: gem.clarity }] : []),
-    { label: "Treatment", value: treatmentLabel || "None" },
-    { label: "Origin", value: gem.originCountry || "Unknown" },
-  ];
-
-  const tags: string[] = [];
-  if (treatmentLabel && treatmentLabel !== "None") tags.push(treatmentLabel);
-  if (gem.clarity) tags.push(gem.clarity);
-  tags.push(statusLabel);
 
   const photos = (gem.photoUrls ?? []).filter(
     (u): u is string => typeof u === "string" && u.trim().length > 0,
@@ -565,8 +578,10 @@ export default function GemDetailScreen() {
     return bMs - aMs;
   });
   const serviceHistory = [...services].sort((a, b) => {
-    const aMs = toJsDate(a.dateReturned ?? a.dateGiven ?? a.createdAt)?.getTime() ?? 0;
-    const bMs = toJsDate(b.dateReturned ?? b.dateGiven ?? b.createdAt)?.getTime() ?? 0;
+    const aMs =
+      toJsDate(a.dateReturned ?? a.dateGiven ?? a.createdAt)?.getTime() ?? 0;
+    const bMs =
+      toJsDate(b.dateReturned ?? b.dateGiven ?? b.createdAt)?.getTime() ?? 0;
     return bMs - aMs;
   });
 
@@ -588,8 +603,7 @@ export default function GemDetailScreen() {
         })} / ct`
       : null;
 
-  const businessDisplayName =
-    business?.businessName?.trim() || "Your Business";
+  const businessDisplayName = business?.businessName?.trim() || "Your Business";
   const ownerRole =
     business?.businessType === "lapidary"
       ? "Lapidary"
@@ -597,14 +611,145 @@ export default function GemDetailScreen() {
   const ownerAvatar = business?.logoUrl ?? null;
   const ownerReputationBadge = businessReputationBadgeForBusiness(business);
   const ownerInitials = initials(businessDisplayName);
+  const tint = gemTint(gem);
+  const colorHit = gem.colorPrimary ? findColorShade(gem.colorPrimary) : null;
+  const colorLabel = colorHit
+    ? colorHit.shade.label.replace(/\s*\(.*\)$/, "")
+    : gem.colorPrimary;
+  const clarityLabel = gem.clarity
+    ? formatOptionLabel(GEM_CLARITIES, gem.clarity) ||
+      gem.clarity.replace(/_/g, " ")
+    : null;
+  const acquiredOn = toJsDate(gem.acquisitionDate);
+  const acquiredLabel = acquiredOn ? format(acquiredOn, "d MMM yyyy") : null;
+  const acquisitionLabel = gem.acquisitionType
+    ? gem.acquisitionType.charAt(0).toUpperCase() +
+      gem.acquisitionType.slice(1).replace(/_/g, " ")
+    : null;
+  const hasRoughWeight =
+    gem.roughWeight > 0 && gem.roughWeight !== gem.currentWeight;
+  const yieldPct = hasRoughWeight
+    ? Math.round((gem.currentWeight / gem.roughWeight) * 100)
+    : null;
+  const statusAccent =
+    saleStatus === "sold" ||
+    lifecycle.outcome === "sold" ||
+    lifecycle.outcome === "returned"
+      ? Accent.slate
+      : isListedState(gem, lifecycle.outcome)
+        ? Accent.blue
+        : lifecycle.custody
+          ? Accent.amber
+          : Accent.emerald;
+  const saleAccent =
+    saleStatus === "sold"
+      ? Accent.emerald
+      : saleStatus === "pending"
+        ? Accent.amber
+        : Accent.slate;
+  const profitAccent =
+    profitBase != null && profitBase < 0 ? Accent.rose : Accent.emerald;
+  const specRows: ({ key: string } & DetailRowProps)[] = [
+    {
+      key: "weight",
+      icon: "scale",
+      accent: colors.onSurfaceVariant,
+      label: "Weight",
+      value:
+        yieldPct != null
+          ? `${gem.currentWeight} ct · ${yieldPct}% yield`
+          : `${gem.currentWeight} ct`,
+    },
+    ...(shapeLabel
+      ? [
+          {
+            key: "shape",
+            icon: "category" as IconName,
+            accent: Accent.violet,
+            label: "Shape",
+            value: shapeLabel,
+          },
+        ]
+      : []),
+    ...(colorLabel
+      ? [
+          {
+            key: "color",
+            leading: (
+              <View
+                style={[
+                  styles.swatch,
+                  {
+                    backgroundColor:
+                      colorHit?.shade.hex ?? tint ?? colors.outline,
+                  },
+                ]}
+              />
+            ),
+            accent: colorHit?.shade.hex ?? tint ?? undefined,
+            label: "Colour",
+            value: colorLabel,
+          },
+        ]
+      : []),
+    ...(clarityLabel
+      ? [
+          {
+            key: "clarity",
+            icon: "visibility" as IconName,
+            accent: Accent.blue,
+            label: "Clarity",
+            value: clarityLabel,
+          },
+        ]
+      : []),
+    {
+      key: "treatment",
+      icon: "science",
+      accent: Accent.amber,
+      label: "Treatment",
+      value: treatmentLabel || "None",
+    },
+    {
+      key: "origin",
+      icon: "public",
+      accent: Accent.emerald,
+      label: "Origin",
+      value: gem.originCountry ? (
+        <CountryLabel
+          country={gem.originCountry}
+          size="sm"
+          textStyle={[styles.specValue, { color: colors.onSurface }]}
+          numberOfLines={1}
+        />
+      ) : (
+        "Unknown"
+      ),
+    },
+    ...(acquiredLabel
+      ? [
+          {
+            key: "acquired",
+            icon: "event" as IconName,
+            accent: colors.onSurfaceVariant,
+            label: "Acquired",
+            value: acquisitionLabel
+              ? `${acquiredLabel} · ${acquisitionLabel}`
+              : acquiredLabel,
+          },
+        ]
+      : []),
+  ];
 
-  const heroHeight = windowWidth;
   const bottomBarPad = Math.max(insets.bottom, 12);
   const isOwnGem = !!user && user.uid === gem.ownerUid;
   const actionAvailability = gemActionAvailability(gem);
-  const cuttingServiceType = lifecycle.stoneStage === "cut" ? "recutting" : "cutting";
-  const heatingServiceType = lifecycle.stoneStage === "heated" ? "reheating" : "heating";
-  const polishingServiceType = lifecycle.stoneStage === "polished" ? "repolishing" : "polishing";
+  const cuttingServiceType =
+    lifecycle.stoneStage === "cut" ? "recutting" : "cutting";
+  const heatingServiceType =
+    lifecycle.stoneStage === "heated" ? "reheating" : "heating";
+  const polishingServiceType =
+    lifecycle.stoneStage === "polished" ? "repolishing" : "polishing";
   const canSellFromTrip =
     sell === "1" &&
     typeof tripId === "string" &&
@@ -613,22 +758,106 @@ export default function GemDetailScreen() {
   const canMarkSold = actionAvailability.mark_sold || canSellFromTrip;
   const isListed =
     isOwnGem && (gem.isListedOnMarketplace || lifecycle.outcome === "listed");
-  const primaryAction: { title: string; icon: IconName; onPress: () => void } | null =
-    canMarkSold
-      ? { title: "Sold", icon: "price-check", onPress: openSoldChooser }
-      : actionAvailability.mark_unsold
-        ? { title: "Mark unsold", icon: "undo", onPress: () => void handleMarkUnsold() }
-        : null;
+  const primaryAction: {
+    title: string;
+    icon: IconName;
+    onPress: () => void;
+  } | null = canMarkSold
+    ? { title: "Sold", icon: "price-check", onPress: openSoldChooser }
+    : actionAvailability.mark_unsold
+      ? {
+          title: "Mark unsold",
+          icon: "undo",
+          onPress: () => void handleMarkUnsold(),
+        }
+      : null;
   const openRoute = (href: string) => () => router.push(href as never);
   const sheetActions: GemActionItem[] = [
-    ...(actionAvailability.send_for_cutting ? [{ id: "cut", group: "work" as const, title: cuttingServiceType === "recutting" ? "Recut" : "Cut", description: "Send to a cutter and track the job", icon: "content-cut" as IconName, onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}`) }] : []),
-    ...(actionAvailability.send_for_heating ? [{ id: "heat", group: "work" as const, title: heatingServiceType === "reheating" ? "Reheat" : "Heat", description: "Send for heat treatment", icon: "local-fire-department" as IconName, image: require("@/assets/images/lapidary-icon.png"), onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}`) }] : []),
-    ...(actionAvailability.send_for_polishing ? [{ id: "polish", group: "work" as const, title: polishingServiceType === "repolishing" ? "Repolish" : "Polish", description: "Send for polishing", icon: "auto-awesome" as IconName, onPress: openRoute(`/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}`) }] : []),
-    ...(actionAvailability.give_on_ap ? [{ id: "ap", group: "trade" as const, title: "Give on AP", description: "Hand it to a trader on approval", icon: "ap" as IconName, image: require("@/assets/images/ap-icon.png"), onPress: openRoute(`/(marketplace)/ap/add?gemId=${gem.id}`) }] : []),
-    ...(actionAvailability.list_on_market ? [{ id: "list", group: "trade" as const, title: "Sell on Market", description: "List it for buyers on GemFort Market", icon: "storefront" as IconName, onPress: openRoute(`/listings/create?workspaceGemId=${gem.id}`) }] : []),
-    ...(actionAvailability.remove_from_market ? [{ id: "unlist", group: "trade" as const, title: "Remove from Market", description: "Take the listing down", icon: "remove-shopping-cart" as IconName, destructive: true, onPress: () => void handleRemoveFromMarket() }] : []),
+    ...(actionAvailability.send_for_cutting
+      ? [
+          {
+            id: "cut",
+            group: "work" as const,
+            title: cuttingServiceType === "recutting" ? "Recut" : "Cut",
+            description: "Send to a cutter and track the job",
+            icon: "content-cut" as IconName,
+            onPress: openRoute(
+              `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${cuttingServiceType}`,
+            ),
+          },
+        ]
+      : []),
+    ...(actionAvailability.send_for_heating
+      ? [
+          {
+            id: "heat",
+            group: "work" as const,
+            title: heatingServiceType === "reheating" ? "Reheat" : "Heat",
+            description: "Send for heat treatment",
+            icon: "local-fire-department" as IconName,
+            image: require("@/assets/images/lapidary-icon.png"),
+            onPress: openRoute(
+              `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${heatingServiceType}`,
+            ),
+          },
+        ]
+      : []),
+    ...(actionAvailability.send_for_polishing
+      ? [
+          {
+            id: "polish",
+            group: "work" as const,
+            title:
+              polishingServiceType === "repolishing" ? "Repolish" : "Polish",
+            description: "Send for polishing",
+            icon: "auto-awesome" as IconName,
+            onPress: openRoute(
+              `/(marketplace)/services/add?gemId=${gem.id}&serviceType=${polishingServiceType}`,
+            ),
+          },
+        ]
+      : []),
+    ...(actionAvailability.give_on_ap
+      ? [
+          {
+            id: "ap",
+            group: "trade" as const,
+            title: "Give on AP",
+            description: "Hand it to a trader on approval",
+            icon: "ap" as IconName,
+            image: require("@/assets/images/ap-icon.png"),
+            onPress: openRoute(`/(marketplace)/ap/add?gemId=${gem.id}`),
+          },
+        ]
+      : []),
+    ...(actionAvailability.list_on_market
+      ? [
+          {
+            id: "list",
+            group: "trade" as const,
+            title: "Sell on Market",
+            description: "List it for buyers on GemFort Market",
+            icon: "storefront" as IconName,
+            onPress: openRoute(`/listings/create?workspaceGemId=${gem.id}`),
+          },
+        ]
+      : []),
+    ...(actionAvailability.remove_from_market
+      ? [
+          {
+            id: "unlist",
+            group: "trade" as const,
+            title: "Remove from Market",
+            description: "Take the listing down",
+            icon: "remove-shopping-cart" as IconName,
+            destructive: true,
+            onPress: () => void handleRemoveFromMarket(),
+          },
+        ]
+      : []),
   ];
-  const hasBottomActions = isOwnGem && (primaryAction != null || sheetActions.length > 0);
+  const hasBottomActions =
+    isOwnGem && (primaryAction != null || sheetActions.length > 0);
 
   async function handleShareGem() {
     if (photo && (photo.startsWith("file:") || photo.startsWith("content:"))) {
@@ -651,117 +880,244 @@ export default function GemDetailScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: colors.background }]}>
-      <StatusBar style={photos.length ? "light" : "auto"} />
+      <StatusBar style={photos.length && !headerSolid ? "light" : "auto"} />
 
       <ThemedScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: hasBottomActions ? 96 + bottomBarPad : 48 },
-        ]}
+        contentContainerStyle={{
+          paddingBottom: hasBottomActions ? 96 + bottomBarPad : 48,
+        }}
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
+        {...scrollProps}
       >
-        <View style={styles.heroBlock}>
-          <ImagePager
-            urls={photos}
-            aspectRatio={1}
-            edgeToEdge
-            style={{ height: heroHeight }}
-            accessibilityLabel={`${formatGemType(gem.gemType)} photos`}
-            wrapFirstPage={(node) => (
-              <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
-            )}
-            overlay={null}
-          />
+        <View style={{ height: heroHeight }}>
+          {photos.length ? (
+            <ImagePager
+              urls={photos}
+              aspectRatio={windowWidth / heroHeight}
+              edgeToEdge
+              style={{ height: heroHeight }}
+              accessibilityLabel={`${formatGemType(gem.gemType)} photos`}
+              wrapFirstPage={(node) => (
+                <Link.AppleZoomTarget>{node}</Link.AppleZoomTarget>
+              )}
+              overlay={null}
+            />
+          ) : (
+            <Link.AppleZoomTarget>
+              <GemArtwork
+                gem={gem}
+                artScale={0.78}
+                style={{
+                  width: windowWidth,
+                  height: heroHeight,
+                  paddingTop: insets.top,
+                }}
+              />
+            </Link.AppleZoomTarget>
+          )}
         </View>
 
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.background,
-              borderColor: colors.outlineVariant,
-            },
-          ]}
+        <TitleBand
+          overlapHero
+          chips={
+            <>
+              <StatusChip label={statusLabel} accent={statusAccent} />
+              {certificate ? <GemCertificateBadge /> : null}
+            </>
+          }
+          title={gemTitle}
+          subtitle={[
+            formatGemType(gem.gemType),
+            gem.variety,
+            gemDisplayId,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          subtitleDot={tint}
         >
-          <View style={styles.titleBlock}>
-            <Text
-              style={[styles.gemName, { color: colors.onSurface }]}
-              selectable={false}
-            >
-              {gemTitle}
-            </Text>
-            <Text
-              style={[styles.subtitle, { color: colors.onSurfaceVariant }]}
-              selectable={false}
-            >
-              {formatGemType(gem.gemType)}
-              {gem.variety ? ` · ${gem.variety}` : ""}
-              {gemDisplayId ? ` · ${gemDisplayId}` : ""}
-            </Text>
-            {certificate ? <GemCertificateBadge /> : null}
-          </View>
-
-          <View style={styles.priceRow}>
-            <View style={styles.priceMetric}>
-              <Text
-                style={[styles.priceLabel, { color: colors.onSurfaceVariant }]}
-              >
-                Listed market price
-              </Text>
-              <Text
-                style={[
-                  styles.priceHero,
-                  {
-                    color: hasAsk ? colors.successEmerald : colors.textMuted,
-                    fontFamily: FontFamily.bold,
-                  },
-                ]}
-                selectable={false}
-              >
-                {marketPriceLabel}
-              </Text>
-              {perCaratLabel ? (
-                <Text
-                  style={[
-                    styles.perCarat,
-                    {
-                      color: hasAsk
-                        ? colors.successEmerald
-                        : colors.onSurfaceVariant,
-                    },
-                  ]}
-                  selectable={false}
-                >
-                  {perCaratLabel}
-                </Text>
-              ) : null}
-            </View>
-            <View style={styles.priceMetric}>
-              <Text
-                style={[styles.priceLabel, { color: colors.onSurfaceVariant }]}
-              >
-                Cost
-              </Text>
-              <Text
-                style={[styles.costValue, { color: colors.onSurface }]}
-                selectable={false}
-              >
-                {costLabel}
-              </Text>
-            </View>
-          </View>
-
-          {/* Elevated owner profile */}
-          <View
-            style={[
-              styles.ownerCard,
+          <KeyStats
+            items={[
               {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.outlineVariant,
+                label: "Weight",
+                value: `${gem.currentWeight} ct`,
+                sub: hasRoughWeight ? `${gem.roughWeight} ct rough` : null,
+              },
+              {
+                label: "Asking",
+                value: hasAsk ? marketPriceLabel : "Not listed",
+                sub: hasAsk ? perCaratLabel : null,
+                color: hasAsk ? Accent.emerald : colors.textMuted,
+              },
+              { label: "Cost", value: costLabel },
+            ]}
+          />
+          {profitBase != null ? (
+            <Callout
+              icon={profitBase < 0 ? "trending-down" : "trending-up"}
+              accent={profitAccent}
+              label={profitBase < 0 ? "Estimated loss" : "Estimated profit"}
+              value={formatBase(profitBase)}
+              pill={roi ? `${profitBase < 0 ? "" : "+"}${roi}%` : null}
+            />
+          ) : null}
+        </TitleBand>
+
+        <DetailBand title="Status">
+          <StatusGrid
+            tiles={[
+              {
+                icon: STATUS_ICONS[lifecycle.stoneStage] ?? "spa",
+                label: "State",
+                value: stoneLabel,
+                accent: Accent.violet,
+              },
+              {
+                icon: lifecycle.custody
+                  ? (STATUS_ICONS[lifecycle.custody] ?? "place")
+                  : "person",
+                label: "Location",
+                value: locationLabel,
+                accent: Accent.amber,
+              },
+              {
+                icon: "storefront",
+                label: "Market",
+                value: isListed ? "On market" : "Not listed",
+                accent: isListed ? Accent.blue : Accent.slate,
+              },
+              {
+                icon:
+                  saleStatus === "pending"
+                    ? "schedule"
+                    : saleStatus === "sold"
+                      ? "check-circle"
+                      : "sell",
+                label: "Sale",
+                value: saleLabel,
+                accent: saleAccent,
               },
             ]}
-          >
+          />
+
+          {saleStatus !== "unsold" ? (
+            <View
+              style={[
+                styles.partyCard,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.partyCardTitle,
+                  { color: colors.onSurfaceVariant },
+                ]}
+              >
+                {saleStatus === "pending"
+                  ? "Sale awaiting acceptance"
+                  : "Sold to"}
+              </Text>
+              {soldToBusinessId ? (
+                <Pressable
+                  style={styles.partyRow}
+                  onPress={() =>
+                    router.push(`/business/${soldToBusinessId}` as never)
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${soldTraderName} profile`}
+                >
+                  <ContactAvatar
+                    name={soldTraderName}
+                    photoUrl={soldTraderAvatar}
+                    size={40}
+                  />
+                  <Text
+                    style={[styles.partyName, { color: colors.onSurface }]}
+                    numberOfLines={1}
+                  >
+                    {soldTraderName}
+                  </Text>
+                  <Icon name="chevron-right" size={20} color={colors.outline} />
+                </Pressable>
+              ) : (
+                <Text style={[styles.partyName, { color: colors.onSurface }]}>
+                  {gem.soldToName || "Trader"}
+                </Text>
+              )}
+              <View style={styles.partyMeta}>
+                {gem.soldPrice != null ? (
+                  <Text
+                    style={[styles.partyMetaText, { color: colors.onSurface }]}
+                  >
+                    {formatStored({
+                      amount: gem.soldPrice,
+                      currency: gem.soldPriceCurrency || askCurrency,
+                      amountBase: gem.soldPriceBase,
+                    })}
+                  </Text>
+                ) : null}
+                {gem.salePaymentMethod ? (
+                  <Text
+                    style={[
+                      styles.partyMetaMuted,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {gem.salePaymentMethod.replace(/_/g, " ")}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : gem.acquiredFromUid ? (
+            <View
+              style={[
+                styles.partyCard,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.partyCardTitle,
+                  { color: colors.onSurfaceVariant },
+                ]}
+              >
+                Acquired from
+              </Text>
+              <Text style={[styles.partyName, { color: colors.onSurface }]}>
+                {gem.acquiredFromName || "Previous owner"}
+              </Text>
+              <View style={styles.partyMeta}>
+                {gem.lastSoldPrice != null ? (
+                  <Text
+                    style={[styles.partyMetaText, { color: colors.onSurface }]}
+                  >
+                    {formatStored({
+                      amount: gem.lastSoldPrice,
+                      currency: gem.lastSoldPriceCurrency || askCurrency,
+                    })}
+                  </Text>
+                ) : null}
+                {gem.lastSalePaymentMethod ? (
+                  <Text
+                    style={[
+                      styles.partyMetaMuted,
+                      { color: colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {gem.lastSalePaymentMethod.replace(/_/g, " ")}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+        </DetailBand>
+
+        <DetailBand title="Specifications">
+          <DetailRows rows={specRows} />
+        </DetailBand>
+
+        <DetailBand title="Owner">
+          <View style={styles.ownerRow}>
             <View style={styles.ownerAvatarWrap}>
               <View
                 style={[
@@ -802,492 +1158,228 @@ export default function GemDetailScreen() {
                 style={[styles.ownerRole, { color: colors.onSurfaceVariant }]}
                 numberOfLines={1}
               >
-                {ownerRole} · Owner
+                {ownerRole}
               </Text>
             </View>
           </View>
+        </DetailBand>
 
-          <View style={styles.section}>
+        {certificate ? (
+          <DetailBand title="Certificate">
+            <GemCertificateCard certificate={certificate} />
+          </DetailBand>
+        ) : null}
+
+        {gem.notes ? (
+          <DetailBand title="Private note">
             <Text
-              style={[styles.sectionLabel, { color: colors.textMuted }]}
-              accessibilityRole="header"
+              style={[styles.notes, { color: colors.onSurfaceVariant }]}
+              numberOfLines={notesExpanded ? undefined : 4}
+              selectable={false}
             >
-              OVERVIEW
+              {gem.notes}
             </Text>
-            <View style={styles.lifecycleGrid} accessible accessibilityLabel={`Gem state ${stoneLabel}, location ${locationLabel}, market ${isListed ? "On market" : "Not on market"}, sale ${saleLabel}`}>
-              {[
-                ["State", stoneLabel, STATUS_ICONS[lifecycle.stoneStage] ?? "spa"],
-                ["Location", locationLabel, lifecycle.custody ? (STATUS_ICONS[lifecycle.custody] ?? "place") : "person"],
-                ["Market", isListed ? "On market" : "Not on market", "storefront"],
-                ["Sale", saleLabel, saleStatus === "pending" ? "schedule" : saleStatus === "sold" ? "check-circle" : "sell"],
-              ].map(([label, value, icon]) => (
-                <View key={label} style={[styles.lifecycleCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-                  <View style={[styles.lifecycleIconWrap, { backgroundColor: colors.primaryContainer }]}>
-                    <Icon name={icon as IconName} size={18} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.lifecycleLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
-                  <Text style={[styles.lifecycleValue, { color: colors.onSurface }]} numberOfLines={2}>{value}</Text>
-                </View>
-              ))}
-            </View>
-
-            {saleStatus !== "unsold" ? (
-              <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-                <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>
-                  {saleStatus === "pending" ? "Sale awaiting acceptance" : "Sale details"}
+            {gem.notes.length > 160 ? (
+              <Pressable
+                onPress={() => setNotesExpanded((v) => !v)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={notesExpanded ? "Show less" : "Read more"}
+                style={styles.readMore}
+              >
+                <Text style={[styles.readMoreText, { color: colors.primary }]}>
+                  {notesExpanded ? "Show less" : "Read more"}
                 </Text>
-                {soldToBusinessId ? (
-                  <Pressable
-                    style={styles.salePartyRow}
-                    onPress={() =>
-                      router.push(`/business/${soldToBusinessId}` as never)
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${soldTraderName} profile`}
-                  >
-                    <ContactAvatar
-                      name={soldTraderName}
-                      photoUrl={soldTraderAvatar}
-                      size={36}
-                    />
-                    <View style={styles.salePartyCopy}>
-                      <Text style={[styles.salePartyLabel, { color: colors.onSurfaceVariant }]}>To trader</Text>
-                      <Text style={[styles.salePartyName, { color: colors.onSurface }]} numberOfLines={1}>
-                        {soldTraderName}
-                      </Text>
-                    </View>
-                    <Icon name="chevron-right" size={18} color={colors.outline} />
-                  </Pressable>
-                ) : (
-                  <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>To: {gem.soldToName || "Trader"}</Text>
-                )}
-                {gem.soldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.soldPrice, currency: gem.soldPriceCurrency || askCurrency, amountBase: gem.soldPriceBase })}</Text> : null}
-                {gem.salePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.salePaymentMethod.replace("_", " ")}</Text> : null}
-              </View>
-            ) : gem.acquiredFromUid ? (
-              <View style={[styles.saleInfo, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-                <Text style={[styles.saleInfoTitle, { color: colors.onSurface }]}>Acquisition details</Text>
-                <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>From: {gem.acquiredFromName || "Previous owner"}</Text>
-                {gem.lastSoldPrice != null ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Amount: {formatStored({ amount: gem.lastSoldPrice, currency: gem.lastSoldPriceCurrency || askCurrency })}</Text> : null}
-                {gem.lastSalePaymentMethod ? <Text style={[styles.saleInfoText, { color: colors.onSurfaceVariant }]}>Payment: {gem.lastSalePaymentMethod.replace("_", " ")}</Text> : null}
-              </View>
+                <Icon
+                  name={notesExpanded ? "expand-less" : "expand-more"}
+                  size={18}
+                  color={colors.primary}
+                />
+              </Pressable>
             ) : null}
-          </View>
+          </DetailBand>
+        ) : null}
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionLabel, { color: colors.textMuted }]}
-              accessibilityRole="header"
-            >
-              DETAILS
-            </Text>
-            <View style={[styles.detailsCard, { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant }]}>
-              {tags.length ? (
-                <View style={styles.tags}>
-                  {tags.slice(0, 4).map((tag, tagIndex) => (
-                    <View
-                      key={`${tag}-${tagIndex}`}
-                      style={[
-                        styles.tag,
-                        {
-                          backgroundColor: colors.surfaceContainerHigh,
-                          borderColor: colors.outlineVariant,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.tagText, { color: colors.onSurface }]}>
-                        {tag}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              <View style={styles.specGrid}>
-                {specs.map((spec) => {
-                  const iconName = SPEC_ICONS[spec.label] ?? "info";
-                  return (
-                    <View key={spec.label} style={styles.specCell}>
-                      <View style={styles.specHeader}>
-                        <Icon
-                          name={iconName}
-                          size={15}
-                          color={colors.onSurfaceVariant}
-                        />
-                        <Text
-                          style={[
-                            styles.specLabel,
-                            { color: colors.onSurfaceVariant },
-                          ]}
-                        >
-                          {spec.label}
-                        </Text>
-                      </View>
-                      {spec.label === "Origin" ? (
-                        <CountryLabel
-                          country={spec.value}
-                          size="sm"
-                          textStyle={[
-                            styles.specValue,
-                            { color: colors.onSurface },
-                          ]}
-                          numberOfLines={2}
-                        />
-                      ) : (
-                        <Text
-                          style={[styles.specValue, { color: colors.onSurface }]}
-                          numberOfLines={2}
-                          selectable={false}
-                        >
-                          {spec.value}
-                        </Text>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {certificate ? (
-            <View style={styles.section}>
-              <Text
-                style={[styles.sectionLabel, { color: colors.textMuted }]}
-                accessibilityRole="header"
-              >
-                CERTIFICATE
-              </Text>
-              <GemCertificateCard certificate={certificate} />
-            </View>
-          ) : null}
-
-          {gem.notes ? (
-            <View style={styles.section}>
-              <Text
-                style={[styles.sectionLabel, { color: colors.textMuted }]}
-                accessibilityRole="header"
-              >
-                NOTES
-              </Text>
-              <View style={[styles.notesCard, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}>
-                <View style={styles.notesHeader}>
-                  <Icon name="notes" size={18} color={colors.primary} />
-                  <Text style={[styles.notesLabel, { color: colors.onSurface }]}>Private note</Text>
-                </View>
-                <View style={styles.descBlock}>
-                  <Text
-                    style={[styles.notes, { color: colors.onSurfaceVariant }]}
-                    numberOfLines={notesExpanded ? undefined : 3}
-                    selectable={false}
-                  >
-                    {gem.notes}
-                  </Text>
-                  {gem.notes.length > 120 ? (
-                    <Pressable
-                      onPress={() => setNotesExpanded((v) => !v)}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel={notesExpanded ? "Show less" : "Read more"}
-                      style={styles.readMore}
-                    >
-                      <Text
-                        style={[styles.readMoreText, { color: colors.primary }]}
-                      >
-                        {notesExpanded ? "Show less" : "Read more"}
-                      </Text>
-                      <Icon
-                        name={notesExpanded ? "expand-less" : "expand-more"}
-                        size={18}
-                        color={colors.primary}
-                      />
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-            </View>
-          ) : null}
-
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionLabel, { color: colors.textMuted }]}
-              accessibilityRole="header"
-            >
-              FINANCIALS
-            </Text>
-            <View
-              style={[
-                styles.financeCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                },
-              ]}
-            >
-              {serviceHistory.length ? (
-                <>
-                  <Text
-                    style={[styles.financeSubheading, { color: colors.onSurfaceVariant }]}
-                  >
-                    Service history
-                  </Text>
-                  {serviceHistory.map((service) => {
-                    const amount = service.finalCost ?? service.agreedPrice;
-                    const currency =
-                      service.finalCost != null
-                        ? service.finalCostCurrency
-                        : service.agreedPriceCurrency;
-                    return (
-                      <View key={`service-${service.id}`} style={styles.financeItem}>
-                        <View style={styles.financeRow}>
-                          <View style={styles.financeLabelRow}>
-                            <Icon
-                              name={eventIcon(service.serviceType)}
-                              size={16}
-                              color={colors.onSurfaceVariant}
-                            />
-                            <View style={styles.financeLabelCol}>
-                              <Text
-                                style={[styles.financeLabel, { color: colors.onSurface }]}
-                              >
-                                {serviceTypeLabel(service.serviceType)}
-                              </Text>
-                              <Text
-                                style={[styles.financeDesc, { color: colors.onSurfaceVariant }]}
-                                numberOfLines={2}
-                              >
-                                {serviceStatusLabel(service.status)}
-                                {service.providerName?.trim()
-                                  ? ` · ${service.providerName.trim()}`
-                                  : ""}
-                                {` · ${formatRelativeTime(
-                                  service.dateReturned ?? service.dateGiven,
-                                )}`}
-                              </Text>
-                            </View>
-                          </View>
-                          {amount != null && currency ? (
-                            <Text
-                              style={[styles.financeValue, { color: colors.onSurface }]}
-                            >
-                              {formatStored({ amount, currency })}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    );
-                  })}
-                </>
-              ) : null}
-              {costLines.length ? (
-                costLines.map((c) => (
-                  <View key={c.id} style={styles.financeItem}>
-                    <View style={styles.financeRow}>
-                      <View style={styles.financeLabelRow}>
-                        <Icon
-                          name="payments"
-                          size={16}
-                          color={colors.onSurfaceVariant}
-                        />
-                        <View style={styles.financeLabelCol}>
-                          <Text
-                            style={[
-                              styles.financeLabel,
-                              { color: colors.onSurface },
-                            ]}
-                          >
-                            {formatCostTypeLabel(c.costType)}
-                          </Text>
-                          {c.description ? (
-                            <Text
-                              style={[
-                                styles.financeDesc,
-                                { color: colors.onSurfaceVariant },
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {c.description}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                      <Text
-                        style={[
-                          styles.financeValue,
-                          { color: colors.onSurface },
-                        ]}
-                      >
-                        {formatStored({
-                          amount: c.amount,
-                          currency: c.currency,
-                          amountBase: c.amountBase,
-                        })}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              ) : !serviceHistory.length ? (
-                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                  No cost lines yet
-                </Text>
-              ) : null}
-              <View
-                style={[
-                  styles.financeDivider,
-                  { backgroundColor: colors.outlineVariant },
-                ]}
-              />
-              <View style={styles.financeRow}>
-                <View style={styles.financeLabelRow}>
-                  <Icon
-                    name="account-balance-wallet"
-                    size={16}
-                    color={colors.onSurface}
-                  />
-                  <Text
-                    style={[
-                      styles.financeTotalLabel,
-                      { color: colors.onSurface },
-                    ]}
-                  >
-                    Total cost
-                  </Text>
-                </View>
-                <Text
+        <DetailBand title="Costs">
+          <View>
+            {serviceHistory.map((service, serviceIndex) => {
+              const amount = service.finalCost ?? service.agreedPrice;
+              const currency =
+                service.finalCost != null
+                  ? service.finalCostCurrency
+                  : service.agreedPriceCurrency;
+              return (
+                <View
+                  key={`service-${service.id}`}
                   style={[
-                    styles.financeTotalValue,
-                    { color: colors.onSurface },
+                    styles.costRow,
+                    serviceIndex > 0 && {
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                      borderTopColor: colors.outlineVariant,
+                    },
                   ]}
                 >
-                  {formatBase(gem.totalCost)}
-                </Text>
-              </View>
-              {profitBase != null ? (
-                <View style={styles.financeRow}>
-                  <View style={styles.financeLabelRow}>
+                  <View
+                    style={[
+                      styles.specIcon,
+                      { backgroundColor: `${Accent.violet}1A` },
+                    ]}
+                  >
                     <Icon
-                      name="trending-up"
-                      size={16}
-                      color={colors.successEmerald}
+                      name={eventIcon(service.serviceType)}
+                      size={17}
+                      color={Accent.violet}
                     />
+                  </View>
+                  <View style={styles.costCopy}>
+                    <Text
+                      style={[styles.costTitle, { color: colors.onSurface }]}
+                    >
+                      {serviceTypeLabel(service.serviceType)}
+                    </Text>
                     <Text
                       style={[
-                        styles.financeTotalLabel,
-                        { color: colors.successEmerald },
+                        styles.costDesc,
+                        { color: colors.onSurfaceVariant },
                       ]}
+                      numberOfLines={2}
                     >
-                      Est. profit
+                      {serviceStatusLabel(service.status)}
+                      {service.providerName?.trim()
+                        ? ` · ${service.providerName.trim()}`
+                        : ""}
+                      {` · ${formatRelativeTime(service.dateReturned ?? service.dateGiven)}`}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.financeTotalValue,
-                      { color: colors.successEmerald },
-                    ]}
-                  >
-                    {formatBase(profitBase)}
-                    {roi ? ` (${roi}%)` : ""}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionLabel, { color: colors.textMuted }]}
-              accessibilityRole="header"
-            >
-              HISTORY
-            </Text>
-            {historyEvents.length ? (
-              <View
-                style={[
-                  styles.timelineCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <GemHistoryTimeline
-                  events={visibleHistoryEvents}
-                  colors={colors}
-                />
-                {historyEvents.length > INITIAL_HISTORY_COUNT ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Show all ${historyEvents.length} history events`}
-                    accessibilityHint="Opens the complete history in a scrollable sheet"
-                    onPress={() => setHistoryOpen(true)}
-                    style={[
-                      styles.showMore,
-                      { borderTopColor: colors.outlineVariant },
-                    ]}
-                  >
-                    <Text style={[styles.showMoreText, { color: colors.primary }]}>
-                      Show more
+                  {amount != null && currency ? (
+                    <Text
+                      style={[styles.costValue, { color: colors.onSurface }]}
+                    >
+                      {formatStored({ amount, currency })}
                     </Text>
-                    <Icon name="chevron-right" size={20} color={colors.primary} />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : (
+                  ) : null}
+                </View>
+              );
+            })}
+            {costLines.map((c, costIndex) => (
               <View
+                key={c.id}
                 style={[
-                  styles.timelineCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
+                  styles.costRow,
+                  serviceHistory.length + costIndex > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: colors.outlineVariant,
                   },
                 ]}
               >
-                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                  No events yet
+                <View
+                  style={[
+                    styles.specIcon,
+                    { backgroundColor: `${colors.onSurfaceVariant}1A` },
+                  ]}
+                >
+                  <Icon
+                    name="payments"
+                    size={17}
+                    color={colors.onSurfaceVariant}
+                  />
+                </View>
+                <View style={styles.costCopy}>
+                  <Text style={[styles.costTitle, { color: colors.onSurface }]}>
+                    {formatCostTypeLabel(c.costType)}
+                  </Text>
+                  {c.description ? (
+                    <Text
+                      style={[
+                        styles.costDesc,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {c.description}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={[styles.costValue, { color: colors.onSurface }]}>
+                  {formatStored({
+                    amount: c.amount,
+                    currency: c.currency,
+                    amountBase: c.amountBase,
+                  })}
                 </Text>
               </View>
-            )}
+            ))}
+            {!costLines.length && !serviceHistory.length ? (
+              <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                No cost lines yet
+              </Text>
+            ) : null}
+            <View
+              style={[
+                styles.totalRow,
+                { backgroundColor: colors.surfaceContainerLow },
+              ]}
+            >
+              <Text style={[styles.totalLabel, { color: colors.onSurface }]}>
+                Total cost
+              </Text>
+              <Text style={[styles.totalValue, { color: colors.onSurface }]}>
+                {formatBase(gem.totalCost)}
+              </Text>
+            </View>
           </View>
-        </View>
+        </DetailBand>
+
+        <DetailBand
+          title="History"
+          trailing={
+            historyEvents.length > INITIAL_HISTORY_COUNT ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Show all ${historyEvents.length} history events`}
+                accessibilityHint="Opens the complete history in a scrollable sheet"
+                onPress={() => setHistoryOpen(true)}
+                hitSlop={8}
+                style={styles.seeAll}
+              >
+                <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                  See all {historyEvents.length}
+                </Text>
+                <Icon name="chevron-right" size={18} color={colors.primary} />
+              </Pressable>
+            ) : null
+          }
+        >
+          {historyEvents.length ? (
+            <GemHistoryTimeline events={visibleHistoryEvents} colors={colors} />
+          ) : (
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+              No events yet
+            </Text>
+          )}
+        </DetailBand>
       </ThemedScrollView>
 
-      <View
-        pointerEvents="box-none"
-        style={[styles.headerOverlay, { paddingTop: insets.top }]}
-      >
-        <StackHeader
-          title=""
-          tintColor="#FFFFFF"
-          right={
-            <View style={styles.headerActions}>
-              {isOwnGem ? (
-                <Pressable
-                  onPress={() =>
+      <DetailHeader
+        title={gemTitle}
+        solid={headerSolid}
+        actions={[
+          ...(isOwnGem
+            ? [
+                {
+                  icon: "edit" as IconName,
+                  label: "Edit gem",
+                  onPress: () =>
                     router.push({
                       pathname: "/(marketplace)/gems/edit",
                       params: { gemId: gem.id },
-                    } as never)
-                  }
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Edit gem"
-                  style={[styles.headerBtn, styles.headerChip]}
-                >
-                  <Icon name="edit" size={20} color="#FFFFFF" />
-                </Pressable>
-              ) : null}
-              <Pressable
-                onPress={() => void handleShareGem()}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Share gem"
-                style={[styles.headerBtn, styles.headerChip]}
-              >
-                <Icon name="share" size={20} color="#FFFFFF" />
-              </Pressable>
-            </View>
-          }
-        />
-      </View>
+                    } as never),
+                },
+              ]
+            : []),
+          { icon: "share", label: "Share gem", onPress: () => void handleShareGem() },
+        ]}
+      />
 
       {hasBottomActions ? (
         <View
@@ -1387,11 +1479,21 @@ export default function GemDetailScreen() {
         </Text>
         <Pressable
           onPress={() => setPartyPickerOpen(true)}
-          style={[styles.statusOption, { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant }]}
+          style={[
+            styles.statusOption,
+            {
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.outlineVariant,
+            },
+          ]}
         >
           <Icon name="contacts" size={19} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.statusOptionLabel, { color: colors.onSurface }]}>{transferParty?.label ?? "Select trader or contact"}</Text>
+            <Text
+              style={[styles.statusOptionLabel, { color: colors.onSurface }]}
+            >
+              {transferParty?.label ?? "Select trader or contact"}
+            </Text>
             <Text style={[styles.statusSheetHint, { color: colors.textMuted }]}>
               {transferParty
                 ? transferParty.source === "business"
@@ -1400,7 +1502,11 @@ export default function GemDetailScreen() {
                 : "Select a Trader or Contact"}
             </Text>
           </View>
-          <Icon name="chevron-right" size={20} color={colors.onSurfaceVariant} />
+          <Icon
+            name="chevron-right"
+            size={20}
+            color={colors.onSurfaceVariant}
+          />
         </Pressable>
         <CurrencyAmountField
           label="Sale amount"
@@ -1433,99 +1539,90 @@ export default function GemDetailScreen() {
         allowedBusinessKinds={["traders"]}
         preferBusinesses
       />
-
     </View>
   );
 }
 
+const text = { includeFontPadding: false } as const;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { gap: 0 },
-  headerOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 2,
-  },
-  headerBtn: {
-    minWidth: 40,
-    minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  headerChip: {
-    borderRadius: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
-  },
 
-  heroBlock: {
-    width: "100%",
-  },
-  sheet: {
-    // Sit below the film strip — negative margin was clipping thumb bottoms
-    // and exposing the old black heroBlock as a thick bar under the carousel.
-    marginTop: 0,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
+  seeAll: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 32 },
+  seeAllText: { ...text, fontFamily: FontFamily.semibold, fontSize: 13 },
+
+  partyCard: {
+    padding: 14,
+    borderRadius: Radius.lg,
     borderCurve: "continuous",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.containerMargin,
-    paddingTop: Spacing.xxl,
-    paddingBottom: Spacing.xxl,
-    gap: Spacing.xxl,
+    gap: 8,
   },
-
-  titleBlock: { gap: 6 },
-  gemName: {
-    ...Typography.headlineMdMobile,
-    fontFamily: FontFamily.bold,
-    fontWeight: "700",
+  partyCardTitle: {
+    ...text,
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
-  subtitle: { ...Typography.bodyMd },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    gap: Spacing.lg,
-    marginTop: 2,
-  },
-  priceMetric: { flex: 1, minWidth: 0, gap: 4 },
-  priceLabel: { ...Typography.caption },
-  priceHero: {
-    ...Typography.headlineSm,
-    fontVariant: ["tabular-nums"],
-  },
-  costValue: {
-    ...Typography.headlineSm,
-    fontVariant: ["tabular-nums"],
-  },
-  perCarat: {
-    ...Typography.labelMd,
-    fontVariant: ["tabular-nums"],
-    fontWeight: "600",
-  },
-
-  ownerCard: {
+  partyRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 44,
   },
-  ownerAvatarWrap: {
-    width: 52,
-    height: 52,
-    position: "relative",
+  partyName: {
+    ...text,
+    flex: 1,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 22,
   },
+  partyMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  partyMetaText: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+  },
+  partyMetaMuted: {
+    ...text,
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    textTransform: "capitalize",
+  },
+
+  specIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  specValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "right",
+    flexShrink: 1,
+    maxWidth: "60%",
+  },
+  swatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.85)",
+  },
+
+  ownerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  ownerAvatarWrap: { width: 52, height: 52, position: "relative" },
   ownerAvatar: {
     width: 52,
     height: 52,
@@ -1541,153 +1638,69 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderCurve: "continuous",
   },
-  ownerInitials: { ...Typography.labelMd, fontWeight: "700" },
-  ownerText: { flex: 1, gap: 4, minWidth: 0 },
-  ownerName: { ...Typography.bodyLg, fontWeight: "700", flexShrink: 1 },
-  ownerRole: { ...Typography.caption },
-
-  lifecycleGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  lifecycleCard: {
-    width: "48%",
-    minHeight: 96,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-  },
-  lifecycleIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lifecycleLabel: { ...Typography.caption, textTransform: "uppercase", letterSpacing: 0.4 },
-  lifecycleValue: { ...Typography.bodyMd, fontWeight: "700" },
-  saleInfo: { padding: Spacing.gutterMd, borderRadius: Radius.lg, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, gap: 6 },
-  saleInfoTitle: { ...Typography.bodyLg, fontWeight: "700" },
-  saleInfoText: { ...Typography.bodyMd },
-  salePartyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 4,
-  },
-  salePartyCopy: { flex: 1, minWidth: 0, gap: 1 },
-  salePartyLabel: { ...Typography.caption },
-  salePartyName: { ...Typography.bodyMd, fontWeight: "700" },
-  statusChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 52,
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 12,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  statusChipIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statusChipText: { flex: 1, gap: 1, minWidth: 0 },
-  statusChipLabel: {
-    ...Typography.caption,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  statusChipValue: { ...Typography.bodyMd, fontWeight: "700" },
-
-  detailsCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.gutterMd,
-    gap: Spacing.lg,
-  },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  tagText: { ...Typography.caption, fontWeight: "600" },
-
-  specGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.lg,
-  },
-  specCell: {
-    width: "47%",
-    flexGrow: 1,
-    minWidth: "42%",
-    maxWidth: "48%",
-    minHeight: 52,
-    gap: 6,
-  },
-  specHeader: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 18 },
-  specLabel: { ...Typography.caption, flexShrink: 1 },
-  specValue: {
-    ...Typography.bodyMd,
-    fontWeight: "600",
+  ownerInitials: { ...text, fontFamily: FontFamily.semibold, fontSize: 15 },
+  ownerText: { flex: 1, gap: 2, minWidth: 0 },
+  ownerName: {
+    ...text,
     fontFamily: FontFamily.semibold,
+    fontSize: 16,
+    lineHeight: 22,
   },
+  ownerRole: { ...text, fontFamily: FontFamily.regular, fontSize: 13 },
 
-  notesCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
-  notesHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  notesLabel: { ...Typography.labelMd, fontWeight: "700" },
-  descBlock: { gap: 8 },
-  notes: { ...Typography.bodyMd, lineHeight: 22 },
+  notes: { ...text, ...Typography.bodyMd, fontSize: 15, lineHeight: 24 },
   readMore: {
     flexDirection: "row",
     alignItems: "center",
     gap: 2,
     alignSelf: "flex-start",
   },
-  readMoreText: { ...Typography.labelMd, fontWeight: "600" },
+  readMoreText: { ...text, fontFamily: FontFamily.semibold, fontSize: 13 },
 
-  section: { gap: Spacing.md },
-  sectionLabel: {
-    ...Typography.labelMd,
-    letterSpacing: 1.1,
-    fontWeight: "600",
+  costRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 60,
+    paddingVertical: 8,
   },
-
-  timelineCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.gutterMd,
+  costCopy: { flex: 1, minWidth: 0, gap: 2 },
+  costTitle: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 20,
   },
-  showMore: {
-    minHeight: 48,
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  costDesc: {
+    ...text,
+    fontFamily: FontFamily.regular,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  costValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    fontVariant: ["tabular-nums"],
+  },
+  totalRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: Spacing.md,
+    paddingHorizontal: 14,
+    minHeight: 52,
+    borderRadius: Radius.lg,
+    borderCurve: "continuous",
   },
-  showMoreText: { ...Typography.button, fontFamily: FontFamily.semibold },
+  totalLabel: { ...text, fontFamily: FontFamily.semibold, fontSize: 15 },
+  totalValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 17,
+    fontVariant: ["tabular-nums"],
+  },
+
   timeline: { gap: 0 },
   timelineRow: { flexDirection: "row", gap: 12, minHeight: 60 },
   timelineRail: { width: 28, alignItems: "center" },
@@ -1699,67 +1712,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timelineLine: { width: 2, flex: 1, marginTop: 4, marginBottom: 0 },
-  timelineBody: { flex: 1, paddingBottom: Spacing.gutterMd, gap: 3, paddingTop: 4 },
-  timelineDate: { ...Typography.caption },
-  timelineTitle: { ...Typography.bodyMd, fontWeight: "600" },
+  timelineBody: {
+    flex: 1,
+    paddingBottom: Spacing.gutterMd,
+    gap: 3,
+    paddingTop: 4,
+  },
+  timelineDate: { ...text, ...Typography.caption },
+  timelineTitle: {
+    ...text,
+    fontFamily: FontFamily.medium,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   timelineMetaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     marginTop: 2,
   },
-  timelineMeta: { ...Typography.bodySmall },
-
-  financeCard: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.gutterMd,
-    gap: Spacing.md,
-  },
-  financeItem: { gap: 2 },
-  financeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  financeLabelRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    flex: 1,
-    minWidth: 0,
-  },
-  financeLabelCol: { flex: 1, gap: 2, minWidth: 0 },
-  financeSubheading: {
-    ...Typography.caption,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  financeLabel: { ...Typography.bodyMd, fontWeight: "600", flexShrink: 1 },
-  financeDesc: { ...Typography.caption },
-  financeValue: {
-    ...Typography.bodyMd,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-  },
-  financeDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: 4,
-  },
-  financeTotalLabel: { ...Typography.labelMd, fontWeight: "600" },
-  financeTotalValue: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
+  timelineMeta: { ...text, ...Typography.bodySmall },
 
   historyList: { flex: 1, minHeight: 0 },
   historyListContent: { paddingBottom: Spacing.md },
 
-  emptyHint: { ...Typography.bodyMd },
+  emptyHint: { ...text, ...Typography.bodyMd },
 
   actionBar: {
     position: "absolute",
@@ -1779,12 +1756,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 52,
+    minHeight: 56,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: Radius.lg,
     borderCurve: "continuous",
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
   statusOptionLabel: { ...Typography.bodyMd, fontWeight: "600", flex: 1 },
 });

@@ -7,10 +7,12 @@ import {
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
 import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { fieldText } from '@/components/ui/field-chrome';
 import { Icon } from '@/components/ui/icon';
 import { FontFamily, Radius, Spacing, Typography } from '@/constants/design-tokens';
 import {
@@ -35,7 +37,7 @@ export function PlaceField({
 }) {
   const { colors } = useAppTheme();
   const reduceMotion = useReduceMotion();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const debounced = useDebouncedValue(term, 250);
@@ -269,7 +271,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     borderWidth: 1,
   },
-  input: { ...Typography.bodyMd, flex: 1, minHeight: 48 },
+  input: { ...fieldText, flex: 1, alignSelf: 'stretch', minHeight: 48, paddingVertical: 0 },
   message: {
     flexDirection: 'row',
     gap: Spacing.sm,

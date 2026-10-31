@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { runExternalActivity } from '@/lib/app-lifecycle/external-activity';
 import { uploadBlobToStorage } from '@/lib/firebase/storage-upload';
-import { setLoadingMessage } from '@/providers/loading-bridge';
 
 export type LocalMediaKind = 'image' | 'video' | 'file';
 
@@ -86,6 +85,21 @@ async function assetToLocalMedia(
     width: asset.width ?? null,
     height: asset.height ?? null,
   };
+}
+
+/**
+ * Wrap a local image file (camera capture, document scan) as LocalMedia,
+ * re-encoded the same way as picked images.
+ */
+export async function localImageFromUri(
+  uri: string,
+  fileName?: string | null,
+): Promise<LocalMedia> {
+  const normalized = uri.startsWith('file://') || uri.includes('://') ? uri : `file://${uri}`;
+  return assetToLocalMedia(
+    { uri: normalized, mimeType: 'image/jpeg', fileName: fileName ?? null, width: 0, height: 0 },
+    'images',
+  );
 }
 
 async function pickDocument(): Promise<LocalMedia | null> {
@@ -208,7 +222,6 @@ export async function uploadImage(localUri: string, storagePath: string): Promis
 
 /** Upload a previously picked local media file. Call this on form submit. */
 export async function uploadLocalMedia(media: LocalMedia, storagePath: string): Promise<string> {
-  setLoadingMessage(media.kind === 'image' ? 'Uploading photo…' : 'Uploading…');
   return uploadBlobToStorage(media.uri, storagePath, media.mimeType ?? undefined);
 }
 

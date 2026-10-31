@@ -6,7 +6,6 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -20,8 +19,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FlashList } from "@/components/ui/gesture-lists";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SEARCH_HEIGHT, SearchField } from "@/components/ui/search-field";
 import { SkeletonList } from "@/components/ui/skeleton-list";
-import { verificationBadgeAssets } from "@/components/ui/verification-badge";
+import { VerificationSeal } from "@/components/ui/verification-badge";
 import {
     AttributePickerField,
     GemTypePickerSheet,
@@ -133,13 +133,9 @@ const BUSINESS_VERIFICATION_LEVELS = BUSINESS_VERIFICATION_OPTIONS.filter(
 
 type VerificationBadgeType = Exclude<BusinessVerificationFilter, "all">;
 
-function VerificationBadgeImage({ type }: { type: VerificationBadgeType }) {
+function VerificationBadgeIcon({ type }: { type: VerificationBadgeType }) {
   return (
-    <Image
-      source={verificationBadgeAssets[type]}
-      style={styles.verificationBadgeImage}
-      contentFit="contain"
-    />
+    <VerificationSeal type={type} size={18} />
   );
 }
 
@@ -357,25 +353,16 @@ export default function MarketScreen() {
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <View style={[styles.searchRow, styles.contentInset]}>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="search" size={22} color={colors.textMuted} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.textMain }]}
-                  placeholder={
-                    tab === "gems"
-                      ? "Search gems, origins…"
-                      : "Search traders, lapidaries…"
-                  }
-                  placeholderTextColor={colors.textMuted}
-                  value={search}
-                  onChangeText={setSearch}
-                />
-              </View>
+              <SearchField
+                style={styles.searchField}
+                placeholder={
+                  tab === "gems"
+                    ? "Search gems, origins…"
+                    : "Search traders, lapidaries…"
+                }
+                value={search}
+                onChangeText={setSearch}
+              />
               <Pressable
                 onPress={openFilter}
                 accessibilityRole="button"
@@ -505,7 +492,7 @@ export default function MarketScreen() {
                             },
                       ]}
                     >
-                      <VerificationBadgeImage type={option.id} />
+                      <VerificationBadgeIcon type={option.id} />
                       <Text
                         style={[
                           styles.filterText,
@@ -679,7 +666,7 @@ export default function MarketScreen() {
               options={BUSINESS_VERIFICATION_OPTIONS}
               renderLeading={(option) =>
                 option.id === "all" ? null : (
-                  <VerificationBadgeImage type={option.id} />
+                  <VerificationBadgeIcon type={option.id} />
                 )
               }
             />
@@ -740,24 +727,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.stackSm,
   },
-  searchBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    height: 48,
-  },
+  searchField: { flex: 1 },
   searchFilterButton: {
-    width: 48,
-    height: 48,
+    width: SEARCH_HEIGHT,
+    height: SEARCH_HEIGHT,
     borderRadius: Radius.full,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  searchInput: { flex: 1, ...Typography.bodyMd },
   segmentTrack: {
     alignSelf: "stretch",
     borderRadius: Radius.full,
@@ -805,10 +783,6 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderCurve: "continuous",
-  },
-  verificationBadgeImage: {
-    width: 20,
-    height: 20,
   },
   filterText: { ...Typography.labelMd },
   cell: {

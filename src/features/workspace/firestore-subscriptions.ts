@@ -1,4 +1,5 @@
-import { normalizeApRecord } from '@/features/workspace/ap-normalize';
+import { normalizeApRecord, visibleApRecords } from '@/features/workspace/ap-normalize';
+import { PENDING_CHEQUE_STATUSES } from '@/features/workspace/cheque-utils';
 import { pickPrimaryBusiness } from '@/features/marketplace/marketplace-service';
 import {
   mapServiceToLapidaryJob,
@@ -13,6 +14,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  Timestamp,
   where,
 } from '@/lib/firebase/db';
 import type {
@@ -45,6 +47,9 @@ type Unsub = () => void;
 
 /** Cap realtime owner-scoped lists — enough for typical inventory, avoids unbounded sync. */
 export const OWNER_LIST_LIMIT = 200;
+
+/** Stored statuses of a receivable / payable that still has a balance (`overdue` is legacy). */
+export const OPEN_ITEM_STATUSES = ['pending', 'partial', 'overdue'];
 /** Marketplace directory page size. */
 export const MARKET_LIST_LIMIT = 100;
 /** Firestore `in` operator max values per query. */
@@ -146,6 +151,23 @@ export function subscribeGems(
       orderBy('updatedAt', 'desc'),
       limit(OWNER_LIST_LIMIT),
     ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem),
+    onData,
+    onError,
+  );
+}
+
+/**
+ * Every stone the owner has, uncapped — Money's stock value and sales margin
+ * must not quietly drop stones the way the capped list feed would.
+ */
+export function subscribeAllGems(
+  ownerUid: string,
+  onData: (gems: WorkspaceGem[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(collection(getFirebaseDb(), 'gemtrack_gems'), where('ownerUid', '==', ownerUid)),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem),
     onData,
     onError,
@@ -301,15 +323,15 @@ export function subscribeGivenApRecords(
     // Match fetchGivenApRecords: prefer senderUid results when non-empty;
     // otherwise fall back to legacy ownerUid docs.
     if (!senderFailed && senderDocs !== null && senderDocs.length > 0) {
-      onData(senderDocs);
+      onData(visibleApRecords(senderDocs, uid));
       return;
     }
     if (ownerDocs !== null) {
-      onData(ownerDocs);
+      onData(visibleApRecords(ownerDocs, uid));
       return;
     }
     if (!senderFailed && senderDocs !== null) {
-      onData(senderDocs);
+      onData(visibleApRecords(senderDocs, uid));
     }
   };
 
@@ -358,8 +380,9 @@ export function subscribeTakenApRecords(
       limit(OWNER_LIST_LIMIT),
     ),
     (docs) =>
-      docs.map((d) =>
-        normalizeApRecord({ id: d.id, ...d.data() } as ApRecord),
+      visibleApRecords(
+        docs.map((d) => normalizeApRecord({ id: d.id, ...d.data() } as ApRecord)),
+        uid,
       ),
     onData,
     onError,
@@ -452,7 +475,37 @@ export function subscribeTransactions(
   );
 }
 
-export function subscribeReceivables(
+/**
+ * Every transaction dated within `[start, end]`, uncapped — period totals,
+ * trends and reports must not silently drop older rows the way the capped
+ * {@link subscribeTransactions} feed would.
+ */
+export function subscribeTransactionsInRange(
+  ownerUid: string,
+  start: Date,
+  end: Date,
+  onData: (rows: Transaction[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'gemtrack_transactions'),
+      where('ownerUid', '==', ownerUid),
+      where('date', '>=', Timestamp.fromDate(start)),
+      where('date', '<=', Timestamp.fromDate(end)),
+      orderBy('date', 'desc'),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction),
+    onData,
+    onError,
+  );
+}
+
+/**
+ * Every unsettled receivable — uncapped, so outstanding totals and due buckets
+ * are complete. Settled history is paginated separately.
+ */
+export function subscribeOpenReceivables(
   ownerUid: string,
   onData: (rows: Receivable[]) => void,
   onError?: ErrCb,
@@ -461,7 +514,7 @@ export function subscribeReceivables(
     query(
       collection(getFirebaseDb(), 'gemtrack_receivables'),
       where('ownerUid', '==', ownerUid),
-      limit(OWNER_LIST_LIMIT),
+      where('status', 'in', OPEN_ITEM_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Receivable),
     onData,
@@ -469,7 +522,8 @@ export function subscribeReceivables(
   );
 }
 
-export function subscribePayables(
+/** Every unsettled payable — see {@link subscribeOpenReceivables}. */
+export function subscribeOpenPayables(
   ownerUid: string,
   onData: (rows: Payable[]) => void,
   onError?: ErrCb,
@@ -478,7 +532,7 @@ export function subscribePayables(
     query(
       collection(getFirebaseDb(), 'gemtrack_payables'),
       where('ownerUid', '==', ownerUid),
-      limit(OWNER_LIST_LIMIT),
+      where('status', 'in', OPEN_ITEM_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Payable),
     onData,
@@ -550,6 +604,24 @@ export function subscribeCheques(
       where('ownerUid', '==', ownerUid),
       orderBy('maturityDate', 'asc'),
       limit(OWNER_LIST_LIMIT),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque),
+    onData,
+    onError,
+  );
+}
+
+/** Cheques still waiting to clear (holding or deposited), uncapped. */
+export function subscribePendingCheques(
+  ownerUid: string,
+  onData: (cheques: Cheque[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'gemtrack_cheques'),
+      where('ownerUid', '==', ownerUid),
+      where('status', 'in', PENDING_CHEQUE_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque),
     onData,

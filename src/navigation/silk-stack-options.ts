@@ -39,4 +39,8 @@ export const formSheetFitContentOptions = {
   ...formSheetScreenOptions,
   sheetAllowedDetents: "fitToContents" as const,
   sheetInitialDetentIndex: 0 as const,
+  // Android: the native resize animation races when content grows in several layout
+  // passes (e.g. a multi-step sheet's next step) and leaves the sheet stuck part-way
+  // off-screen. Without it the sheet snaps straight to the new content height.
+  sheetResizeAnimationEnabled: false,
 };

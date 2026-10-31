@@ -70,6 +70,7 @@ export function canRequestApCancellation(ap: ApRecord, uid: string): boolean {
   if (!isSender) return false;
   return (
     ap.status === "accepted" ||
+    ap.status === "partial" ||
     ap.status === "with_holder" ||
     ap.status === "payment_sent" ||
     ap.status === "sold" ||

@@ -5,7 +5,13 @@ import {
 
 import { ApiError } from '../api/errors';
 import { db } from '../admin';
+import { isLiveUid } from '../account/deleted-uid';
 import { ensureDeterministicNotificationDoc } from '../notifications/create';
+import {
+  isGemLockedByAp,
+  releaseGemFromApUpdate,
+  type ApGemSnapshot,
+} from './ap-custody';
 import {
   canActOnAp,
   decideApStatusTransition,
@@ -16,9 +22,11 @@ import {
 type ApItem = {
   gemId: string;
   lineStatus: 'held' | 'sold' | 'returned';
+  previousGemState?: ApGemSnapshot | null;
 };
 
 type ApDoc = ApMutationFixture & {
+  statusBeforeCancellation?: string | null;
   senderName?: string | null;
   receiverName?: string | null;
   items?: ApItem[];
@@ -26,8 +34,10 @@ type ApDoc = ApMutationFixture & {
 
 export type ApCancellationResult = {
   ok: true;
-  status: 'cancellation_requested' | 'accepted' | 'cancelled';
+  status: 'cancellation_requested' | 'accepted' | 'partial' | 'payment_sent' | 'cancelled';
 };
+
+const RESTORABLE_STATUSES = new Set(['accepted', 'partial', 'payment_sent']);
 
 type CancellationAction = 'accepted' | 'rejected';
 
@@ -93,6 +103,21 @@ export async function requestApCancellationForApi(
     const decision = decideApStatusTransition('request-cancellation', ap.status);
     if (decision.kind === 'reject') throwDecision(decision);
 
+    // The holder deleted their account, so nobody can answer the request:
+    // cancel immediately and release the held gems back to the sender.
+    if (!isLiveUid(ap.receiverUid)) {
+      const now = Timestamp.now();
+      const heldItems = (ap.items ?? []).filter((item) => item.lineStatus === 'held');
+      const gemRefs = heldItems.map((item) => db.collection('gemtrack_gems').doc(item.gemId));
+      const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
+      for (let i = 0; i < gemRefs.length; i += 1) {
+        if (!isGemLockedByAp(gemSnaps[i]!, id, ap.ownerUid)) continue;
+        transaction.update(gemRefs[i]!, releaseGemFromApUpdate(heldItems[i]!.previousGemState, now));
+      }
+      transaction.update(ref, { status: 'cancelled', updatedAt: now });
+      return { status: 'cancelled' as const, notification: null };
+    }
+
     const notification = {
       recipientUid: ap.receiverUid,
       type: 'ap_cancellation_requested' as const,
@@ -102,7 +127,13 @@ export async function requestApCancellationForApi(
     };
 
     if (decision.kind === 'transition') {
-      transaction.update(ref, { status: decision.status, updatedAt: Timestamp.now() });
+      // Remember the active status so a declined request restores it
+      // (a pending payment or partial balance must not be lost).
+      transaction.update(ref, {
+        status: decision.status,
+        statusBeforeCancellation: ap.status,
+        updatedAt: Timestamp.now(),
+      });
     }
 
     return {
@@ -111,7 +142,9 @@ export async function requestApCancellationForApi(
     };
   });
 
-  await ensureApNotification({ ...result.notification, apId: id });
+  if (result.notification) {
+    await ensureApNotification({ ...result.notification, apId: id });
+  }
   return { ok: true, status: result.status };
 }
 
@@ -154,6 +187,13 @@ export async function respondApCancellationForApi(
       direction: 'given' as const,
     };
 
+    const nextStatus =
+      action === 'rejected' &&
+      decision.kind === 'transition' &&
+      RESTORABLE_STATUSES.has(ap.statusBeforeCancellation ?? '')
+        ? ap.statusBeforeCancellation!
+        : decision.status;
+
     const heldItems = (ap.items ?? []).filter((item) => item.lineStatus === 'held');
     const gemRefs: DocumentReference[] =
       action === 'accepted' && decision.kind === 'transition'
@@ -163,27 +203,20 @@ export async function respondApCancellationForApi(
 
     if (decision.kind === 'transition') {
       if (action === 'accepted') {
+        const now = Timestamp.now();
         for (let i = 0; i < gemRefs.length; i += 1) {
-          const gemSnap = gemSnaps[i]!;
-          const gem = gemSnap.data() as { ownerUid?: string } | undefined;
-          if (!gemSnap.exists || gem?.ownerUid !== ap.ownerUid) {
-            throw new ApiError('failed-precondition', 'An AP gem could not be verified.');
-          }
-          transaction.update(gemRefs[i]!, {
-          status: 'ready_for_sale',
-          custody: null,
-          currentLocation: null,
-          currentHolderContactId: null,
-          currentApId: null,
-          updatedAt: Timestamp.now(),
-        });
+          if (!isGemLockedByAp(gemSnaps[i]!, id, ap.ownerUid)) continue;
+          transaction.update(
+            gemRefs[i]!,
+            releaseGemFromApUpdate(heldItems[i]!.previousGemState, now),
+          );
         }
       }
-      transaction.update(ref, { status: decision.status, updatedAt: Timestamp.now() });
+      transaction.update(ref, { status: nextStatus, updatedAt: Timestamp.now() });
     }
 
     return {
-      status: decision.status as ApCancellationResult['status'],
+      status: nextStatus as ApCancellationResult['status'],
       notification,
     };
   });

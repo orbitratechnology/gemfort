@@ -1,8 +1,10 @@
 import { BASE_CURRENCY, type CurrencyCode } from '@/constants/currencies';
 import { useExchangeRates } from '@/hooks/use-exchange-rates';
+import { convertFromBaseSync } from '@/lib/exchange-rates';
 import { usePreferredCurrency } from '@/hooks/use-preferred-currency';
 import {
   formatBaseAsPreferred,
+  formatCompactMoney,
   formatStoredAsPreferred,
   toPreferredAmount,
 } from '@/lib/money';
@@ -45,6 +47,18 @@ export function usePreferredMoney() {
     return toPreferredAmount(amountBase, preferred, rates);
   }
 
+  /** LKR base → short preferred-currency label (`Rs 1.2M`) for axes and tiles. */
+  function formatBaseCompact(amountBase: number): string {
+    if (!rates || preferred === BASE_CURRENCY) {
+      return formatCompactMoney(amountBase, BASE_CURRENCY);
+    }
+    try {
+      return formatCompactMoney(convertFromBaseSync(amountBase, preferred, rates), preferred);
+    } catch {
+      return formatCompactMoney(amountBase, BASE_CURRENCY);
+    }
+  }
+
   return {
     preferred: preferred as CurrencyCode,
     rates,
@@ -52,6 +66,7 @@ export function usePreferredMoney() {
     formatBase,
     formatStored,
     formatFace,
+    formatBaseCompact,
     fromBase,
   };
 }

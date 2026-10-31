@@ -2,16 +2,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import {
+  Accent,
+  DetailBand,
+  DetailRows,
+  TotalRow,
+} from "@/components/ui/detail-kit";
 import { FormFooter } from "@/components/ui/form-footer";
 import { FormSection } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
@@ -19,8 +23,9 @@ import {
   ApSellStepRail,
 } from "@/components/workspace/ap-sell-party-step";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Spacing } from "@/constants/design-tokens";
 import {
   fetchBusinessByOwnerUid,
   fetchBusinesses,
@@ -42,6 +47,7 @@ import {
 import { fetchGem } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
 import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
@@ -50,7 +56,6 @@ import { haptics } from "@/lib/haptics";
 import { formatCurrency } from "@/lib/utils";
 import { parseForm, sellApGemSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 function firstParam(v: string | string[] | undefined): string {
@@ -68,7 +73,6 @@ export default function ApSellScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
 
   const [step, setStep] = useState<SellStep>(0);
@@ -92,17 +96,13 @@ export default function ApSellScreen() {
   const ap = records.find((r) => r.id === apId);
   const line = ap?.items?.find((i) => i.gemId === gemId);
 
-  const { data: gemPhoto = null } = useFirestoreLiveQuery({
-    queryKey: ["ap", "sell-gem-photo", gemId],
-    queryFn: async () => gemPrimaryPhotoUrl(await fetchGem(gemId)),
-    subscribe: (onData, onError) =>
-      subscribeGem(
-        gemId,
-        (gem) => onData(gemPrimaryPhotoUrl(gem)),
-        onError,
-      ),
+  const { data: gem = null } = useFirestoreLiveQuery({
+    queryKey: ["ap", "sell-gem", gemId],
+    queryFn: () => fetchGem(gemId),
+    subscribe: (onData, onError) => subscribeGem(gemId, onData, onError),
     enabled: !!gemId,
   });
+  const gemPhoto = gemPrimaryPhotoUrl(gem);
 
   const { data: businesses = [] } = useFirestoreLiveQuery({
     queryKey: ["home-businesses"],
@@ -194,7 +194,7 @@ export default function ApSellScreen() {
     }
   }
 
-  async function handleConfirm() {
+  const [confirming, handleConfirm] = usePendingAction(async () => {
     if (!ap || !line || !user) return;
     const keepValue = receiverKeeps.trim() === "" ? "0" : receiverKeeps;
     const result = parseForm(sellApGemSchema, {
@@ -215,53 +215,51 @@ export default function ApSellScreen() {
     due.setDate(due.getDate() + result.data.paymentDueDays);
 
     try {
-      await withLoading(async () => {
-        await recordApGemSale({
-          apId: ap.id,
-          gemId: line.gemId,
-          soldPrice,
-          ownerReceives: result.data.ownerReceives,
-          soldToName: result.data.soldToName,
-          paymentDueDateIso: due.toISOString(),
+      await recordApGemSale({
+        apId: ap.id,
+        gemId: line.gemId,
+        soldPrice,
+        ownerReceives: result.data.ownerReceives,
+        soldToName: result.data.soldToName,
+        paymentDueDateIso: due.toISOString(),
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "ap",
+          sourceId: ap.id,
+          title: "AP payment due",
+          date: due,
+          url: commitmentDeepLink("ap", ap.id),
         });
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "ap",
-            sourceId: ap.id,
-            title: "AP payment due",
-            date: due,
-            url: commitmentDeepLink("ap", ap.id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Sale recorded, but its calendar entry could not be added.");
-          }
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Sale recorded, but its calendar entry could not be added.");
         }
-        if (reminderSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "reminder",
-            sourceType: "ap",
-            sourceId: ap.id,
-            title: "AP payment due",
-            date: due,
-            url: commitmentDeepLink("ap", ap.id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Sale recorded, but its reminder could not be added.");
-          }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "ap",
+          sourceId: ap.id,
+          title: "AP payment due",
+          date: due,
+          url: commitmentDeepLink("ap", ap.id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Sale recorded, but its reminder could not be added.");
         }
-        await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-        await queryClient.invalidateQueries({ queryKey: ["money"] });
-        haptics.success();
-        toast.success("Sale recorded");
-        router.back();
-      }, "Recording sale…");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["money"] });
+      haptics.success();
+      toast.success("Sale recorded");
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, "Could not record sale."));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -326,6 +324,7 @@ export default function ApSellScreen() {
             partyPhotoUrl={senderPhoto}
             flowIcon="call-made"
             gemUri={gemPhoto}
+            gem={gem}
             gemLabel={gemLabel}
             amount={ownerReceives}
             onChangeAmount={(v) => {
@@ -349,6 +348,7 @@ export default function ApSellScreen() {
             partyPhotoUrl={youPhoto}
             flowIcon="account-balance-wallet"
             gemUri={gemPhoto}
+            gem={gem}
             gemLabel={gemLabel}
             amount={receiverKeeps}
             onChangeAmount={(v) => {
@@ -368,88 +368,56 @@ export default function ApSellScreen() {
           contentContainerStyle={styles.confirmScroll}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View
-            entering={FadeIn.duration(280)}
-            style={styles.confirmHero}
-          >
-            <GemThumb
-              uri={gemPhoto}
-              label={gemLabel}
-              size={64}
-              radius={14}
-            />
-          </Animated.View>
-
-          <Animated.View
-            entering={FadeInDown.delay(40).duration(300)}
-            style={styles.splitRow}
-          >
-            <View
-              style={[
-                styles.splitCard,
-                { backgroundColor: colors.primaryContainer },
-              ]}
-            >
-              <ContactAvatar
-                name={senderName}
-                photoUrl={senderPhoto}
-                size={52}
-              />
-              <Icon name="call-made" size={18} color={colors.onPrimaryContainer} />
-              <Text
-                style={[
-                  styles.splitAmount,
-                  { color: colors.onPrimaryContainer },
-                ]}
-                numberOfLines={1}
-              >
-                {formatCurrency(ownerN, currency)}
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.splitCard,
-                { backgroundColor: colors.successEmerald + "22" },
-              ]}
-            >
-              <View
-                style={[
-                  styles.miniWallet,
-                  { backgroundColor: colors.successEmerald + "33" },
-                ]}
-              >
-                <Icon
-                  name="account-balance-wallet"
-                  size={26}
-                  color={colors.successEmerald}
-                />
+          <DetailBand title="Sale split">
+            <View style={styles.gemRow}>
+              {gemPhoto || !gem ? (
+                <GemThumb uri={gemPhoto} label={gemLabel} size={48} radius={12} />
+              ) : (
+                <GemArtwork gem={gem} artScale={0.8} style={styles.gemArt} />
+              )}
+              <View style={styles.gemCopy}>
+                <Text
+                  style={[styles.gemTitle, { color: colors.onSurface }]}
+                  numberOfLines={1}
+                >
+                  {gemLabel}
+                </Text>
+                <Text style={[styles.gemSub, { color: colors.onSurfaceVariant }]}>
+                  Sold on AP from {senderName}
+                </Text>
               </View>
-              <Icon name="payments" size={18} color={colors.successEmerald} />
-              <Text
-                style={[styles.splitAmount, { color: colors.successEmerald }]}
-                numberOfLines={1}
-              >
-                {formatCurrency(keepN, currency)}
-              </Text>
             </View>
-          </Animated.View>
-
-          <Animated.View
-            entering={FadeInDown.delay(80).duration(280)}
-            style={[
-              styles.totalPill,
-              { backgroundColor: colors.surfaceContainerHighest },
-            ]}
-          >
-            <Icon name="sell" size={18} color={colors.onSurfaceVariant} />
-            <Text
-              style={[styles.totalText, { color: colors.onSurface }]}
-              numberOfLines={1}
-            >
-              {formatCurrency(totalN, currency)}
-            </Text>
-          </Animated.View>
+            <DetailRows
+              rows={[
+                {
+                  key: "sender",
+                  leading: (
+                    <ContactAvatar name={senderName} photoUrl={senderPhoto} size={34} />
+                  ),
+                  label: senderName,
+                  hint: "Sender receives",
+                  value: formatCurrency(ownerN, currency),
+                },
+                {
+                  key: "you",
+                  icon: "account-balance-wallet",
+                  accent: Accent.emerald,
+                  label: youName,
+                  hint: "You keep",
+                  value: (
+                    <Text style={[styles.keepValue, { color: Accent.emerald }]}>
+                      {formatCurrency(keepN, currency)}
+                    </Text>
+                  ),
+                },
+              ]}
+            />
+            <TotalRow
+              label="Sale price"
+              value={formatCurrency(totalN, currency)}
+              accent={Accent.blue}
+            />
+          </DetailBand>
 
           <FormSection title="Optional">
             <Input
@@ -489,7 +457,7 @@ export default function ApSellScreen() {
         </ThemedScrollView>
       ) : null}
 
-      <View style={{ paddingBottom: Math.max(insets.bottom, 0) }}>
+      <SheetFooter>
         {step < 2 ? (
           <FormFooter
             title="Next"
@@ -503,12 +471,13 @@ export default function ApSellScreen() {
           <FormFooter
             title="Confirm sale"
             icon="check"
+            loading={confirming}
             onPress={handleConfirm}
             secondaryTitle="Back"
             onSecondaryPress={goBack}
           />
         )}
-      </View>
+      </SheetFooter>
     </View>
   );
 }
@@ -525,50 +494,29 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   confirmScroll: {
-    paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.lg,
-    gap: Spacing.lg,
-    alignItems: "center",
+    gap: Spacing.sm,
   },
-  confirmHero: { alignItems: "center" },
-  splitRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    width: "100%",
+  gemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  gemArt: { width: 48, height: 48, borderRadius: 12, borderCurve: "continuous" },
+  gemCopy: { flex: 1, minWidth: 0, gap: 2 },
+  gemTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 21,
+    includeFontPadding: false,
   },
-  splitCard: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
+  gemSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    includeFontPadding: false,
   },
-  splitAmount: {
-    ...Typography.bodyLg,
-    fontWeight: "700",
+  keepValue: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 22,
     fontVariant: ["tabular-nums"],
-    textAlign: "center",
-  },
-  miniWallet: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  totalPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: Radius.full,
-  },
-  totalText: {
-    ...Typography.bodyLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
+    includeFontPadding: false,
   },
 });

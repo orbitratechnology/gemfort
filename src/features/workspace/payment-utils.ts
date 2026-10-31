@@ -1,18 +1,23 @@
-import { isPast, startOfDay } from 'date-fns';
+import { isBefore, startOfDay } from 'date-fns';
 
 import type { Payable, Receivable } from '@/types';
+
+/** Overdue only once the due day has fully passed — never on the due date itself. */
+function isPastDue(due: Date | undefined) {
+  return !!due && isBefore(startOfDay(due), startOfDay(new Date()));
+}
 
 export function effectiveReceivableStatus(r: Receivable): Receivable['status'] {
   if (r.status === 'paid') return 'paid';
   const due = r.dueDate?.toDate?.();
-  if (due && isPast(startOfDay(due)) && r.amount - r.amountReceived > 0) return 'overdue';
+  if (isPastDue(due) && r.amount - r.amountReceived > 0) return 'overdue';
   return r.status;
 }
 
 export function effectivePayableStatus(p: Payable): Payable['status'] {
   if (p.status === 'paid') return 'paid';
   const due = p.dueDate?.toDate?.();
-  if (due && isPast(startOfDay(due)) && p.amount - p.amountPaid > 0) return 'overdue';
+  if (isPastDue(due) && p.amount - p.amountPaid > 0) return 'overdue';
   return p.status;
 }
 

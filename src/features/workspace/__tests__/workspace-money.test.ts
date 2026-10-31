@@ -1,12 +1,14 @@
 /**
  * Money-regression tests — mocked Firebase so Jest does not load native modules.
- * Covers: bill commission double-count, overpay rejection on receivables/payables/bills.
+ * Covers: bill commission double-count, overpay rejection on receivables/payables/bills,
+ * cross-currency settlement and all-or-nothing payment writes.
  */
 import {
   recordBillPayment,
   recordPayablePayment,
   recordReceivablePayment,
 } from '@/features/workspace/workspace-service';
+import { convertFromBase, convertToBase } from '@/lib/exchange-rates';
 import { getDoc } from '@/lib/firebase/db';
 
 const mockQueueDocCreate = jest.fn();
@@ -44,8 +46,14 @@ jest.mock('@/lib/firebase/db', () => ({
   writeBatch: jest.fn(),
 }));
 
+// 1 USD = 300 LKR; every other currency is treated as LKR.
 jest.mock('@/lib/exchange-rates', () => ({
-  convertToBase: jest.fn(async (amount: number) => amount),
+  convertToBase: jest.fn(async (amount: number, currency: string) =>
+    currency === 'USD' ? amount * 300 : amount,
+  ),
+  convertFromBase: jest.fn(async (amountBase: number, currency: string) =>
+    currency === 'USD' ? amountBase / 300 : amountBase,
+  ),
 }));
 
 jest.mock('@/lib/firebase/local-write', () => ({
@@ -54,6 +62,19 @@ jest.mock('@/lib/firebase/local-write', () => ({
   queueDocUpdate: (...args: unknown[]) => mockQueueDocUpdate(...args),
   queueDocDelete: (...args: unknown[]) => mockQueueDocDelete(...args),
   queueDocSet: (...args: unknown[]) => mockQueueDocSet(...args),
+}));
+
+jest.mock('@react-native-firebase/storage', () => ({
+  deleteObject: jest.fn(),
+  getStorage: jest.fn(),
+  ref: jest.fn(),
+}));
+
+jest.mock('expo-crypto', () => ({ randomUUID: jest.fn(() => 'uuid-1') }));
+
+jest.mock('@/lib/firebase/storage-service', () => ({
+  extensionForMedia: jest.fn(() => 'jpg'),
+  uploadLocalMedia: jest.fn(),
 }));
 
 jest.mock('@/lib/firebase/storage-upload', () => ({
@@ -258,5 +279,104 @@ describe('overpay rejection', () => {
       recordBillPayment('owner-1', 'bill-1', 200),
     ).rejects.toThrow('exceeds the remaining balance');
     expect(txns()).toHaveLength(0);
+  });
+});
+
+describe('cross-currency settlement', () => {
+  const usdReceivable = {
+    ownerUid: 'owner-1',
+    amount: 1000,
+    amountReceived: 0,
+    currency: 'USD',
+    status: 'pending',
+    title: 'Ruby on credit',
+    contactId: null,
+  };
+
+  it('converts an LKR payment into the USD balance', async () => {
+    (getDoc as jest.Mock).mockResolvedValue(mockSnap(usdReceivable));
+
+    await recordReceivablePayment('owner-1', 'receivable-1', 30_000, { currency: 'LKR' });
+
+    const update = mockTransactionUpdate.mock.calls[0]![1];
+    expect(update.amountReceived).toBe(100);
+    expect(update.status).toBe('partial');
+    const t = txns();
+    expect(t).toHaveLength(1);
+    expect(t[0]!.data).toMatchObject({ amount: 30_000, currency: 'LKR', amountBase: 30_000 });
+  });
+
+  it('does not treat 1,000 LKR as settling 1,000 USD', async () => {
+    (getDoc as jest.Mock).mockResolvedValue(mockSnap(usdReceivable));
+
+    await recordReceivablePayment('owner-1', 'receivable-1', 1000, { currency: 'LKR' });
+
+    const update = mockTransactionUpdate.mock.calls[0]![1];
+    expect(update.status).toBe('partial');
+    expect(update.amountReceived).toBeCloseTo(3.33, 2);
+  });
+
+  it('rejects a converted payment above the remaining balance', async () => {
+    (getDoc as jest.Mock).mockResolvedValue(
+      mockSnap({ ...usdReceivable, amountReceived: 900 }),
+    );
+
+    await expect(
+      recordReceivablePayment('owner-1', 'receivable-1', 60_000, { currency: 'LKR' }),
+    ).rejects.toThrow('exceeds the remaining balance');
+    expect(mockTransactionUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('all-or-nothing payment writes', () => {
+  it('writes nothing when currency conversion fails', async () => {
+    (getDoc as jest.Mock).mockResolvedValue(
+      mockSnap({
+        ownerUid: 'owner-1',
+        amount: 500,
+        amountPaid: 0,
+        currency: 'LKR',
+        status: 'pending',
+        title: 'Parcel advance',
+        contactId: null,
+      }),
+    );
+    (convertToBase as jest.Mock).mockRejectedValueOnce(
+      new Error('Currency conversion is temporarily unavailable.'),
+    );
+
+    await expect(
+      recordPayablePayment('owner-1', 'payable-1', 100, { currency: 'USD' }),
+    ).rejects.toThrow('temporarily unavailable');
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockTransactionUpdate).not.toHaveBeenCalled();
+    expect(mockQueueDocCreate).not.toHaveBeenCalled();
+    expect(convertFromBase).not.toHaveBeenCalled();
+  });
+
+  it('writes the balance, transaction and payment in one transaction', async () => {
+    (getDoc as jest.Mock).mockResolvedValue(
+      mockSnap({
+        ownerUid: 'owner-1',
+        amount: 500,
+        amountPaid: 0,
+        currency: 'LKR',
+        status: 'pending',
+        title: 'Parcel advance',
+        contactId: 'contact-1',
+      }),
+    );
+
+    await recordPayablePayment('owner-1', 'payable-1', 500);
+
+    expect(mockRunTransaction).toHaveBeenCalledTimes(1);
+    expect(mockTransactionUpdate.mock.calls[0]![1]).toMatchObject({
+      amountPaid: 500,
+      status: 'paid',
+    });
+    const collections = mockTransactionSet.mock.calls.map(([ref]) => ref.collection);
+    expect(collections.sort()).toEqual(['gemtrack_payments', 'gemtrack_transactions']);
+    expect(mockQueueDocCreate).not.toHaveBeenCalled();
+    expect(mockForgetSync).not.toHaveBeenCalled();
   });
 });

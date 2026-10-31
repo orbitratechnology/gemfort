@@ -1,4 +1,4 @@
-import type { Context } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
@@ -56,6 +56,13 @@ import {
     type ApLifecycleResult,
     type CreateApRequestInput,
 } from './ap-request-api';
+import {
+  clientIp,
+  firestoreMutationBudget,
+  rateLimitBy,
+  TokenBucketLimiter,
+  type MutationBudget,
+} from './rate-limit';
 import { ApiError, apiErrorResponse, toApiError } from './errors';
 import {
     cancelGemTransferForApi,
@@ -219,6 +226,13 @@ export type ApiAppOptions = {
     uid: string,
   ) => Promise<{ ok: true; status: 'cancelled'; gemId: string }>;
   executeMutation?: MutationExecutor;
+  /** Dependency check behind /readyz; tests pass a stub. */
+  readinessProbe?: () => Promise<void>;
+  /** Shared per-user mutation budget; tests pass a no-op. */
+  mutationBudget?: MutationBudget;
+  /** Per-instance request limiters; tests may pass generous ones. */
+  ipLimiter?: TokenBucketLimiter;
+  userLimiter?: TokenBucketLimiter;
 };
 
 function requireUser(c: ApiContext): NonNullable<ApiEnv['Variables']['user']> {
@@ -296,6 +310,14 @@ function compatibilityError(c: ApiContext, error: unknown): Response {
  * One Hono boundary for all client-facing API workloads. The compatibility
  * route remains inside this function for controlled protocol migration.
  */
+async function firestoreReadinessProbe(): Promise<void> {
+  const { db } = await import('../admin');
+  await Promise.race([
+    db.doc('system/exchange_rates').get(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3_000)),
+  ]);
+}
+
 export function createApiApp(options: ApiAppOptions = {}) {
   const app = new Hono<ApiEnv>();
 
@@ -336,19 +358,41 @@ export function createApiApp(options: ApiAppOptions = {}) {
   );
 
   app.get('/healthz', (c) =>
-    c.json({ ok: true as const, service: 'gemfort-api', requestId: c.get('requestId') }),
-  );
-
-  app.get('/readyz', (c) =>
     c.json({
       ok: true as const,
       service: 'gemfort-api',
-      checks: { process: true as const },
+      // Stamped by scripts/ops/deploy-backend.sh so the live build is traceable.
+      release: process.env.RELEASE_SHA ?? null,
       requestId: c.get('requestId'),
     }),
   );
 
-  const auth = requireFirebaseAuth(options.verifyIdToken);
+  // Readiness covers the dependency every route needs: a bounded Firestore
+  // read. A failing ping returns 503 so uptime checks alert on it.
+  const readinessProbe = options.readinessProbe ?? firestoreReadinessProbe;
+  app.get('/readyz', async (c) => {
+    const firestore = await readinessProbe().then(() => true, () => false);
+    return c.json(
+      {
+        ok: firestore,
+        service: 'gemfort-api',
+        checks: { process: true as const, firestore },
+        requestId: c.get('requestId'),
+      },
+      firestore ? 200 : 503,
+    );
+  });
+
+  // Burst protection: per IP before auth (credential stuffing, scripted
+  // abuse), per user after auth (one account saturating an instance).
+  const ipLimiter = options.ipLimiter ?? new TokenBucketLimiter(120, 2);
+  const userLimiter = options.userLimiter ?? new TokenBucketLimiter(60, 1);
+  app.use('/v1/*', rateLimitBy(ipLimiter, clientIp));
+  const verifyAuth = requireFirebaseAuth(options.verifyIdToken);
+  const limitUser = rateLimitBy(userLimiter, (c) => c.get('user')?.uid ?? null);
+  const auth: MiddlewareHandler<ApiEnv> = (c, next) =>
+    verifyAuth(c, () => limitUser(c, next) as Promise<void>);
+  const mutationBudget = options.mutationBudget ?? firestoreMutationBudget;
   const appCheck = requireFirebaseAppCheck({
     mode: options.appCheckMode ?? 'enforce',
     verifyToken: options.verifyAppCheck,
@@ -387,13 +431,13 @@ export function createApiApp(options: ApiAppOptions = {}) {
   ): Promise<T> => {
     const user = requireUser(c);
     const key = requiredIdempotencyKey(c);
-    return runMutation({
+    return mutationBudget(user.uid, routeOf(c)).then(() => runMutation({
       uid: user.uid,
       route: routeOf(c),
       key,
       request,
       execute: () => execute(user.uid),
-    });
+    }));
   };
 
   app.post('/v1/ap/requests', auth, appCheck, async (c) => {

@@ -7,15 +7,17 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
+import { Accent, Callout, KeyStats } from "@/components/ui/detail-kit";
 import { FormFooter } from "@/components/ui/form-footer";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { FormSection } from "@/components/ui/form-section";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactPicker } from "@/components/workspace/contact-picker";
 import type { PartySelection } from "@/components/workspace/contact-picker-sheet";
 import { GemPickerSheet, GemSelectField } from "@/components/workspace/gem-picker-sheet";
 import { PaymentMethodPicker } from "@/components/workspace/payment-method-picker";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing, Typography } from "@/constants/design-tokens";
 import { paymentMethodOptions } from "@/constants/payment-methods";
 import { subscribeContacts, subscribeGems } from "@/features/workspace/firestore-subscriptions";
 import {
@@ -26,13 +28,13 @@ import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
 import { fetchContacts, fetchGems } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
 import { friendlyError } from "@/lib/errors";
 import { convertToBaseSync } from "@/lib/exchange-rates";
 import { parseForm, recordSaleSchema } from "@/lib/validation/form-schemas";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 
 const METHODS = paymentMethodOptions(["transfer", "cash", "cheque"] as const);
@@ -126,7 +128,7 @@ export default function RecordSaleScreen() {
     });
   }
 
-  async function handleConfirm() {
+  const [confirming, handleConfirm] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(recordSaleSchema, {
       gemId: selectedGemId ?? "",
@@ -155,42 +157,40 @@ export default function RecordSaleScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        const data = result.data;
-        const paymentMethod =
-          data.method === "transfer" ? "bank_transfer" : data.method;
-        if (buyerParty?.source === "business") {
-          await createGemTransferRequest({
-            gemId: gem.id,
-            recipientBusinessId: buyerParty.businessId,
-            recipientContactId: selectedBuyerContactId,
-            recipientName: buyerLabel,
-            amount: data.price,
-            currency: price.currency,
-            paymentMethod,
-          });
-        } else {
-          await recordGemSale({
-            gemId: gem.id,
-            recipientContactId: selectedBuyerContactId,
-            recipientName: buyerLabel,
-            amount: data.price,
-            currency: price.currency,
-            paymentMethod,
-          });
-        }
-        await queryClient.invalidateQueries({ queryKey: ["gems"] });
-        toast.success(
-          isTraderProfile
-            ? `${gem.sku} sale recorded — waiting for trader acceptance.`
-            : `${gem.sku} sale recorded to ${buyerLabel}.`,
-        );
-        router.back();
-      }, isTraderProfile ? "Recording trader sale…" : "Recording sale…");
+      const data = result.data;
+      const paymentMethod =
+        data.method === "transfer" ? "bank_transfer" : data.method;
+      if (buyerParty?.source === "business") {
+        await createGemTransferRequest({
+          gemId: gem.id,
+          recipientBusinessId: buyerParty.businessId,
+          recipientContactId: selectedBuyerContactId,
+          recipientName: buyerLabel,
+          amount: data.price,
+          currency: price.currency,
+          paymentMethod,
+        });
+      } else {
+        await recordGemSale({
+          gemId: gem.id,
+          recipientContactId: selectedBuyerContactId,
+          recipientName: buyerLabel,
+          amount: data.price,
+          currency: price.currency,
+          paymentMethod,
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: ["gems"] });
+      toast.success(
+        isTraderProfile
+          ? `${gem.sku} sale recorded — waiting for trader acceptance.`
+          : `${gem.sku} sale recorded to ${buyerLabel}.`,
+      );
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, "Could not record the sale."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -202,7 +202,7 @@ export default function RecordSaleScreen() {
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ScreenInset style={styles.stack}>
+        <FormSection title="Item">
           <GemSelectField
             label="Stone"
             gem={gem}
@@ -215,7 +215,7 @@ export default function RecordSaleScreen() {
               Cost basis {formatBase(costBasis)}
             </Text>
           ) : null}
-        </ScreenInset>
+        </FormSection>
 
         <FormSection title="Sale details">
           <CurrencyAmountField
@@ -253,65 +253,29 @@ export default function RecordSaleScreen() {
         </FormSection>
 
         {gem && salePrice > 0 ? (
-          <ScreenInset>
-            <View
-              style={[styles.projection, { backgroundColor: colors.primary }]}
-            >
-              <Text
-                style={[styles.projHeading, { color: colors.onPrimary + "B3" }]}
-              >
-                Projection
-              </Text>
-              <View style={styles.projRow}>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    Cost
-                  </Text>
-                  <Text
-                    style={[styles.projValue, { color: colors.onPrimary }]}
-                  >
-                    {formatBase(costBasis)}
-                  </Text>
-                </View>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    Profit
-                  </Text>
-                  <Text
-                    style={[
-                      styles.projValue,
-                      {
-                        color:
-                          (netProfitBase ?? 0) >= 0
-                            ? colors.onPrimary
-                            : colors.errorContainer,
-                      },
-                    ]}
-                  >
-                    {netProfitBase != null
-                      ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
-                      : formatFace(salePrice, price.currency)}
-                  </Text>
-                </View>
-                <View style={styles.projCell}>
-                  <Text
-                    style={[styles.projLabel, { color: colors.onPrimary + "99" }]}
-                  >
-                    ROI
-                  </Text>
-                  <Text
-                    style={[styles.projValue, { color: colors.onPrimary }]}
-                  >
-                    {roi}%
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScreenInset>
+          <FormSection
+            title="Projection"
+            padded={false}
+            style={styles.projection}
+          >
+            <KeyStats
+              items={[
+                { label: "Sale", value: formatFace(salePrice, price.currency) },
+                { label: "Cost", value: formatBase(costBasis) },
+              ]}
+            />
+            <Callout
+              icon={(netProfitBase ?? 0) >= 0 ? "trending-up" : "trending-down"}
+              accent={(netProfitBase ?? 0) >= 0 ? Accent.emerald : Accent.rose}
+              label={(netProfitBase ?? 0) >= 0 ? "Profit" : "Loss"}
+              value={
+                netProfitBase != null
+                  ? `${netProfitBase >= 0 ? "+" : ""}${formatBase(netProfitBase)}`
+                  : formatFace(salePrice, price.currency)
+              }
+              pill={costBasis > 0 ? `ROI ${roi}%` : null}
+            />
+          </FormSection>
         ) : null}
       </ThemedScrollView>
 
@@ -329,11 +293,14 @@ export default function RecordSaleScreen() {
         }}
       />
 
-      <FormFooter
-        title="Record sale"
-        icon="price-check"
-        onPress={handleConfirm}
-      />
+      <SheetFooter>
+        <FormFooter
+          title="Record sale"
+          icon="price-check"
+          loading={confirming}
+          onPress={handleConfirm}
+        />
+      </SheetFooter>
     </View>
   );
 }
@@ -346,20 +313,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: Spacing.lg,
   },
-  stack: { gap: Spacing.md },
   gemMeta: { ...Typography.bodySmall },
   projection: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: 12,
-  },
-  projHeading: { ...Typography.labelMd, fontWeight: "600" },
-  projRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  projCell: { flex: 1, gap: 4 },
-  projLabel: { ...Typography.caption },
-  projValue: {
-    ...Typography.headlineSmMobile,
-    fontVariant: ["tabular-nums"],
+    paddingHorizontal: Spacing.containerMargin,
+    paddingBottom: Spacing.lg,
   },
 });

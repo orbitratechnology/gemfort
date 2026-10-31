@@ -10,8 +10,16 @@ import {
 
 import { CurrencyFlag } from '@/components/ui/country-flag';
 import { CurrencyPickerSheet } from '@/components/ui/currency-picker-sheet';
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+  useFieldFocus,
+} from '@/components/ui/field-chrome';
 import { Icon } from '@/components/ui/icon';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { Typography } from '@/constants/design-tokens';
 import {
   BASE_CURRENCY,
   getCurrencyBadge,
@@ -55,9 +63,13 @@ export function CurrencyAmountField({
   defaultCurrency,
   disabled,
   placeholder = '0',
+  onFocus,
+  onBlur,
   ...inputProps
 }: CurrencyAmountFieldProps) {
   const { colors } = useAppTheme();
+  const { focused, focusProps } = useFieldFocus({ onFocus, onBlur });
+  const chrome = useFieldChrome({ focused, error: !!error, disabled });
   const preferred = usePreferredCurrency();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -65,27 +77,11 @@ export function CurrencyAmountField({
     value.currency || defaultCurrency || preferred,
     BASE_CURRENCY,
   );
-  const borderColor = error ? colors.error : colors.border;
 
   return (
-    <View style={styles.wrap}>
-      {label ? (
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          {label}
-        </Text>
-      ) : null}
-      <View
-        style={[
-          styles.field,
-          {
-            backgroundColor: colors.surfaceMuted,
-            borderColor,
-            borderRadius: Radius.lg,
-            borderCurve: 'continuous',
-            opacity: disabled ? 0.6 : 1,
-          },
-        ]}
-      >
+    <FieldWrap>
+      {label ? <FieldLabel>{label}</FieldLabel> : null}
+      <View style={[fieldStyles.box, styles.box, chrome.box]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Currency ${currency}`}
@@ -94,8 +90,8 @@ export function CurrencyAmountField({
           style={({ pressed }) => [
             styles.currencyBtn,
             {
-              backgroundColor: colors.surfaceContainerHighest,
-              opacity: pressed ? 0.85 : 1,
+              borderRightColor: colors.outlineVariant,
+              opacity: pressed ? 0.6 : 1,
             },
           ]}
         >
@@ -103,14 +99,16 @@ export function CurrencyAmountField({
           <Text style={[styles.currencyCode, { color: colors.onSurface }]}>
             {getCurrencyBadge(currency)}
           </Text>
-          <Icon name="expand-more" size={18} color={colors.outline} />
+          <Icon name="expand-more" size={18} color={colors.textMuted} />
         </Pressable>
         <TextInput
           {...inputProps}
           editable={!disabled}
           keyboardType="decimal-pad"
           placeholder={placeholder}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={chrome.placeholderColor}
+          selectionColor={chrome.selectionColor}
+          cursorColor={chrome.selectionColor}
           value={formatGroupedAmount(value.amount)}
           onChangeText={(text) => {
             onChange({
@@ -118,23 +116,12 @@ export function CurrencyAmountField({
               currency,
             });
           }}
-          style={[styles.input, { color: colors.text }]}
+          style={[fieldStyles.input, styles.numeric, { color: chrome.textColor }]}
           accessibilityLabel={label ?? 'Amount'}
+          {...focusProps}
         />
       </View>
-      {error ? (
-        <Text
-          selectable={false}
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : helperText ? (
-        <Text style={[styles.helper, { color: colors.textMuted }]}>
-          {helperText}
-        </Text>
-      ) : null}
+      <FieldMessage error={error} helperText={helperText} />
 
       <CurrencyPickerSheet
         visible={pickerOpen}
@@ -142,42 +129,25 @@ export function CurrencyAmountField({
         value={currency}
         onSelect={(next) => onChange({ amount: value.amount, currency: next })}
       />
-    </View>
+    </FieldWrap>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 6 },
-  label: { ...Typography.labelMd },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1.5,
-    paddingRight: Spacing.gutterMd,
-    minHeight: 52,
-  },
+  box: { paddingLeft: 0 },
   currencyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     alignSelf: 'stretch',
-    paddingLeft: Spacing.md,
-    paddingRight: Spacing.xs,
-    borderTopLeftRadius: Radius.lg - 2,
-    borderBottomLeftRadius: Radius.lg - 2,
-    borderCurve: 'continuous',
+    paddingLeft: 14,
+    paddingRight: 10,
+    marginVertical: 10,
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
   currencyCode: {
     ...Typography.labelMd,
     fontVariant: ['tabular-nums'],
   },
-  input: {
-    flex: 1,
-    ...Typography.bodyLg,
-    fontVariant: ['tabular-nums'],
-    paddingVertical: Spacing.sm,
-  },
-  error: { ...Typography.bodySmall },
-  helper: { ...Typography.bodySmall },
+  numeric: { fontVariant: ['tabular-nums'] },
 });

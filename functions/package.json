@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "tsx --test src/notifications/__tests__/types.test.ts src/flights.test.ts src/api/app.test.ts src/api/entry.test.ts src/gemtrack/mutation-contract.test.ts src/gemtrack/ap-financial-contract.test.ts",
+    "test": "tsx --test src/notifications/__tests__/types.test.ts src/flights.test.ts src/api/app.test.ts src/api/entry.test.ts src/gemtrack/mutation-contract.test.ts src/gemtrack/ap-financial-contract.test.ts src/gemtrack/ap-balance.test.ts src/gemtrack/ap-custody.test.ts src/gemtrack/daily.test.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },

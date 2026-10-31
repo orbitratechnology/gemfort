@@ -1,14 +1,19 @@
-import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Icon } from '@/components/ui/icon';
+import { CashFlowChart } from '@/components/money/cash-flow-chart';
+import { SegmentedControl } from '@/components/money/segmented-control';
+import { KeyStats } from '@/components/ui/detail-kit';
+import { Icon, type IconName } from '@/components/ui/icon';
 import { FormSection, ScreenInset } from '@/components/ui/form-section';
 import { StackHeader } from '@/components/ui/stack-header';
 import { ThemedScrollView } from '@/components/ui/screen';
-import { Radius, Spacing, Typography } from '@/constants/design-tokens';
+import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
 import {
+  getCashFlowBuckets,
+  getPeriodRange,
+  getRangeTotals,
   MONEY_PERIODS,
   type MoneyPeriod,
 } from '@/features/workspace/money-utils';
@@ -20,36 +25,53 @@ import {
 import {
   subscribeCheques,
   subscribeGems,
-  subscribePayables,
-  subscribeReceivables,
-  subscribeTransactions,
+  subscribeOpenPayables,
+  subscribeOpenReceivables,
+  subscribeTransactionsInRange,
 } from '@/features/workspace/firestore-subscriptions';
 import {
   fetchCheques,
   fetchGems,
-  fetchPayables,
-  fetchReceivables,
-  fetchTransactions,
+  fetchOpenPayables,
+  fetchOpenReceivables,
+  fetchTransactionsInRange,
 } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useFirestoreLiveQuery } from '@/hooks/use-firestore-live-query';
+import { usePreferredMoney } from '@/hooks/use-preferred-money';
 import { friendlyError } from '@/lib/errors';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/providers/toast-provider';
 import type { FinancialReportType } from '@/types';
 
+const REPORT_ICONS: Record<FinancialReportType, IconName> = {
+  profit_loss: 'insights',
+  cash_flow: 'swap-vert',
+  inventory_value: 'diamond',
+  outstanding_payments: 'account-balance-wallet',
+  cheque_maturity: 'event',
+};
+
+/** Reports that summarise the selected period; the rest are point-in-time. */
+const PERIOD_REPORTS = new Set<FinancialReportType>(['profit_loss', 'cash_flow', 'cheque_maturity']);
+
 export default function ReportsScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const toast = useToast();
+  const { formatBase, formatBaseCompact } = usePreferredMoney();
   const uid = user?.uid;
 
   const [period, setPeriod] = useState<MoneyPeriod>('this_month');
   const [exporting, setExporting] = useState<FinancialReportType | null>(null);
 
+  // Every transaction in the report period — uncapped, so a busy year is not truncated.
+  const range = useMemo(() => getPeriodRange(period), [period]);
   const txQuery = useFirestoreLiveQuery({
-    queryKey: ['transactions', uid],
-    queryFn: () => fetchTransactions(uid!),
-    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
+    queryKey: ['transactions', uid, 'range', range.start.getTime(), range.end.getTime()],
+    queryFn: () => fetchTransactionsInRange(uid!, range.start, range.end),
+    subscribe: (onData, onError) =>
+      subscribeTransactionsInRange(uid!, range.start, range.end, onData, onError),
     enabled: !!uid,
   });
   const gemsQuery = useFirestoreLiveQuery({
@@ -59,15 +81,15 @@ export default function ReportsScreen() {
     enabled: !!uid,
   });
   const recQuery = useFirestoreLiveQuery({
-    queryKey: ['receivables', uid],
-    queryFn: () => fetchReceivables(uid!),
-    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
+    queryKey: ['receivables', uid, 'open'],
+    queryFn: () => fetchOpenReceivables(uid!),
+    subscribe: (onData, onError) => subscribeOpenReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
   const payQuery = useFirestoreLiveQuery({
-    queryKey: ['payables', uid],
-    queryFn: () => fetchPayables(uid!),
-    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
+    queryKey: ['payables', uid, 'open'],
+    queryFn: () => fetchOpenPayables(uid!),
+    subscribe: (onData, onError) => subscribeOpenPayables(uid!, onData, onError),
     enabled: !!uid,
   });
   const chequeQuery = useFirestoreLiveQuery({
@@ -86,6 +108,15 @@ export default function ReportsScreen() {
       cheques: chequeQuery.data ?? [],
     }),
     [txQuery.data, gemsQuery.data, recQuery.data, payQuery.data, chequeQuery.data],
+  );
+
+  const totals = useMemo(
+    () => getRangeTotals(reportData.transactions, range),
+    [reportData.transactions, range],
+  );
+  const buckets = useMemo(
+    () => getCashFlowBuckets(reportData.transactions, period),
+    [reportData.transactions, period],
   );
 
   const loading =
@@ -118,98 +149,105 @@ export default function ReportsScreen() {
 
       <ThemedScrollView contentContainerStyle={styles.content}>
         <ScreenInset style={styles.lead}>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Export financial summaries as PDF to share with your accountant or partners.
-        </Text>
-
-        <View style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}>
-          {MONEY_PERIODS.map((p) => {
-            const active = period === p.id;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => setPeriod(p.id)}
-                style={[styles.segmentBtn, active && { backgroundColor: colors.surfaceContainerLowest }]}>
-                <Text
-                  style={[
-                    styles.segmentText,
-                    { color: active ? colors.primary : colors.onSurfaceVariant },
-                  ]}>
-                  {p.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {loading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading data…</Text>
-          </View>
-        ) : null}
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Export financial summaries as PDF to share with your accountant or partners.
+          </Text>
+          <SegmentedControl
+            accessibilityLabel="Report period"
+            options={MONEY_PERIODS}
+            value={period}
+            onChange={setPeriod}
+          />
         </ScreenInset>
 
-        {!loading ? (
-          <FormSection>
-          {REPORT_TYPES.map((report) => {
+        <FormSection title={`Preview · ${range.label}`}>
+          <KeyStats
+            items={[
+              { label: 'Income', value: txQuery.isLoading ? '—' : formatBase(totals.income) },
+              { label: 'Expenses', value: txQuery.isLoading ? '—' : formatBase(totals.expense) },
+              {
+                label: 'Net',
+                value: txQuery.isLoading
+                  ? '—'
+                  : `${totals.net < 0 ? '−' : ''}${formatBase(Math.abs(totals.net))}`,
+              },
+            ]}
+          />
+          <View style={styles.chart}>
+            <CashFlowChart
+              buckets={buckets}
+              formatAmount={formatBase}
+              formatCompact={formatBaseCompact}
+              loading={txQuery.isLoading}
+            />
+          </View>
+        </FormSection>
+
+        <FormSection title="Export">
+          {REPORT_TYPES.map((report, i) => {
             const busy = exporting === report.id;
             return (
               <Pressable
                 key={report.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Export ${report.label} as PDF`}
+                accessibilityState={{ busy, disabled: !!exporting || loading }}
                 onPress={() => handleExport(report.id)}
-                disabled={!!exporting}
+                disabled={!!exporting || loading}
                 style={({ pressed }) => [
                   styles.reportRow,
-                  { backgroundColor: colors.surfaceContainerLowest },
-                  pressed && { opacity: 0.85 },
-                ]}>
-                <View style={[styles.reportIcon, { backgroundColor: colors.primary + '14' }]}>
-                  <Icon name="description" size={22} color={colors.primary} />
+                  i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outlineVariant },
+                  pressed && { opacity: 0.7 },
+                  (loading || (!!exporting && !busy)) && { opacity: 0.5 },
+                ]}
+              >
+                <View style={[styles.reportIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
+                  <Icon name={REPORT_ICONS[report.id]} size={20} color={colors.onSurface} />
                 </View>
                 <View style={styles.reportBody}>
                   <Text style={[styles.reportTitle, { color: colors.onSurface }]}>{report.label}</Text>
-                  <Text style={[styles.reportSub, { color: colors.textMuted }]}>{report.subtitle}</Text>
+                  <Text style={[styles.reportSub, { color: colors.textMuted }]}>
+                    {report.subtitle}
+                    {PERIOD_REPORTS.has(report.id) ? ` · ${range.label}` : ' · as of today'}
+                  </Text>
                 </View>
-                {busy ? (
-                  <ActivityIndicator color={colors.primary} />
+                {busy || loading ? (
+                  <ActivityIndicator color={colors.onSurface} />
                 ) : (
-                  <Icon name="share" size={20} color={colors.primary} />
+                  <Icon name="ios-share" size={20} color={colors.onSurfaceVariant} />
                 )}
               </Pressable>
             );
           })}
-          </FormSection>
-        ) : null}
+        </FormSection>
       </ThemedScrollView>
     </SafeAreaView>
   );
 }
 
+const text = { includeFontPadding: false } as const;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingBottom: Spacing.section, gap: Spacing.lg },
-  lead: { gap: Spacing.lg },
-  subtitle: { ...Typography.bodyMd },
-  segment: { flexDirection: 'row', padding: 4, borderRadius: Radius.full, gap: 4 },
-  segmentBtn: { flex: 1, paddingVertical: 9, borderRadius: Radius.full, alignItems: 'center' },
-  segmentText: { ...Typography.labelMd },
-  loading: { alignItems: 'center', paddingVertical: Spacing.section, gap: Spacing.sm },
-  loadingText: { ...Typography.bodyMd },
+  content: { paddingTop: Spacing.stackSm, paddingBottom: Spacing.section, gap: Spacing.lg },
+  lead: { gap: Spacing.md },
+  subtitle: { ...text, fontFamily: FontFamily.regular, fontSize: 14, lineHeight: 20 },
+  chart: { marginTop: Spacing.lg },
   reportRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
+    minHeight: 64,
+    paddingVertical: Spacing.md,
   },
   reportIcon: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  reportBody: { flex: 1, gap: 2 },
-  reportTitle: { ...Typography.labelMd, fontWeight: '700' },
-  reportSub: { ...Typography.bodySmall },
+  reportBody: { flex: 1, minWidth: 0, gap: 2 },
+  reportTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 20 },
+  reportSub: { ...text, fontFamily: FontFamily.regular, fontSize: 12, lineHeight: 17 },
 });

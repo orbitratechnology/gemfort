@@ -292,6 +292,13 @@ export const onBusinessProfileChanged = onDocumentWritten(
     }
 
     if (hasVerifiedBadge(business)) return;
+    // Only a fresh, never-reviewed profile is auto-verified from its owner's
+    // status. A business an admin revoked or rejected keeps that decision even
+    // when the owner edits it again.
+    const businessStatus = stringValue(business.verificationStatus) ?? 'none';
+    if (businessStatus !== 'none' || business.verificationRevokedAt != null || business.verifiedAt != null) {
+      return;
+    }
 
     const ownerUid = stringValue(business.ownerUid);
     if (!ownerUid) return;

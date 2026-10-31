@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { addDays, format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import { ScanFillStatus } from "@/components/scan/scan-fill-status";
 import {
     ChoicePreviewCard,
     ChoiceTileGrid,
@@ -31,9 +32,15 @@ import {
 import { ChequePreviewCard } from "@/components/workspace/cheque-preview-card";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import { ContactPicker } from "@/components/workspace/contact-picker";
-import { Spacing, Typography } from "@/constants/design-tokens";
+import { Spacing } from "@/constants/design-tokens";
 import { getBankByCode } from "@/constants/sri-lanka-banks";
 import { bankHasBranches } from "@/constants/sri-lanka-branches";
+import {
+    matchContact,
+    readCheque,
+    type ChequeExtraction,
+} from "@/lib/document-extract";
+import { useAutofillGuard, useDocumentReader } from "@/hooks/use-document-reader";
 import {
     apPaymentReceived,
     apPaymentSent,
@@ -46,6 +53,7 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
@@ -58,11 +66,13 @@ import {
     uploadLocalMedia,
     type LocalMedia,
 } from "@/lib/firebase/storage-service";
+import { mimeFromUri } from "@/lib/scan";
 import { decodeShareParam } from "@/lib/incoming-share";
 import { addChequeSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
+import { Accent } from "@/components/ui/detail-kit";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import type { ChequeDirection } from "@/types";
 
@@ -71,11 +81,13 @@ const DIRECTIONS = [
     value: "given" as const,
     label: "Given",
     icon: "call-made" as const,
+    accent: Accent.amber,
   },
   {
     value: "received" as const,
     label: "Taken",
     icon: "call-received" as const,
+    accent: Accent.emerald,
   },
 ];
 
@@ -94,6 +106,7 @@ export default function AddChequeScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const raw = useLocalSearchParams<{
     amount?: string;
+    currency?: string;
     gemId?: string;
     apRecordId?: string;
     billId?: string;
@@ -107,6 +120,8 @@ export default function AddChequeScreen() {
   }>();
 
   const paramAmount = firstParam(raw.amount);
+  // An AP payment cheque must be in the AP's settlement currency.
+  const paramCurrency = firstParam(raw.currency).toUpperCase();
   const paramContactId = firstParam(raw.contactId);
   const paramGemId = firstParam(raw.gemId) || null;
   const paramApRecordId = firstParam(raw.apRecordId) || null;
@@ -132,7 +147,7 @@ export default function AddChequeScreen() {
   const [branch, setBranch] = useState("");
   const [money, setMoney] = useState<CurrencyAmountValue>({
     amount: paramAmount,
-    currency: preferred,
+    currency: (paramCurrency || preferred) as CurrencyAmountValue["currency"],
   });
   const [contactId, setContactId] = useState(paramContactId);
   const [issuedBy, setIssuedBy] = useState("");
@@ -143,7 +158,7 @@ export default function AddChequeScreen() {
       ? {
           uri: sharedImageUri,
           kind: "image",
-          mimeType: "image/jpeg",
+          mimeType: mimeFromUri(sharedImageUri),
           fileName: "shared-cheque.jpg",
         }
       : null,
@@ -153,6 +168,11 @@ export default function AddChequeScreen() {
   const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(true);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   const [branchSheetOpen, setBranchSheetOpen] = useState(false);
+  const [scan, setScan] = useState<ChequeExtraction | null>(null);
+  const [scanFilled, setScanFilled] = useState<string[] | null>(null);
+  const autofill = useAutofillGuard<
+    "chequeNumber" | "bankCode" | "branch" | "amount" | "maturityDays" | "issuedBy" | "contactId"
+  >({ maturityDays: "30" });
 
   const directionMeta = DIRECTIONS.find((d) => d.value === direction);
 
@@ -176,6 +196,88 @@ export default function AddChequeScreen() {
     [contacts, contactId],
   );
 
+  // Read the cheque photo on device and fill what it shows. Fields the user
+  // has typed are never overwritten; a new photo replaces earlier scan values.
+  const { reading } = useDocumentReader(
+    photo?.kind === "image" ? photo.uri : null,
+    readCheque,
+    (result) => {
+      setScan(result);
+      if (!result) {
+        setScanFilled([]);
+        return;
+      }
+      const filled: string[] = [];
+      if (result.chequeNumber && autofill.canFill("chequeNumber", chequeNumber)) {
+        setChequeNumber(result.chequeNumber);
+        autofill.mark("chequeNumber", result.chequeNumber);
+        clearField("chequeNumber");
+        filled.push("number");
+      }
+      if (result.bankCode && autofill.canFill("bankCode", bankCode)) {
+        setBankCode(result.bankCode);
+        autofill.mark("bankCode", result.bankCode);
+        clearField("bankName");
+        const nextBranch = result.branch ?? "";
+        setBranch(nextBranch);
+        autofill.mark("branch", nextBranch);
+        filled.push(result.branch ? "bank and branch" : "bank");
+      } else if (
+        result.branch &&
+        result.bankCode === bankCode &&
+        autofill.canFill("branch", branch)
+      ) {
+        setBranch(result.branch);
+        autofill.mark("branch", result.branch);
+        filled.push("branch");
+      }
+      if (result.amount && autofill.canFill("amount", money.amount)) {
+        const amount = String(result.amount);
+        setMoney((prev) => ({ ...prev, amount }));
+        autofill.mark("amount", amount);
+        clearField("amount");
+        filled.push("amount");
+      }
+      if (result.date && autofill.canFill("maturityDays", maturityDays)) {
+        // The cheque's date is when it can be deposited — its maturity.
+        const days = String(
+          Math.min(730, Math.max(1, differenceInCalendarDays(result.date, new Date()))),
+        );
+        setMaturityDays(days);
+        autofill.mark("maturityDays", days);
+        clearField("maturityDays");
+        filled.push("date");
+      }
+      setScanFilled(filled);
+    },
+  );
+
+  // Who the cheque is from or to depends on direction, and contacts load
+  // separately — fill those once all three are known.
+  const partyKey = scan && direction ? `${direction}:${contacts.length}` : null;
+  const [appliedPartyKey, setAppliedPartyKey] = useState<string | null>(null);
+  if (scan && direction && partyKey !== appliedPartyKey) {
+    setAppliedPartyKey(partyKey);
+    // Received: the drawer printed on the cheque. Given: the payee.
+    const party = direction === "received" ? scan.drawer : scan.payee;
+    const added: string[] = [];
+    if (direction === "received" && scan.drawer && autofill.canFill("issuedBy", issuedBy)) {
+      setIssuedBy(scan.drawer);
+      autofill.mark("issuedBy", scan.drawer);
+      added.push("issuer");
+    }
+    const match = matchContact(party, contacts);
+    if (match && autofill.canFill("contactId", contactId)) {
+      setContactId(match.id);
+      autofill.mark("contactId", match.id);
+      clearField("contactId");
+      added.push("contact");
+    }
+    if (added.length) {
+      setScanFilled((prev) => [...(prev ?? []), ...added.filter((a) => !prev?.includes(a))]);
+    }
+  }
+
   const maturityPreview = useMemo(() => {
     const days = parseInt(maturityDays, 10);
     if (!days || days < 1) return null;
@@ -197,7 +299,7 @@ export default function AddChequeScreen() {
     setStep(1);
   }
 
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user || !direction) return;
     const result = parseForm(addChequeSchema, {
       direction,
@@ -226,144 +328,142 @@ export default function AddChequeScreen() {
     let billPaymentRecorded = !paramBillId;
 
     try {
-      await withLoading(async () => {
-        const data = result.data;
-        const now = Timestamp.now();
-        const maturityDate = addDays(new Date(), data.maturityDays);
-        const maturity = Timestamp.fromDate(maturityDate);
-        const issuer =
-          data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
+      const data = result.data;
+      const now = Timestamp.now();
+      const maturityDate = addDays(new Date(), data.maturityDays);
+      const maturity = Timestamp.fromDate(maturityDate);
+      const issuer =
+        data.issuedBy?.trim() || selectedContact?.displayName || "Unknown";
 
-        let photoUrl: string | null = null;
-        if (photo) {
-          const ext = extensionForMedia(photo);
-          photoUrl = await uploadLocalMedia(
-            photo,
-            `cheques/${user.uid}/${Date.now()}.${ext}`,
-          );
+      let photoUrl: string | null = null;
+      if (photo) {
+        const ext = extensionForMedia(photo);
+        photoUrl = await uploadLocalMedia(
+          photo,
+          `cheques/${user.uid}/${Date.now()}.${ext}`,
+        );
+      }
+      const receiptUrl = await uploadReceipt(user.uid, receipt);
+
+      const id = await createCheque(user.uid, {
+        direction: data.direction,
+        chequeNumber: data.chequeNumber,
+        bankName: data.bankName,
+        bankCode,
+        branch: data.branch || null,
+        amount: data.amount,
+        currency: money.currency,
+        counterpartyContactId: data.contactId,
+        issuedBy: issuer,
+        issueDate: now,
+        maturityDate: maturity,
+        photoUrl,
+        receiptUrl,
+        gemId: paramGemId,
+        apRecordId: paramApRecordId,
+        billId: paramBillId,
+        notes: data.notes || null,
+      });
+
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "cheque",
+          sourceId: id,
+          title: `Cheque maturity: ${data.chequeNumber || "Cheque"}`,
+          date: maturityDate,
+          url: commitmentDeepLink("cheque", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Cheque saved, but its calendar entry could not be added.");
         }
-        const receiptUrl = await uploadReceipt(user.uid, receipt);
+      }
 
-        const id = await createCheque(user.uid, {
-          direction: data.direction,
-          chequeNumber: data.chequeNumber,
-          bankName: data.bankName,
-          bankCode,
-          branch: data.branch || null,
+      if (paramBillId) {
+        const settle = parseFloat(settleAmount || String(data.amount));
+        if (settle > 0) {
+          try {
+            await recordBillPayment(user.uid, paramBillId, settle, {
+              paymentMethod: "cheque",
+              notes: `Cheque ${data.chequeNumber}`,
+              receiptUrl,
+            });
+            billPaymentRecorded = true;
+          } catch (error) {
+            billPaymentRecorded = false;
+            toast.error(
+              `Cheque saved, but bill payment failed: ${friendlyError(
+                error,
+                "Please retry it from the bill.",
+              )}`,
+            );
+          }
+          void queryClient.invalidateQueries({ queryKey: ["bills"] });
+          void queryClient.invalidateQueries({
+            queryKey: ["bill", paramBillId],
+          });
+          void queryClient.invalidateQueries({ queryKey: ["payments"] });
+          void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        } else {
+          billPaymentRecorded = false;
+        }
+      }
+
+      if (paramApRecordId && confirmApSent) {
+        await apPaymentSent({
+          apId: paramApRecordId,
+          method: "cheque",
           amount: data.amount,
           currency: money.currency,
-          counterpartyContactId: data.contactId,
-          issuedBy: issuer,
-          issueDate: now,
-          maturityDate: maturity,
-          photoUrl,
+          chequeId: id,
           receiptUrl,
-          gemId: paramGemId,
-          apRecordId: paramApRecordId,
-          billId: paramBillId,
-          notes: data.notes || null,
         });
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+      }
 
-        if (calendarSyncEnabled) {
-          const commitment = makeSyncCommitment({
-            surface: "calendar",
-            sourceType: "cheque",
-            sourceId: id,
-            title: `Cheque maturity: ${data.chequeNumber || "Cheque"}`,
-            date: maturityDate,
-            url: commitmentDeepLink("cheque", id),
-          });
-          if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Cheque saved, but its calendar entry could not be added.");
-          }
-        }
+      if (paramApRecordId && confirmApReceived) {
+        await apPaymentReceived(paramApRecordId, {
+          method: "cheque",
+          chequeId: id,
+          receiptUrl,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["ap"] });
+        await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        await queryClient.invalidateQueries({ queryKey: ["money"] });
+      }
 
-        if (paramBillId) {
-          const settle = parseFloat(settleAmount || String(data.amount));
-          if (settle > 0) {
-            try {
-              await recordBillPayment(user.uid, paramBillId, settle, {
-                paymentMethod: "cheque",
-                notes: `Cheque ${data.chequeNumber}`,
-                receiptUrl,
-              });
-              billPaymentRecorded = true;
-            } catch (error) {
-              billPaymentRecorded = false;
-              toast.error(
-                `Cheque saved, but bill payment failed: ${friendlyError(
-                  error,
-                  "Please retry it from the bill.",
-                )}`,
-              );
-            }
-            void queryClient.invalidateQueries({ queryKey: ["bills"] });
-            void queryClient.invalidateQueries({
-              queryKey: ["bill", paramBillId],
-            });
-            void queryClient.invalidateQueries({ queryKey: ["payments"] });
-            void queryClient.invalidateQueries({ queryKey: ["transactions"] });
-          } else {
-            billPaymentRecorded = false;
-          }
-        }
+      await queryClient.invalidateQueries({ queryKey: ["cheques"] });
+      if (paramBillId && !billPaymentRecorded) {
+        toast.info("Cheque saved; bill payment still needs to be recorded.");
+      } else {
+        toast.success(
+          paramBillId
+            ? "Cheque saved and bill payment recorded."
+            : confirmApReceived
+              ? "Cheque saved and AP payment confirmed."
+              : confirmApSent
+                ? "Cheque saved and payment marked sent."
+                : "Cheque added to your tracker.",
+        );
+      }
 
-        if (paramApRecordId && confirmApSent) {
-          await apPaymentSent({
-            apId: paramApRecordId,
-            method: "cheque",
-            amount: data.amount,
-            currency: money.currency,
-            chequeId: id,
-            receiptUrl,
-          });
-          await queryClient.invalidateQueries({ queryKey: ["ap"] });
-        }
-
-        if (paramApRecordId && confirmApReceived) {
-          await apPaymentReceived(paramApRecordId, {
-            method: "cheque",
-            chequeId: id,
-            receiptUrl,
-          });
-          await queryClient.invalidateQueries({ queryKey: ["ap"] });
-          await queryClient.invalidateQueries({ queryKey: ["transactions"] });
-          await queryClient.invalidateQueries({ queryKey: ["money"] });
-        }
-
-        await queryClient.invalidateQueries({ queryKey: ["cheques"] });
-        if (paramBillId && !billPaymentRecorded) {
-          toast.info("Cheque saved; bill payment still needs to be recorded.");
-        } else {
-          toast.success(
-            paramBillId
-              ? "Cheque saved and bill payment recorded."
-              : confirmApReceived
-                ? "Cheque saved and AP payment confirmed."
-                : confirmApSent
-                  ? "Cheque saved and payment marked sent."
-                  : "Cheque added to your tracker.",
-          );
-        }
-
-        if (paramBillId) {
-          replaceWithAnchor(
-            `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
-          );
-        } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
-          replaceWithAnchor(
-            `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
-          );
-        } else {
-          replaceWithAnchor(
-            `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
-          );
-        }
-      }, "Adding cheque…");
+      if (paramBillId) {
+        replaceWithAnchor(
+          `/(marketplace)/(tabs)/workspace/bills/${paramBillId}` as never,
+        );
+      } else if (paramApRecordId && (confirmApSent || confirmApReceived)) {
+        replaceWithAnchor(
+          `/(marketplace)/(tabs)/workspace/ap/${paramApRecordId}` as never,
+        );
+      } else {
+        replaceWithAnchor(
+          `/(marketplace)/(tabs)/workspace/cheques/${id}` as never,
+        );
+      }
     } catch (e) {
       toast.error(friendlyError(e, "Could not save cheque."));
     }
-  }
+  });
 
   if (!user) {
     return (
@@ -404,15 +504,34 @@ export default function AddChequeScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
+            {direction ? (
+              <ChequePreviewCard
+                label="Preview"
+                direction={direction}
+                chequeNumber={chequeNumber}
+                bankName={bankName}
+                bankCode={bankCode}
+                branch={branch}
+                amount={money.amount}
+                currency={money.currency}
+                issuedBy={issuedBy || selectedContact?.displayName || ""}
+                maturityDateLabel={maturityPreview}
+                style={styles.preview}
+              />
+            ) : null}
+
+            <ScanFillStatus reading={reading} filled={scanFilled} document="cheque" />
+
             {directionMeta ? (
               <ChoicePreviewCard
                 label={directionMeta.label}
                 icon={directionMeta.icon}
+                accent={directionMeta.accent}
                 onPress={presetDirection ? undefined : () => setStep(0)}
               />
             ) : null}
 
-            <FormSection title="Cheque details">
+            <FormSection title="Cheque">
               <Input
                 label="Cheque number"
                 value={chequeNumber}
@@ -439,6 +558,9 @@ export default function AddChequeScreen() {
                 error={errors.branch}
                 disabled={!canPickBranch}
               />
+            </FormSection>
+
+            <FormSection title="Amount & maturity">
               <CurrencyAmountField
                 label="Amount"
                 value={money}
@@ -461,12 +583,10 @@ export default function AddChequeScreen() {
                 placeholder="30"
                 leftIcon="event"
                 error={errors.maturityDays}
+                helperText={
+                  maturityPreview ? `Matures ${maturityPreview}` : undefined
+                }
               />
-              {maturityPreview ? (
-                <Text style={[styles.hint, { color: colors.textMuted }]}>
-                  Matures {maturityPreview}
-                </Text>
-              ) : null}
             </FormSection>
 
             <FormSection title="Counterparty">
@@ -493,20 +613,17 @@ export default function AddChequeScreen() {
               />
             </FormSection>
 
-            <FormSection title="Cheque photo">
+            <FormSection title="Attachments">
               <MediaField
                 variant="row"
                 value={photo}
                 onChange={setPhoto}
                 emptyTitle="Add cheque photo"
               />
-            </FormSection>
-
-            <FormSection>
               <ReceiptField value={receipt} onChange={setReceipt} />
             </FormSection>
 
-            <FormSection>
+            <FormSection title="Notes">
               <Input
                 label="Notes"
                 value={notes}
@@ -519,20 +636,7 @@ export default function AddChequeScreen() {
               />
             </FormSection>
 
-            {direction ? (
-              <ChequePreviewCard
-                direction={direction}
-                chequeNumber={chequeNumber}
-                bankName={bankName}
-                bankCode={bankCode}
-                branch={branch}
-                amount={money.amount}
-                issuedBy={issuedBy || selectedContact?.displayName || ""}
-                maturityDateLabel={maturityPreview}
-              />
-            ) : null}
-
-            <FormSection>
+            <FormSection title="Reminder">
               <CalendarSyncToggle
                 surface="calendar"
                 value={calendarSyncEnabled}
@@ -542,13 +646,16 @@ export default function AddChequeScreen() {
             </FormSection>
           </ThemedScrollView>
 
-          <FormFooter
-            title="Add"
-            icon="shield"
-            onPress={handleSubmit}
-            secondaryTitle={presetDirection ? undefined : "Back"}
-            onSecondaryPress={presetDirection ? undefined : () => setStep(0)}
-          />
+          <SheetFooter>
+            <FormFooter
+              title="Add"
+              icon="shield"
+              loading={submitting}
+              onPress={handleSubmit}
+              secondaryTitle={presetDirection ? undefined : "Back"}
+              onSecondaryPress={presetDirection ? undefined : () => setStep(0)}
+            />
+          </SheetFooter>
         </>
       )}
 
@@ -589,6 +696,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     gap: Spacing.lg,
   },
-  hint: { ...Typography.bodySmall, marginTop: -4 },
+  preview: { paddingHorizontal: Spacing.containerMargin, paddingTop: Spacing.xs },
   notes: { minHeight: 72, textAlignVertical: "top", paddingTop: 12 },
 });

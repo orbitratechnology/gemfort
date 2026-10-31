@@ -5,6 +5,7 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
     type LayoutChangeEvent,
 } from 'react-native';
@@ -18,6 +19,8 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { haptics } from '@/lib/haptics';
 
 const SHEET_SNAP_POINTS = ['55%', '85%'];
+/** Tallest a content-sized sheet may grow, matching the top snap point. */
+const SHEET_MAX_HEIGHT_RATIO = 0.85;
 
 type BottomSheetProps = {
   visible: boolean;
@@ -51,8 +54,22 @@ export function BottomSheet({
   autoScrollToFocusedInput = true,
 }: BottomSheetProps) {
   const { colors } = useAppTheme();
-  const pinFooter = Platform.OS === 'android' && Boolean(footer) && !fitToContents;
+  const { height: windowHeight } = useWindowDimensions();
+  /*
+   * Android's Material sheet lays content out at full height and only slides it
+   * part-way up at the lower detent, without reporting its offset, so a footer
+   * pinned to the content's bottom edge ends up off-screen. Size the sheet to
+   * its content instead and cap the body, so the footer always sits on-screen
+   * under it (gorhom's dynamic sizing + maxDynamicContentSize).
+   */
+  const pinFooter = Platform.OS === 'android' && Boolean(footer);
+  const fit = fitToContents || pinFooter;
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
+  const bodyMaxHeight = Math.max(
+    windowHeight * SHEET_MAX_HEIGHT_RATIO - headerHeight - footerHeight,
+    0,
+  );
 
   const visibleRef = useRef(visible);
 
@@ -69,29 +86,25 @@ export function BottomSheet({
     onClose();
   }, [onClose]);
 
+  const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    setHeaderHeight(event.nativeEvent.layout.height);
+  }, []);
+
   const handleFooterLayout = useCallback((event: LayoutChangeEvent) => {
-    const nextHeight = event.nativeEvent.layout.height;
-    setFooterHeight((currentHeight) =>
-      currentHeight === nextHeight ? currentHeight : nextHeight,
-    );
+    setFooterHeight(event.nativeEvent.layout.height);
   }, []);
 
   return (
     <NativeBottomSheet
       index={visible ? 0 : -1}
-      snapPoints={fitToContents ? undefined : SHEET_SNAP_POINTS}
-      enableDynamicSizing={fitToContents}
+      snapPoints={fit ? undefined : SHEET_SNAP_POINTS}
+      enableDynamicSizing={fit}
       enablePanDownToClose
       backgroundStyle={{ backgroundColor: colors.surfaceContainerLowest }}
       onClose={handleNativeClose}>
-      <View
-        style={[
-          styles.sheet,
-          fitToContents && styles.sheetFit,
-          pinFooter && styles.sheetPinnedFooter,
-        ]}>
+      <View style={[styles.sheet, fit && styles.sheetFit]}>
         {title ? (
-          <View style={styles.header}>
+          <View style={styles.header} onLayout={pinFooter ? handleHeaderLayout : undefined}>
             <Text style={[styles.title, { color: colors.primary }]}>{title}</Text>
             <Pressable
               onPress={handleNativeClose}
@@ -105,11 +118,12 @@ export function BottomSheet({
         ) : null}
         {scrollable ? (
           <KeyboardAwareScrollView
-            style={[styles.body, fitToContents && styles.bodyFit]}
-            contentContainerStyle={[
-              styles.bodyContent,
-              pinFooter && { paddingBottom: footerHeight + Spacing.sm },
+            style={[
+              styles.body,
+              fit && styles.bodyFit,
+              pinFooter && { maxHeight: bodyMaxHeight },
             ]}
+            contentContainerStyle={styles.bodyContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             enabled={autoScrollToFocusedInput}
@@ -120,20 +134,15 @@ export function BottomSheet({
           <View
             style={[
               styles.bodyFlex,
-              fitToContents && styles.bodyFit,
-              pinFooter && { paddingBottom: footerHeight },
+              fit && styles.bodyFit,
+              // Lists and maps need a bounded height once the sheet sizes to content.
+              pinFooter && { height: bodyMaxHeight },
             ]}>
             {children}
           </View>
         )}
         {footer ? (
-          <View
-            onLayout={pinFooter ? handleFooterLayout : undefined}
-            style={[
-              styles.footer,
-              pinFooter && styles.footerPinned,
-              pinFooter && { backgroundColor: colors.surfaceContainerLowest },
-            ]}>
+          <View onLayout={pinFooter ? handleFooterLayout : undefined} style={styles.footer}>
             {footer}
           </View>
         ) : null}
@@ -196,7 +205,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.gutterMd,
     flex: 1,
   },
-  sheetPinnedFooter: { paddingBottom: 0 },
   sheetFit: { flex: 0 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md, paddingHorizontal: Spacing.containerMargin },
   title: { ...Typography.headlineSm },
@@ -207,7 +215,6 @@ const styles = StyleSheet.create({
   bodyContent: { gap: Spacing.lg, paddingBottom: Spacing.sm },
   listSeparator: { height: Spacing.stackSm },
   footer: { paddingTop: Spacing.md, paddingHorizontal: Spacing.containerMargin, gap: Spacing.sm },
-  footerPinned: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Spacing.gutterMd },
   group: { gap: Spacing.sm },
   groupLabel: { ...Typography.labelMd, letterSpacing: 0.5, textTransform: 'uppercase' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },

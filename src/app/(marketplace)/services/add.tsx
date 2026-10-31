@@ -1,17 +1,13 @@
+import { addDays, format } from "date-fns";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-    Pressable,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
-} from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { Button } from "@/components/ui/button";
-import { FormSection, ScreenInset } from "@/components/ui/form-section";
+import { FormFooter } from "@/components/ui/form-footer";
+import { FormSection } from "@/components/ui/form-section";
 import { MaskedInput } from "@/components/ui/masked-input";
 import { ThemedScrollView } from "@/components/ui/screen";
+import { SheetFooter } from "@/components/ui/sheet-footer";
 import { StackHeader } from "@/components/ui/stack-header";
 import { CalendarSyncToggle } from "@/components/workspace/calendar-sync-toggle";
 import {
@@ -23,7 +19,12 @@ import {
     GemPickerSheet,
     GemSelectField,
 } from "@/components/workspace/gem-picker-sheet";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import {
+    SERVICE_TYPES,
+    ServiceTypePicker,
+    serviceTypeForStage,
+} from "@/components/workspace/service-type-picker";
+import { Spacing } from "@/constants/design-tokens";
 import { makeSyncCommitment } from "@/features/calendar-sync/commitments";
 import { commitmentDeepLink } from "@/features/calendar-sync/links";
 import { writeCommitmentToDevice } from "@/features/calendar-sync/sync-item";
@@ -38,7 +39,10 @@ import {
     subscribeContacts,
     subscribeGems,
 } from "@/features/workspace/firestore-subscriptions";
-import { gemActionAvailability } from "@/features/workspace/gem-lifecycle";
+import {
+    gemActionAvailability,
+    resolveGemLifecycle,
+} from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
 import {
     createService,
@@ -47,23 +51,13 @@ import {
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { friendlyError } from "@/lib/errors";
 import { Timestamp } from "@/lib/firebase/db";
 import { addServiceSchema, parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
-
-const SERVICE_TYPES = [
-  { id: "cutting", label: "Cutting" },
-  { id: "recutting", label: "Recutting" },
-  { id: "heating", label: "Heating" },
-  { id: "reheating", label: "Reheating" },
-  { id: "polishing", label: "Polishing" },
-  { id: "repolishing", label: "Repolishing" },
-  { id: "appraisal", label: "Appraisal" },
-];
 
 export default function AddServiceScreen() {
   const { user } = useAuth();
@@ -78,10 +72,8 @@ export default function AddServiceScreen() {
 
   const [gemId, setGemId] = useState(preselectedGemId ?? "");
   const [provider, setProvider] = useState<ProviderSelection | null>(null);
-  const [serviceType, setServiceType] = useState(
-    SERVICE_TYPES.some((type) => type.id === serviceTypeParam)
-      ? serviceTypeParam
-      : "cutting",
+  const [serviceType, setServiceType] = useState<string>(
+    SERVICE_TYPES.find((type) => type.id === serviceTypeParam)?.id ?? "cutting",
   );
   const [weightBefore, setWeightBefore] = useState("");
   const [daysUntilReturn, setDaysUntilReturn] = useState("14");
@@ -136,7 +128,13 @@ export default function AddServiceScreen() {
   const weightBeforeValue =
     weightBefore || (selectedGem ? String(selectedGem.currentWeight) : "");
 
-  async function handleSubmit() {
+  const returnDays = Number(daysUntilReturn);
+  const returnDatePreview =
+    daysUntilReturn && Number.isInteger(returnDays) && returnDays >= 0
+      ? `Expected back ${format(addDays(new Date(), returnDays), "d MMM yyyy")}`
+      : undefined;
+
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
     const result = parseForm(addServiceSchema, {
       gemId,
@@ -159,89 +157,41 @@ export default function AddServiceScreen() {
     setErrors({});
 
     try {
-      await withLoading(async () => {
-        const expectedReturnDate = new Date(
-          Date.now() + result.data.daysUntilReturn * 86400000,
-        );
-        if (provider.source === "business") {
-          const [biz, senderBusiness] = await Promise.all([
-            fetchBusiness(provider.businessId),
-            fetchBusinessByOwnerUid(user.uid),
-          ]);
-          if (!biz) {
-            throw new Error("This lapidary profile is unavailable.");
-          }
-
-          const gem = selectedGem;
-          if (!gem) {
-            throw new Error("The selected gem is unavailable.");
-          }
-          const gemName =
-            gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
-          const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
-
-          const id = await createServiceRequest({
-            traderUid: user.uid,
-            traderBusinessId: senderBusiness?.id ?? null,
-            traderBusinessName: senderBusiness?.businessName ?? null,
-            traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
-            lapidaryBusinessId: provider.businessId,
-            providerName: biz.businessName,
-            providerBusinessName: biz.businessName,
-            providerBusinessLogoUrl: biz.logoUrl,
-            gemId: result.data.gemId,
-            gemName,
-            gemPhotoUrl,
-            serviceTypes: [result.data.serviceType],
-            expectedReturnDays: result.data.daysUntilReturn,
-            weightBefore: result.data.weightBefore,
-          });
-          if (calendarSyncEnabled) {
-            const commitment = makeSyncCommitment({
-              surface: "calendar",
-              sourceType: "service",
-              sourceId: id,
-              title: "Service return due",
-              date: expectedReturnDate,
-              url: commitmentDeepLink("service", id),
-            });
-            if ((await writeCommitmentToDevice(commitment)) === false) {
-              toast.info("Service request sent, but its calendar entry could not be added.");
-            }
-          }
-          if (reminderSyncEnabled) {
-            const commitment = makeSyncCommitment({
-              surface: "reminder",
-              sourceType: "service",
-              sourceId: id,
-              title: "Service return due",
-              date: expectedReturnDate,
-              url: commitmentDeepLink("service", id),
-            });
-            if ((await writeCommitmentToDevice(commitment)) === false) {
-              toast.info("Service request sent, but its reminder could not be added.");
-            }
-          }
-          toast.success("Service request sent");
-          router.back();
-          return;
+      const expectedReturnDate = new Date(
+        Date.now() + result.data.daysUntilReturn * 86400000,
+      );
+      if (provider.source === "business") {
+        const [biz, senderBusiness] = await Promise.all([
+          fetchBusiness(provider.businessId),
+          fetchBusinessByOwnerUid(user.uid),
+        ]);
+        if (!biz) {
+          throw new Error("This lapidary profile is unavailable.");
         }
-        const expectedReturn = Timestamp.fromDate(expectedReturnDate);
-        const id = await createService(user.uid, {
+
+        const gem = selectedGem;
+        if (!gem) {
+          throw new Error("The selected gem is unavailable.");
+        }
+        const gemName =
+          gem.title?.trim() || gem.variety?.trim() || gem.sku || "Gem";
+        const gemPhotoUrl = gemPrimaryPhotoUrl(gem);
+
+        const id = await createServiceRequest({
+          traderUid: user.uid,
+          traderBusinessId: senderBusiness?.id ?? null,
+          traderBusinessName: senderBusiness?.businessName ?? null,
+          traderBusinessLogoUrl: senderBusiness?.logoUrl ?? null,
+          lapidaryBusinessId: provider.businessId,
+          providerName: biz.businessName,
+          providerBusinessName: biz.businessName,
+          providerBusinessLogoUrl: biz.logoUrl,
           gemId: result.data.gemId,
-          serviceType: result.data.serviceType,
-          providerContactId: provider.contactId,
-          providerBusinessId: null,
-          providerUid: null,
-          providerName: provider.label,
-          dateGiven: Timestamp.now(),
-          expectedReturnDate: expectedReturn,
+          gemName,
+          gemPhotoUrl,
+          serviceTypes: [result.data.serviceType],
+          expectedReturnDays: result.data.daysUntilReturn,
           weightBefore: result.data.weightBefore,
-          photoBeforeUrls: [],
-          instructions: null,
-          agreedPrice: null,
-          agreedPriceCurrency: null,
-          advancePaid: 0,
         });
         if (calendarSyncEnabled) {
           const commitment = makeSyncCommitment({
@@ -253,7 +203,7 @@ export default function AddServiceScreen() {
             url: commitmentDeepLink("service", id),
           });
           if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Service saved, but its calendar entry could not be added.");
+            toast.info("Service request sent, but its calendar entry could not be added.");
           }
         }
         if (reminderSyncEnabled) {
@@ -266,16 +216,62 @@ export default function AddServiceScreen() {
             url: commitmentDeepLink("service", id),
           });
           if ((await writeCommitmentToDevice(commitment)) === false) {
-            toast.info("Service saved, but its reminder could not be added.");
+            toast.info("Service request sent, but its reminder could not be added.");
           }
         }
-        toast.success("Service record created");
-        replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
-      }, "Adding service…");
+        toast.success("Service request sent");
+        router.back();
+        return;
+      }
+      const expectedReturn = Timestamp.fromDate(expectedReturnDate);
+      const id = await createService(user.uid, {
+        gemId: result.data.gemId,
+        serviceType: result.data.serviceType,
+        providerContactId: provider.contactId,
+        providerBusinessId: null,
+        providerUid: null,
+        providerName: provider.label,
+        dateGiven: Timestamp.now(),
+        expectedReturnDate: expectedReturn,
+        weightBefore: result.data.weightBefore,
+        photoBeforeUrls: [],
+        instructions: null,
+        agreedPrice: null,
+        agreedPriceCurrency: null,
+        advancePaid: 0,
+      });
+      if (calendarSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "calendar",
+          sourceType: "service",
+          sourceId: id,
+          title: "Service return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("service", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Service saved, but its calendar entry could not be added.");
+        }
+      }
+      if (reminderSyncEnabled) {
+        const commitment = makeSyncCommitment({
+          surface: "reminder",
+          sourceType: "service",
+          sourceId: id,
+          title: "Service return due",
+          date: expectedReturnDate,
+          url: commitmentDeepLink("service", id),
+        });
+        if ((await writeCommitmentToDevice(commitment)) === false) {
+          toast.info("Service saved, but its reminder could not be added.");
+        }
+      }
+      toast.success("Service record created");
+      replaceWithAnchor(`/(marketplace)/(tabs)/workspace/services/${id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Could not create service."));
     }
-  }
+  });
 
   return (
     <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -285,60 +281,55 @@ export default function AddServiceScreen() {
         image={require("@/assets/images/lapidary-icon.png")}
       />
       <ThemedScrollView
-        style={{ flex: 0, maxHeight: windowHeight * 0.72 }}
+        style={{ flex: 0, maxHeight: windowHeight * 0.64 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         contentInsetAdjustmentBehavior="automatic"
       >
-        <ScreenInset>
+        <FormSection title="Stone & work">
           <GemSelectField
             label="Gem"
             gem={selectedGem}
             onPress={() => setGemSheetOpen(true)}
             error={errors.gemId}
           />
-        </ScreenInset>
-
-        <FormSection title="Service type" padded={false}>
-          <View style={styles.chips}>
-            {SERVICE_TYPES.map((t) => {
-              const active = serviceType === t.id;
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => setServiceType(t.id)}
-                  style={[
-                    styles.chip,
-                    active
-                      ? {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        }
-                      : {
-                          backgroundColor: colors.surfaceContainerLowest,
-                          borderColor: colors.outlineVariant,
-                        },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      {
-                        color: active
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {t.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ServiceTypePicker
+            value={serviceType}
+            onChange={setServiceType}
+            stoneStage={selectedGem ? resolveGemLifecycle(selectedGem).stoneStage : null}
+            error={errors.serviceType}
+          />
         </FormSection>
 
-        <FormSection title="Details">
+        <FormSection title="Send to">
+          <PickerSelectField
+            label="Provider"
+            valueLabel={provider?.label ?? null}
+            avatarName={
+              provider?.source === "business"
+                ? provider.label
+                : selectedProviderContact?.displayName
+            }
+            avatarPhotoUrl={
+              provider?.source === "business"
+                ? provider.logoUrl
+                : selectedProviderContact?.photoUrl
+            }
+            subtitle={
+              provider?.source === "business"
+                ? provider.businessType.replace(/_/g, " ")
+                : provider?.source === "contact"
+                  ? "Saved contact"
+                  : null
+            }
+            placeholder="Search lapidaries or contacts…"
+            icon="service"
+            onPress={() => setProviderSheetOpen(true)}
+            error={errors.provider}
+          />
+        </FormSection>
+
+        <FormSection title="Weight & return">
           <MaskedInput
             label="Weight Before (ct)"
             mode="weight"
@@ -372,57 +363,36 @@ export default function AddServiceScreen() {
             keyboardType="number-pad"
             leftIcon="schedule"
             error={errors.daysUntilReturn}
+            helperText={returnDatePreview}
           />
         </FormSection>
 
-        <ScreenInset style={styles.footer}>
-         
-          <PickerSelectField
-            label="Provider"
-            valueLabel={provider?.label ?? null}
-            avatarName={
-              provider?.source === "business"
-                ? provider.label
-                : selectedProviderContact?.displayName
-            }
-            avatarPhotoUrl={
-              provider?.source === "business"
-                ? provider.logoUrl
-                : selectedProviderContact?.photoUrl
-            }
-            subtitle={
-              provider?.source === "business"
-                ? provider.businessType.replace(/_/g, " ")
-                : provider?.source === "contact"
-                  ? "Saved contact"
-                  : null
-            }
-            placeholder="Search lapidaries or contacts…"
-            icon="service"
-            onPress={() => setProviderSheetOpen(true)}
-            error={errors.provider}
-          />
-
-           <CalendarSyncToggle
-            surface="calendar"
-            value={calendarSyncEnabled}
-            onValueChange={setCalendarSyncEnabled}
-            colors={colors}
-          />
-          <CalendarSyncToggle
-            surface="reminder"
-            value={reminderSyncEnabled}
-            onValueChange={setReminderSyncEnabled}
-            colors={colors}
-          />
-
-          <Button
-            title={provider?.source === "business" ? "Send Request" : "Add Service"}
-            icon="service"
-            onPress={handleSubmit}
-          />
-        </ScreenInset>
+        {Platform.OS !== "web" ? (
+          <FormSection title="Reminders" style={styles.toggles}>
+            <CalendarSyncToggle
+              surface="calendar"
+              value={calendarSyncEnabled}
+              onValueChange={setCalendarSyncEnabled}
+              colors={colors}
+            />
+            <CalendarSyncToggle
+              surface="reminder"
+              value={reminderSyncEnabled}
+              onValueChange={setReminderSyncEnabled}
+              colors={colors}
+            />
+          </FormSection>
+        ) : null}
       </ThemedScrollView>
+
+      <SheetFooter>
+        <FormFooter
+          title={provider?.source === "business" ? "Send Request" : "Add Service"}
+          icon="service"
+          loading={submitting}
+          onPress={handleSubmit}
+        />
+      </SheetFooter>
 
       <GemPickerSheet
         visible={gemSheetOpen}
@@ -431,6 +401,9 @@ export default function AddServiceScreen() {
         value={gemId}
         onSelect={(gem) => {
           setGemId(gem.id);
+          setServiceType((current) =>
+            serviceTypeForStage(current, resolveGemLifecycle(gem).stoneStage),
+          );
           setWeightBefore(String(gem.currentWeight));
           setErrors((e) => {
             const next = { ...e };
@@ -463,20 +436,6 @@ export default function AddServiceScreen() {
 const styles = StyleSheet.create({
   /** No flex:1 — required for formSheet fitToContents height measurement. */
   sheet: { gap: Spacing.sm },
-  content: { gap: Spacing.lg, paddingBottom: Spacing.section },
-  chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.containerMargin,
-    paddingVertical: Spacing.lg,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-  },
-  chipText: { ...Typography.labelMd },
-  footer: { gap: Spacing.lg },
+  content: { gap: Spacing.lg, paddingBottom: Spacing.lg },
+  toggles: { gap: Spacing.xs, paddingVertical: Spacing.md },
 });

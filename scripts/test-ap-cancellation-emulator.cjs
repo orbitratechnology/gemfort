@@ -30,12 +30,17 @@ async function countNotifications(referenceId, type) {
   return snapshot.docs.filter((doc) => doc.data().type === type).length;
 }
 
+// Gems are locked the way createApRequestForApi leaves them: pointing at the
+// AP, with the pre-AP state captured on the line. The first line has a
+// snapshot; later lines model APs created before snapshots existed.
 async function seedAp(apId, gemIds) {
   await Promise.all(
     gemIds.map((gemId) =>
       db.collection('gemtrack_gems').doc(gemId).set({
         ownerUid,
-        status: 'with_cutter',
+        status: 'on_ap',
+        custody: 'on_ap',
+        currentApId: apId,
         currentHolderContactId: 'phase7-contact',
         updatedAt: now,
       }),
@@ -48,7 +53,21 @@ async function seedAp(apId, gemIds) {
     status: 'accepted',
     senderName: 'Phase 7 Sender',
     receiverName: 'Phase 7 Receiver',
-    items: gemIds.map((gemId) => ({ gemId, lineStatus: 'held' })),
+    items: gemIds.map((gemId, index) => ({
+      gemId,
+      lineStatus: 'held',
+      ...(index === 0
+        ? {
+            previousGemState: {
+              status: 'polished',
+              custody: null,
+              outcome: null,
+              currentLocation: null,
+              currentHolderContactId: null,
+            },
+          }
+        : {}),
+    })),
     updatedAt: now,
   });
 }
@@ -102,10 +121,12 @@ async function run() {
     );
     const acceptedState = await readApState(acceptedApId, acceptedGemIds);
     assert.equal(acceptedState.ap.status, 'cancelled');
+    // Snapshot line returns to its captured state; legacy line to ready_for_sale.
     assert.deepEqual(
       acceptedState.gems.map((gem) => gem.status),
-      ['ready_for_sale', 'ready_for_sale'],
+      ['polished', 'ready_for_sale'],
     );
+    assert.deepEqual(acceptedState.gems.map((gem) => gem.currentApId), [null, null]);
     assert.equal(
       await countNotifications(acceptedApId, 'ap_cancellation_accepted'),
       1,
@@ -123,11 +144,30 @@ async function run() {
     );
     const rejectedState = await readApState(rejectedApId, rejectedGemIds);
     assert.equal(rejectedState.ap.status, 'accepted');
-    assert.equal(rejectedState.gems[0].status, 'with_cutter');
+    assert.equal(rejectedState.gems[0].status, 'on_ap');
+    assert.equal(rejectedState.gems[0].currentApId, rejectedApId);
     assert.equal(
       await countNotifications(rejectedApId, 'ap_cancellation_rejected'),
       1,
     );
+
+    // C2: a line whose gem was never locked by this AP (e.g. another user's
+    // gem id, or a gem since moved elsewhere) is skipped, not clobbered.
+    const foreignApId = 'phase7-ap-foreign';
+    const foreignGemId = 'phase7-gem-foreign';
+    apIds.push(foreignApId);
+    gemIds.push(foreignGemId);
+    await seedAp(foreignApId, [foreignGemId]);
+    await db.collection('gemtrack_gems').doc(foreignGemId).set({
+      ownerUid: 'someone-else',
+      status: 'listed',
+      currentApId: null,
+    });
+    await requestApCancellationForApi(foreignApId, ownerUid);
+    await respondApCancellationForApi(foreignApId, receiverUid, 'accepted');
+    const foreignState = await readApState(foreignApId, [foreignGemId]);
+    assert.equal(foreignState.ap.status, 'cancelled');
+    assert.equal(foreignState.gems[0].status, 'listed');
 
     console.log('Phase 7 AP cancellation emulator tests passed.');
   } finally {

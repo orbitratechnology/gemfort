@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { apiApp, createApiApp } from './app';
+import { TokenBucketLimiter } from './rate-limit';
 
 const authenticatedApi = createApiApp({
   appCheckMode: 'enforce',
@@ -37,20 +38,47 @@ test('health endpoint returns a request id and safe service metadata', async () 
   assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
 });
 
-test('readiness endpoint reports process readiness without touching Firebase', async () => {
-  const response = await apiApp.request('/readyz');
+test('readiness endpoint reports Firestore reachability', async () => {
+  const readyApi = createApiApp({ readinessProbe: async () => {} });
+  const response = await readyApi.request('/readyz');
   const body = (await response.json()) as {
     ok: boolean;
     service: string;
-    checks: { process: boolean };
+    checks: { process: boolean; firestore: boolean };
     requestId: string;
   };
 
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(body.service, 'gemfort-api');
-  assert.deepEqual(body.checks, { process: true });
+  assert.deepEqual(body.checks, { process: true, firestore: true });
   assert.ok(body.requestId.length > 0);
+
+  const downApi = createApiApp({
+    readinessProbe: async () => {
+      throw new Error('unreachable');
+    },
+  });
+  const down = await downApi.request('/readyz');
+  assert.equal(down.status, 503);
+  assert.deepEqual(((await down.json()) as { checks: unknown }).checks, {
+    process: true,
+    firestore: false,
+  });
+});
+
+test('per-IP limiter returns 429 once the burst budget is spent', async () => {
+  const limitedApi = createApiApp({ ipLimiter: new TokenBucketLimiter(2, 0.001) });
+  const statuses: number[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    const response = await limitedApi.request('/v1/ap/requests', {
+      method: 'POST',
+      headers: { 'X-Forwarded-For': '203.0.113.9' },
+    });
+    statuses.push(response.status);
+  }
+  assert.deepEqual(statuses.slice(0, 2).map((status) => status !== 429), [true, true]);
+  assert.equal(statuses[2], 429);
 });
 
 test('unknown routes use the canonical error envelope', async () => {
@@ -158,6 +186,7 @@ test('the migrated flight route preserves validation errors without calling the 
 const serviceApi = createApiApp({
   appCheckMode: 'enforce',
   executeMutation: async ({ execute }) => execute(),
+  mutationBudget: async () => {},
   verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
   verifyAppCheck: async () => ({
     appId: 'app-1',
@@ -257,6 +286,7 @@ test('service mutation routes require a bounded idempotency key', async () => {
   const guardedApi = createApiApp({
     appCheckMode: 'enforce',
     executeMutation: async ({ execute }) => execute(),
+    mutationBudget: async () => {},
     verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
     verifyAppCheck: async () => ({
       appId: 'app-1',
@@ -417,6 +447,7 @@ test('service cancellation response rejects invalid actions before the handler',
   const invalidActionApi = createApiApp({
     appCheckMode: 'enforce',
     executeMutation: async ({ execute }) => execute(),
+    mutationBudget: async () => {},
     verifyIdToken: async () => ({ uid: 'owner-1' }) as DecodedIdToken,
     verifyAppCheck: async () => ({
       appId: 'app-1',

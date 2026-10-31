@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
@@ -7,21 +7,37 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from "@/components/ui/currency-amount-field";
-import { Icon } from "@/components/ui/icon";
 import {
-  Radius,
-  Spacing,
-  Typography,
-} from "@/constants/design-tokens";
+  Accent,
+  BandLink,
+  DetailBand,
+  DetailRows,
+  IconBubble,
+  StatusChip,
+  TotalRow,
+  type DetailRowProps,
+} from "@/components/ui/detail-kit";
+import { FormSection } from "@/components/ui/form-section";
+import { TRIP_STATUS_ACCENT } from "@/components/workspace/trip-status-tabs";
+import { FontFamily, Spacing } from "@/constants/design-tokens";
 import { resolveCurrencyCode } from "@/constants/currencies";
+import { TRIP_STATUS_LABELS } from "@/constants/trip-options";
+import { subscribeTrip } from "@/features/workspace/firestore-subscriptions";
+import { formatTripDates } from "@/features/workspace/trip-utils";
+import { fetchTrip } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { haptics } from "@/lib/haptics";
 import { parseAmountInput } from "@/lib/money/mask";
 
-type TripBudgetCardProps = {
-  budgetLabel: string;
-  usedLabel: string;
-  remainingLabel: string;
+type TripBudgetBandProps = {
+  /** Formatted budget, or null when none is set. */
+  budgetLabel: string | null;
+  /** Expenses + gem purchases. */
+  spentLabel: string;
+  expensesLabel: string;
+  /** Gem purchase spend; omit to hide the row (selling-only trips). */
+  purchasesLabel?: string | null;
   remainingNegative: boolean;
   percent: number;
   /** Face amount currently stored on the trip. */
@@ -33,25 +49,35 @@ type TripBudgetCardProps = {
   }) => void | Promise<void>;
 };
 
-/** Dedicated budget progress card — tap to edit. */
-export function TripBudgetCard({
+/**
+ * Budget band on the trip detail screen: usage meter, budget / expenses /
+ * purchases rows and the total spent, with an edit sheet behind the band link.
+ */
+export function TripBudgetBand({
   budgetLabel,
-  usedLabel,
-  remainingLabel,
+  spentLabel,
+  expensesLabel,
+  purchasesLabel,
   remainingNegative,
   percent,
   budgetAmount,
   budgetCurrency,
   onSaveBudget,
-}: TripBudgetCardProps) {
+}: TripBudgetBandProps) {
   const { colors } = useAppTheme();
-  const over = percent > 90 || remainingNegative;
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState<CurrencyAmountValue>({
     amount: budgetAmount > 0 ? String(budgetAmount) : "",
     currency: resolveCurrencyCode(budgetCurrency),
   });
   const [saving, setSaving] = useState(false);
+  const hasBudget = budgetLabel != null;
+  // Ink while comfortably inside budget; amber near the cap, rose over it.
+  const meterAccent = remainingNegative
+    ? Accent.rose
+    : percent > 90
+      ? Accent.amber
+      : colors.onSurface;
 
   function openEdit() {
     setDraft({
@@ -81,125 +107,82 @@ export function TripBudgetCard({
       });
   }
 
+  const rows: ({ key: string } & DetailRowProps)[] = [
+    {
+      key: "budget",
+      icon: "account-balance-wallet",
+      label: "Budget",
+      value: budgetLabel ?? "Not set",
+      onPress: haptics.wrap("light", openEdit),
+    },
+    {
+      key: "expenses",
+      icon: "receipt",
+      label: "Expenses",
+      value: expensesLabel,
+    },
+    ...(purchasesLabel != null
+      ? [
+          {
+            key: "purchases",
+            icon: "diamond" as const,
+            label: "Gem purchases",
+            value: purchasesLabel,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Edit trip budget"
-        onPress={haptics.wrap("light", openEdit)}
-        style={({ pressed }) => [
-          styles.card,
-          styles.budgetCard,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: colors.primary + "33",
-            borderWidth: 1.5,
-            opacity: pressed ? 0.94 : 1,
-            transform: [{ scale: pressed ? 0.99 : 1 }],
-          },
-        ]}
+      <DetailBand
+        title="Budget"
+        trailing={
+          <BandLink
+            label={hasBudget ? "Edit budget" : "Set budget"}
+            onPress={haptics.wrap("light", openEdit)}
+          />
+        }
       >
-        <View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            styles.budgetWash,
-            {
-              experimental_backgroundImage: `linear-gradient(135deg, ${colors.primaryContainer}AA 0%, transparent 60%)`,
-            },
-          ]}
-        />
-
-        <View style={styles.cardHead}>
+        {hasBudget ? (
           <View
-            style={[
-              styles.iconBadge,
-              { backgroundColor: colors.primary + "18" },
-            ]}
+            style={styles.meter}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel={`${percent}% of budget used`}
+            accessibilityValue={{ min: 0, max: 100, now: Math.min(100, percent) }}
           >
-            <Icon name="pie-chart" size={18} color={colors.primary} />
+            <View style={styles.meterLabels}>
+              <Text style={[styles.meterLabel, { color: colors.onSurfaceVariant }]}>
+                Budget used
+              </Text>
+              <Text style={[styles.meterPct, { color: meterAccent }]}>
+                {percent}%
+              </Text>
+            </View>
+            <View style={[styles.track, { backgroundColor: colors.surfaceContainerHigh }]}>
+              <View
+                style={[
+                  styles.fill,
+                  {
+                    width: `${Math.min(100, percent)}%`,
+                    backgroundColor: meterAccent,
+                  },
+                ]}
+              />
+            </View>
           </View>
-          <Text style={[styles.cardTitle, { color: colors.onSurface }]}>
-            Budget
-          </Text>
-          <Icon name="edit" size={18} color={colors.primary} />
+        ) : null}
+
+        <View>
+          <DetailRows rows={rows} />
+          <TotalRow
+            label="Total spent"
+            value={spentLabel}
+            accent={remainingNegative ? Accent.rose : undefined}
+          />
         </View>
-
-        <Text
-          selectable={false}
-          style={[styles.budgetHero, { color: colors.onSurface }]}
-        >
-          {budgetLabel}
-        </Text>
-
-        <View style={styles.budgetSplit}>
-          <View style={styles.budgetCol}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>
-              Used
-            </Text>
-            <Text
-              selectable={false}
-              style={[styles.budgetValue, { color: colors.onSurface }]}
-            >
-              {usedLabel}
-            </Text>
-          </View>
-          <View style={styles.budgetCol}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>
-              Remaining
-            </Text>
-            <Text
-              selectable={false}
-              style={[
-                styles.budgetValue,
-                {
-                  color: remainingNegative
-                    ? colors.error
-                    : colors.successEmerald,
-                },
-              ]}
-            >
-              {remainingLabel}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.progressBlock}>
-          <View style={styles.progressLabels}>
-            <Text style={[styles.metaLabel, { color: colors.textMuted }]}>
-              Progress
-            </Text>
-            <Text
-              style={[
-                styles.progressPct,
-                { color: over ? colors.error : colors.onSurface },
-              ]}
-            >
-              {percent}%
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.track,
-              { backgroundColor: colors.surfaceContainerHigh },
-            ]}
-          >
-            <View
-              style={[
-                styles.fill,
-                {
-                  width: `${Math.min(100, percent)}%`,
-                  backgroundColor: over ? colors.error : colors.primary,
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        <Text style={[styles.editHint, { color: colors.textMuted }]}>
-          Tap to update budget
-        </Text>
-      </Pressable>
+      </DetailBand>
 
       <BottomSheet
         visible={editOpen}
@@ -227,200 +210,68 @@ export function TripBudgetCard({
   );
 }
 
-/** Large dual action tiles for Expenses + Gems. */
-export function TripQuickActions({
-  expenseCount,
-  gemCount,
-  onExpenses,
-  onGems,
-}: {
-  expenseCount: number;
-  gemCount: number;
-  onExpenses: () => void;
-  onGems: () => void;
-}) {
+/**
+ * Compact "which trip is this for" section at the top of the trip add flows.
+ * Reads the same live `["trip", id]` cache as the trip detail screen.
+ */
+export function TripContextSummary({ tripId }: { tripId: string | undefined }) {
   const { colors } = useAppTheme();
+  const { data: trip } = useFirestoreLiveQuery({
+    queryKey: ["trip", tripId],
+    queryFn: () => fetchTrip(tripId!),
+    subscribe: (onData, onError) => subscribeTrip(tripId!, onData, onError),
+    enabled: !!tripId,
+  });
+
+  if (!trip) return null;
+
+  const accent = TRIP_STATUS_ACCENT[trip.status];
+  const place = [trip.destinationCity, trip.destinationCountry]
+    .filter((part): part is string => !!part?.trim())
+    .join(", ");
 
   return (
-    <View style={styles.quickRow}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Expenses, ${expenseCount}`}
-        onPress={haptics.wrap("light", onExpenses)}
-        style={({ pressed }) => [
-          styles.quickTile,
-          {
-            backgroundColor: colors.primary,
-            opacity: pressed ? 0.9 : 1,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.quickIcon,
-            { backgroundColor: colors.onPrimary + "22" },
-          ]}
-        >
-          <Icon name="receipt" size={24} color={colors.onPrimary} />
-        </View>
-        <View style={styles.quickText}>
-          <Text style={[styles.quickTitle, { color: colors.onPrimary }]}>
-            Expenses
+    <FormSection>
+      <View style={styles.context}>
+        <IconBubble icon="flight" accent={accent} size={40} />
+        <View style={styles.contextCopy}>
+          <Text style={[styles.contextTitle, { color: colors.onSurface }]} numberOfLines={1}>
+            {trip.tripName}
           </Text>
           <Text
-            style={[styles.quickSub, { color: colors.onPrimary + "CC" }]}
+            style={[styles.contextSub, { color: colors.onSurfaceVariant }]}
+            numberOfLines={1}
           >
-            {expenseCount === 0
-              ? "Log costs"
-              : `${expenseCount} logged`}
+            {[place, formatTripDates(trip)].filter(Boolean).join(" · ")}
           </Text>
         </View>
-        <Icon name="chevron-right" size={22} color={colors.onPrimary + "99"} />
-      </Pressable>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Gems, ${gemCount}`}
-        onPress={haptics.wrap("light", onGems)}
-        style={({ pressed }) => [
-          styles.quickTile,
-          {
-            backgroundColor: colors.secondaryContainer,
-            opacity: pressed ? 0.9 : 1,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.quickIcon,
-            { backgroundColor: colors.onSecondaryContainer + "18" },
-          ]}
-        >
-          <Icon name="diamond" size={24} color={colors.onSecondaryContainer} />
-        </View>
-        <View style={styles.quickText}>
-          <Text
-            style={[styles.quickTitle, { color: colors.onSecondaryContainer }]}
-          >
-            Gems
-          </Text>
-          <Text
-            style={[
-              styles.quickSub,
-              { color: colors.onSecondaryContainer + "CC" },
-            ]}
-          >
-            {gemCount === 0 ? "Link gems" : `${gemCount} on trip`}
-          </Text>
-        </View>
-        <Icon
-          name="chevron-right"
-          size={22}
-          color={colors.onSecondaryContainer + "99"}
-        />
-      </Pressable>
-    </View>
+        <StatusChip label={TRIP_STATUS_LABELS[trip.status]} accent={accent} size="sm" />
+      </View>
+    </FormSection>
   );
 }
 
+const text = { includeFontPadding: false } as const;
+
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    overflow: "hidden",
-  },
-  budgetCard: {
-    position: "relative",
-  },
-  budgetWash: {
-    borderRadius: Radius.xl,
-  },
-  cardHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  iconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.md,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardTitle: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    flex: 1,
-  },
-  budgetHero: {
-    ...Typography.displayLg,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  editHint: { ...Typography.caption },
-  editBody: { gap: Spacing.md, paddingBottom: Spacing.sm },
-  metaLabel: {
-    ...Typography.labelMd,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-  },
-  budgetSplit: {
-    flexDirection: "row",
-    gap: Spacing.lg,
-  },
-  budgetCol: { flex: 1, gap: 2 },
-  budgetValue: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  progressBlock: { gap: Spacing.sm },
-  progressLabels: {
+  meter: { gap: Spacing.sm },
+  meterLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  progressPct: {
-    ...Typography.labelMd,
-    fontWeight: "700",
+  meterLabel: { ...text, fontFamily: FontFamily.medium, fontSize: 13 },
+  meterPct: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
     fontVariant: ["tabular-nums"],
   },
-  track: {
-    height: 8,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  fill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-
-  quickRow: { gap: Spacing.sm },
-  quickTile: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    minHeight: 72,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
-  quickIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickText: { flex: 1, gap: 2, minWidth: 0 },
-  quickTitle: { ...Typography.labelMd, fontWeight: "700", fontSize: 16 },
-  quickSub: { ...Typography.bodySmall },
+  track: { height: 8, borderRadius: 4, overflow: "hidden" },
+  fill: { height: "100%", borderRadius: 4 },
+  editBody: { gap: Spacing.md, paddingBottom: Spacing.sm },
+  context: { flexDirection: "row", alignItems: "center", gap: 12 },
+  contextCopy: { flex: 1, minWidth: 0, gap: 1 },
+  contextTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 21 },
+  contextSub: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
 });

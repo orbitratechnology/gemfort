@@ -3,11 +3,15 @@ import { logger } from 'firebase-functions/logger';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { db } from '../admin';
+import { ApiError } from '../api/errors';
 import { REGION } from '../config';
 
 const BASE_CURRENCY = 'LKR';
 const OPEN_ER_API = `https://open.er-api.com/v6/latest/${BASE_CURRENCY}`;
 const FETCH_TIMEOUT_MS = 8_000;
+const FRESH_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Past this age cached rates are too old to price a financial mutation. */
+const STALE_FALLBACK_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** App quote codes → open.er-api ISO keys when they differ. */
 const QUOTE_CODES: { code: string; api: string }[] = [
@@ -78,48 +82,71 @@ export function convertToBaseServer(
   const normalized = currency === 'CNY' || currency === 'CNH' ? 'RMB' : currency;
   const foreignPerBase = rates[normalized] ?? rates[currency];
   if (!foreignPerBase || foreignPerBase <= 0) {
-    throw new Error(`Missing exchange rate for ${currency}`);
+    throw new ApiError('failed-precondition', `Exchange rate for ${currency} is unavailable.`);
   }
   return Number((amount / foreignPerBase).toFixed(2));
 }
 
-/** Load cached rates from Firestore, or fetch live if missing/stale. */
-export async function loadServerRates(): Promise<ServerRates> {
-  const ref = db.doc('system/exchange_rates');
-  const snap = await ref.get();
-  if (snap.exists) {
-    const data = snap.data() as {
-      rates?: ServerRates;
-      updatedAt?: Timestamp;
-      base?: string;
-    };
-    const ageMs = data.updatedAt
-      ? Date.now() - data.updatedAt.toMillis()
-      : Number.POSITIVE_INFINITY;
-    if (data.base === BASE_CURRENCY && data.rates && ageMs < 24 * 60 * 60 * 1000) {
-      const rates: ServerRates = { [BASE_CURRENCY]: 1, ...data.rates };
-      if (!rates.RMB && typeof data.rates.CNY === 'number') {
-        rates.RMB = data.rates.CNY;
-      }
-      return rates;
-    }
+function normalizeCachedRates(data: { rates?: ServerRates }): ServerRates | null {
+  if (!data.rates) return null;
+  const rates: ServerRates = { [BASE_CURRENCY]: 1, ...data.rates };
+  if (!rates.RMB && typeof data.rates.CNY === 'number') {
+    rates.RMB = data.rates.CNY;
   }
-
-  const { rates, updatedAtUnix } = await fetchOpenErRates();
-  await ref.set(
-    {
-      base: BASE_CURRENCY,
-      rates,
-      provider: 'open.er-api.com',
-      updatedAt: FieldValue.serverTimestamp(),
-      sourceUpdatedAtUnix: updatedAtUnix,
-    },
-    { merge: true },
-  );
   return rates;
 }
 
-/** Daily FX sync at 01:00 Asia/Colombo — caches rates for clients + CF. */
+/**
+ * Load cached rates from Firestore, refreshing them when older than a day.
+ * If the upstream API is down, fall back to the last known-good cache (up to
+ * a week old) rather than failing the mutation; with no usable cache the
+ * caller gets a 503 instead of a generic 500.
+ */
+export async function loadServerRates(): Promise<ServerRates> {
+  const ref = db.doc('system/exchange_rates');
+  const snap = await ref.get();
+  const data = snap.exists
+    ? (snap.data() as { rates?: ServerRates; updatedAt?: Timestamp; base?: string })
+    : null;
+  const cached = data?.base === BASE_CURRENCY ? normalizeCachedRates(data) : null;
+  const ageMs = data?.updatedAt
+    ? Date.now() - data.updatedAt.toMillis()
+    : Number.POSITIVE_INFINITY;
+  if (cached && ageMs < FRESH_MAX_AGE_MS) return cached;
+
+  try {
+    const { rates, updatedAtUnix } = await fetchOpenErRates();
+    await ref.set(
+      {
+        base: BASE_CURRENCY,
+        rates,
+        provider: 'open.er-api.com',
+        updatedAt: FieldValue.serverTimestamp(),
+        sourceUpdatedAtUnix: updatedAtUnix,
+      },
+      { merge: true },
+    );
+    return rates;
+  } catch (error) {
+    if (cached && ageMs < STALE_FALLBACK_MAX_AGE_MS) {
+      logger.warn('FX refresh failed; using stale cached rates', {
+        cacheAgeHours: Math.round(ageMs / 3_600_000),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return cached;
+    }
+    logger.error('FX refresh failed with no usable cache', {
+      cacheAgeHours: Number.isFinite(ageMs) ? Math.round(ageMs / 3_600_000) : null,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new ApiError(
+      'unavailable',
+      'Exchange rates are temporarily unavailable. Please try again shortly.',
+    );
+  }
+}
+
+/** FX sync every 6 hours (Asia/Colombo) — caches rates for clients + CF. */
 export const syncExchangeRates = onSchedule(
   {
     schedule: '0 */6 * * *',
@@ -127,6 +154,7 @@ export const syncExchangeRates = onSchedule(
     region: REGION,
     memory: '256MiB',
     timeoutSeconds: 60,
+    retryCount: 3,
   },
   async () => {
     const { rates, updatedAtUnix } = await fetchOpenErRates();

@@ -429,6 +429,8 @@ export type ApLifecycleStatus =
   | "cancelled"
   | "cancellation_requested"
   | "payment_sent"
+  /** Some payment confirmed; a balance is still owed. */
+  | "partial"
   | "done"
   /** @deprecated Legacy single-gem statuses — normalized on read */
   | "with_holder"
@@ -487,6 +489,16 @@ export type ApRecord = {
   paymentChequeId: string | null;
   paymentReceiptUrl?: string | null;
   rejectionReason: string | null;
+  /** Number of the latest payment (pending or confirmed) — APs settle in instalments. */
+  paymentSeq?: number | null;
+  /** Confirmed payments so far, in paymentCurrency. */
+  amountPaid?: number | null;
+  /** Amount still owed for sold gems, in paymentCurrency. */
+  balance?: number | null;
+  /** Parties that removed this AP from their own lists (soft delete). */
+  hiddenFor?: string[];
+  /** Set when the counterparty deleted their GemFort account. */
+  partyDeleted?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   // ── Legacy single-gem fields (optional; used for migration on read) ──
@@ -712,6 +724,18 @@ export type TripType = "sourcing" | "selling" | "both";
 
 export type TripStatus = "planning" | "ongoing" | "completed" | "cancelled";
 
+/** `passport` is legacy: still readable on older trips, no longer offered. */
+export type TripDocumentKind = "passport" | "visa" | "ticket" | "other";
+
+/** Scanned travel document stored owner-only under `trips/{uid}/{tripId}/documents/`. */
+export type TripDocument = {
+  id: string;
+  kind: TripDocumentKind;
+  url: string;
+  storagePath: string;
+  addedAt: Timestamp;
+};
+
 export type Trip = {
   id: string;
   ownerUid: string;
@@ -742,6 +766,8 @@ export type Trip = {
     gemsReturned: number;
   };
   notes: string | null;
+  /** Scanned visas and tickets (older trips may hold passports). Owner-only; never shown to others. */
+  documents?: TripDocument[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

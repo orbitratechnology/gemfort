@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.textrecognition'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.textrecognition"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Bundled Latin model: no Play Services download, works offline.
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+}

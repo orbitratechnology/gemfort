@@ -47,3 +47,21 @@ export function getCategoryMeta(category: string | null | undefined): CategoryMe
   if (!category) return { label: 'Other', icon: 'category' };
   return CATEGORY_META[category] ?? { label: titleCase(category), icon: 'category' };
 }
+
+/** Categories offered when recording income or an expense by hand. */
+export const MANUAL_CATEGORIES: Record<'income' | 'expense', readonly string[]> = {
+  income: ['sale', 'commission_earned', 'service_income', 'other_income'],
+  expense: [
+    'general',
+    'gem_purchase',
+    'cutting_fee',
+    'polishing_fee',
+    'transport',
+    'broker_fee',
+    'rent',
+    'salary',
+    'office',
+    'tax',
+    'other_expense',
+  ],
+};

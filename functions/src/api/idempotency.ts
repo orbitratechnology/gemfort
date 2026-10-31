@@ -1,12 +1,29 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { db } from '../admin';
 import { ApiError } from './errors';
 import { validateIdempotencyKey } from '../gemtrack/mutation-contract';
 
 const PENDING_RETRY_AFTER_MS = 10 * 60 * 1000;
+/** After a server-side failure, wait before letting the same key run again. */
+const FAILED_RETRY_AFTER_MS = 30 * 1000;
+const MAX_FAILED_ATTEMPTS = 5;
+
+/**
+ * Errors the handlers raise while validating, before any write commits. Only
+ * these release the claim outright; anything else may have committed part of
+ * the mutation, so the claim is kept and retried under a cooldown.
+ */
+const PRE_EXECUTION_ERROR_CODES = new Set([
+  'invalid-argument',
+  'unauthenticated',
+  'permission-denied',
+  'not-found',
+  'already-exists',
+  'failed-precondition',
+]);
 /** Retries arrive within minutes; a Firestore TTL policy on `expiresAt` purges older records. */
 const RECORD_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -19,8 +36,10 @@ type IdempotencyRecord = {
   route: string;
   key: string;
   requestHash: string;
-  status: 'pending' | 'succeeded';
+  status: 'pending' | 'succeeded' | 'failed';
   response?: unknown;
+  attempts?: number;
+  lastErrorCode?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   expiresAt: Timestamp;
@@ -61,9 +80,8 @@ function recordId(uid: string, route: string, key: string): string {
 
 /**
  * Execute a mutation once per user/route/idempotency key and replay its result
- * for an identical retry. A pending claim is released when the handler fails;
- * the domain handlers themselves use transactions or deterministic event IDs
- * to make retries safe after a transport failure.
+ * for an identical retry. A validation failure releases the claim; any other
+ * failure keeps it as `failed` so retries are serialized behind a cooldown.
  */
 export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T> {
   const key = validateIdempotencyKey(input.key);
@@ -102,7 +120,17 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
     }
 
     const updatedAt = existing.updatedAt?.toMillis?.() ?? 0;
-    if (updatedAt > Date.now() - PENDING_RETRY_AFTER_MS) {
+    if (existing.status === 'failed') {
+      if ((existing.attempts ?? 1) >= MAX_FAILED_ATTEMPTS) {
+        throw new ApiError(
+          'failed-precondition',
+          'This request failed repeatedly and needs support to reconcile it.',
+        );
+      }
+      if (updatedAt > Date.now() - FAILED_RETRY_AFTER_MS) {
+        throw new ApiError('unavailable', 'This request just failed. Please retry in a moment.');
+      }
+    } else if (updatedAt > Date.now() - PENDING_RETRY_AFTER_MS) {
       throw new ApiError(
         'failed-precondition',
         'An identical request is already in progress. Please retry shortly.',
@@ -133,7 +161,27 @@ export async function executeIdempotent<T>(input: IdempotentInput<T>): Promise<T
     });
     return response;
   } catch (error) {
-    await ref.delete().catch(() => undefined);
+    const code = error instanceof ApiError ? error.code : null;
+    if (code && PRE_EXECUTION_ERROR_CODES.has(code)) {
+      // Deterministic rejection before any commit: free the key so a
+      // corrected client can retry with it.
+      await ref.delete().catch(() => undefined);
+    } else {
+      // The handler may have committed before failing (e.g. while notifying).
+      // Keep the claim so a concurrent duplicate cannot re-run it, and let a
+      // later retry through after a cooldown; handlers are transactional and
+      // use deterministic IDs, so that retry reconciles instead of duplicating.
+      const failedAt = Timestamp.now();
+      await ref
+        .update({
+          status: 'failed',
+          attempts: FieldValue.increment(1),
+          lastErrorCode: code ?? 'internal',
+          updatedAt: failedAt,
+          expiresAt: expiresAtFrom(failedAt),
+        })
+        .catch(() => undefined);
+    }
     throw error;
   }
 }

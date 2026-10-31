@@ -5,13 +5,20 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import { BottomSheet, SheetListSeparator } from '@/components/ui/bottom-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from '@/components/ui/field-chrome';
 import { Icon, type IconName } from '@/components/ui/icon';
+import { SearchField } from '@/components/ui/search-field';
 import { AvatarVerificationBadge } from '@/components/ui/verification-badge';
 import { ContactAvatar } from '@/components/workspace/contact-avatar';
 import { getContactTypeOption } from '@/constants/contact-types';
@@ -142,33 +149,6 @@ function marketSearchPlaceholder(kinds: BusinessKind[]): string {
   if (kinds.length === 1 && kinds[0] === 'traders') return 'Search traders…';
   if (kinds.length === 1 && kinds[0] === 'lapidaries') return 'Search lapidaries…';
   return 'Search traders, lapidaries…';
-}
-
-function SearchBox({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <View style={[styles.searchBox, { backgroundColor: colors.surfaceContainerLow }]}>
-      <Icon name="search" size={20} color={colors.outline} />
-      <TextInput
-        style={[styles.searchInput, { color: colors.onSurface }]}
-        placeholder={placeholder}
-        placeholderTextColor={colors.outline}
-        value={value}
-        onChangeText={onChange}
-        autoCorrect={false}
-        autoCapitalize="none"
-        clearButtonMode="while-editing"
-      />
-    </View>
-  );
 }
 
 function ContactRow({
@@ -348,9 +328,11 @@ export function ContactPickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={closeSheet} title={title} scrollable={false}>
-      <SearchBox
+      <SearchField
+        style={styles.search}
         value={query}
-        onChange={setQuery}
+        onChangeText={setQuery}
+        autoCapitalize="none"
         placeholder={allowCustomName ? 'Search or type a name…' : 'Search name, phone…'}
       />
       {canUseCustom ? (
@@ -634,9 +616,11 @@ export function PartyPickerSheet({
         </View>
       ) : null}
 
-      <SearchBox
+      <SearchField
+        style={styles.search}
         value={query}
-        onChange={setQuery}
+        onChangeText={setQuery}
+        autoCapitalize="none"
         placeholder={
           tab === 'market'
             ? marketSearchPlaceholder(allowedBusinessKinds)
@@ -770,66 +754,52 @@ export function PickerSelectField({
   error,
 }: SelectFieldProps) {
   const { colors } = useAppTheme();
+  const chrome = useFieldChrome({ error: !!error });
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={valueLabel ?? placeholder}
         onPress={onPress}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}>
         {avatarName ? (
           <ContactAvatar name={avatarName} photoUrl={avatarPhotoUrl} size={44} />
         ) : (
           <View style={[styles.fieldIcon, { backgroundColor: colors.surfaceContainerHigh }]}>
-            <Icon name={icon} size={18} color={valueLabel ? colors.primary : colors.outline} />
+            <Icon name={icon} size={18} color={valueLabel ? colors.primary : chrome.iconColor} />
           </View>
         )}
-        <View style={styles.fieldBody}>
-          {valueLabel ? (
-            <>
-              <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={1}>
-                {valueLabel}
+        {valueLabel ? (
+          <View style={styles.fieldBody}>
+            <Text style={[styles.name, { color: colors.onSurface }]} numberOfLines={1}>
+              {valueLabel}
+            </Text>
+            {subtitle ? (
+              <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                {subtitle}
               </Text>
-              {subtitle ? (
-                <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={[styles.placeholder, { color: colors.outline }]}>{placeholder}</Text>
-          )}
-        </View>
-        <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+            ) : null}
+          </View>
+        ) : (
+          <Text style={[fieldStyles.value, { color: chrome.placeholderColor }]} numberOfLines={1}>
+            {placeholder}
+          </Text>
+        )}
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text style={[styles.error, { color: colors.error }]} accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
 const styles = StyleSheet.create({
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    height: 48,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    marginBottom: Spacing.stackMd,
-  },
-  searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
+  search: { marginBottom: Spacing.stackMd },
   customRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -901,19 +871,8 @@ const styles = StyleSheet.create({
   name: { ...Typography.labelMd, fontWeight: '700' },
   meta: { ...Typography.caption },
 
-  fieldWrap: { gap: Spacing.stackSm },
-  fieldLabel: { ...Typography.labelMd, letterSpacing: 0.4, textTransform: 'uppercase' },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    minHeight: 64,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    borderWidth: 1,
-  },
+  /** Taller trigger for the avatar + two-line layout. */
+  field: { minHeight: 64, paddingVertical: Spacing.sm, gap: Spacing.md },
   fieldIcon: {
     width: 44,
     height: 44,
@@ -922,6 +881,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fieldBody: { flex: 1, minWidth: 0, gap: 2 },
-  placeholder: { ...Typography.bodyMd },
-  error: { ...Typography.bodySmall },
 });

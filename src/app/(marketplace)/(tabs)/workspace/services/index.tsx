@@ -7,21 +7,23 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Accent, ListItem, ListSectionHeader } from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Icon, type IconName } from "@/components/ui/icon";
+import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SearchField } from "@/components/ui/search-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
     ContextActionsLink,
     type ContextMenuAction,
 } from "@/components/workspace/context-actions-link";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -70,106 +72,46 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "overdue", label: "Overdue" },
 ];
 
-function statusMeta(status: ServiceRecord["status"]) {
+const THUMB = 52;
+
+/** Status label + semantic accent (see `Accent` in the detail kit). */
+function statusMeta(status: ServiceRecord["status"]): {
+  label: string;
+  accent: string;
+} {
   switch (status) {
     case "in_progress":
-      return {
-        label: "In Progress",
-        icon: "sync" as IconName,
-        tone: "warning" as const,
-      };
+      return { label: "In Progress", accent: Accent.blue };
+    case "ready":
+      return { label: "Ready", accent: Accent.emerald };
     case "completed":
     case "received_back":
-      return {
-        label: "Completed",
-        icon: "check-circle" as IconName,
-        tone: "success" as const,
-      };
+      return { label: "Completed", accent: Accent.emerald };
     case "overdue":
-      return {
-        label: "Overdue",
-        icon: "error-outline" as IconName,
-        tone: "error" as const,
-      };
+      return { label: "Overdue", accent: Accent.rose };
     case "cancellation_requested":
-      return {
-        label: "Cancel requested",
-        icon: "hourglass-top" as IconName,
-        tone: "warning" as const,
-      };
+      return { label: "Cancel requested", accent: Accent.amber };
     case "cancelled":
-      return {
-        label: "Cancelled",
-        icon: "cancel" as IconName,
-        tone: "neutral" as const,
-      };
+      return { label: "Cancelled", accent: Accent.slate };
+    case "rejected":
+      return { label: "Declined", accent: Accent.rose };
     default:
-      return {
-        label: "Pending",
-        icon: "schedule" as IconName,
-        tone: "neutral" as const,
-      };
+      return { label: "Pending", accent: Accent.amber };
   }
 }
 
-function statusTone(
-  status: ServiceRecord["status"],
-  colors: ReturnType<typeof useAppTheme>["colors"],
-): { bg: string; fg: string; accent: string; icon: IconName; label: string } {
-  const meta = statusMeta(status);
-  if (status === "overdue") {
-    return {
-      bg: colors.errorContainer,
-      fg: colors.error,
-      accent: colors.error,
-      icon: "warning",
-      label: "Overdue",
-    };
-  }
-  if (status === "given") {
-    return {
-      bg: colors.secondaryContainer,
-      fg: colors.onSecondaryContainer,
-      accent: colors.secondary,
-      icon: "hourglass-top",
-      label: meta.label,
-    };
-  }
-  if (status === "completed" || status === "received_back") {
-    return {
-      bg: colors.successEmerald + "22",
-      fg: colors.successEmerald,
-      accent: colors.successEmerald,
-      icon: "check-circle",
-      label: meta.label,
-    };
-  }
-  if (status === "cancellation_requested") {
-    return {
-      bg: colors.errorContainer,
-      fg: colors.error,
-      accent: colors.error,
-      icon: "hourglass-top",
-      label: meta.label,
-    };
-  }
-  if (status === "cancelled") {
-    return {
-      bg: colors.surfaceContainerHighest,
-      fg: colors.onSurfaceVariant,
-      accent: colors.outline,
-      icon: "cancel",
-      label: meta.label,
-    };
-  }
-  return {
-    bg: colors.primaryContainer,
-    fg: colors.onPrimaryContainer,
-    accent: colors.primary,
-    icon: meta.icon,
-    label: meta.label,
-  };
+function isClosed(status: ServiceRecord["status"]) {
+  return (
+    status === "completed" ||
+    status === "received_back" ||
+    status === "cancelled" ||
+    status === "rejected"
+  );
 }
+
+type Row =
+  | { kind: "header"; key: string; title: string; count: number }
+  | { kind: "item"; key: string; item: ServiceRecord; isLast: boolean };
 
 export default function ServicesListScreen() {
   const { user } = useAuth();
@@ -285,6 +227,35 @@ export default function ServicesListScreen() {
     );
   }, [services, filter, debouncedSearch, gemById]);
 
+  // "All" splits open work from finished records; a status filter is one list.
+  const rows = useMemo<Row[]>(() => {
+    const toItems = (list: ServiceRecord[]): Row[] =>
+      list.map((item, i) => ({
+        kind: "item",
+        key: item.id,
+        item,
+        isLast: i === list.length - 1,
+      }));
+    if (filter !== "all") return toItems(filtered);
+    const open = filtered.filter((s) => !isClosed(s.status));
+    const closed = filtered.filter((s) => isClosed(s.status));
+    const out: Row[] = [];
+    if (open.length) {
+      out.push({ kind: "header", key: "h-open", title: "Active", count: open.length });
+      out.push(...toItems(open));
+    }
+    if (closed.length) {
+      out.push({
+        kind: "header",
+        key: "h-closed",
+        title: "Completed & closed",
+        count: closed.length,
+      });
+      out.push(...toItems(closed));
+    }
+    return out;
+  }, [filtered, filter]);
+
   async function handleDelete(serviceId: string) {
     if (!user) return;
     try {
@@ -306,6 +277,104 @@ export default function ServicesListScreen() {
     }
   }
 
+  function renderService(item: ServiceRecord, isLast: boolean) {
+    const status = statusMeta(item.status);
+    const gem = gemById.get(item.gemId);
+    const gemTitle = gemTitleFor(item.gemId);
+    const gemPhoto = gemPrimaryPhotoUrl(gem) ?? null;
+    const providerName = providerLabelFor(item);
+    const providerPhoto = providerPhotoFor(item);
+    const serviceTypeLabel = item.serviceType.replace(/_/g, " ");
+    const serviceTypeTitle =
+      serviceTypeLabel.charAt(0).toUpperCase() + serviceTypeLabel.slice(1);
+    const overdue = item.status === "overdue";
+    const dueLabel =
+      item.status === "completed" ||
+      item.status === "received_back" ||
+      item.status === "cancelled"
+        ? null
+        : formatRelativeDue(item.expectedReturnDate);
+    const amountLabel =
+      item.finalCost != null
+        ? formatFace(item.finalCost, item.finalCostCurrency)
+        : item.agreedPrice != null
+          ? formatFace(item.agreedPrice, item.agreedPriceCurrency)
+          : null;
+    const amountColor = overdue
+      ? Accent.rose
+      : item.status === "completed" || item.status === "received_back"
+        ? Accent.emerald
+        : undefined;
+    const actions: ContextMenuAction[] = canDeleteService(item)
+      ? [
+          {
+            label: "Delete",
+            icon: "trash",
+            destructive: true,
+            onPress: () =>
+              confirmDelete(
+                "Delete service",
+                `Remove this ${serviceTypeLabel} record? This cannot be undone.`,
+                () => handleDelete(item.id),
+              ),
+          },
+        ]
+      : canRequestServiceCancellation(item)
+        ? [
+            {
+              label: "Request cancellation",
+              icon: "xmark.circle",
+              onPress: () => handleRequestCancel(item.id),
+            },
+          ]
+        : [];
+
+    return (
+      <ContextActionsLink
+        href={`/(marketplace)/(tabs)/workspace/services/${item.id}` as never}
+        accessibilityLabel={`${gemTitle}, ${serviceTypeLabel}, to ${providerName}, ${status.label}`}
+        actions={actions}
+      >
+        <ListItem
+          leading={
+            <View style={styles.media}>
+              {gemPhoto || !gem ? (
+                <GemThumb uri={gemPhoto} label={gemTitle} size={THUMB} radius={14} />
+              ) : (
+                <GemArtwork gem={gem} style={styles.gemArt} />
+              )}
+              <View
+                style={[
+                  styles.partyBadge,
+                  { borderColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <ContactAvatar
+                  name={providerName}
+                  photoUrl={providerPhoto}
+                  size={22}
+                />
+              </View>
+            </View>
+          }
+          title={gemTitle}
+          subtitle={`${serviceTypeTitle} · To ${providerName}`}
+          meta={
+            dueLabel
+              ? overdue || dueLabel.includes("overdue")
+                ? dueLabel
+                : `Due ${dueLabel.toLowerCase()}`
+              : null
+          }
+          amount={amountLabel}
+          amountColor={amountColor}
+          status={status}
+          isLast={isLast}
+        />
+      </ContextActionsLink>
+    );
+  }
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -315,10 +384,11 @@ export default function ServicesListScreen() {
       <StackHeader title="Service Records" />
 
       <FlashList
-        data={filtered}
-        keyExtractor={(s) => s.id}
+        data={rows}
+        keyExtractor={(row) => row.key}
+        getItemType={(row) => row.kind}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -336,25 +406,15 @@ export default function ServicesListScreen() {
         }
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <View
-              style={[
-                styles.searchBox,
-                { backgroundColor: colors.surfaceContainerLow },
-              ]}
-            >
-              <Icon name="search" size={22} color={colors.outline} />
-              <TextInput
-                style={[styles.searchInput, { color: colors.onSurface }]}
-                placeholder="Search gems, providers, or IDs..."
-                placeholderTextColor={colors.outline}
-                value={search}
-                onChangeText={setSearch}
-              />
-            </View>
+            <SearchField
+              placeholder="Search gems, providers, or IDs..."
+              value={search}
+              onChangeText={setSearch}
+              style={styles.search}
+            />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={styles.hBleed}
               contentContainerStyle={styles.filterRow}
             >
               {FILTERS.map((f) => {
@@ -363,6 +423,8 @@ export default function ServicesListScreen() {
                   <Pressable
                     key={f.id}
                     onPress={() => setFilter(f.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
                     style={[
                       styles.filterChip,
                       active
@@ -404,165 +466,20 @@ export default function ServicesListScreen() {
             subtitle="Send a gem to a cutter, heater, or lab to track it here."
           />
         }
-        renderItem={({ item }) => {
-          const tone = statusTone(item.status, colors);
-          const gemTitle = gemTitleFor(item.gemId);
-          const providerName = providerLabelFor(item);
-          const providerPhoto = providerPhotoFor(item);
-          const serviceTypeLabel = item.serviceType.replace(/_/g, " ");
-          const overdue = item.status === "overdue";
-          const dueLabel =
-            item.status === "completed" ||
-            item.status === "received_back" ||
-            item.status === "cancelled"
-              ? null
-              : formatRelativeDue(item.expectedReturnDate);
-          const amountLabel =
-            item.finalCost != null
-              ? formatFace(item.finalCost, item.finalCostCurrency)
-              : item.agreedPrice != null
-                ? formatFace(item.agreedPrice, item.agreedPriceCurrency)
-                : null;
-          const amountColor = overdue
-            ? colors.error
-            : item.status === "completed" || item.status === "received_back"
-              ? colors.successEmerald
-              : colors.primary;
-          const cardBg = overdue
-            ? colors.errorContainer + "66"
-            : item.status === "given"
-              ? colors.secondaryContainer + "55"
-              : colors.surfaceContainerLowest;
-          const actions: ContextMenuAction[] = canDeleteService(item)
-            ? [
-                {
-                  label: "Delete",
-                  icon: "trash",
-                  destructive: true,
-                  onPress: () =>
-                    confirmDelete(
-                      "Delete service",
-                      `Remove this ${serviceTypeLabel} record? This cannot be undone.`,
-                      () => handleDelete(item.id),
-                    ),
-                },
-              ]
-            : canRequestServiceCancellation(item)
-              ? [
-                  {
-                    label: "Request cancellation",
-                    icon: "xmark.circle",
-                    onPress: () => handleRequestCancel(item.id),
-                  },
-                ]
-              : [];
-          return (
-            <ContextActionsLink
-              href={
-                `/(marketplace)/(tabs)/workspace/services/${item.id}` as never
-              }
-              accessibilityLabel={`${gemTitle}, ${serviceTypeLabel}, to ${providerName}, ${tone.label}`}
-              actions={actions}
-            >
-              {({ pressed }) => (
-                <View
-                  style={[
-                    styles.row,
-                    {
-                      backgroundColor: cardBg,
-                      borderColor: overdue
-                        ? colors.error + "66"
-                        : colors.outlineVariant,
-                      opacity: pressed ? 0.88 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.mediaCol}>
-                    <View style={styles.mediaStack}>
-                      <GemThumb
-                        uri={gemPrimaryPhotoUrl(gemById.get(item.gemId)) ?? null}
-                        label={gemTitle}
-                        size={56}
-                        radius={12}
-                      />
-                      <View
-                        style={[
-                          styles.partyBadge,
-                          { borderColor: colors.surfaceContainerLowest },
-                        ]}
-                      >
-                        <ContactAvatar
-                          name={providerName}
-                          photoUrl={providerPhoto}
-                          size={28}
-                        />
-                      </View>
-                    </View>
-                    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                      <Icon name={tone.icon} size={11} color={tone.fg} />
-                      <Text
-                        style={[styles.badgeText, { color: tone.fg }]}
-                        numberOfLines={1}
-                      >
-                        {tone.label}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.rowBody}>
-                    <View style={styles.rowTop}>
-                      <Text
-                        style={[styles.rowTitle, { color: colors.onSurface }]}
-                        numberOfLines={1}
-                      >
-                        {gemTitle}
-                      </Text>
-                      {amountLabel ? (
-                        <Text
-                          style={[styles.rowAmount, { color: amountColor }]}
-                        >
-                          {amountLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={styles.partyRow}>
-                      <Icon
-                        name="service"
-                        size={14}
-                        color={colors.onSurfaceVariant}
-                      />
-                      <Text
-                        style={[
-                          styles.rowSub,
-                          { color: colors.onSurfaceVariant },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        To {providerName}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[styles.rowSub, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {serviceTypeLabel}
-                      {dueLabel ? ` · ${dueLabel}` : ""}
-                    </Text>
-                  </View>
-                  <Icon
-                    name="chevron-right"
-                    size={20}
-                    color={colors.outline}
-                  />
-                </View>
-              )}
-            </ContextActionsLink>
-          );
-        }}
+        renderItem={({ item: row }) =>
+          row.kind === "header" ? (
+            <ListSectionHeader title={row.title} count={row.count} />
+          ) : (
+            renderService(row.item, row.isLast)
+          )
+        }
       />
 
       <Pressable
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => router.push("/(marketplace)/services/add")}
+        accessibilityRole="button"
+        accessibilityLabel="Add service"
       >
         <Icon name="add" size={28} color={colors.onPrimary} />
       </Pressable>
@@ -573,24 +490,9 @@ export default function ServicesListScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
 
-  content: {
-    padding: Spacing.containerMargin,
-    paddingBottom: 100,
-    gap: Spacing.gutterMd,
-  },
-  listHeader: { gap: Spacing.gutterMd },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    height: 48,
-  },
-  searchInput: { flex: 1, ...Typography.bodyLg },
-  hBleed: {
-    marginHorizontal: -Spacing.containerMargin,
-  },
+  content: { paddingBottom: 100 },
+  listHeader: { gap: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
+  search: { marginHorizontal: Spacing.containerMargin },
   filterRow: {
     flexDirection: "row",
     gap: Spacing.stackSm,
@@ -607,64 +509,15 @@ const styles = StyleSheet.create({
   },
   filterText: { ...Typography.labelMd },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
-  },
-  mediaCol: {
-    width: 72,
-    alignItems: "center",
-    gap: 8,
-  },
-  mediaStack: {
-    width: 56,
-    height: 56,
-  },
+  media: { width: THUMB, height: THUMB },
+  gemArt: { width: THUMB, height: THUMB, borderRadius: 14 },
   partyBadge: {
     position: "absolute",
-    right: -4,
-    bottom: -4,
-    borderRadius: 16,
+    right: -5,
+    bottom: -5,
+    borderRadius: 8,
     borderWidth: 2,
   },
-  rowBody: { flex: 1, gap: 4, minWidth: 0, paddingTop: 2 },
-  rowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  rowTitle: { ...Typography.bodyMd, fontWeight: "700", flex: 1 },
-  rowAmount: {
-    ...Typography.bodyMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  partyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  rowSub: { ...Typography.caption },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-    maxWidth: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
 
   fab: {
     position: "absolute",

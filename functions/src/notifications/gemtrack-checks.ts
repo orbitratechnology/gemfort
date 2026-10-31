@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from 'firebase-admin/firestore';
 
+import { isLiveUid } from '../account/deleted-uid';
 import { AP_PAYMENT_OVERDUE_DAYS, DUE_SOON_DAYS } from '../config';
 import { formatCurrency, toDate } from './create';
 import type { NotificationDirection, NotificationInput } from './types';
@@ -34,6 +35,7 @@ type ApDoc = {
   senderUid?: string;
   receiverUid?: string;
   receiverName?: string;
+  senderName?: string;
   status: string;
   apHolderContactId?: string;
   expectedReturnDate: Timestamp;
@@ -244,7 +246,10 @@ export function buildGemTrackCandidatesForOwner(
       [r.ownerUid, r.senderUid, r.receiverUid].filter(Boolean) as string[],
     );
     if (!partyUids.has(ownerUid)) continue;
-    const holder = r.receiverName || contactName(ctx.contacts, r.apHolderContactId);
+    // Name the other party: the holder for the sender, the sender for the holder.
+    const holder = r.receiverUid === ownerUid && r.senderUid !== ownerUid
+      ? r.senderName || 'the sender'
+      : r.receiverName || contactName(ctx.contacts, r.apHolderContactId);
     const isAccepted = r.status === 'accepted' || r.status === 'with_holder';
 
     if (isAccepted) {
@@ -276,9 +281,10 @@ export function buildGemTrackCandidatesForOwner(
     const paymentPending =
       r.status === 'payment_sent' ||
       (r.status === 'sold' && r.paymentStatus !== 'paid') ||
+      (r.status === 'partial' && r.paymentStatus !== 'paid') ||
       (r.status === 'accepted' &&
         (r.items ?? []).some((i) => i.lineStatus === 'sold') &&
-        !r.paymentSentAt);
+        r.paymentStatus !== 'paid');
 
     if (paymentPending && (r.senderUid === ownerUid || r.ownerUid === ownerUid)) {
       const sold = toDate(r.paymentSentAt ?? r.soldDate ?? null);
@@ -411,7 +417,7 @@ export async function loadOwnerContexts(db: Firestore): Promise<Map<string, Owne
       .get(),
     db
       .collection('gemtrack_ap_records')
-      .where('status', 'in', ['sold', 'accepted'])
+      .where('status', 'in', ['sold', 'accepted', 'partial'])
       .where('soldDate', '<', ts(apPaymentCutoff))
       .get(),
   ]);
@@ -446,7 +452,12 @@ export async function loadOwnerContexts(db: Firestore): Promise<Map<string, Owne
   }
   for (const d of apDocs) {
     const data = d.data() as ApDoc;
-    ensureOwner(contexts, data.ownerUid)?.apRecords.push(d);
+    // Both parties get AP alerts (sender: given, holder: taken); a deleted
+    // party has been detached and is skipped.
+    const parties = new Set(
+      [data.ownerUid, data.senderUid, data.receiverUid].filter(isLiveUid),
+    );
+    for (const party of parties) ensureOwner(contexts, party)?.apRecords.push(d);
     if (data.apHolderContactId) contactIds.add(data.apHolderContactId);
   }
 

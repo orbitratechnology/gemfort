@@ -73,6 +73,16 @@ service cloud.firestore {
         || (before == 'partial' && after in ['partial', 'paid', 'cancelled', 'overdue']);
     }
 
+    // Fields only Cloud Functions or admins may set on a user profile.
+    function serverOwnedUserFields() {
+      return [
+        'verificationTier', 'verifiedAt', 'verifiedByAdminUid',
+        'phoneVerified', 'emailVerified', 'badges',
+        'nicVerified', 'recognizedBadge',
+        'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid'
+      ];
+    }
+
     function isAdmin() {
       return isSignedIn() && getUserRole() == 'admin' && isNotSuspended();
     }
@@ -144,26 +154,29 @@ service cloud.firestore {
         && request.resource.data.get('nicVerified', false) == false
         && request.resource.data.get('recognizedBadge', false) == false
         && request.resource.data.get('recognizedBadgeAssignedAt', null) == null
-        && request.resource.data.get('recognizedBadgeAssignedByAdminUid', null) == null;
+        && request.resource.data.get('recognizedBadgeAssignedByAdminUid', null) == null
+        && !request.resource.data.keys().hasAny(serverOwnedUserFields());
 
-      // Push token / profile field updates — use resource.data (not get()) so
-      // concurrent writes to the same user doc do not fail isNotSuspended().
-      // Phone identity is a business contact field; server does not own verification state.
+      // Owner profile edits are an allowlist: every other field (role,
+      // verification tier/attribution, suspension, badges, email, phone
+      // verification) is server- or admin-owned. Uses resource.data (not get())
+      // so concurrent writes to the same user doc do not fail isNotSuspended().
       allow update: if isOwner(userId)
         && resourceNotSuspended()
-        && !request.resource.data.diff(resource.data)
-           .affectedKeys().hasAny([
-             'role', 'verificationStatus', 'isSuspended',
-             'isActive', 'suspendedReason', 'suspendedAt',
-             'nicVerified', 'recognizedBadge',
-             'recognizedBadgeAssignedAt', 'recognizedBadgeAssignedByAdminUid'
-           ]);
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly([
+             'displayName', 'preferredCurrency', 'preferredLanguage',
+             'notificationPreferences', 'fcmToken', 'fcmTokens',
+             'lastActiveAt', 'updatedAt'
+           ])
+        && request.resource.data.get('fcmTokens', []).size() <= 20;
 
       // Narrow allow for FCM token registration (owner only).
       allow update: if isOwner(userId)
         && resourceNotSuspended()
         && request.resource.data.diff(resource.data)
-           .affectedKeys().hasOnly(['fcmToken', 'updatedAt']);
+           .affectedKeys().hasOnly(['fcmToken', 'fcmTokens', 'updatedAt'])
+        && request.resource.data.get('fcmTokens', []).size() <= 20;
 
       // Applicant may mark themselves pending after submitting verification.
       // Cannot set verified/revoked — those remain admin-only.
@@ -328,9 +341,13 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.fromUid == request.auth.uid);
       allow list: if isAdmin();
 
-      // Verified members can like others
+      // Verified members can like others. The document ID must be the
+      // fromBusinessId_toBusinessId pair so a second like for the same pair
+      // collides instead of inflating the count under a random ID.
       allow create: if isVerifiedMember()
         && isOwner(request.resource.data.fromUid)
+        && likeId == request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId
+        && isBusinessOwner(get(/databases/$(database)/documents/businesses/$(request.resource.data.fromBusinessId)).data)
         // Cannot like self
         && request.resource.data.fromBusinessId
            != request.resource.data.toBusinessId
@@ -348,6 +365,7 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isVerifiedMember()
         && isOwner(request.resource.data.fromUid)
+        && endorsementId == request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId
         && request.resource.data.fromBusinessId
            != request.resource.data.toBusinessId
         && !exists(/databases/$(database)/documents/endorsements/$(request.resource.data.fromBusinessId + '_' + request.resource.data.toBusinessId))
@@ -582,8 +600,27 @@ service cloud.firestore {
                     && isNotSuspended()
                     && resource.data.get('saleTransferRequestId', null) == null
                     && resource.data.get('saleStatus', 'unsold') != 'pending';
+      // New gems start in the owner's hands: sale, custody, AP, and transfer
+      // state only ever comes from gemfortApi.
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+        && isOwner(request.resource.data.ownerUid)
+        && request.resource.data.get('status', 'rough') in [
+             'rough', 'cut', 'heated', 'polished', 'ready_for_sale',
+             'on_trip', 'with_cutter', 'with_heater', 'with_polisher'
+           ]
+        && request.resource.data.get('custody', null) in [
+             null, 'on_trip', 'with_cutter', 'with_heater', 'with_polisher'
+           ]
+        && request.resource.data.get('outcome', null) == null
+        && request.resource.data.get('isListedOnMarketplace', false) == false
+        && request.resource.data.get('saleStatus', 'unsold') == 'unsold'
+        && request.resource.data.get('currentApId', null) == null
+        && request.resource.data.get('saleTransferRequestId', null) == null
+        && request.resource.data.get('soldPrice', null) == null
+        && request.resource.data.get('soldDate', null) == null
+        && request.resource.data.get('soldToUid', null) == null
+        && request.resource.data.get('acquiredFromUid', null) == null
+        && request.resource.data.get('lastSaleRequestId', null) == null;
       // An AP holder must be able to read a gem while it is locked on their AP
       // so the Taken AP detail can render the gem's photo and metadata.
       allow read: if isSignedIn() && isNotSuspended()
@@ -609,18 +646,38 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Costs belong to a gem the writer owns and must be a non-negative amount.
+    function validGemCost(data) {
+      return data.amount is number
+        && data.amount >= 0
+        && data.gemId is string
+        && exists(/databases/$(database)/documents/gemtrack_gems/$(data.gemId))
+        && get(/databases/$(database)/documents/gemtrack_gems/$(data.gemId)).data.ownerUid == uid();
+    }
+
     match /gemtrack_gem_costs/{docId} {
-      allow read, write: if isOwner(resource.data.ownerUid)
-                         && isNotSuspended();
+      allow read, delete: if isOwner(resource.data.ownerUid)
+                          && isNotSuspended();
+      allow update: if isOwner(resource.data.ownerUid)
+        && isNotSuspended()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.gemId == resource.data.gemId
+        && validGemCost(request.resource.data);
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+        && isOwner(request.resource.data.ownerUid)
+        && validGemCost(request.resource.data);
       allow read, write: if isAdmin();
     }
 
     match /gemtrack_gem_events/{docId} {
       allow read: if isOwner(resource.data.ownerUid);
+      // Owner journal entries only, about a gem they own. Lifecycle events
+      // (AP, sale, transfer) are written by gemfortApi.
       allow create: if isAnySignedIn()
-        && isOwner(request.resource.data.ownerUid);
+        && isOwner(request.resource.data.ownerUid)
+        && request.resource.data.gemId is string
+        && exists(/databases/$(database)/documents/gemtrack_gems/$(request.resource.data.gemId))
+        && get(/databases/$(database)/documents/gemtrack_gems/$(request.resource.data.gemId)).data.ownerUid == uid();
       // Events are immutable once created
       allow update: if false;
       allow delete: if isAdmin()
@@ -665,19 +722,10 @@ service cloud.firestore {
         && (resource.data.ownerUid == uid()
             || resource.data.senderUid == uid()
             || resource.data.receiverUid == uid());
-      // Offline-first client creates (sender only, pending).
-      allow create: if isAnySignedIn()
-        && isNotSuspended()
-        && request.resource.data.senderUid == uid()
-        && request.resource.data.ownerUid == uid()
-        && request.resource.data.receiverUid is string
-        && request.resource.data.receiverUid != uid()
-        && request.resource.data.status == 'pending'
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0;
-      // AP state, custody, and deletion are coordinated atomically by
-      // gemfortApi. Prevent direct participant edits from bypassing it.
-      allow update, delete: if isAdmin();
+      // AP creation, state, custody, and deletion are coordinated atomically
+      // by gemfortApi, which verifies gem ownership/availability and locks the
+      // gems in the same transaction. No direct participant writes.
+      allow create, update, delete: if isAdmin();
       allow read, write: if isAdmin();
     }
 

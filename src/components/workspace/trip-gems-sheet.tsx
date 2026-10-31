@@ -3,8 +3,16 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  Accent,
+  DetailBand,
+  IconBubble,
+  StatusChip,
+  TotalRow,
+} from "@/components/ui/detail-kit";
 import { Icon } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { GemArtwork } from "@/components/workspace/gem-artwork";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { formatGemType } from "@/constants/gem-options";
 import { resolveGemSaleStatus } from "@/features/workspace/gem-lifecycle";
 import { gemPrimaryPhotoUrl } from "@/features/workspace/party-photo";
@@ -28,10 +36,13 @@ type TripGemsSheetProps = {
   showAddGems?: boolean;
 };
 
+const text = { includeFontPadding: false } as const;
+
+/** Gem photo, or the type artwork on the stone's own colour when there is none. */
 function GemThumb({
   gem,
   selected,
-  size = 44,
+  size = 48,
 }: {
   gem: WorkspaceGem | null | undefined;
   selected?: boolean;
@@ -39,14 +50,17 @@ function GemThumb({
 }) {
   const { colors } = useAppTheme();
   const photo = gemPrimaryPhotoUrl(gem);
+  const frame = {
+    width: size,
+    height: size,
+    borderRadius: Math.round(size * 0.28),
+  };
   return (
     <View
       style={[
         styles.thumb,
+        frame,
         {
-          width: size,
-          height: size,
-          borderRadius: size * 0.28,
           backgroundColor: colors.surfaceContainerHigh,
           borderColor: selected ? colors.primary : "transparent",
           borderWidth: selected ? 2 : 0,
@@ -60,14 +74,147 @@ function GemThumb({
           contentFit="cover"
           recyclingKey={photo}
         />
+      ) : gem ? (
+        <GemArtwork gem={gem} artScale={0.86} style={styles.thumbImg} />
       ) : (
         <Icon
           name="diamond"
           size={Math.round(size * 0.4)}
-          color={selected ? colors.primary : colors.outlineVariant}
+          color={selected ? colors.primary : colors.outline}
         />
       )}
     </View>
+  );
+}
+
+/** Role / state chip for a gem on a trip. */
+function tripGemStatus(tg: TripGem): { label: string; accent: string } {
+  if (tg.status === "sold") return { label: "Sold", accent: Accent.emerald };
+  if (tg.status === "returned") return { label: "Returned", accent: Accent.slate };
+  return tg.role === "purchase"
+    ? { label: "Purchase", accent: Accent.blue }
+    : { label: "Parcel", accent: Accent.amber };
+}
+
+function tripGemTitle(tg: TripGem, gem: WorkspaceGem | undefined): string {
+  return gem?.title?.trim() || gem?.sku || tg.gemId.slice(0, 8);
+}
+
+/** Whether a trip gem can start a sale from the trip (on-trip, unsold parcel). */
+export function canSellTripGem(
+  tg: TripGem,
+  gem: WorkspaceGem | undefined,
+  canRecordSales: boolean | undefined,
+): boolean {
+  return (
+    !!canRecordSales &&
+    !!gem &&
+    resolveGemSaleStatus(gem) === "unsold" &&
+    tg.role === "parcel" &&
+    tg.status === "on_trip"
+  );
+}
+
+/**
+ * Full-width gem row for trip bands and sheets: thumb, name, type · weight,
+ * price with a role chip, and an optional Sell pill. Lives inside a padded
+ * band/sheet, so it carries no horizontal padding of its own.
+ */
+export function TripGemRow({
+  tripGem: tg,
+  gem,
+  meta,
+  onPress,
+  onSell,
+  isLast,
+}: {
+  tripGem: TripGem;
+  gem: WorkspaceGem | undefined;
+  /** Third line (e.g. sale date). */
+  meta?: string | null;
+  onPress: () => void;
+  onSell?: (() => void) | null;
+  isLast?: boolean;
+}) {
+  const { colors } = useAppTheme();
+  const { formatBase } = usePreferredMoney();
+  const title = tripGemTitle(tg, gem);
+  const status = tripGemStatus(tg);
+  const amount =
+    tg.salePrice != null
+      ? formatBase(tg.salePrice)
+      : tg.purchaseCost != null
+        ? formatBase(tg.purchaseCost)
+        : "—";
+  const subtitle = gem
+    ? `${formatGemType(gem.gemType)} · ${gem.currentWeight} ct`
+    : status.label;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        gem
+          ? `${gem.title?.trim() || formatGemType(gem.gemType)}, ${gem.currentWeight} carat, ${status.label}`
+          : `Gem, ${status.label}`
+      }
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.outlineVariant,
+        },
+        pressed && styles.pressed,
+      ]}
+    >
+      <GemThumb gem={gem} />
+      <View style={styles.rowCopy}>
+        <Text style={[styles.rowTitle, { color: colors.onSurface }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text
+          style={[styles.rowSubtitle, { color: colors.onSurfaceVariant }]}
+          numberOfLines={1}
+        >
+          {subtitle}
+        </Text>
+        {meta ? (
+          <Text style={[styles.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>
+            {meta}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.rowTrailing}>
+        <Text
+          style={[
+            styles.rowAmount,
+            { color: tg.salePrice != null ? Accent.emerald : colors.onSurface },
+          ]}
+          numberOfLines={1}
+        >
+          {amount}
+        </Text>
+        {onSell ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sell gem"
+            onPress={onSell}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.sellPill,
+              { backgroundColor: Accent.emerald },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Icon name="sell" size={14} color="#FFFFFF" />
+            <Text style={styles.sellText}>Sell</Text>
+          </Pressable>
+        ) : (
+          <StatusChip label={status.label} accent={status.accent} size="sm" />
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -86,7 +233,6 @@ export function TripGemsSheet({
   showAddGems,
 }: TripGemsSheetProps) {
   const { colors } = useAppTheme();
-  const { formatBase } = usePreferredMoney();
 
   function handleClose() {
     onClose();
@@ -125,12 +271,12 @@ export function TripGemsSheet({
     <BottomSheet
       visible={visible}
       onClose={handleClose}
-      title="Gems"
+      title={tripGems.length ? `Gems · ${tripGems.length}` : "Gems"}
       footer={footerActions}
     >
       {tripGems.length === 0 ? (
         <View style={styles.empty}>
-          <Icon name="diamond" size={28} color={colors.outlineVariant} />
+          <IconBubble icon="diamond" accent={Accent.violet} size={52} />
           <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
             No gems on this trip
           </Text>
@@ -139,98 +285,30 @@ export function TripGemsSheet({
           </Text>
         </View>
       ) : (
-        <View style={styles.list}>
-          {tripGems.map((tg) => {
+        <View>
+          {tripGems.map((tg, i) => {
             const gem = gemMap.get(tg.gemId);
             const canSell =
-              !!canRecordSales &&
-              !!onRequestSale &&
-              !!gem &&
-              resolveGemSaleStatus(gem) === "unsold" &&
-              tg.role === "parcel" &&
-              tg.status === "on_trip";
-
+              !!onRequestSale && canSellTripGem(tg, gem, canRecordSales);
             return (
-              <View key={tg.id} style={styles.gemWrap}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    gem
-                      ? `${gem.title?.trim() || formatGemType(gem.gemType)}, ${gem.currentWeight} carat`
-                      : "Gem"
-                  }
-                  onPress={() => {
-                    handleClose();
-                    onOpenGem(tg.gemId);
-                  }}
-                  style={({ pressed }) => [
-                    styles.row,
-                    {
-                      backgroundColor: colors.surfaceContainerLow,
-                      borderColor: colors.outlineVariant,
-                    },
-                    pressed && { opacity: 0.9 },
-                  ]}
-                >
-                  <GemThumb gem={gem} />
-                  <View style={styles.rowBody}>
-                    <Text
-                      style={[styles.rowTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {gem?.title?.trim() ||
-                        gem?.sku ||
-                        tg.gemId.slice(0, 8)}{" "}
-                      · {tg.role === "purchase" ? "Purchase" : "Parcel"}
-                    </Text>
-                    <Text
-                      style={[styles.rowSub, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {gem
-                        ? `${formatGemType(gem.gemType)} · ${gem.currentWeight}ct`
-                        : tg.status}
-                    </Text>
-                  </View>
-                  <Text style={[styles.rowAmt, { color: colors.primary }]}>
-                    {tg.salePrice != null
-                      ? formatBase(tg.salePrice)
-                      : tg.purchaseCost != null
-                        ? formatBase(tg.purchaseCost)
-                        : "—"}
-                  </Text>
-                </Pressable>
-
-                {canSell ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Sell gem"
-                    onPress={() => {
-                      handleClose();
-                      onRequestSale?.(tg);
-                    }}
-                    style={({ pressed }) => [
-                      styles.saleBtn,
-                      { backgroundColor: colors.primaryContainer },
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <Icon
-                      name="sell"
-                      size={16}
-                      color={colors.onPrimaryContainer}
-                    />
-                    <Text
-                      style={[
-                        styles.saleBtnText,
-                        { color: colors.onPrimaryContainer },
-                      ]}
-                    >
-                      Sell gem
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
+              <TripGemRow
+                key={tg.id}
+                tripGem={tg}
+                gem={gem}
+                isLast={i === tripGems.length - 1}
+                onPress={() => {
+                  handleClose();
+                  onOpenGem(tg.gemId);
+                }}
+                onSell={
+                  canSell
+                    ? () => {
+                        handleClose();
+                        onRequestSale?.(tg);
+                      }
+                    : null
+                }
+              />
             );
           })}
         </View>
@@ -252,7 +330,7 @@ export function TripGemAvatar({
   return <GemThumb gem={gem} selected={selected} size={size} />;
 }
 
-/** Sold parcels on the trip detail screen — count, revenue, gem cards. */
+/** Sold parcels band on the trip detail screen — gem rows and revenue total. */
 export function TripSoldGemsSection({
   soldGems,
   gemMap,
@@ -262,7 +340,6 @@ export function TripSoldGemsSection({
   gemMap: Map<string, WorkspaceGem>;
   onOpenGem: (gemId: string) => void;
 }) {
-  const { colors } = useAppTheme();
   const { formatBase } = usePreferredMoney();
 
   if (soldGems.length === 0) return null;
@@ -270,120 +347,28 @@ export function TripSoldGemsSection({
   const totalRevenue = soldGems.reduce((s, tg) => s + (tg.salePrice ?? 0), 0);
 
   return (
-    <View style={styles.soldSection}>
-      <Text style={[styles.soldSectionTitle, { color: colors.onSurface }]}>
-        Sold gems
-      </Text>
-
-      <View style={styles.soldStats}>
-        <View
-          style={[
-            styles.soldStatCard,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Text style={[styles.soldStatLabel, { color: colors.textMuted }]}>
-            Sold
-          </Text>
-          <Text
-            selectable={false}
-            style={[styles.soldStatValue, { color: colors.onSurface }]}
-          >
-            {soldGems.length}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.soldStatCard,
-            styles.soldStatCardWide,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}
-        >
-          <Text style={[styles.soldStatLabel, { color: colors.textMuted }]}>
-            Revenue
-          </Text>
-          <Text
-            selectable={false}
-            style={[styles.soldStatValue, { color: colors.successEmerald }]}
-          >
-            {formatBase(totalRevenue)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.soldList}>
-        {soldGems.map((tg) => {
-          const gem = gemMap.get(tg.gemId);
-          const title =
-            gem?.title?.trim() || gem?.sku || tg.gemId.slice(0, 8);
-          const typeLabel = gem ? formatGemType(gem.gemType) : null;
-          const weightLabel = gem ? `${gem.currentWeight} ct` : null;
+    <DetailBand title="Sold gems">
+      <View>
+        {soldGems.map((tg, i) => {
           const saleDate = toTripDate(tg.saleDate);
-
           return (
-            <Pressable
+            <TripGemRow
               key={tg.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${title}, sold`}
+              tripGem={tg}
+              gem={gemMap.get(tg.gemId)}
+              meta={saleDate ? `Sold ${formatDate(saleDate)}` : null}
+              isLast={i === soldGems.length - 1}
               onPress={() => onOpenGem(tg.gemId)}
-              style={({ pressed }) => [
-                styles.soldGemCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.outlineVariant,
-                },
-                pressed && { opacity: 0.9 },
-              ]}
-            >
-              <GemThumb gem={gem} size={72} />
-              <View style={styles.soldGemBody}>
-                <Text
-                  style={[styles.soldGemTitle, { color: colors.onSurface }]}
-                  numberOfLines={1}
-                >
-                  {title}
-                </Text>
-                {(typeLabel || weightLabel) && (
-                  <Text
-                    style={[styles.soldGemMeta, { color: colors.textMuted }]}
-                    numberOfLines={1}
-                  >
-                    {[typeLabel, weightLabel].filter(Boolean).join(" · ")}
-                  </Text>
-                )}
-                {gem?.sku ? (
-                  <Text
-                    style={[styles.soldGemSku, { color: colors.onSurfaceVariant }]}
-                    numberOfLines={1}
-                  >
-                    {gem.sku}
-                  </Text>
-                ) : null}
-                <View style={styles.soldGemFooter}>
-                  <Text
-                    selectable={false}
-                    style={[styles.soldGemPrice, { color: colors.successEmerald }]}
-                  >
-                    {tg.salePrice != null ? formatBase(tg.salePrice) : "—"}
-                  </Text>
-                  {saleDate ? (
-                    <Text
-                      style={[
-                        styles.soldGemDate,
-                        { color: colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {formatDate(saleDate)}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-              <Icon name="chevron-right" size={20} color={colors.outline} />
-            </Pressable>
+            />
           );
         })}
+        <TotalRow
+          label={`Revenue · ${soldGems.length} sold`}
+          value={formatBase(totalRevenue)}
+          accent={Accent.emerald}
+        />
       </View>
-    </View>
+    </DetailBand>
   );
 }
 
@@ -394,19 +379,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     paddingHorizontal: Spacing.lg,
   },
-  emptyTitle: { ...Typography.labelMd, fontWeight: "700" },
-  emptySub: { ...Typography.bodySmall, textAlign: "center" },
-  list: { gap: Spacing.md },
-  gemWrap: { gap: Spacing.sm },
+  emptyTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, marginTop: Spacing.xs },
+  emptySub: { ...text, ...Typography.bodySmall, textAlign: "center" },
+
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
+    gap: 12,
+    minHeight: 72,
+    paddingVertical: 12,
   },
+  pressed: { opacity: 0.7 },
   thumb: {
     overflow: "hidden",
     alignItems: "center",
@@ -414,83 +397,27 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
   },
   thumbImg: { width: "100%", height: "100%" },
-  rowBody: { flex: 1, gap: 2, minWidth: 0 },
-  rowTitle: { ...Typography.labelMd, fontWeight: "600" },
-  rowSub: { ...Typography.bodySmall },
-  rowAmt: {
-    ...Typography.labelMd,
-    fontWeight: "700",
+  rowCopy: { flex: 1, minWidth: 0, gap: 2 },
+  rowTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, lineHeight: 21 },
+  rowSubtitle: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18 },
+  rowMeta: { ...text, fontFamily: FontFamily.regular, fontSize: 12, lineHeight: 16 },
+  rowTrailing: { alignItems: "flex-end", gap: 6, maxWidth: "45%" },
+  rowAmount: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
     fontVariant: ["tabular-nums"],
   },
-  saleBtn: {
+  sellPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+    gap: 4,
+    height: 26,
+    paddingHorizontal: 10,
     borderRadius: Radius.full,
-    alignSelf: "stretch",
-    minHeight: 44,
   },
-  saleBtnText: { ...Typography.labelMd, fontWeight: "600" },
+  sellText: { ...text, color: "#FFFFFF", fontFamily: FontFamily.semibold, fontSize: 12 },
+
   footerRow: { flexDirection: "row", gap: Spacing.sm },
   footerHalf: { flex: 1 },
-
-  soldSection: { gap: Spacing.md },
-  soldSectionTitle: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-  },
-  soldStats: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  soldStatCard: {
-    flex: 1,
-    gap: 4,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-  },
-  soldStatCardWide: { flex: 1.4 },
-  soldStatLabel: {
-    ...Typography.labelMd,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  soldStatValue: {
-    ...Typography.headlineMdMobile,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  soldList: { gap: Spacing.sm },
-  soldGemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  soldGemBody: { flex: 1, gap: 3, minWidth: 0 },
-  soldGemTitle: { ...Typography.labelMd, fontWeight: "700", fontSize: 15 },
-  soldGemMeta: { ...Typography.bodySmall },
-  soldGemSku: { ...Typography.caption },
-  soldGemFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.sm,
-    marginTop: 2,
-  },
-  soldGemPrice: {
-    ...Typography.labelMd,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  soldGemDate: { ...Typography.caption },
 });

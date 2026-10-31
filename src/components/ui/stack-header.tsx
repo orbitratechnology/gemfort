@@ -1,7 +1,13 @@
 import { Image } from "expo-image";
 import { router, useNavigation, usePathname } from "expo-router";
-import { type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState, type ReactNode } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 
 import { Icon } from "@/components/ui/icon";
 import { Spacing, TouchTarget, Typography } from "@/constants/design-tokens";
@@ -53,6 +59,23 @@ export function StackHeader({
   const chipStyle = tintColor
     ? [styles.side, styles.sideChip]
     : styles.side;
+  // The title is laid over the full row and inset by the wider side, so it
+  // stays optically centred when left and right hold different action counts.
+  const [sideWidths, setSideWidths] = useState({
+    left: TouchTarget.minWidth,
+    right: TouchTarget.minWidth,
+  });
+  const titleInset =
+    Spacing.containerMargin +
+    Math.max(sideWidths.left, sideWidths.right) +
+    Spacing.stackSm;
+  const measureSide =
+    (side: "left" | "right") => (event: LayoutChangeEvent) => {
+      const width = Math.ceil(event.nativeEvent.layout.width);
+      setSideWidths((prev) =>
+        prev[side] === width ? prev : { ...prev, [side]: width },
+      );
+    };
 
   const handleBack = () => {
     if (onBack) {
@@ -79,27 +102,10 @@ export function StackHeader({
 
   return (
     <View style={styles.header}>
-      {showBack ? (
-        <Pressable
-        onPress={handleBack}
-        style={chipStyle}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={closeIcon ? "Close" : "Go back"}
-        >
-          <Icon
-            name={closeIcon ? "close" : "arrow-back"}
-            size={24}
-            color={fg}
-          />
-        </Pressable>
-      ) : left ? (
-        <View style={[styles.side, styles.left]}>{left}</View>
-
-      ) : (
-        <View style={styles.side} />
-      )}
-      <View style={styles.titleWrap}>
+      <View
+        pointerEvents="none"
+        style={[styles.titleWrap, { paddingHorizontal: titleInset }]}
+      >
         {image ? (
           <Image
           source={image}
@@ -116,7 +122,37 @@ export function StackHeader({
           {title}
         </Text>
       </View>
-      <View style={[styles.side, styles.right]}>{right}</View>
+      {showBack ? (
+        <Pressable
+        onLayout={measureSide("left")}
+        onPress={handleBack}
+        style={chipStyle}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={closeIcon ? "Close" : "Go back"}
+        >
+          <Icon
+            name={closeIcon ? "close" : "arrow-back"}
+            size={24}
+            color={fg}
+          />
+        </Pressable>
+      ) : left ? (
+        <View
+          onLayout={measureSide("left")}
+          style={[styles.side, styles.left]}
+        >
+          {left}
+        </View>
+      ) : (
+        <View onLayout={measureSide("left")} style={styles.side} />
+      )}
+      <View
+        onLayout={measureSide("right")}
+        style={[styles.side, styles.right]}
+      >
+        {right}
+      </View>
     </View>
   );
 }
@@ -149,7 +185,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   titleWrap: {
-    flex: 1,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

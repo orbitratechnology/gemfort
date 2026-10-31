@@ -16,6 +16,7 @@ export const onServiceRequestCreated = onDocumentCreated(
   {
     document: 'gemtrack_services/{serviceId}',
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const data = event.data?.data();
@@ -38,6 +39,7 @@ export const onServiceRequestUpdated = onDocumentUpdated(
   {
     document: 'gemtrack_services/{serviceId}',
     region: REGION,
+    retry: true,
   },
   async (event) => {
     const before = event.data?.before.data();

@@ -6,14 +6,13 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/ui/empty-state";
-import { Icon } from "@/components/ui/icon";
 import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SearchField } from "@/components/ui/search-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { GemCard } from "@/components/workspace/gem-card";
 import { Radius, Spacing, Typography } from "@/constants/design-tokens";
@@ -76,25 +75,12 @@ export default function GemsArchiveScreen() {
       <StackHeader title="Archive" />
 
       <View style={styles.searchRow}>
-        <View
-          style={[
-            styles.searchBox,
-            { backgroundColor: colors.surfaceContainerLow },
-          ]}
-        >
-          <View style={styles.searchIcon}>
-            <Icon name="search" size={20} color={colors.outline} />
-          </View>
-          <TextInput
-            style={[styles.searchInput, { color: colors.onSurface }]}
-            placeholder="Search sold or returned…"
-            placeholderTextColor={colors.outline}
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-            accessibilityLabel="Search archive"
-          />
-        </View>
+        <SearchField
+          placeholder="Search sold or returned…"
+          value={search}
+          onChangeText={setSearch}
+          accessibilityLabel="Search archive"
+        />
       </View>
 
       <View style={styles.tabs}>
@@ -147,7 +133,7 @@ export default function GemsArchiveScreen() {
         masonry
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />
         }
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
@@ -193,14 +179,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.containerMargin,
     paddingBottom: Spacing.stackMd,
   },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: Radius.full,
-    height: 44,
-  },
-  searchIcon: { marginLeft: 12 },
-  searchInput: { flex: 1, paddingHorizontal: 12, ...Typography.bodyMd },
   tabs: {
     flexDirection: "row",
     gap: 8,

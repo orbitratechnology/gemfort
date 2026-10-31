@@ -6,17 +6,17 @@ import {
     RefreshControl,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { EmptyState } from "@/components/ui/empty-state";
-import { Icon, type IconName } from "@/components/ui/icon";
-import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
 import { Button } from "@/components/ui/button";
-import { FormSectionLabel, ScreenInset } from "@/components/ui/form-section";
+import { Accent, IconBubble, ListItem, ListSectionHeader } from "@/components/ui/detail-kit";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icon";
+import { InfiniteListFooter } from "@/components/ui/infinite-list-footer";
+import { SearchField } from "@/components/ui/search-field";
 import { StackHeader } from "@/components/ui/stack-header";
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import {
@@ -25,7 +25,7 @@ import {
 } from "@/components/workspace/context-actions-link";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
 import { WORKSPACE_ENTITY_IMAGES } from "@/constants/workspace-entity-images";
 import { canAccessModule, resolveProfileRole } from "@/constants/roles";
 import { fetchBusinesses } from "@/features/marketplace/marketplace-service";
@@ -70,53 +70,39 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "cancelled", label: "Cancelled" },
 ];
 
-function statusTone(
-  status: LapidaryJob["status"],
-  colors: ReturnType<typeof useAppTheme>["colors"],
-): { bg: string; fg: string; accent: string; icon: IconName; label: string } {
+const THUMB = 52;
+
+/** Status label + semantic accent (see `Accent` in the detail kit). */
+function statusMeta(status: LapidaryJob["status"]): {
+  label: string;
+  accent: string;
+} {
   switch (status) {
     case "in_progress":
-      return {
-        bg: colors.primaryContainer,
-        fg: colors.onPrimaryContainer,
-        accent: colors.primary,
-        icon: "sync",
-        label: "In Progress",
-      };
+      return { label: "In Progress", accent: Accent.blue };
     case "ready":
-      return {
-        bg: colors.successEmerald + "22",
-        fg: colors.successEmerald,
-        accent: colors.successEmerald,
-        icon: "check-circle",
-        label: "Ready",
-      };
+      return { label: "Ready", accent: Accent.emerald };
     case "returned":
-      return {
-        bg: colors.successEmerald + "22",
-        fg: colors.successEmerald,
-        accent: colors.successEmerald,
-        icon: "done-all",
-        label: "Returned",
-      };
+      return { label: "Returned", accent: Accent.emerald };
     case "cancelled":
-      return {
-        bg: colors.surfaceContainerHighest,
-        fg: colors.onSurfaceVariant,
-        accent: colors.outline,
-        icon: "cancel",
-        label: "Cancelled",
-      };
+      return { label: "Cancelled", accent: Accent.slate };
     default:
-      return {
-        bg: colors.secondaryContainer,
-        fg: colors.onSecondaryContainer,
-        accent: colors.secondary,
-        icon: "hourglass-top",
-        label: "Queued",
-      };
+      return { label: "Queued", accent: Accent.amber };
   }
 }
+
+function isClosed(status: LapidaryJob["status"]) {
+  return status === "returned" || status === "cancelled";
+}
+
+function typesLabel(types: string[]) {
+  const label = types.map((t) => t.replace(/_/g, " ")).join(", ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+type Row =
+  | { kind: "header"; key: string; title: string; count: number }
+  | { kind: "item"; key: string; item: LapidaryJob; isLast: boolean };
 
 export default function LapidaryJobsScreen() {
   const { user, profile } = useAuth();
@@ -127,6 +113,8 @@ export default function LapidaryJobsScreen() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  // Cancellation response in flight, so only the tapped button spins.
+  const [respondingKey, setRespondingKey] = useState<string | null>(null);
 
   const canView = !!user && canAccessModule(role, "jobs");
 
@@ -268,6 +256,8 @@ export default function LapidaryJobsScreen() {
     serviceId: string,
     action: "accepted" | "rejected",
   ) {
+    if (respondingKey) return;
+    setRespondingKey(`${serviceId}-${action}`);
     try {
       await respondServiceCancellation(serviceId, action);
       await queryClient.invalidateQueries({ queryKey: ["provider-services"] });
@@ -276,8 +266,46 @@ export default function LapidaryJobsScreen() {
       );
     } catch (e) {
       toast.error(friendlyError(e, "Could not respond to cancellation."));
+    } finally {
+      setRespondingKey(null);
     }
   }
+
+  // "All" splits open work from finished jobs; a status filter is one list.
+  const rows = useMemo<Row[]>(() => {
+    const toItems = (list: LapidaryJob[]): Row[] =>
+      list.map((item, i) => ({
+        kind: "item",
+        key: item.id,
+        item,
+        isLast: i === list.length - 1,
+      }));
+    if (filter !== "all") {
+      return filtered.length
+        ? [
+            { kind: "header", key: "h-filtered", title: "Jobs", count: filtered.length },
+            ...toItems(filtered),
+          ]
+        : [];
+    }
+    const open = filtered.filter((j) => !isClosed(j.status));
+    const closed = filtered.filter((j) => isClosed(j.status));
+    const out: Row[] = [];
+    if (open.length) {
+      out.push({ kind: "header", key: "h-open", title: "Active jobs", count: open.length });
+      out.push(...toItems(open));
+    }
+    if (closed.length) {
+      out.push({
+        kind: "header",
+        key: "h-closed",
+        title: "Returned & cancelled",
+        count: closed.length,
+      });
+      out.push(...toItems(closed));
+    }
+    return out;
+  }, [filtered, filter]);
 
   if (!user) return null;
   if (!canAccessModule(role, "jobs")) {
@@ -301,6 +329,67 @@ export default function LapidaryJobsScreen() {
     (s) => s.status === "cancellation_requested",
   );
 
+  function renderJob(j: LapidaryJob, isLast: boolean) {
+    const status = statusMeta(j.status);
+    const traderName = traderLabel(j.traderUid, j.traderBusinessName);
+    const traderAvatar = traderPhoto(j.traderBusinessId);
+    const canDelete = j.status === "cancelled" || j.status === "returned";
+    const actions: ContextMenuAction[] = canDelete
+      ? [
+          {
+            label: "Delete",
+            icon: "trash",
+            destructive: true,
+            onPress: () =>
+              confirmDelete(
+                "Delete workshop job",
+                "Remove this completed or cancelled job from Workshop Jobs? The sender's service history will remain.",
+                () => onDeleteJob(j.id),
+              ),
+          },
+        ]
+      : [];
+    return (
+      <ContextActionsLink
+        href={`/(marketplace)/(tabs)/workspace/jobs/${j.id}` as never}
+        accessibilityLabel={`${j.gemName}, ${status.label}, from ${traderName}`}
+        actions={actions}
+      >
+        <ListItem
+          leading={
+            <View style={styles.media}>
+              <GemThumb
+                uri={j.gemPhotoUrl}
+                label={j.gemName}
+                size={THUMB}
+                radius={14}
+              />
+              <View
+                style={[
+                  styles.partyBadge,
+                  { borderColor: colors.surfaceContainerLowest },
+                ]}
+              >
+                <ContactAvatar
+                  name={traderName}
+                  photoUrl={traderAvatar}
+                  size={22}
+                />
+              </View>
+            </View>
+          }
+          title={j.gemName}
+          subtitle={`${typesLabel(j.serviceTypes)} · From ${traderName}`}
+          meta={[j.notes, formatRelativeTime(j.updatedAt)]
+            .filter(Boolean)
+            .join(" · ")}
+          status={status}
+          isLast={isLast}
+        />
+      </ContextActionsLink>
+    );
+  }
+
   return (
     <SafeAreaView
       style={[styles.safe, { backgroundColor: colors.background }]}
@@ -310,8 +399,9 @@ export default function LapidaryJobsScreen() {
       <StackHeader title="Workshop jobs" />
 
       <FlashList
-        data={filtered}
-        keyExtractor={(item) => item.id}
+        data={rows}
+        keyExtractor={(row) => row.key}
+        getItemType={(row) => row.kind}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
@@ -328,205 +418,118 @@ export default function LapidaryJobsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={styles.listHeader}>
+          <View>
             {pending.length > 0 ? (
-              <View
-                style={[
-                  styles.incomingSection,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                  },
-                ]}
-              >
-                <View style={styles.incomingHeader}>
-                  <View
-                    style={[
-                      styles.incomingIcon,
-                      { backgroundColor: colors.primaryContainer },
-                    ]}
+              <View>
+                <ListSectionHeader
+                  title="Incoming requests"
+                  count={pending.length}
+                  hint="Tap a request to review the job and respond."
+                />
+                {pending.map((r, i) => (
+                  <ContextActionsLink
+                    key={r.id}
+                    href={`/(marketplace)/(tabs)/workspace/jobs/${r.id}` as never}
+                    accessibilityLabel={`${r.gemName}, incoming service request`}
                   >
-                    <Icon
-                      name="inbox"
-                      size={20}
-                      color={colors.onPrimaryContainer}
+                    <ListItem
+                      leading={
+                        <GemThumb
+                          uri={r.gemPhotoUrl}
+                          label={r.gemName || "Gem"}
+                          size={THUMB}
+                          radius={14}
+                        />
+                      }
+                      title={r.gemName || "Gem"}
+                      subtitle={
+                        r.serviceTypes.length > 0
+                          ? typesLabel(r.serviceTypes)
+                          : "Service request"
+                      }
+                      meta={[r.notes, formatRelativeTime(r.updatedAt)]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      status={{ label: "New", accent: Accent.amber }}
+                      isLast={i === pending.length - 1}
                     />
-                  </View>
-                  <View style={styles.incomingHeaderBody}>
-                    <Text
-                      style={[styles.incomingTitle, { color: colors.onSurface }]}
-                    >
-                      Incoming requests
-                    </Text>
-                    <Text
-                      style={[styles.incomingSub, { color: colors.textMuted }]}
-                    >
-                      Tap a request to review the job and respond.
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.incomingCount,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.incomingCountText,
-                        { color: colors.onPrimary },
-                      ]}
-                    >
-                      {pending.length}
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.requestList,
-                    { borderTopColor: colors.outlineVariant },
-                  ]}
-                >
-                  {pending.map((r) => (
-                    <ContextActionsLink
-                      key={r.id}
-                      href={`/(marketplace)/(tabs)/workspace/jobs/${r.id}` as never}
-                      accessibilityLabel={`${r.gemName}, incoming service request`}
-                    >
-                      {({ pressed }) => (
-                        <View
-                          style={[
-                            styles.requestRow,
-                            { borderBottomColor: colors.outlineVariant },
-                            pressed && styles.pressed,
-                          ]}
-                        >
-                          <GemThumb
-                            uri={r.gemPhotoUrl}
-                            label={r.gemName || "Gem"}
-                            size={52}
-                            radius={14}
-                          />
-                          <View style={styles.requestBody}>
-                            <View style={styles.requestTitleRow}>
-                              <Text
-                                style={[
-                                  styles.requestTitle,
-                                  { color: colors.onSurface },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {r.gemName || "Gem"}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.requestTime,
-                                  { color: colors.textMuted },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {formatRelativeTime(r.updatedAt)}
-                              </Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.requestTypes,
-                                { color: colors.onSurfaceVariant },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {r.serviceTypes.length > 0
-                                ? r.serviceTypes
-                                    .map((type) => type.replace(/_/g, " "))
-                                    .join(", ")
-                                : "Service request"}
-                            </Text>
-                            {r.notes ? (
-                              <Text
-                                style={[
-                                  styles.requestNote,
-                                  { color: colors.textMuted },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {r.notes}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Icon
-                            name="chevron-right"
-                            size={20}
-                            color={colors.outline}
-                          />
-                        </View>
-                      )}
-                    </ContextActionsLink>
-                  ))}
-                </View>
+                  </ContextActionsLink>
+                ))}
               </View>
             ) : null}
 
             {cancellationRequests.length > 0 ? (
-              <View style={styles.actionSection}>
-                <FormSectionLabel title="Cancellation requests" />
-                <ScreenInset style={styles.sectionBody}>
-                  {cancellationRequests.map((s) => (
-                    <View
-                      key={s.id}
-                      style={[
-                        styles.card,
-                        { backgroundColor: colors.surfaceContainerLowest },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.title, { color: colors.onSurface }]}
-                        numberOfLines={1}
-                      >
-                        {s.serviceType.replace(/_/g, " ")}
-                      </Text>
-                      <Text style={[styles.sub, { color: colors.textMuted }]}>
-                        A trader asked to cancel this service.
-                      </Text>
-                      <View style={styles.row}>
-                        <Button
-                          title="Accept"
-                          onPress={() =>
-                            onRespondCancellation(s.id, "accepted")
-                          }
-                        />
-                        <Button
-                          title="Decline"
-                          variant="secondary"
-                          onPress={() =>
-                            onRespondCancellation(s.id, "rejected")
-                          }
-                        />
+              <View>
+                <ListSectionHeader
+                  title="Cancellation requests"
+                  count={cancellationRequests.length}
+                />
+                {cancellationRequests.map((s, i) => (
+                  <View
+                    key={s.id}
+                    style={[
+                      styles.cancelItem,
+                      { backgroundColor: colors.surfaceContainerLowest },
+                      i < cancellationRequests.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <View style={styles.cancelHead}>
+                      <IconBubble icon="hourglass-top" accent={Accent.amber} />
+                      <View style={styles.cancelCopy}>
+                        <Text
+                          style={[styles.cancelTitle, { color: colors.onSurface }]}
+                          numberOfLines={1}
+                        >
+                          {typesLabel([s.serviceType])}
+                        </Text>
+                        <Text
+                          style={[styles.cancelSub, { color: colors.onSurfaceVariant }]}
+                        >
+                          A trader asked to cancel this service.
+                        </Text>
                       </View>
                     </View>
-                  ))}
-                </ScreenInset>
+                    <View style={styles.buttonRow}>
+                      <Button
+                        title="Accept"
+                        icon="check"
+                        loading={respondingKey === `${s.id}-accepted`}
+                        disabled={respondingKey !== null}
+                        onPress={() =>
+                          onRespondCancellation(s.id, "accepted")
+                        }
+                        style={styles.flex}
+                      />
+                      <Button
+                        title="Decline"
+                        icon="close"
+                        variant="secondary"
+                        loading={respondingKey === `${s.id}-rejected`}
+                        disabled={respondingKey !== null}
+                        onPress={() =>
+                          onRespondCancellation(s.id, "rejected")
+                        }
+                        style={styles.flex}
+                      />
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : null}
 
-            <View style={styles.listHeader}>
-              <View
-                style={[
-                  styles.searchBox,
-                  { backgroundColor: colors.surfaceContainerLow },
-                ]}
-              >
-                <Icon name="search" size={22} color={colors.outline} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.onSurface }]}
-                  placeholder="Search gems, services, or traders..."
-                  placeholderTextColor={colors.outline}
-                  value={search}
-                  onChangeText={setSearch}
-                />
-              </View>
+            <View style={styles.searchBlock}>
+              <SearchField
+                placeholder="Search gems, services, or traders..."
+                value={search}
+                onChangeText={setSearch}
+                style={styles.search}
+              />
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.hBleed}
                 contentContainerStyle={styles.filterRow}
               >
                 {FILTERS.map((f) => {
@@ -535,6 +538,8 @@ export default function LapidaryJobsScreen() {
                     <Pressable
                       key={f.id}
                       onPress={() => setFilter(f.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                       style={[
                         styles.filterChip,
                         active
@@ -584,118 +589,13 @@ export default function LapidaryJobsScreen() {
             />
           )
         }
-        renderItem={({ item: j }) => {
-          const tone = statusTone(j.status, colors);
-          const traderName = traderLabel(j.traderUid, j.traderBusinessName);
-          const traderAvatar = traderPhoto(j.traderBusinessId);
-          const types = j.serviceTypes
-            .map((t) => t.replace(/_/g, " "))
-            .join(", ");
-          const canDelete = j.status === "cancelled" || j.status === "returned";
-          const actions: ContextMenuAction[] = canDelete
-            ? [
-                {
-                  label: "Delete",
-                  icon: "trash",
-                  destructive: true,
-                  onPress: () =>
-                    confirmDelete(
-                      "Delete workshop job",
-                      "Remove this completed or cancelled job from Workshop Jobs? The sender's service history will remain.",
-                      () => onDeleteJob(j.id),
-                    ),
-                },
-              ]
-            : [];
-          const cardBackground =
-            j.status === "cancelled"
-              ? colors.surfaceContainerHighest
-              : j.status === "returned"
-                ? colors.successEmerald + "12"
-                : colors.surfaceContainerLowest;
-          return (
-            <ContextActionsLink
-              href={`/(marketplace)/(tabs)/workspace/jobs/${j.id}` as never}
-              accessibilityLabel={`${j.gemName}, ${tone.label}, from ${traderName}`}
-              actions={actions}
-            >
-              {({ pressed }) => (
-                <View
-                  style={[
-                    styles.jobRow,
-                    {
-                      backgroundColor: cardBackground,
-                      borderColor:
-                        j.status === "cancelled"
-                          ? colors.outline
-                          : colors.outlineVariant,
-                      opacity: pressed ? 0.88 : 1,
-                    },
-                  ]}
-                >
-                  <View style={styles.mediaCol}>
-                    <View style={styles.mediaStack}>
-                      <GemThumb
-                        uri={j.gemPhotoUrl}
-                        label={j.gemName}
-                        size={56}
-                        radius={12}
-                      />
-                      <View
-                        style={[
-                          styles.partyBadge,
-                          { borderColor: colors.surfaceContainerLowest },
-                        ]}
-                      >
-                        <ContactAvatar
-                          name={traderName}
-                          photoUrl={traderAvatar}
-                          size={28}
-                        />
-                      </View>
-                    </View>
-                    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                      <Icon name={tone.icon} size={11} color={tone.fg} />
-                      <Text style={[styles.badgeText, { color: tone.fg }]} numberOfLines={1}>
-                        {tone.label}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text
-                      style={[styles.rowTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {j.gemName}
-                    </Text>
-                    <View style={styles.partyRow}>
-                      <Icon
-                        name="call-received"
-                        size={14}
-                        color={colors.onSurfaceVariant}
-                      />
-                      <Text
-                        style={[styles.rowSub, { color: colors.onSurfaceVariant }]}
-                        numberOfLines={1}
-                      >
-                        From {traderName}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[styles.rowSub, { color: colors.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {types}
-                      {j.notes ? ` · ${j.notes}` : ""} ·{" "}
-                      {formatRelativeTime(j.updatedAt)}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.outline} />
-                </View>
-              )}
-            </ContextActionsLink>
-          );
-        }}
+        renderItem={({ item: row }) =>
+          row.kind === "header" ? (
+            <ListSectionHeader title={row.title} count={row.count} />
+          ) : (
+            renderJob(row.item, row.isLast)
+          )
+        }
       />
     </SafeAreaView>
   );
@@ -704,97 +604,32 @@ export default function LapidaryJobsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
 
-  content: {
-    padding: Spacing.containerMargin,
-    paddingBottom: 100,
-    gap: Spacing.gutterMd,
-  },
-  listHeader: { gap: Spacing.gutterMd },
-  actionSection: { gap: Spacing.gutterMd },
-  sectionBody: { gap: Spacing.md },
-  card: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    padding: Spacing.lg,
-    gap: 6,
-    marginBottom: Spacing.sm,
-  },
-  title: { ...Typography.headlineSmMobile, fontWeight: "700" },
-  sub: { ...Typography.caption },
-  row: { flexDirection: "row", gap: Spacing.stackSm, marginTop: Spacing.stackSm },
-  incomingSection: {
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.07)",
-  },
-  incomingHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: Spacing.lg,
-  },
-  incomingIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  incomingHeaderBody: { flex: 1, minWidth: 0, gap: 3 },
-  incomingTitle: { ...Typography.headlineSmMobile, fontWeight: "800" },
-  incomingSub: { ...Typography.caption, lineHeight: 17 },
-  incomingCount: {
-    minWidth: 30,
-    height: 30,
-    paddingHorizontal: 8,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  incomingCountText: {
-    ...Typography.labelMd,
-    fontWeight: "800",
-    fontVariant: ["tabular-nums"],
-  },
-  requestList: { borderTopWidth: StyleSheet.hairlineWidth },
-  requestRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  requestBody: { flex: 1, minWidth: 0, gap: 3 },
-  requestTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  requestTitle: { ...Typography.bodyMd, fontWeight: "800", flex: 1 },
-  requestTime: { ...Typography.caption, fontVariant: ["tabular-nums"] },
-  requestTypes: {
-    ...Typography.caption,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  requestNote: { ...Typography.caption },
-  pressed: { opacity: 0.78 },
+  content: { paddingBottom: 100 },
+  flex: { flex: 1 },
 
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    height: 48,
+  cancelItem: {
+    paddingHorizontal: Spacing.containerMargin,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.md,
   },
-  searchInput: { flex: 1, ...Typography.bodyLg },
-  hBleed: {
-    marginHorizontal: -Spacing.containerMargin,
+  cancelHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  cancelCopy: { flex: 1, minWidth: 0, gap: 2 },
+  cancelTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 21,
+    includeFontPadding: false,
   },
+  cancelSub: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  buttonRow: { flexDirection: "row", gap: Spacing.sm },
+
+  searchBlock: { gap: Spacing.md, paddingTop: Spacing.lg },
+  search: { marginHorizontal: Spacing.containerMargin },
   filterRow: {
     flexDirection: "row",
     gap: Spacing.stackSm,
@@ -811,52 +646,12 @@ const styles = StyleSheet.create({
   },
   filterText: { ...Typography.labelMd },
 
-  jobRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    marginBottom: Spacing.gutterMd,
-    borderRadius: Radius.xl,
-    borderCurve: "continuous",
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06)",
-  },
-  mediaCol: {
-    width: 72,
-    alignItems: "center",
-    gap: 8,
-  },
-  mediaStack: {
-    width: 56,
-    height: 56,
-  },
+  media: { width: THUMB, height: THUMB },
   partyBadge: {
     position: "absolute",
-    right: -4,
-    bottom: -4,
-    borderRadius: 16,
+    right: -5,
+    bottom: -5,
+    borderRadius: 8,
     borderWidth: 2,
   },
-  rowBody: { flex: 1, gap: 4, minWidth: 0 },
-  rowTitle: { ...Typography.bodyMd, fontWeight: "700" },
-  partyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  rowSub: { ...Typography.caption },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "flex-start",
-    gap: 3,
-    maxWidth: "100%",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
 });

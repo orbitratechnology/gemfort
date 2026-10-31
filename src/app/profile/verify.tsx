@@ -1,6 +1,5 @@
 import { DateTimePicker } from '@expo/ui/community/datetime-picker';
 import { format, subYears } from 'date-fns';
-import { Image } from 'expo-image';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -13,14 +12,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import {
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from '@/components/ui/field-chrome';
 import { FormSection, FormSectionLabel, ScreenInset } from '@/components/ui/form-section';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { ThemedScrollView } from '@/components/ui/screen';
 import { StackHeader } from '@/components/ui/stack-header';
-import { verificationBadgeAssets } from '@/components/ui/verification-badge';
-import { BUSINESS_REPUTATION_BADGE_COLORS } from '@/constants/business-reputation';
+import { VerificationSeal, type VerificationTier } from '@/components/ui/verification-badge';
+import { VerificationStatusCard } from '@/components/verification/verification-status-card';
+import {
+  BUSINESS_REPUTATION_BADGE_COLORS,
+  reputationBadgeForOwner,
+} from '@/constants/business-reputation';
 import { Radius, Spacing, Typography } from '@/constants/design-tokens';
 import { LAPIDARY_SERVICE_OPTIONS, resolveProfileRole } from '@/constants/roles';
 import {
@@ -29,6 +39,7 @@ import {
 } from '@/features/marketplace/marketplace-service';
 import { submitVerificationApplication } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePendingAction } from '@/hooks/use-pending-action';
 import { friendlyError } from '@/lib/errors';
 import {
     extensionForMedia,
@@ -37,7 +48,7 @@ import {
 } from '@/lib/firebase/storage-service';
 import { parseForm, verificationApplicantSchema } from '@/lib/validation/form-schemas';
 import { useAuth } from '@/providers/auth-provider';
-import { withLoading } from '@/providers/loading-bridge';
+import type { Business } from '@/types';
 import { useToast } from '@/providers/toast-provider';
 
 function parseIsoDate(value: string | null | undefined): Date | null {
@@ -47,59 +58,21 @@ function parseIsoDate(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-const VERIFICATION_TIERS = [
-  {
-    id: 'member',
-    number: '01',
-    title: 'Member',
-    shortDescription: 'Registered account',
-    description: 'Everyone starts here as soon as they join GemFort.',
-    label: 'STARTS HERE',
-    color: BUSINESS_REPUTATION_BADGE_COLORS.member,
-    image: verificationBadgeAssets.member,
-  },
-  {
-    id: 'identity',
-    number: '02',
-    title: 'Identity Verified',
-    shortDescription: 'NIC verified',
-    description: 'GemFort checks your NIC to confirm who you are.',
-    label: 'NIC CHECK',
-    color: BUSINESS_REPUTATION_BADGE_COLORS.identity,
-    image: verificationBadgeAssets.identity,
-  },
-  {
-    id: 'business',
-    number: '03',
-    title: 'Business Verified',
-    shortDescription: 'NIC + TIN + BR verified',
-    description: 'Add your tax number and business registration details.',
-    label: 'BUSINESS CHECK',
-    color: BUSINESS_REPUTATION_BADGE_COLORS.business,
-    image: verificationBadgeAssets.business,
-  },
-  {
-    id: 'gem',
-    number: '04',
-    title: 'Gem Verified',
-    shortDescription: 'All business documents + Gem Licence',
-    description: 'Add your Gem Licence for the highest document tier.',
-    label: 'GEM CHECK',
-    color: BUSINESS_REPUTATION_BADGE_COLORS.gem,
-    image: verificationBadgeAssets.gem,
-  },
+const VERIFICATION_TIERS: {
+  id: VerificationTier;
+  title: string;
+  requirement: string;
+}[] = [
+  { id: 'member', title: 'Member', requirement: 'Registered GemFort account' },
+  { id: 'identity', title: 'Identity Verified', requirement: 'NIC checked by GemFort' },
+  { id: 'business', title: 'Business Verified', requirement: 'NIC + TIN + Business Registration' },
+  { id: 'gem', title: 'Gem Verified', requirement: 'All business documents + Gem Licence' },
   {
     id: 'recognized',
-    number: '05',
     title: 'Recognized',
-    shortDescription: 'Approved by GemFort',
-    description:
-      'A manual badge for established partners, sponsors, associations, institutions, labs, and notable industry organizations.',
-    label: 'ADMIN ASSIGNED',
-    color: BUSINESS_REPUTATION_BADGE_COLORS.recognized,
-    image: verificationBadgeAssets.recognized,
+    requirement: 'Assigned by GemFort to established partners and institutions',
   },
-] as const;
+];
 
 export default function VerifyApplicationScreen() {
   const { user, profile, refreshProfile } = useAuth();
@@ -112,6 +85,7 @@ export default function VerifyApplicationScreen() {
   const maxDob = useMemo(() => new Date(), []);
   const minDob = useMemo(() => subYears(new Date(), 120), []);
 
+  const [business, setBusiness] = useState<Business | null>(null);
   const [businessName, setBusinessName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState(
     () => profile?.dateOfBirth ?? '',
@@ -131,13 +105,20 @@ export default function VerifyApplicationScreen() {
   const [licensePhoto, setLicensePhoto] = useState<LocalMedia | null>(null);
 
   const dobDate = parseIsoDate(dateOfBirth) ?? maxDob;
+  const dobChrome = useFieldChrome({
+    focused: showDobPicker,
+    error: !!applicantErrors.dateOfBirth,
+  });
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    void fetchBusinessByOwnerUid(user.uid).then((business) => {
-      if (cancelled || !business?.businessName) return;
-      setBusinessName((prev) => prev || business.businessName);
+    void fetchBusinessByOwnerUid(user.uid).then((found) => {
+      if (cancelled || !found) return;
+      setBusiness(found);
+      if (found.businessName) {
+        setBusinessName((prev) => prev || found.businessName);
+      }
     });
     return () => {
       cancelled = true;
@@ -150,9 +131,7 @@ export default function VerifyApplicationScreen() {
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/login" />;
-
-  async function handleSubmit() {
+  const [submitting, handleSubmit] = usePendingAction(async () => {
     if (!user) return;
 
     const applicant = parseForm(verificationApplicantSchema, {
@@ -176,83 +155,75 @@ export default function VerifyApplicationScreen() {
     }
 
     try {
-      await withLoading(async () => {
-        let nicPhotoUrl: string | null = null;
-        let brPhotoUrl: string | null = null;
-        let gemLicensePhotoUrl: string | null = null;
+      let nicPhotoUrl: string | null = null;
+      let brPhotoUrl: string | null = null;
+      let gemLicensePhotoUrl: string | null = null;
 
-        if (idPhoto) {
-          nicPhotoUrl = await uploadLocalMedia(
-            idPhoto,
-            `verification/${user.uid}/nic.${extensionForMedia(idPhoto)}`,
-          );
-        }
-        if (brPhoto) {
-          brPhotoUrl = await uploadLocalMedia(
-            brPhoto,
-            `verification/${user.uid}/br.${extensionForMedia(brPhoto)}`,
-          );
-        }
-        if (licensePhoto) {
-          gemLicensePhotoUrl = await uploadLocalMedia(
-            licensePhoto,
-            `verification/${user.uid}/gem-license.${extensionForMedia(licensePhoto)}`,
-          );
-        }
+      if (idPhoto) {
+        nicPhotoUrl = await uploadLocalMedia(
+          idPhoto,
+          `verification/${user.uid}/nic.${extensionForMedia(idPhoto)}`,
+        );
+      }
+      if (brPhoto) {
+        brPhotoUrl = await uploadLocalMedia(
+          brPhoto,
+          `verification/${user.uid}/br.${extensionForMedia(brPhoto)}`,
+        );
+      }
+      if (licensePhoto) {
+        gemLicensePhotoUrl = await uploadLocalMedia(
+          licensePhoto,
+          `verification/${user.uid}/gem-license.${extensionForMedia(licensePhoto)}`,
+        );
+      }
 
-        const business = await fetchBusinessByOwnerUid(user.uid);
-        if (business && business.businessName.trim() !== applicant.data.businessName) {
-          await updateBusinessProfile(business.id, {
-            businessName: applicant.data.businessName,
-          });
-        }
-
-        await submitVerificationApplication(user.uid, {
-          businessId: business?.id ?? 'pending',
-          applicationType: role === 'admin' ? 'trader' : role,
-          dateOfBirth: applicant.data.dateOfBirth,
+      const business = await fetchBusinessByOwnerUid(user.uid);
+      if (business && business.businessName.trim() !== applicant.data.businessName) {
+        await updateBusinessProfile(business.id, {
           businessName: applicant.data.businessName,
-          servicesOffered: isLapidary ? servicesOffered : [],
-          documents: {
-            brNumber: brNumber.trim() || null,
-            brPhotoUrl,
-            ngjaNumber: null,
-            ngjaPhotoUrl: null,
-            nicPhotoUrl,
-            gemLicenseNumber: gemLicenseNumber.trim() || null,
-            gemLicensePhotoUrl,
-            tinNumber: tinNumber.trim() || null,
-            businessPhotosUrls: [],
-            addressProofUrl: null,
-            otherDocUrls: [],
-          },
-          preserveVerifiedStatus: isPromotion,
         });
-        await refreshProfile();
-        toast.success('Verification application submitted.');
-        router.back();
-      }, 'Submitting…');
+      }
+
+      await submitVerificationApplication(user.uid, {
+        businessId: business?.id ?? 'pending',
+        applicationType: role === 'admin' ? 'trader' : role,
+        dateOfBirth: applicant.data.dateOfBirth,
+        businessName: applicant.data.businessName,
+        servicesOffered: isLapidary ? servicesOffered : [],
+        documents: {
+          brNumber: brNumber.trim() || null,
+          brPhotoUrl,
+          ngjaNumber: null,
+          ngjaPhotoUrl: null,
+          nicPhotoUrl,
+          gemLicenseNumber: gemLicenseNumber.trim() || null,
+          gemLicensePhotoUrl,
+          tinNumber: tinNumber.trim() || null,
+          businessPhotosUrls: [],
+          addressProofUrl: null,
+          otherDocUrls: [],
+        },
+        preserveVerifiedStatus: isPromotion,
+      });
+      await refreshProfile();
+      toast.success('Verification application submitted.');
+      router.back();
     } catch (e) {
       toast.error(friendlyError(e, 'Could not submit. Please try again.'));
     }
-  }
+  });
 
-  const heroDecoration =
-    colors.onPrimary === '#0a0a0a'
-      ? 'rgba(0, 0, 0, 0.08)'
-      : 'rgba(255, 255, 255, 0.16)';
+  if (!user) return <Redirect href="/(auth)/login" />;
+
+  const currentTier = reputationBadgeForOwner(profile, business);
+  const currentTierIndex = VERIFICATION_TIERS.findIndex((t) => t.id === currentTier);
+  const inReview =
+    profile?.verificationStatus === 'pending' ||
+    profile?.verificationStatus === 'under_review';
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <View
-          style={[styles.backdropGlow, { backgroundColor: colors.primaryMuted }]}
-        />
-        <View
-          style={[styles.backdropRing, { borderColor: colors.primaryMuted }]}
-        />
-      </View>
-
       <StackHeader title="Verification" closeIcon />
 
       <ThemedScrollView
@@ -260,141 +231,94 @@ export default function VerifyApplicationScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        <ScreenInset style={styles.heroInset}>
-          <View
-            style={[
-              styles.hero,
-              {
-                backgroundColor: colors.primary,
-                boxShadow: `0 10px 28px ${colors.cardShadow}`,
-              },
-            ]}>
-            <View
-              pointerEvents="none"
-              style={[styles.heroRing, { borderColor: heroDecoration }]}
-            />
-            <View
-              pointerEvents="none"
-              style={[styles.heroRingSmall, { borderColor: heroDecoration }]}
-            />
-            <View style={styles.heroBadgeRail}>
-              {VERIFICATION_TIERS.map((tier, index) => (
-                <View
-                  key={tier.id}
-                  style={[
-                    styles.heroBadgePlate,
-                    {
-                      backgroundColor: heroDecoration,
-                      transform: [{ translateY: index % 2 === 0 ? 0 : 10 }],
-                    },
-                  ]}>
-                  <Image
-                    source={tier.image}
-                    style={styles.heroBadgeImage}
-                    contentFit="contain"
-                    accessibilityLabel={`${tier.title} badge`}
-                  />
-                </View>
-              ))}
-            </View>
-            <Text style={[styles.heroEyebrow, { color: colors.onPrimary }]}>GEMFORT TRUST</Text>
-            <Text style={[styles.heroTitle, { color: colors.onPrimary }]}>
-              {isPromotion ? 'Promote your verification' : 'Make trust easy to see'}
-            </Text>
-            <Text style={[styles.heroDescription, { color: colors.onPrimary }]}>
-              {isPromotion
-                ? 'Add stronger documents to move up while your current badge stays active during review.'
-                : 'Your badge tells people what GemFort has checked. Start with your identity, then add business proof.'}
-            </Text>
-            <View style={[styles.reviewPill, { backgroundColor: heroDecoration }]}>
-              <Icon name="verified" size={17} color={colors.onPrimary} />
-              <Text style={[styles.reviewPillText, { color: colors.onPrimary }]}>
-                Every badge is reviewed by a GemFort admin
-              </Text>
-            </View>
-          </View>
-        </ScreenInset>
-
-        <FormSectionLabel title="BADGES AT A GLANCE" />
-        <ScreenInset style={styles.sectionIntro}>
+        <ScreenInset style={styles.statusInset}>
+          <VerificationStatusCard tier={currentTier} status={profile?.verificationStatus} />
           <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
-            Learn what each badge means and which documents help you move up.
+            {inReview
+              ? 'You can update your documents while the review is in progress.'
+              : isPromotion
+                ? 'Add stronger documents to move up. Your current badge stays active during review.'
+                : 'Every badge is reviewed by a GemFort admin before it appears on your profile.'}
           </Text>
         </ScreenInset>
+
         <ScreenInset>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View verification badge requirements"
-            accessibilityState={{ expanded: tiersExpanded }}
-            onPress={() => setTiersExpanded((expanded) => !expanded)}
+          <View
             style={[
-              styles.badgesToggle,
+              styles.levels,
               {
-                backgroundColor: colors.surfaceContainerLow,
+                backgroundColor: colors.surfaceContainerLowest,
                 borderColor: colors.outlineVariant,
               },
             ]}>
-            <View style={[styles.badgesToggleIcon, { backgroundColor: colors.primaryMuted }]}>
-              <Icon name="badge" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.badgesToggleCopy}>
-              <Text style={[styles.badgesToggleTitle, { color: colors.onSurface }]}>
-                How badge levels work
-              </Text>
-              <Text style={[styles.badgesToggleSummary, { color: colors.textMuted }]}>
-                {tiersExpanded ? 'Hide badge details' : 'Tap to view all badge requirements'}
-              </Text>
-            </View>
-            <Icon
-              name={tiersExpanded ? 'expand-less' : 'expand-more'}
-              size={22}
-              color={colors.textMuted}
-            />
-          </Pressable>
-        </ScreenInset>
-        {tiersExpanded ? (
-          <ScreenInset style={styles.tierList}>
-            {VERIFICATION_TIERS.map((tier) => (
-              <View
-                key={tier.id}
-                style={[
-                  styles.tierCard,
-                  {
-                    backgroundColor: colors.surfaceContainerLowest,
-                    borderColor: colors.outlineVariant,
-                    boxShadow: `0 4px 14px ${colors.cardShadow}`,
-                  },
-                ]}>
-                <View style={styles.tierImageFrame}>
-                  <Image
-                    source={tier.image}
-                    style={styles.tierImage}
-                    contentFit="contain"
-                    accessibilityLabel={`${tier.title} badge`}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Badge levels"
+              accessibilityState={{ expanded: tiersExpanded }}
+              onPress={() => setTiersExpanded((expanded) => !expanded)}
+              style={({ pressed }) => [styles.levelsToggle, pressed && styles.pressed]}>
+              <View style={styles.levelsSeals}>
+                {VERIFICATION_TIERS.map((tier, i) => (
+                  <VerificationSeal
+                    key={tier.id}
+                    type={tier.id}
+                    size={22}
+                    ringColor={colors.surfaceContainerLowest}
+                    style={i > 0 ? styles.sealOverlap : undefined}
                   />
-                </View>
-                <View style={styles.tierCardCopy}>
-                  <View style={styles.tierCardTopLine}>
-                    <Text style={[styles.tierTitle, { color: colors.onSurface }]}>
-                      {tier.title}
-                    </Text>
-                    <View style={[styles.tierTag, { backgroundColor: `${tier.color}1A` }]}>
-                      <Text style={[styles.tierTagText, { color: tier.color }]}>
-                        {tier.label}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.tierShortDescription, { color: tier.color }]}>
-                    {tier.shortDescription}
-                  </Text>
-                  <Text style={[styles.tierDescription, { color: colors.textMuted }]}>
-                    {tier.description}
-                  </Text>
-                </View>
+                ))}
               </View>
-            ))}
-          </ScreenInset>
-        ) : null}
+              <Text style={[styles.levelsTitle, { color: colors.onSurface }]}>
+                Badge levels
+              </Text>
+              <Icon
+                name={tiersExpanded ? 'expand-less' : 'expand-more'}
+                size={22}
+                color={colors.textMuted}
+              />
+            </Pressable>
+            {tiersExpanded
+              ? VERIFICATION_TIERS.map((tier, i) => {
+                  const isCurrent = tier.id === currentTier;
+                  const reached =
+                    tier.id !== 'recognized' && i <= currentTierIndex && !isCurrent;
+                  return (
+                    <View
+                      key={tier.id}
+                      style={[styles.levelRow, { borderTopColor: colors.outlineVariant }]}>
+                      <VerificationSeal type={tier.id} size={32} />
+                      <View style={styles.levelCopy}>
+                        <Text style={[styles.levelTitle, { color: colors.onSurface }]}>
+                          {tier.title}
+                        </Text>
+                        <Text style={[styles.levelRequirement, { color: colors.textMuted }]}>
+                          {tier.requirement}
+                        </Text>
+                      </View>
+                      {isCurrent ? (
+                        <View
+                          style={[
+                            styles.currentTag,
+                            { backgroundColor: `${BUSINESS_REPUTATION_BADGE_COLORS[tier.id]}1A` },
+                          ]}>
+                          <Text
+                            style={[
+                              styles.currentTagText,
+                              { color: BUSINESS_REPUTATION_BADGE_COLORS[tier.id] },
+                            ]}>
+                            Current
+                          </Text>
+                        </View>
+                      ) : reached ? (
+                        <Icon name="check" size={18} color={colors.successEmerald} />
+                      ) : null}
+                    </View>
+                  );
+                })
+              : null}
+          </View>
+        </ScreenInset>
+
         <FormSectionLabel title="YOUR DETAILS" />
         <ScreenInset style={styles.sectionIntro}>
           <Text style={[styles.sectionLead, { color: colors.textMuted }]}>
@@ -416,46 +340,30 @@ export default function VerifyApplicationScreen() {
               error={applicantErrors.businessName}
             />
 
-            <View style={styles.dobBlock}>
-              <Text style={[styles.dobLabel, { color: colors.textSecondary }]}>
-                Date of birth (required)
-              </Text>
+            <FieldWrap>
+              <FieldLabel>Date of birth (required)</FieldLabel>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Choose date of birth"
                 onPress={() => setShowDobPicker(true)}
-                style={[
-                  styles.dobField,
-                  {
-                    backgroundColor: colors.surfaceMuted,
-                    borderColor: applicantErrors.dateOfBirth
-                      ? colors.error
-                      : colors.border,
-                  },
+                style={({ pressed }) => [
+                  fieldStyles.box,
+                  dobChrome.box,
+                  pressed && dobChrome.pressedBox,
                 ]}>
-                <Icon
-                  name="cake"
-                  size={20}
-                  color={applicantErrors.dateOfBirth ? colors.error : colors.textMuted}
-                />
+                <Icon name="cake" size={20} color={dobChrome.iconColor} />
                 <Text
                   style={[
-                    styles.dobValue,
-                    {
-                      color: dateOfBirth ? colors.text : colors.textMuted,
-                    },
+                    fieldStyles.value,
+                    { color: dateOfBirth ? colors.text : dobChrome.placeholderColor },
                   ]}>
                   {dateOfBirth
                     ? format(dobDate, 'd MMM yyyy')
                     : 'Select date of birth'}
                 </Text>
               </Pressable>
-              {applicantErrors.dateOfBirth ? (
-                <Text style={[styles.dobError, { color: colors.error }]}>
-                  {applicantErrors.dateOfBirth}
-                </Text>
-              ) : null}
-            </View>
+              <FieldMessage error={applicantErrors.dateOfBirth} />
+            </FieldWrap>
 
             {showDobPicker ? (
               <DateTimePicker
@@ -523,8 +431,8 @@ export default function VerifyApplicationScreen() {
         </ScreenInset>
         <FormSection>
           <View style={styles.documentIntro}>
-            <View style={[styles.documentIntroIcon, { backgroundColor: `${VERIFICATION_TIERS[1].color}1A` }]}>
-              <Icon name="badge" size={20} color={VERIFICATION_TIERS[1].color} />
+            <View style={[styles.documentIntroIcon, { backgroundColor: `${BUSINESS_REPUTATION_BADGE_COLORS.identity}1A` }]}>
+              <VerificationSeal type="identity" size={24} />
             </View>
             <View style={styles.documentIntroCopy}>
               <Text style={[styles.documentIntroTitle, { color: colors.onSurface }]}>Start with your identity</Text>
@@ -578,7 +486,8 @@ export default function VerifyApplicationScreen() {
           <Button
             title={isPromotion ? 'Promote' : 'Submit'}
             icon="send"
-            onPress={handleSubmit}
+            loading={submitting}
+            onPress={() => void handleSubmit()}
           />
         </ScreenInset>
       </ThemedScrollView>
@@ -592,194 +501,49 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     gap: Spacing.md,
   },
-  backdropGlow: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    top: 92,
-    right: -150,
-    opacity: 0.35,
-  },
-  backdropRing: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 1,
-    top: 126,
-    right: -130,
-    opacity: 0.55,
-  },
-  heroInset: { gap: 0 },
-  hero: {
-    minHeight: 300,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  heroRing: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 1,
-    top: -112,
-    right: -92,
-  },
-  heroRingSmall: {
-    position: 'absolute',
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    borderWidth: 1,
-    bottom: -54,
-    left: -44,
-  },
-  heroBadgeRail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 72,
-    marginBottom: Spacing.sm,
-  },
-  heroBadgePlate: {
-    width: 54,
-    height: 54,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroBadgeImage: { width: 50, height: 50 },
-  heroEyebrow: {
-    ...Typography.labelMd,
-    letterSpacing: 1.2,
-    fontWeight: '700',
-  },
-  heroTitle: {
-    ...Typography.headlineMd,
-    fontWeight: '700',
-    maxWidth: 310,
-  },
-  heroDescription: {
-    ...Typography.bodyMd,
-    lineHeight: 21,
-    maxWidth: 340,
-  },
-  reviewPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: Spacing.sm,
-    minHeight: 42,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    marginTop: Spacing.xs,
-  },
-  reviewPillText: {
-    ...Typography.labelMd,
-    flexShrink: 1,
-  },
+  statusInset: { gap: Spacing.sm },
   sectionIntro: {
     gap: Spacing.xs,
   },
   sectionLead: {
-    ...Typography.bodyMd,
-    lineHeight: 21,
-  },
-  badgesToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.md,
-    minHeight: 72,
-  },
-  badgesToggleIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgesToggleCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  badgesToggleTitle: { ...Typography.labelMd, fontWeight: '700' },
-  badgesToggleSummary: { ...Typography.bodySmall, lineHeight: 19 },
-  tierList: {
-    gap: Spacing.sm,
-  },
-  tierCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderRadius: Radius.xl,
-    borderCurve: 'continuous',
-    padding: Spacing.md,
-    minHeight: 104,
-  },
-  tierImageFrame: {
-    width: 68,
-    height: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierImage: { width: 62, height: 62 },
-  tierCardCopy: { flex: 1, gap: 3, minWidth: 0 },
-  tierCardTopLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-  },
-  tierTitle: {
-    ...Typography.headlineSmMobile,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  tierTag: {
-    borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  tierTagText: {
-    ...Typography.caption,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  tierShortDescription: {
-    ...Typography.labelMd,
-    fontWeight: '700',
-  },
-  tierDescription: {
     ...Typography.bodySmall,
     lineHeight: 19,
   },
-  fields: { gap: Spacing.lg },
-  dobBlock: { gap: 6 },
-  dobLabel: { ...Typography.labelMd },
-  dobField: {
+  pressed: { opacity: 0.7 },
+  levels: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.xl,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  levelsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1.5,
-    borderRadius: Radius.lg,
-    borderCurve: 'continuous',
-    paddingHorizontal: Spacing.gutterMd,
-    minHeight: 52,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    minHeight: 56,
   },
-  dobValue: { ...Typography.bodyLg, flex: 1 },
-  dobError: { ...Typography.labelMd },
+  levelsSeals: { flexDirection: 'row' },
+  sealOverlap: { marginLeft: -6 },
+  levelsTitle: { ...Typography.labelMd, fontWeight: '700', flex: 1 },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  levelCopy: { flex: 1, minWidth: 0, gap: 2 },
+  levelTitle: { ...Typography.labelMd, fontWeight: '700' },
+  levelRequirement: { ...Typography.bodySmall, lineHeight: 17 },
+  currentTag: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  currentTagText: { ...Typography.caption, fontWeight: '700' },
+  fields: { gap: Spacing.lg },
   documentIntro: {
     flexDirection: 'row',
     alignItems: 'center',

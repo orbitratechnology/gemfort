@@ -1,11 +1,20 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { ApiError } from './errors';
 import { db } from '../admin';
+import { isLiveUid } from '../account/deleted-uid';
 import { ensureDeterministicNotificationDoc } from '../notifications/create';
 import { convertToBaseServer, loadServerRates } from '../gemtrack/exchange-rates';
+import {
+  assertGemAvailableForAp,
+  isGemLockedByAp,
+  releaseGemFromApUpdate,
+  snapshotGemForAp,
+  type ApGemSnapshot,
+} from '../gemtrack/ap-custody';
+import { ACTIVE_AP_STATUSES, apOwedAmount, apSettlementStatus } from '../gemtrack/ap-balance';
 import {
   canActOnAp,
   decideApStatusTransition,
@@ -29,6 +38,7 @@ type ApGemLine = {
   commissionBase?: number | null;
   commission: number | null;
   paymentDueDate: Timestamp | null;
+  previousGemState?: ApGemSnapshot | null;
 };
 
 type ApDoc = ApMutationFixture & {
@@ -38,6 +48,8 @@ type ApDoc = ApMutationFixture & {
   senderName?: string | null;
   items?: ApGemLine[];
   rejectionReason?: string | null;
+  paymentCurrency?: string | null;
+  amountPaid?: number | null;
 };
 
 export type CreateApRequestInput = {
@@ -230,9 +242,7 @@ export async function createApRequestForApi(
         throw new ApiError('permission-denied', `Gem ${item.gemId} not found.`);
       }
       const gem = gemSnap.data()! as Record<string, unknown>;
-      if (['on_ap', 'sold'].includes(gem.status as string)) {
-        throw new ApiError('failed-precondition', `${gemLabelFromDoc(gem, item.gemId)} is not available.`);
-      }
+      assertGemAvailableForAp(gem, gemLabelFromDoc(gem, item.gemId));
       const currency = normalizeCurrency(item.currency) || 'LKR';
       lines.push({
         gemId: item.gemId,
@@ -250,6 +260,7 @@ export async function createApRequestForApi(
         commission: null,
         commissionBase: null,
         paymentDueDate: null,
+        previousGemState: snapshotGemForAp(gem),
       });
     }
 
@@ -353,19 +364,14 @@ export async function respondApRequestForApi(
       ...(action === 'rejected' ? { rejectionReason: rejectionReason?.trim() || null } : { dateGiven: now }),
       updatedAt: now,
     });
+    // Release only gems this AP actually locked. A gem id that never belonged
+    // to the sender (or has moved on) is skipped instead of wedging the reject.
     for (let index = 0; index < gemRefs.length; index += 1) {
-      const gemSnap = gemSnaps[index]!;
-      if (!gemSnap.exists || gemSnap.data()?.ownerUid !== ap.ownerUid) {
-        throw new ApiError('failed-precondition', 'An AP gem could not be verified.');
-      }
-      transaction.update(gemRefs[index]!, {
-        status: 'ready_for_sale',
-        custody: null,
-        currentLocation: null,
-        currentHolderContactId: null,
-        currentApId: null,
-        updatedAt: now,
-      });
+      if (!isGemLockedByAp(gemSnaps[index]!, ref.id, ap.ownerUid)) continue;
+      transaction.update(
+        gemRefs[index]!,
+        releaseGemFromApUpdate((ap.items ?? [])[index]?.previousGemState, now),
+      );
     }
     return {
       status: decision.status,
@@ -421,17 +427,11 @@ export async function cancelApRequestForApi(apId: string, uid: string): Promise<
     const gemSnaps = gemRefs.length > 0 ? await transaction.getAll(...gemRefs) : [];
     transaction.update(ref, { status: decision.status, updatedAt: now });
     for (let index = 0; index < gemRefs.length; index += 1) {
-      const gemSnap = gemSnaps[index]!;
-      if (gemSnap.exists && gemSnap.data()?.ownerUid === ap.ownerUid) {
-        transaction.update(gemRefs[index]!, {
-          status: 'ready_for_sale',
-          custody: null,
-          currentLocation: null,
-          currentHolderContactId: null,
-          currentApId: null,
-          updatedAt: now,
-        });
-      }
+      if (!isGemLockedByAp(gemSnaps[index]!, ref.id, ap.ownerUid)) continue;
+      transaction.update(
+        gemRefs[index]!,
+        releaseGemFromApUpdate((ap.items ?? [])[index]?.previousGemState, now),
+      );
     }
     return {
       status: decision.status,
@@ -463,6 +463,7 @@ export async function returnApGemForApi(
   const id = assertId(apId, 'apId');
   const gem = assertId(gemId, 'gemId');
   const ref = db.collection('gemtrack_ap_records').doc(id);
+  const rates = await loadServerRates();
   await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists) throw new ApiError('not-found', 'AP not found.');
@@ -470,43 +471,40 @@ export async function returnApGemForApi(
     if (!canActOnAp('return', fixtureFromAp(ap), uid)) {
       throw new ApiError('permission-denied', 'Not a party to this AP.');
     }
-    if (ap.status !== 'accepted') {
+    if (!ACTIVE_AP_STATUSES.has(ap.status)) {
       throw new ApiError('failed-precondition', 'Can only return gems on accepted APs.');
     }
     const items = [...(ap.items ?? [])];
     const index = items.findIndex((item) => item.gemId === gem);
     if (index < 0) throw new ApiError('not-found', 'Gem not on this AP.');
-    if (items[index]!.lineStatus === 'returned') {
-      const allReturned = items.every((item) => item.lineStatus === 'returned');
-      if (allReturned) {
-        transaction.update(ref, { status: 'done', updatedAt: Timestamp.now() });
-      }
-      return;
-    }
+    if (items[index]!.lineStatus === 'returned') return;
     if (items[index]!.lineStatus !== 'held') {
       throw new ApiError('failed-precondition', 'Only held gems can be returned.');
     }
     const gemRef = db.collection('gemtrack_gems').doc(gem);
     const gemSnap = await transaction.get(gemRef);
-    if (!gemSnap.exists || gemSnap.data()?.ownerUid !== ap.ownerUid) {
+    // The sender may have deleted their account (gem gone, owner detached);
+    // the holder can still close the line out.
+    const ownerGone = !isLiveUid(ap.ownerUid);
+    const lockedHere = isGemLockedByAp(gemSnap, id, ap.ownerUid);
+    if (!lockedHere && !ownerGone) {
       throw new ApiError('failed-precondition', 'The AP gem could not be verified.');
     }
     const now = Timestamp.now();
+    const previousGemState = items[index]!.previousGemState;
     items[index] = { ...items[index]!, lineStatus: 'returned' };
-    const allReturned = items.every((item) => item.lineStatus === 'returned');
+    // The AP only closes once nothing is held and nothing is still owed.
+    const settlementCurrency = (ap.paymentCurrency?.trim() || items[index]!.currency || 'LKR').toUpperCase();
+    const owed = apOwedAmount(items, settlementCurrency, rates);
+    const amountPaid = typeof ap.amountPaid === 'number' ? ap.amountPaid : 0;
     transaction.update(ref, {
       items,
-      ...(allReturned ? { status: 'done' } : {}),
+      status: apSettlementStatus({ lines: items, owed, amountPaid }),
       updatedAt: now,
     });
-    transaction.update(gemRef, {
-      status: 'ready_for_sale',
-      custody: null,
-      currentLocation: null,
-      currentHolderContactId: null,
-      currentApId: null,
-      updatedAt: now,
-    });
+    if (lockedHere) {
+      transaction.update(gemRef, releaseGemFromApUpdate(previousGemState, now));
+    }
   });
   return { ok: true };
 }
@@ -524,14 +522,13 @@ export async function deleteApRecordForApi(apId: string, uid: string): Promise<A
     throw new ApiError('failed-precondition', 'Only completed or cancelled APs can be deleted.');
   }
 
-  const payments = await db.collection('gemtrack_ap_payments').where('apId', '==', id).get();
-  for (let start = 0; start < payments.docs.length; start += 400) {
-    const batch = db.batch();
-    for (const payment of payments.docs.slice(start, start + 400)) batch.delete(payment.ref);
-    if (start + 400 >= payments.docs.length) batch.delete(ref);
-    await batch.commit();
-  }
-  if (payments.docs.length === 0) await db.batch().delete(ref).commit();
+  // Deleting only hides the AP from this party's lists. The record, its
+  // payment events, and the ledger transactions that reference it are kept
+  // so neither party's financial history loses its source.
+  await ref.update({
+    hiddenFor: FieldValue.arrayUnion(uid),
+    updatedAt: Timestamp.now(),
+  });
   return { ok: true };
 }
 

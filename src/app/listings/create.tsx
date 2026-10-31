@@ -41,6 +41,7 @@ import {
   fetchGem,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { usePendingAction } from "@/hooks/use-pending-action";
 import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredCurrency } from "@/hooks/use-preferred-currency";
 import { friendlyError } from "@/lib/errors";
@@ -51,7 +52,6 @@ import { parseForm } from "@/lib/validation/form-schemas";
 import { replaceWithAnchor } from "@/navigation/tab-stack-nav";
 import { useAuth } from "@/providers/auth-provider";
 import { confirm, showActions } from "@/providers/confirm-bridge";
-import { withLoading } from "@/providers/loading-bridge";
 import { useToast } from "@/providers/toast-provider";
 import { z } from "zod";
 
@@ -99,6 +99,11 @@ export default function CreateListingScreen() {
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [didPrefill, setDidPrefill] = useState(false);
+  // Declared before the early returns below; `handlePublish` is defined after
+  // them because it needs the loaded gem, so it is passed in at press time.
+  const [publishing, runPublish] = usePendingAction(
+    (publish: () => Promise<void>) => publish(),
+  );
 
   const isVerifiedSeller =
     profile?.role === "trader" && profile?.verificationStatus === "verified";
@@ -266,83 +271,81 @@ export default function CreateListingScreen() {
     }
     setErrors({});
     try {
-      await withLoading(async () => {
-        const business = await fetchBusinessByOwnerUid(user.uid);
-        if (!business) {
-          await confirm({
-            title: "Business profile required",
-            message: "Set up your business profile before selling on Market.",
-            confirmLabel: "Set Up",
-            cancelLabel: "Cancel",
-            icon: "storefront",
-            onConfirm: () => {
-              router.push("/profile/business" as Href);
-            },
-          });
-          return;
-        }
+      const business = await fetchBusinessByOwnerUid(user.uid);
+      if (!business) {
+        await confirm({
+          title: "Business profile required",
+          message: "Set up your business profile before selling on Market.",
+          confirmLabel: "Set Up",
+          cancelLabel: "Cancel",
+          icon: "storefront",
+          onConfirm: () => {
+            router.push("/profile/business" as Href);
+          },
+        });
+        return;
+      }
 
-        const { slug } = await createListing(user.uid, business.id, {
-          workspaceGemId: gem.id,
-          title: parsed.data.title,
-          description: null,
-          visibility: parsed.data.visibility,
-          gemType: gem.gemType,
-          caratWeight: gem.currentWeight,
-          color: gem.colorPrimary || "—",
-          clarity: gem.clarity || null,
-          shape: gem.shape || gem.cutType || null,
-          origin: gem.originCountry || "Unknown",
-          treatmentStatus: normalizeGemTreatment(
-            gem.treatmentStatus,
-            life.stoneStage,
-            gem.isNatural,
-          ).treatmentStatus,
-          showPrice: true,
-          priceMin: parsed.data.price,
-          priceMax: null,
-          currency: price.currency,
-          photoUrls: gem.photoUrls ?? [],
-        });
-        const url = listingShareUrl(slug);
-        await copyLink(url, { silent: true });
-        const whatsapp = business.contacts?.whatsapp?.value;
-        toast.success("On Market — link copied.");
-        showActions({
-          title: "On Market",
-          message: `Link copied:\n${url}`,
-          actions: [
-            ...(whatsapp
-              ? [
-                  {
-                    label: "WhatsApp",
-                    onPress: () =>
-                      void Linking.openURL(
-                        openWhatsApp(
-                          whatsapp,
-                          `Check out my gem on Market: ${url}`,
-                        ),
+      const { slug } = await createListing(user.uid, business.id, {
+        workspaceGemId: gem.id,
+        title: parsed.data.title,
+        description: null,
+        visibility: parsed.data.visibility,
+        gemType: gem.gemType,
+        caratWeight: gem.currentWeight,
+        color: gem.colorPrimary || "—",
+        clarity: gem.clarity || null,
+        shape: gem.shape || gem.cutType || null,
+        origin: gem.originCountry || "Unknown",
+        treatmentStatus: normalizeGemTreatment(
+          gem.treatmentStatus,
+          life.stoneStage,
+          gem.isNatural,
+        ).treatmentStatus,
+        showPrice: true,
+        priceMin: parsed.data.price,
+        priceMax: null,
+        currency: price.currency,
+        photoUrls: gem.photoUrls ?? [],
+      });
+      const url = listingShareUrl(slug);
+      await copyLink(url, { silent: true });
+      const whatsapp = business.contacts?.whatsapp?.value;
+      toast.success("On Market — link copied.");
+      showActions({
+        title: "On Market",
+        message: `Link copied:\n${url}`,
+        actions: [
+          ...(whatsapp
+            ? [
+                {
+                  label: "WhatsApp",
+                  onPress: () =>
+                    void Linking.openURL(
+                      openWhatsApp(
+                        whatsapp,
+                        `Check out my gem on Market: ${url}`,
                       ),
-                  },
-                ]
-              : []),
-            {
-              label: "Share",
-              onPress: () => {
-                void shareLink({
-                  url,
-                  message: `Check out my gem on Market: ${parsed.data.title}`,
-                  title: parsed.data.title,
-                });
-              },
+                    ),
+                },
+              ]
+            : []),
+          {
+            label: "Share",
+            onPress: () => {
+              void shareLink({
+                url,
+                message: `Check out my gem on Market: ${parsed.data.title}`,
+                title: parsed.data.title,
+              });
             },
-            {
-              label: "View",
-              onPress: () => router.push(`/listing/${slug}`),
-            },
-          ],
-        });
-      }, "Selling on Market…");
+          },
+          {
+            label: "View",
+            onPress: () => router.push(`/listing/${slug}`),
+          },
+        ],
+      });
     } catch (e) {
       toast.error(friendlyError(e, "Could not sell on Market."));
     }
@@ -469,7 +472,8 @@ export default function CreateListingScreen() {
       <FormFooter
         title="Sell on Market"
         icon="storefront"
-        onPress={() => void handlePublish()}
+        loading={publishing}
+        onPress={() => void runPublish(handlePublish)}
       />
 
       <ListingVisibilityPickerSheet

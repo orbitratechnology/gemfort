@@ -5,16 +5,24 @@ import {
     Pressable,
     StyleSheet,
     Text,
-    TextInput,
     View,
 } from "react-native";
 
-import { BottomSheet, SheetListSeparator } from "@/components/ui/bottom-sheet";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Accent, IconBubble } from "@/components/ui/detail-kit";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Icon } from "@/components/ui/icon";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
 import {
-    bankLogoUrls,
+  FieldLabel,
+  FieldMessage,
+  FieldWrap,
+  fieldStyles,
+  useFieldChrome,
+} from "@/components/ui/field-chrome";
+import { Icon } from "@/components/ui/icon";
+import { SearchField } from "@/components/ui/search-field";
+import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { bankLogo } from "@/constants/bank-logos";
+import {
     filterBanks,
     getBankByCode,
     getBankByName,
@@ -37,7 +45,7 @@ type BankPickerSheetProps = {
   title?: string;
 };
 
-function BankAvatarInner({
+export function BankAvatar({
   bank,
   size = 40,
 }: {
@@ -45,17 +53,11 @@ function BankAvatarInner({
   size?: number;
 }) {
   const { colors } = useAppTheme();
-  const urls = useMemo(
-    () => bankLogoUrls(bank, Math.max(size * 2, 128)),
-    [bank, size],
-  );
-  const [urlIndex, setUrlIndex] = useState(0);
-
-  const uri = urls[urlIndex] ?? null;
+  const logo = bankLogo(bank);
   const initial = (bank.shortName || bank.name).charAt(0).toUpperCase();
   const radius = Math.round(size / 4);
 
-  if (!uri) {
+  if (!logo) {
     return (
       <View
         style={[
@@ -91,27 +93,23 @@ function BankAvatarInner({
       ]}
     >
       <Image
-        key={`${bank.code}-${urlIndex}`}
-        source={{ uri }}
+        source={logo}
         style={{ width: size * 0.72, height: size * 0.72 }}
         contentFit="contain"
-        recyclingKey={`${bank.code}-${urlIndex}`}
-        onError={() => {
-          setUrlIndex((i) => (i + 1 < urls.length ? i + 1 : urls.length));
-        }}
+        recyclingKey={bank.code}
       />
     </View>
   );
 }
 
-export function BankAvatar({
-  bank,
-  size = 40,
-}: {
-  bank: SriLankaBank;
-  size?: number;
-}) {
-  return <BankAvatarInner key={bank.code} bank={bank} size={size} />;
+/** Hairline between sheet list rows, inset past the 40dp leading mark. */
+function RowDivider() {
+  const { colors } = useAppTheme();
+  return (
+    <View
+      style={[styles.rowDivider, { backgroundColor: colors.outlineVariant }]}
+    />
+  );
 }
 
 /** Universal searchable Sri Lankan bank picker (static list). */
@@ -137,24 +135,13 @@ export function BankPickerSheet({
       title={title}
       scrollable={false}
     >
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search bank or code…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          autoCapitalize="none"
-          clearButtonMode="while-editing"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search bank or code…"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+      />
 
       <FlashList
         data={filtered}
@@ -162,7 +149,7 @@ export function BankPickerSheet({
         keyboardShouldPersistTaps="handled"
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={SheetListSeparator}
+        ItemSeparatorComponent={RowDivider}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
@@ -185,27 +172,19 @@ export function BankPickerSheet({
               }}
               style={({ pressed }) => [
                 styles.row,
-                {
-                  backgroundColor: selected
-                    ? colors.primaryContainer
-                    : colors.surfaceContainerLow,
-                  borderColor: selected
-                    ? colors.primary
-                    : colors.outlineVariant,
-                  opacity: pressed ? 0.9 : 1,
-                },
+                pressed && { backgroundColor: colors.surfaceContainerLow },
               ]}
             >
-              <BankAvatar bank={item} size={44} />
+              <BankAvatar bank={item} size={40} />
               <View style={styles.rowBody}>
                 <Text
-                  style={[styles.name, { color: colors.onSurface }]}
+                  style={[styles.rowTitle, { color: colors.onSurface }]}
                   numberOfLines={1}
                 >
                   {item.name}
                 </Text>
                 <Text
-                  style={[styles.meta, { color: colors.textMuted }]}
+                  style={[styles.rowMeta, { color: colors.onSurfaceVariant }]}
                   numberOfLines={1}
                 >
                   {item.shortName} · Code {item.code}
@@ -243,12 +222,11 @@ export function BankSelectField({
   const { colors } = useAppTheme();
   const bank =
     getBankByCode(bankCode) ?? getBankByName(bankName ?? undefined) ?? null;
+  const chrome = useFieldChrome({ error: !!error });
 
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
@@ -256,12 +234,10 @@ export function BankSelectField({
         }
         onPress={onPress}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: pressed ? 0.92 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}
       >
         {bank ? (
@@ -284,30 +260,16 @@ export function BankSelectField({
           </>
         ) : (
           <>
-            <View
-              style={[
-                styles.fieldIcon,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              <Icon name="account-balance" size={18} color={colors.outline} />
-            </View>
-            <Text style={[styles.placeholder, { color: colors.outline }]}>
+            <Icon name="account-balance" size={20} color={chrome.iconColor} />
+            <Text style={[fieldStyles.value, { color: chrome.placeholderColor }]}>
               {placeholder}
             </Text>
           </>
         )}
-        <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
@@ -361,24 +323,13 @@ export function BranchPickerSheet({
         </View>
       ) : null}
 
-      <View
-        style={[
-          styles.searchBox,
-          { backgroundColor: colors.surfaceContainerLow },
-        ]}
-      >
-        <Icon name="search" size={20} color={colors.outline} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search branch…"
-          placeholderTextColor={colors.outline}
-          value={query}
-          onChangeText={setQuery}
-          autoCorrect={false}
-          autoCapitalize="none"
-          clearButtonMode="while-editing"
-        />
-      </View>
+      <SearchField
+        style={styles.search}
+        placeholder="Search branch…"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+      />
 
       <FlashList
         data={filtered}
@@ -386,7 +337,7 @@ export function BranchPickerSheet({
         keyboardShouldPersistTaps="handled"
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={SheetListSeparator}
+        ItemSeparatorComponent={RowDivider}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
@@ -414,28 +365,13 @@ export function BranchPickerSheet({
               }}
               style={({ pressed }) => [
                 styles.row,
-                {
-                  backgroundColor: selected
-                    ? colors.primaryContainer
-                    : colors.surfaceContainerLow,
-                  borderColor: selected
-                    ? colors.primary
-                    : colors.outlineVariant,
-                  opacity: pressed ? 0.9 : 1,
-                },
+                pressed && { backgroundColor: colors.surfaceContainerLow },
               ]}
             >
-              <View
-                style={[
-                  styles.branchIcon,
-                  { backgroundColor: colors.surfaceContainerHigh },
-                ]}
-              >
-                <Icon name="place" size={18} color={colors.onSurfaceVariant} />
-              </View>
+              <IconBubble icon="place" accent={Accent.slate} size={40} />
               <View style={styles.rowBody}>
                 <Text
-                  style={[styles.name, { color: colors.onSurface }]}
+                  style={[styles.rowTitle, { color: colors.onSurface }]}
                   numberOfLines={2}
                 >
                   {item.name}
@@ -478,12 +414,11 @@ export function BranchSelectField({
   const hasList = bankHasBranches(bankCode);
   const locked = disabled || !bankCode || !hasList;
   const displayName = branch?.name ?? branchName?.trim() ?? "";
+  const chrome = useFieldChrome({ error: !!error, disabled: locked });
 
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant }]}>
-        {label}
-      </Text>
+    <FieldWrap>
+      <FieldLabel>{label}</FieldLabel>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: locked }}
@@ -491,12 +426,10 @@ export function BranchSelectField({
         disabled={locked}
         onPress={onPress}
         style={({ pressed }) => [
+          fieldStyles.box,
           styles.field,
-          {
-            backgroundColor: colors.surfaceContainerLowest,
-            borderColor: error ? colors.error : colors.outlineVariant,
-            opacity: locked ? 0.5 : pressed ? 0.92 : 1,
-          },
+          chrome.box,
+          pressed && chrome.pressedBox,
         ]}
       >
         {bank && displayName ? (
@@ -519,15 +452,8 @@ export function BranchSelectField({
           </>
         ) : (
           <>
-            <View
-              style={[
-                styles.fieldIcon,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              <Icon name="business" size={18} color={colors.outline} />
-            </View>
-            <Text style={[styles.placeholder, { color: colors.outline }]}>
+            <Icon name="business" size={20} color={chrome.iconColor} />
+            <Text style={[fieldStyles.value, { color: chrome.placeholderColor }]}>
               {!bankCode
                 ? "Select a bank first"
                 : !hasList
@@ -536,41 +462,38 @@ export function BranchSelectField({
             </Text>
           </>
         )}
-        <Icon name="expand-more" size={22} color={colors.onSurfaceVariant} />
+        <Icon name="expand-more" size={22} color={colors.textMuted} />
       </Pressable>
-      {error ? (
-        <Text
-          style={[styles.error, { color: colors.error }]}
-          accessibilityLiveRegion="polite"
-        >
-          {error}
-        </Text>
-      ) : null}
-    </View>
+      <FieldMessage error={error} />
+    </FieldWrap>
   );
 }
 
 const styles = StyleSheet.create({
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    height: 48,
-    borderRadius: Radius.full,
-    paddingHorizontal: 16,
-    marginBottom: Spacing.stackMd,
-  },
-  searchInput: { flex: 1, ...Typography.bodyMd, paddingVertical: 0 },
+  search: { marginBottom: Spacing.stackMd },
   list: { flex: 1 },
   listContent: { paddingBottom: Spacing.md, flexGrow: 1 },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
+    gap: 12,
     minHeight: 64,
+    paddingVertical: 10,
+    borderRadius: Radius.md,
+  },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
+  rowTitle: {
+    fontFamily: FontFamily.semibold,
+    fontSize: 15,
+    lineHeight: 21,
+    includeFontPadding: false,
+  },
+  rowMeta: {
+    fontFamily: FontFamily.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    fontVariant: ["tabular-nums"],
+    includeFontPadding: false,
   },
   avatarWrap: {
     alignItems: "center",
@@ -590,39 +513,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.stackSm,
   },
   bankHintText: { ...Typography.bodySmall, flex: 1, fontWeight: "600" },
-  branchIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
-  fieldWrap: { gap: Spacing.stackSm },
-  fieldLabel: {
-    ...Typography.labelMd,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    minHeight: 64,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.lg,
-    borderCurve: "continuous",
-    borderWidth: 1,
-  },
-  fieldIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  /** Bank/branch fields show a logo and two lines, so they sit taller. */
+  field: { minHeight: 64, paddingVertical: Spacing.sm },
   fieldBody: { flex: 1, minWidth: 0, gap: 2 },
-  placeholder: { ...Typography.bodyMd, flex: 1 },
-  error: { ...Typography.bodySmall },
 });

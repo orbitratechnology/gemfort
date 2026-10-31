@@ -12,6 +12,7 @@ import {
 } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSheetFooterKeyboardOffset } from '@/components/ui/sheet-footer';
 import { Spacing } from '@/constants/design-tokens';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -64,6 +65,7 @@ export function Screen({
 export const ThemedScrollView = forwardRef<KeyboardAwareScrollViewRef, ScrollViewProps>(
   function ThemedScrollView({ style, keyboardShouldPersistTaps, ...props }, ref) {
     const { colors } = useAppTheme();
+    const sheetFooterOffset = useSheetFooterKeyboardOffset();
     return (
       <KeyboardAwareScrollView
         ref={ref}
@@ -71,7 +73,7 @@ export const ThemedScrollView = forwardRef<KeyboardAwareScrollViewRef, ScrollVie
         style={[{ flex: 1, backgroundColor: colors.background }, style]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps={keyboardShouldPersistTaps ?? 'handled'}
-        bottomOffset={KEYBOARD_TOOLBAR_OFFSET}
+        bottomOffset={KEYBOARD_TOOLBAR_OFFSET + sheetFooterOffset}
         {...props}
       />
     );

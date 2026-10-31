@@ -76,7 +76,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription:
-        "GemFort uses the camera to scan gemstone certificate QR codes and barcodes.",
+        "GemFort uses the camera to photograph gems and scan cheques, bills, receipts, passports and certificate QR codes.",
     },
     associatedDomains:
       !isIosPersonalTeamBuild && (env === "production" || env === "preview")
@@ -162,6 +162,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-dev-client",
+    // VisionKit (iOS) / ML Kit (Android) document scanning — src/lib/scan.ts
+    [
+      "react-native-document-scanner-plugin",
+      {
+        cameraPermission:
+          "GemFort uses the camera to photograph gems and scan cheques, bills, receipts, passports and certificate QR codes.",
+      },
+    ],
     "expo-font",
     "expo-image",
     "@maplibre/maplibre-react-native",
@@ -205,11 +213,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-build-properties",
       {
-        ios: {
-          enableSceneSupport: true,
-        },
         android: {
-          compileSdkVersion: 36,
+          compileSdkVersion: 37,
           targetSdkVersion: 36,
           enableMinifyInReleaseBuilds: true,
           enableShrinkResourcesInReleaseBuilds: true,

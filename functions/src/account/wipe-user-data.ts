@@ -1,17 +1,23 @@
 import { getStorage } from 'firebase-admin/storage';
 import {
   FieldPath,
+  Timestamp,
   type Query,
   type QueryDocumentSnapshot,
 } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/logger';
 
 import { db } from '../admin';
+import { DELETED_UID, isLiveUid } from './deleted-uid';
+import { mapWithConcurrency } from '../utils/concurrency';
 
-const DELETED_UID = '__deleted__';
 const BATCH_LIMIT = 400;
+const DELETE_CONCURRENCY = 20;
 
-/** Single-field queries that identify documents owned by / tied to a user. */
+/**
+ * Single-field queries that identify documents the user owns outright. No
+ * other user relies on these, so they are deleted.
+ */
 const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'businesses', field: 'ownerUid' },
   { collection: 'gems', field: 'sellerUid' },
@@ -21,25 +27,8 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'likes', field: 'fromUid' },
   // Remove records created by app versions released before the Likes rename.
   { collection: 'endorsements', field: 'fromUid' },
-  { collection: 'listing_offers', field: 'buyerUid' },
-  { collection: 'listing_offers', field: 'sellerUid' },
-  { collection: 'service_requests', field: 'traderUid' },
-  { collection: 'service_requests', field: 'lapidaryUid' },
-  { collection: 'lapidary_jobs', field: 'lapidaryUid' },
-  { collection: 'lapidary_jobs', field: 'traderUid' },
   { collection: 'gemtrack_gems', field: 'ownerUid' },
   { collection: 'gemtrack_gem_costs', field: 'ownerUid' },
-  { collection: 'gemtrack_gem_events', field: 'ownerUid' },
-  { collection: 'gemtrack_gem_events', field: 'createdByUid' },
-  { collection: 'gemtrack_services', field: 'ownerUid' },
-  { collection: 'gemtrack_services', field: 'providerUid' },
-  { collection: 'gemtrack_ap_records', field: 'ownerUid' },
-  { collection: 'gemtrack_ap_records', field: 'senderUid' },
-  { collection: 'gemtrack_ap_records', field: 'receiverUid' },
-  { collection: 'gemtrack_ap_payments', field: 'ownerUid' },
-  { collection: 'gemtrack_ap_payments', field: 'senderUid' },
-  { collection: 'gemtrack_ap_payments', field: 'receiverUid' },
-  { collection: 'gemtrack_ap_payments', field: 'actorUid' },
   { collection: 'gemtrack_cheques', field: 'ownerUid' },
   { collection: 'gemtrack_bills', field: 'ownerUid' },
   { collection: 'gemtrack_payments', field: 'ownerUid' },
@@ -52,9 +41,33 @@ const OWNED_BY_FIELD: Array<{ collection: string; field: string }> = [
   { collection: 'gemtrack_contacts', field: 'ownerUid' },
   { collection: 'gemfort_api_idempotency', field: 'uid' },
   { collection: 'company_members', field: 'userUid' },
-  { collection: 'company_approvals', field: 'requestedByUid' },
-  { collection: 'company_approvals', field: 'approverUid' },
 ];
+
+/**
+ * Records shared between two or more users. When the deleting user is the
+ * only live party the record is deleted; otherwise every party field that
+ * holds their uid is replaced with DELETED_UID so the counterparty keeps their
+ * AP history, payment trail, service jobs, and offers.
+ */
+const SHARED_BY_FIELDS: Array<{ collection: string; fields: string[] }> = [
+  { collection: 'gemtrack_ap_records', fields: ['ownerUid', 'senderUid', 'receiverUid'] },
+  {
+    collection: 'gemtrack_ap_payments',
+    fields: ['ownerUid', 'senderUid', 'receiverUid', 'actorUid'],
+  },
+  { collection: 'gemtrack_services', fields: ['ownerUid', 'providerUid'] },
+  { collection: 'gemtrack_gem_events', fields: ['ownerUid', 'createdByUid'] },
+  { collection: 'service_requests', fields: ['traderUid', 'lapidaryUid'] },
+  { collection: 'lapidary_jobs', fields: ['traderUid', 'lapidaryUid'] },
+  { collection: 'listing_offers', fields: ['buyerUid', 'sellerUid'] },
+  { collection: 'company_approvals', fields: ['requestedByUid', 'approverUid'] },
+];
+
+/** Statuses that are still waiting on the deleted party and can never resolve. */
+const ABANDONED_STATUS: Record<string, Record<string, string>> = {
+  gemtrack_ap_records: { pending: 'cancelled' },
+  listing_offers: { pending: 'withdrawn' },
+};
 
 /** Cross-user references to anonymize (keep the doc, strip the uid). */
 const ANONYMIZE_FIELDS: Array<{ collection: string; field: string }> = [
@@ -84,12 +97,67 @@ async function deleteQueryInBatches(query: Query): Promise<number> {
     const snap = await query.limit(BATCH_LIMIT).get();
     if (snap.empty) break;
 
-    await Promise.all(snap.docs.map((document) => db.recursiveDelete(document.ref)));
+    await mapWithConcurrency(snap.docs, DELETE_CONCURRENCY, (document) =>
+      db.recursiveDelete(document.ref),
+    );
     deleted += snap.size;
     if (snap.size < BATCH_LIMIT) break;
   }
 
   return deleted;
+}
+
+async function detachSharedQueryInBatches(
+  collection: string,
+  query: Query,
+  uid: string,
+  fields: string[],
+): Promise<{ deleted: number; detached: number }> {
+  let deleted = 0;
+  let detached = 0;
+
+  // Every processed document either disappears or stops matching the query
+  // (its uid fields are rewritten), so re-querying from the start terminates.
+  for (;;) {
+    const snap = await query.limit(BATCH_LIMIT).get();
+    if (snap.empty) break;
+
+    const batch = db.batch();
+    const toDelete: QueryDocumentSnapshot[] = [];
+    const now = Timestamp.now();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const otherParties = fields
+        .map((field) => data[field])
+        .filter((value) => isLiveUid(value) && value !== uid);
+
+      if (otherParties.length === 0) {
+        toDelete.push(doc);
+        deleted += 1;
+        continue;
+      }
+
+      const update: Record<string, unknown> = {
+        partyDeleted: true,
+        partyDeletedAt: now,
+        updatedAt: now,
+      };
+      for (const field of fields) {
+        if (data[field] === uid) update[field] = DELETED_UID;
+      }
+      const nextStatus = ABANDONED_STATUS[collection]?.[data.status as string];
+      if (nextStatus) update.status = nextStatus;
+      batch.update(doc.ref, update);
+      detached += 1;
+    }
+    await batch.commit();
+    await mapWithConcurrency(toDelete, DELETE_CONCURRENCY, (document) =>
+      db.recursiveDelete(document.ref),
+    );
+    if (snap.size < BATCH_LIMIT) break;
+  }
+
+  return { deleted, detached };
 }
 
 async function anonymizeQueryInBatches(
@@ -165,18 +233,25 @@ export async function wipeUserData(uid: string): Promise<{
   );
   firestoreDeleted += companyByOwner;
 
-  const ownedCounts = await Promise.all(
-    OWNED_BY_FIELD.map(async ({ collection, field }) => {
+  // Shared records first: an AP or service the user owns must be detached
+  // (not deleted) when a counterparty still relies on it. Queries run one at
+  // a time so a large account does not fan out dozens of parallel scans.
+  for (const { collection, fields } of SHARED_BY_FIELDS) {
+    for (const field of fields) {
       try {
-        const n = await deleteQueryInBatches(
+        const { deleted, detached } = await detachSharedQueryInBatches(
+          collection,
           db.collection(collection).where(field, '==', uid),
+          uid,
+          fields,
         );
-        if (n > 0) {
-          logger.info('Deleted owned docs', { collection, field, uid, n });
+        if (deleted > 0 || detached > 0) {
+          logger.info('Processed shared docs', { collection, field, uid, deleted, detached });
         }
-        return n;
+        firestoreDeleted += deleted;
+        firestoreAnonymized += detached;
       } catch (error) {
-        logger.error('Failed deleting collection field', {
+        logger.error('Failed detaching shared collection field', {
           collection,
           field,
           uid,
@@ -184,9 +259,28 @@ export async function wipeUserData(uid: string): Promise<{
         });
         throw error;
       }
-    }),
-  );
-  firestoreDeleted += ownedCounts.reduce((total, count) => total + count, 0);
+    }
+  }
+
+  for (const { collection, field } of OWNED_BY_FIELD) {
+    try {
+      const n = await deleteQueryInBatches(
+        db.collection(collection).where(field, '==', uid),
+      );
+      if (n > 0) {
+        logger.info('Deleted owned docs', { collection, field, uid, n });
+      }
+      firestoreDeleted += n;
+    } catch (error) {
+      logger.error('Failed deleting collection field', {
+        collection,
+        field,
+        uid,
+        error,
+      });
+      throw error;
+    }
+  }
 
   for (const { collection, field } of ANONYMIZE_FIELDS) {
     try {

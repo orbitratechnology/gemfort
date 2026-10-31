@@ -8,6 +8,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -105,7 +106,13 @@ const ALL_BANNERS: BannerSlide[] = [
 const AUTO_MS = 4200;
 /** Match ScrollView animated scroll duration before unwrapping clones */
 const SCROLL_MS = 300;
-const BANNER_HEIGHT = 156;
+/**
+ * Fixed slide height, sized for the longest copy (2-line title + 2-line
+ * subtitle) so every slide — and every phone width — renders the same height.
+ */
+const BANNER_HEIGHT = 176;
+/** Cap system font scaling so copy can't push past the fixed height. */
+const MAX_FONT_SCALE = 1.15;
 /** Equal inset on both sides so the active slide is centered (with peek) */
 const SIDE_INSET = 32;
 const GAP = 12;
@@ -166,7 +173,7 @@ export function HomeBannerCarousel() {
   const role = resolveProfileRole(profile);
   const { width: windowWidth } = useWindowDimensions();
   const sideInset = windowWidth < 360 ? 20 : SIDE_INSET;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const pausedRef = useRef(false);
   const programmaticRef = useRef(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -334,24 +341,26 @@ export function HomeBannerCarousel() {
                 />
                   <View style={[styles.copy, !!item.image && styles.copyWithImage]}>
                   <View style={[styles.eyebrowPill, { backgroundColor: tone.chip }]}>
-                    <Text style={[styles.eyebrow, { color: tone.on }]}>
+                    <Text style={[styles.eyebrow, { color: tone.on }]} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                       {item.eyebrow}
                     </Text>
                   </View>
                   <Text
                     style={[styles.title, { color: tone.on }]}
                     numberOfLines={2}
+                    maxFontSizeMultiplier={MAX_FONT_SCALE}
                   >
                     {item.title}
                   </Text>
                   <Text
                     style={[styles.subtitle, { color: tone.muted }]}
                     numberOfLines={2}
+                    maxFontSizeMultiplier={MAX_FONT_SCALE}
                   >
                     {item.subtitle}
                   </Text>
                   <View style={styles.ctaRow}>
-                    <Text style={[styles.cta, { color: tone.on }]}>
+                    <Text style={[styles.cta, { color: tone.on }]} maxFontSizeMultiplier={MAX_FONT_SCALE}>
                       {item.cta}
                     </Text>
                     <Icon name="arrow-forward" size={16} color={tone.on} />
@@ -419,12 +428,13 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   slideShell: {
+    height: BANNER_HEIGHT,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
   },
   slide: {
-    minHeight: BANNER_HEIGHT,
+    height: BANNER_HEIGHT,
     borderRadius: Radius.xl,
     borderCurve: 'continuous',
     paddingHorizontal: Spacing.lg,
@@ -449,7 +459,7 @@ const styles = StyleSheet.create({
   eyebrowPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: Radius.full,
   },
   eyebrow: {
@@ -472,8 +482,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
-    minHeight: 28,
+    marginTop: 2,
+    minHeight: 20,
   },
   cta: {
     ...Typography.labelMd,

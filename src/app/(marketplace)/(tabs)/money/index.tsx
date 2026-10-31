@@ -1,6 +1,5 @@
-import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
-import { router } from "expo-router";
-import { useTourTarget } from "guideway";
+import { keepPreviousData } from "@tanstack/react-query";
+import { router, type Href } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
     Pressable,
@@ -12,30 +11,48 @@ import {
 import type { KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CashFlowChart } from "@/components/money/cash-flow-chart";
+import { InsightGrid, InsightTile } from "@/components/money/insight-tile";
+import { MoneyActionsSheet } from "@/components/money/money-actions-sheet";
+import { useMoneyChartTheme } from "@/components/money/money-chart-theme";
+import { MoneyInsightSheet, type MoneyInsight } from "@/components/money/money-insight-sheet";
+import { MoneySummaryCard } from "@/components/money/money-summary-card";
+import { SegmentedControl } from "@/components/money/segmented-control";
+import { ShareBars } from "@/components/money/share-bars";
+import { SpendBreakdown } from "@/components/money/spend-breakdown";
+import { TourHelpButton } from "@/components/onboarding/tour-help-button";
+import { Accent, IconBubble, ListItem } from "@/components/ui/detail-kit";
 import {
     FormSection,
     FormSectionLabel,
     ScreenInset,
 } from "@/components/ui/form-section";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { ThemedScrollView } from "@/components/ui/screen";
 import { StackHeader } from "@/components/ui/stack-header";
-import { TourHelpButton } from "@/components/onboarding/tour-help-button";
-import { CashFlowGraph } from "@/components/workspace/cash-flow-graph";
 import { DateRangeSheet } from "@/components/workspace/date-range-sheet";
+import { QuickActionsFab } from "@/components/workspace/quick-actions-sheet";
 import { WorkspaceScreenBackdrop } from "@/components/workspace/workspace-screen-backdrop";
-import { Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { FontFamily, Radius, Spacing } from "@/constants/design-tokens";
 import { getCategoryMeta } from "@/constants/transaction-categories";
 import {
-    subscribeCheques,
-    subscribePayables,
-    subscribeReceivables,
-    subscribeTransactions,
+    subscribeAllGems,
+    subscribeContacts,
+    subscribeOpenPayables,
+    subscribeOpenReceivables,
+    subscribePendingCheques,
+    subscribeTransactionsInRange,
 } from "@/features/workspace/firestore-subscriptions";
+import {
+    getChequeOutlook,
+    getStockPosition,
+    getStoneSales,
+} from "@/features/workspace/money-insights";
 import {
     getCashFlowBuckets,
     getCashFlowBucketsForRange,
     getCategoryBreakdown,
+    getComparisonWindow,
     getNetTrend,
     getNetTrendForRange,
     getOutstanding,
@@ -51,59 +68,106 @@ import {
     sourceOfTransaction,
 } from "@/features/workspace/payment-source";
 import {
-    fetchCheques,
-    fetchPayables,
-    fetchReceivables,
-    fetchTransactions,
+    effectivePayableStatus,
+    effectiveReceivableStatus,
+} from "@/features/workspace/payment-utils";
+import {
+    fetchAllGems,
+    fetchContacts,
+    fetchOpenPayables,
+    fetchOpenReceivables,
+    fetchPendingCheques,
+    fetchTransactionsInRange,
 } from "@/features/workspace/workspace-service";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import { useFirestoreLiveQuery } from "@/hooks/use-firestore-live-query";
 import { usePreferredMoney } from "@/hooks/use-preferred-money";
+import { useTourTarget } from "@/lib/tour-target";
 import { useAuth } from "@/providers/auth-provider";
 
 const MONEY = "/(marketplace)/(tabs)/money";
+const RECENT_LIMIT = 5;
+
+const COMPARISON_LABEL: Record<MoneyPeriod, string> = {
+  this_month: "vs last month",
+  last_month: "vs the month before",
+  this_year: "vs last year",
+};
 
 export default function MoneyDashboard() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const { formatBase, formatStored } = usePreferredMoney();
+  const chart = useMoneyChartTheme();
+  const { formatBase, formatBaseCompact, formatStored } = usePreferredMoney();
   const uid = user?.uid;
 
   const [period, setPeriod] = useState<MoneyPeriod>("this_month");
   const [customRange, setCustomRange] = useState<DateRange | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [insight, setInsight] = useState<MoneyInsight | null>(null);
   const scrollRef = useRef<KeyboardAwareScrollViewRef>(null);
   const periodTourTarget = useTourTarget("money-period", { scrollRef });
   const dateFilterTourTarget = useTourTarget("money-date-filter");
-  const recordSaleTourTarget = useTourTarget("money-record-sale");
+  const actionsTourTarget = useTourTarget("money-record-sale");
 
+  // Load exactly the selected range plus the span its trend compares with —
+  // uncapped, so totals never silently drop older transactions.
+  const txWindow = useMemo(
+    () => getComparisonWindow(period, customRange),
+    [period, customRange],
+  );
   const txQuery = useFirestoreLiveQuery({
-    queryKey: ["transactions", uid],
-    queryFn: () => fetchTransactions(uid!),
-    subscribe: (onData, onError) => subscribeTransactions(uid!, onData, onError),
+    queryKey: ["transactions", uid, "range", txWindow.start.getTime(), txWindow.end.getTime()],
+    queryFn: () => fetchTransactionsInRange(uid!, txWindow.start, txWindow.end),
+    subscribe: (onData, onError) =>
+      subscribeTransactionsInRange(uid!, txWindow.start, txWindow.end, onData, onError),
     enabled: !!uid,
+    placeholderData: keepPreviousData,
   });
   const recQuery = useFirestoreLiveQuery({
-    queryKey: ["receivables", uid],
-    queryFn: () => fetchReceivables(uid!),
-    subscribe: (onData, onError) => subscribeReceivables(uid!, onData, onError),
+    queryKey: ["receivables", uid, "open"],
+    queryFn: () => fetchOpenReceivables(uid!),
+    subscribe: (onData, onError) => subscribeOpenReceivables(uid!, onData, onError),
     enabled: !!uid,
   });
   const payQuery = useFirestoreLiveQuery({
-    queryKey: ["payables", uid],
-    queryFn: () => fetchPayables(uid!),
-    subscribe: (onData, onError) => subscribePayables(uid!, onData, onError),
+    queryKey: ["payables", uid, "open"],
+    queryFn: () => fetchOpenPayables(uid!),
+    subscribe: (onData, onError) => subscribeOpenPayables(uid!, onData, onError),
+    enabled: !!uid,
+  });
+  const gemsQuery = useFirestoreLiveQuery({
+    queryKey: ["gems", uid, "all"],
+    queryFn: () => fetchAllGems(uid!),
+    subscribe: (onData, onError) => subscribeAllGems(uid!, onData, onError),
     enabled: !!uid,
   });
   const chequeQuery = useFirestoreLiveQuery({
-    queryKey: ["cheques", uid],
-    queryFn: () => fetchCheques(uid!),
-    subscribe: (onData, onError) => subscribeCheques(uid!, onData, onError),
+    queryKey: ["cheques", uid, "pending"],
+    queryFn: () => fetchPendingCheques(uid!),
+    subscribe: (onData, onError) => subscribePendingCheques(uid!, onData, onError),
+    enabled: !!uid,
+  });
+  const { data: contacts = [] } = useFirestoreLiveQuery({
+    queryKey: ["contacts", uid],
+    queryFn: () => fetchContacts(uid!),
+    subscribe: (onData, onError) => subscribeContacts(uid!, onData, onError),
     enabled: !!uid,
   });
 
   const transactions = useMemo(() => txQuery.data ?? [], [txQuery.data]);
   const receivables = useMemo(() => recQuery.data ?? [], [recQuery.data]);
   const payables = useMemo(() => payQuery.data ?? [], [payQuery.data]);
+  const gems = useMemo(() => gemsQuery.data ?? [], [gemsQuery.data]);
+  const cheques = useMemo(() => chequeQuery.data ?? [], [chequeQuery.data]);
+  const loadingTx = txQuery.isLoading && !txQuery.data;
+  const loadingGems = gemsQuery.isLoading && !gemsQuery.data;
+
+  const contactName = useMemo(() => {
+    const map = new Map(contacts.map((c) => [c.id, c.displayName?.trim() || null]));
+    return (id: string | null) => (id ? map.get(id) ?? null : null);
+  }, [contacts]);
 
   const range = useMemo(
     () => customRange ?? getPeriodRange(period),
@@ -127,39 +191,49 @@ export default function MoneyDashboard() {
         : getCashFlowBuckets(transactions, period),
     [transactions, period, customRange],
   );
-  const categories = useMemo(
-    () => getCategoryBreakdown(transactions, range, "expense").slice(0, 4),
+  const spend = useMemo(
+    () => getCategoryBreakdown(transactions, range, "expense"),
     [transactions, range],
   );
+  const sales = useMemo(() => getStoneSales(gems, range), [gems, range]);
+  const stock = useMemo(() => getStockPosition(gems), [gems]);
+  const chequeOutlook = useMemo(() => getChequeOutlook(cheques), [cheques]);
   const outstanding = useMemo(
     () => getOutstanding(receivables, payables),
     [receivables, payables],
   );
-
-  const maxCategory = Math.max(1, ...categories.map((c) => c.amount));
-  const rangedTransactions = useMemo(
+  const overdue = useMemo(
+    () => ({
+      collect: receivables.filter((r) => effectiveReceivableStatus(r) === "overdue").length,
+      pay: payables.filter((p) => effectivePayableStatus(p) === "overdue").length,
+    }),
+    [receivables, payables],
+  );
+  const recent = useMemo(
     () =>
-      transactions.filter((t) => {
-        const date = t.date.toDate();
-        return date >= range.start && date <= range.end;
-      }),
+      transactions
+        .filter((t) => {
+          const date = t.date?.toDate?.();
+          return !!date && date >= range.start && date <= range.end;
+        })
+        .slice(0, RECENT_LIMIT),
     [transactions, range],
   );
-  const recent = rangedTransactions.slice(0, 5);
 
-  const onPrimarySoft = colors.onPrimary + "99";
-  const onPrimaryHair = colors.onPrimary + "24";
+  const periodText = range.label.toLowerCase();
+  const comparison = customRange ? "vs the previous span" : COMPARISON_LABEL[period];
 
   const onRefresh = () => {
-    txQuery.refetch();
-    recQuery.refetch();
-    payQuery.refetch();
-    chequeQuery.refetch();
+    void txQuery.refetch();
+    void recQuery.refetch();
+    void payQuery.refetch();
+    void gemsQuery.refetch();
+    void chequeQuery.refetch();
   };
 
-  const selectPeriod = (id: MoneyPeriod) => {
+  const clearRange = () => {
     setCustomRange(null);
-    setPeriod(id);
+    setPeriod("this_month");
   };
 
   return (
@@ -187,20 +261,7 @@ export default function MoneyDashboard() {
             />
           </Pressable>
         }
-        right={
-          <View style={styles.headerActions}>
-            <TourHelpButton tourId="money" />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="PDF Reports"
-              hitSlop={8}
-              onPress={() => router.push(`${MONEY}/reports` as never)}
-              style={styles.headerBtn}
-            >
-              <Icon name="picture-as-pdf" size={24} color={colors.onSurface} />
-            </Pressable>
-          </View>
-        }
+        right={<TourHelpButton tourId="money" />}
       />
 
       <ThemedScrollView
@@ -209,437 +270,279 @@ export default function MoneyDashboard() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={txQuery.isRefetching || chequeQuery.isRefetching}
+            refreshing={
+              txQuery.isRefetching ||
+              recQuery.isRefetching ||
+              payQuery.isRefetching ||
+              gemsQuery.isRefetching ||
+              chequeQuery.isRefetching
+            }
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
         }
       >
         <ScreenInset style={styles.inset}>
-          {/* Period segmented control */}
-          <View
-            ref={periodTourTarget}
-            collapsable={false}
-            style={[
-              styles.segment,
-              { backgroundColor: colors.surfaceContainerLow },
-            ]}
-          >
-            {MONEY_PERIODS.map((p) => {
-              const active = !customRange && period === p.id;
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => selectPeriod(p.id)}
-                  style={[
-                    styles.segmentBtn,
-                    active && {
-                      backgroundColor: colors.surfaceContainerLowest,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      {
-                        color: active
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {p.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View ref={periodTourTarget} collapsable={false}>
+            <SegmentedControl
+              accessibilityLabel="Period"
+              options={MONEY_PERIODS}
+              value={customRange ? null : period}
+              onChange={(id) => {
+                setCustomRange(null);
+                setPeriod(id);
+              }}
+            />
           </View>
 
           {customRange ? (
-            <Pressable
-              onPress={() => setCalendarOpen(true)}
-              style={[
-                styles.rangeChip,
-                {
-                  backgroundColor: colors.primary + "14",
-                  borderColor: colors.primary + "33",
-                },
-              ]}
-            >
-              <Icon name="date-range" size={16} color={colors.primary} />
-              <Text
-                selectable={false}
-                style={[styles.rangeChipText, { color: colors.primary }]}
+            <View style={[styles.rangeChip, { backgroundColor: colors.surfaceContainerHigh }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Date range ${customRange.label}. Change`}
+                onPress={() => setCalendarOpen(true)}
+                style={styles.rangeChipMain}
               >
-                {customRange.label}
-              </Text>
+                <Icon name="date-range" size={16} color={colors.onSurface} />
+                <Text style={[styles.rangeChipText, { color: colors.onSurface }]} numberOfLines={1}>
+                  {customRange.label}
+                </Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Clear date filter"
-                hitSlop={8}
-                onPress={() => {
-                  setCustomRange(null);
-                  setPeriod("this_month");
-                }}
+                hitSlop={10}
+                onPress={clearRange}
+                style={styles.rangeChipClear}
               >
-                <Icon name="close" size={16} color={colors.primary} />
+                <Icon name="close" size={16} color={colors.onSurfaceVariant} />
               </Pressable>
-            </Pressable>
+            </View>
           ) : null}
 
-          {/* Net profit hero */}
-          <View style={[styles.hero, { backgroundColor: colors.primary }]}>
-            <View style={styles.heroTop}>
-              <Text style={[styles.heroLabel, { color: onPrimarySoft }]}>
-                NET PROFIT
-              </Text>
-              <View
-                style={[styles.trendBadge, { backgroundColor: onPrimaryHair }]}
-              >
-                <Icon
-                  name={trend.up ? "trending-up" : "trending-down"}
-                  size={14}
-                  color={colors.onPrimary}
-                />
-                <Text style={[styles.trendText, { color: colors.onPrimary }]}>
-                  {trend.up ? "+" : ""}
-                  {trend.pct}%
-                </Text>
-              </View>
-            </View>
-
-            <Text style={[styles.heroValue, { color: colors.onPrimary }]}>
-              {formatBase(net)}
-            </Text>
-
-            <View
-              style={[styles.heroDivider, { backgroundColor: onPrimaryHair }]}
-            />
-
-            <View style={styles.heroSplit}>
-              <View style={styles.heroCol}>
-                <View style={styles.heroColLabel}>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: colors.successEmerald },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.heroColCaption, { color: onPrimarySoft }]}
-                  >
-                    Income
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.heroColValue, { color: colors.onPrimary }]}
-                >
-                  {formatBase(income)}
-                </Text>
-              </View>
-              <View style={styles.heroCol}>
-                <View style={styles.heroColLabel}>
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: colors.warningAmber },
-                    ]}
-                  />
-                  <Text
-                    style={[styles.heroColCaption, { color: onPrimarySoft }]}
-                  >
-                    Expenses
-                  </Text>
-                </View>
-                <Text
-                  style={[styles.heroColValue, { color: colors.onPrimary }]}
-                >
-                  {formatBase(expense)}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Outstanding */}
-          <View style={styles.outRow}>
-            <Pressable
-              onPress={() => router.push(`${MONEY}/receivables` as never)}
-              style={({ pressed }) => [
-                styles.outCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.outIcon,
-                  { backgroundColor: colors.successEmerald + "1F" },
-                ]}
-              >
-                <Icon
-                  name="south-west"
-                  size={18}
-                  color={colors.successEmerald}
-                />
-              </View>
-              <Text style={[styles.outValue, { color: colors.onSurface }]}>
-                {formatBase(outstanding.toCollect)}
-              </Text>
-              <Text style={[styles.outLabel, { color: colors.textMuted }]}>
-                To collect
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push(`${MONEY}/payables` as never)}
-              style={({ pressed }) => [
-                styles.outCard,
-                {
-                  backgroundColor: colors.surfaceContainerLowest,
-                  borderColor: colors.surfaceVariant,
-                },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.outIcon,
-                  { backgroundColor: colors.warningAmber + "1F" },
-                ]}
-              >
-                <Icon name="north-east" size={18} color={colors.warningAmber} />
-              </View>
-              <Text style={[styles.outValue, { color: colors.onSurface }]}>
-                {formatBase(outstanding.toPay)}
-              </Text>
-              <Text style={[styles.outLabel, { color: colors.textMuted }]}>
-                To pay
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Payments */}
-          <Pressable
-            onPress={() => router.push(`${MONEY}/payments` as never)}
-            style={({ pressed }) => [
-              styles.toolCard,
-              {
-                backgroundColor: colors.surfaceContainerLowest,
-                borderColor: colors.surfaceVariant,
-              },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Icon name="payments" size={22} color={colors.primary} />
-            <Text style={[styles.toolLabel, { color: colors.onSurface }]}>
-              Payments
-            </Text>
-          </Pressable>
+          <MoneySummaryCard
+            periodLabel={range.label}
+            net={net}
+            income={income}
+            expense={expense}
+            trend={trend}
+            comparison={comparison}
+            loading={loadingTx}
+            formatAmount={formatBase}
+            onOpenIncome={() =>
+              router.push({ pathname: `${MONEY}/transactions`, params: { show: "income" } } as Href)
+            }
+            onOpenExpense={() =>
+              router.push({ pathname: `${MONEY}/transactions`, params: { show: "expense" } } as Href)
+            }
+          />
         </ScreenInset>
 
-        {/* Cash flow */}
+        <View style={styles.block}>
+          <FormSectionLabel title="Your gem business" />
+          <ScreenInset>
+            <InsightGrid>
+              <InsightTile
+                icon="diamond"
+                accent={Accent.violet}
+                label={`Stones sold · ${range.label}`}
+                value={loadingGems ? "—" : `${sales.count} stone${sales.count === 1 ? "" : "s"}`}
+                sub={sales.count > 0 ? `${formatBase(sales.revenue)} sold` : "No sales in this period"}
+                onPress={() => setInsight("sales")}
+              />
+              <InsightTile
+                icon="percent"
+                accent={sales.profit < 0 ? Accent.rose : Accent.emerald}
+                label="Margin on stones"
+                value={loadingGems || sales.marginPct == null ? "—" : `${Math.round(sales.marginPct)}%`}
+                sub={
+                  sales.count > 0
+                    ? `${sales.profit < 0 ? "−" : "+"}${formatBase(Math.abs(sales.profit))} over cost`
+                    : "Sale price vs full stone cost"
+                }
+                onPress={() => setInsight("sales")}
+              />
+              <InsightTile
+                icon="inventory-2"
+                accent={Accent.blue}
+                label="Stock at cost"
+                value={loadingGems ? "—" : formatBase(stock.cost)}
+                sub={`${stock.count} stone${stock.count === 1 ? "" : "s"} in stock`}
+                alert={
+                  stock.slowMovers.count > 0
+                    ? { text: `${stock.slowMovers.count} held 6+ months`, color: chart.dueSoon }
+                    : null
+                }
+                onPress={() => setInsight("stock")}
+              />
+              <InsightTile
+                icon="money-check-dollar"
+                accent={Accent.amber}
+                label="Cheques · 30 days"
+                value={`${chequeOutlook.incoming.amount > 0 ? "+" : ""}${formatBase(chequeOutlook.incoming.amount)}`}
+                sub={
+                  chequeOutlook.outgoing.count > 0
+                    ? `${formatBase(chequeOutlook.outgoing.amount)} going out`
+                    : `${chequeOutlook.incoming.count} to bank, none going out`
+                }
+                alert={
+                  chequeOutlook.readyToDeposit > 0
+                    ? { text: `${chequeOutlook.readyToDeposit} ready to deposit`, color: chart.overdue }
+                    : null
+                }
+                onPress={() => setInsight("cheques")}
+              />
+            </InsightGrid>
+
+            <View style={styles.outRow}>
+              <OutstandingCard
+                icon="south-west"
+                accent={chart.income}
+                label="To collect"
+                value={formatBase(outstanding.toCollect)}
+                open={receivables.length}
+                overdue={overdue.collect}
+                overdueColor={chart.overdue}
+                onPress={() => router.push(`${MONEY}/receivables` as Href)}
+              />
+              <OutstandingCard
+                icon="north-east"
+                accent={chart.expense}
+                label="To pay"
+                value={formatBase(outstanding.toPay)}
+                open={payables.length}
+                overdue={overdue.pay}
+                overdueColor={chart.overdue}
+                onPress={() => router.push(`${MONEY}/payables` as Href)}
+              />
+            </View>
+          </ScreenInset>
+        </View>
+
         <FormSection title="Cash flow">
-          <CashFlowGraph
-            key={customRange ? customRange.label : period}
+          <CashFlowChart
             buckets={buckets}
             formatAmount={formatBase}
+            formatCompact={formatBaseCompact}
+            loading={loadingTx}
           />
         </FormSection>
 
-        {/* Spend categories */}
-        {categories.length > 0 ? (
-          <FormSection title="Top spend">
-            {categories.map((cat, i) => {
-              const meta = getCategoryMeta(cat.category);
-              return (
-                <View
-                  key={cat.category}
-                  style={[styles.catRow, i > 0 && styles.catRowGap]}
-                >
-                  <View
-                    style={[
-                      styles.catIcon,
-                      { backgroundColor: colors.primary + "14" },
-                    ]}
-                  >
-                    <Icon name={meta.icon} size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.catBody}>
-                    <View style={styles.catTop}>
-                      <Text
-                        style={[styles.catLabel, { color: colors.onSurface }]}
-                        numberOfLines={1}
-                      >
-                        {meta.label}
-                      </Text>
-                      <Text
-                        style={[styles.catAmount, { color: colors.onSurface }]}
-                      >
-                        {formatBase(cat.amount)}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.catTrack,
-                        { backgroundColor: colors.surfaceContainerHigh },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.catFill,
-                          {
-                            backgroundColor: colors.warningAmber,
-                            width: `${(cat.amount / maxCategory) * 100}%`,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+        {stock.count > 0 ? (
+          <FormSection
+            title="Where your stock is"
+            hint={`${formatBase(stock.cost)} at cost across ${stock.count} stone${stock.count === 1 ? "" : "s"}`}
+          >
+            <ShareBars
+              formatAmount={formatBase}
+              color={Accent.blue}
+              rows={stock.places
+                .filter((p) => p.count > 0)
+                .map((p) => ({
+                  key: p.key,
+                  label: p.label,
+                  detail: `${p.count} stone${p.count === 1 ? "" : "s"}`,
+                  amount: p.cost,
+                  onPress: () => setInsight("stock"),
+                }))}
+            />
           </FormSection>
         ) : null}
 
-        {/* Recent transactions */}
-        <FormSectionLabel title="Recent activity" />
-        <ScreenInset style={styles.sectionHeader}>
-          {rangedTransactions.length > 0 ? (
-            <Pressable
-              onPress={() => router.push(`${MONEY}/transactions` as never)}
-              hitSlop={8}
-              style={styles.viewAllBtn}
-            >
-              <Text style={[styles.viewAll, { color: colors.primary }]}>
-                View all
-              </Text>
-            </Pressable>
-          ) : null}
-        </ScreenInset>
+        {spend.length > 0 ? (
+          <FormSection title="Where it went" hint={`${formatBase(expense)} spent ${periodText}`}>
+            <SpendBreakdown categories={spend} formatAmount={formatBase} />
+          </FormSection>
+        ) : null}
+
+        <View style={styles.recentHeader}>
+          <FormSectionLabel title="Recent activity" />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View all transactions"
+            onPress={() => router.push(`${MONEY}/transactions` as Href)}
+            hitSlop={8}
+            style={styles.viewAll}
+          >
+            <Text style={[styles.viewAllText, { color: colors.onSurface }]}>View all</Text>
+            <Icon name="chevron-right" size={18} color={colors.onSurface} />
+          </Pressable>
+        </View>
 
         {recent.length > 0 ? (
-          <FormSection>
+          <View>
             {recent.map((t, i) => {
               const meta = getCategoryMeta(t.category);
               const isIncome = t.type === "income";
-              const tone = isIncome ? colors.successEmerald : colors.error;
               const source = sourceOfTransaction(t);
-              const sourceMeta = getPaymentSourceMeta(source?.type);
-              const href = source ? paymentSourceHref(source.type, source.id) : null;
+              const href = paymentSourceHref(source.type, source.id);
+              const date = t.date?.toDate?.();
               return (
-                <Pressable
+                <ListItem
                   key={t.id}
-                  onPress={() => (href ? router.push(href) : undefined)}
-                  disabled={!href}
-                  style={({ pressed }) => [
-                    styles.txRow,
-                    i > 0 && {
-                      borderTopWidth: 1,
-                      borderTopColor: colors.surfaceVariant,
-                    },
-                    pressed && { opacity: 0.85 },
-                  ]}
-                >
-                  <View
-                    style={[styles.txIcon, { backgroundColor: tone + "1A" }]}
-                  >
-                    <Icon
-                      name={isIncome ? "south-west" : "north-east"}
-                      size={18}
-                      color={tone}
+                  leading={
+                    <IconBubble
+                      icon={isIncome ? "south-west" : "north-east"}
+                      accent={isIncome ? chart.income : chart.expense}
+                      size={40}
                     />
-                  </View>
-                  <View style={styles.txBody}>
-                    <Text
-                      style={[styles.txTitle, { color: colors.onSurface }]}
-                      numberOfLines={1}
-                    >
-                      {t.description || meta.label}
-                    </Text>
-                    <View style={styles.txSubRow}>
-                      <Text
-                        style={[styles.txSub, { color: colors.textMuted }]}
-                        numberOfLines={1}
-                      >
-                        {meta.label}
-                        {t.date?.toDate
-                          ? ` · ${t.date.toDate().toLocaleDateString()}`
-                          : ""}
-                      </Text>
-                      {source ? (
-                        <View
-                          style={[
-                            styles.sourceChip,
-                            { backgroundColor: colors.surfaceContainerHigh },
-                          ]}
-                        >
-                          <Icon
-                            name={sourceMeta.icon}
-                            size={12}
-                            color={colors.onSurfaceVariant}
-                          />
-                          <Text
-                            style={[
-                              styles.sourceText,
-                              { color: colors.onSurfaceVariant },
-                            ]}
-                          >
-                            {sourceMeta.label}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                  <Text style={[styles.txAmount, { color: tone }]}>
-                    {isIncome ? "+" : "−"}
-                    {formatStored({
-                      amount: t.amount,
-                      currency: t.currency,
-                      amountBase: t.amountBase,
-                    })}
-                  </Text>
-                </Pressable>
+                  }
+                  title={t.description || meta.label}
+                  subtitle={[
+                    meta.label,
+                    source.type ? getPaymentSourceMeta(source.type).label : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  meta={date ? date.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : null}
+                  amount={`${isIncome ? "+" : "−"}${formatStored({
+                    amount: t.amount,
+                    currency: t.currency,
+                    amountBase: t.amountBase,
+                  })}`}
+                  amountColor={isIncome ? chart.income : undefined}
+                  onPress={href ? () => router.push(href) : undefined}
+                  isLast={i === recent.length - 1}
+                />
               );
             })}
-          </FormSection>
+          </View>
         ) : (
           <FormSection>
             <View style={styles.emptyBox}>
               <Icon name="receipt-long" size={26} color={colors.outline} />
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                No transactions yet
+              <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
+                {loadingTx ? "Loading activity…" : `Nothing recorded for ${periodText}`}
               </Text>
-              <Pressable
-                onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
-                style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text
-                  style={[styles.emptyBtnText, { color: colors.onPrimary }]}
-                >
-                  Record a sale
+              {!loadingTx ? (
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  Tap + to record a sale, income or an expense.
                 </Text>
-              </Pressable>
+              ) : null}
             </View>
           </FormSection>
         )}
       </ThemedScrollView>
 
-      <Pressable
-        ref={recordSaleTourTarget}
-        accessibilityRole="button"
-        accessibilityLabel="Record a sale"
-        style={({ pressed }) => [
-          styles.fab,
-          { backgroundColor: colors.primary },
-          pressed && { opacity: 0.92, transform: [{ scale: 0.96 }] },
-        ]}
-        onPress={() => router.push("/(marketplace)/money/record-sale" as never)}
-      >
-        <Icon name="add" size={28} color={colors.onPrimary} />
-      </Pressable>
+      <QuickActionsFab
+        targetRef={actionsTourTarget}
+        accessibilityLabel="Money actions"
+        accessibilityHint="Record a sale, income or expense, track cheques, or scan a receipt"
+        onPress={() => setActionsOpen(true)}
+      />
+
+      <MoneyActionsSheet visible={actionsOpen} onClose={() => setActionsOpen(false)} />
+
+      <MoneyInsightSheet
+        insight={insight}
+        onClose={() => setInsight(null)}
+        periodLabel={range.label}
+        sales={sales}
+        stock={stock}
+        cheques={chequeOutlook}
+        contactName={contactName}
+        formatAmount={formatBase}
+      />
 
       <DateRangeSheet
         visible={calendarOpen}
@@ -655,14 +558,82 @@ export default function MoneyDashboard() {
           setCustomRange(next);
         }}
         onClear={() => {
-          setCustomRange(null);
-          setPeriod("this_month");
+          clearRange();
           setCalendarOpen(false);
         }}
       />
     </SafeAreaView>
   );
 }
+
+function OutstandingCard({
+  icon,
+  accent,
+  label,
+  value,
+  open,
+  overdue,
+  overdueColor,
+  onPress,
+}: {
+  icon: IconName;
+  accent: string;
+  label: string;
+  value: string;
+  open: number;
+  overdue: number;
+  overdueColor: string;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${value}, ${open} open, ${overdue} overdue`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.outCard,
+        {
+          backgroundColor: colors.surfaceContainerLowest,
+          borderColor: colors.outlineVariant,
+        },
+        pressed && { backgroundColor: colors.surfaceContainerLow },
+      ]}
+    >
+      <View style={styles.outTop}>
+        <IconBubble icon={icon} accent={accent} size={30} />
+        <Icon name="chevron-right" size={18} color={colors.outline} />
+      </View>
+      <Text style={[styles.outLabel, { color: colors.onSurfaceVariant }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text
+        style={[styles.outValue, { color: colors.onSurface }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+      >
+        {value}
+      </Text>
+      <View style={styles.outMeta}>
+        {overdue > 0 ? (
+          <>
+            <View style={[styles.dot, { backgroundColor: overdueColor }]} />
+            <Text style={[styles.outMetaText, { color: colors.onSurface }]} numberOfLines={1}>
+              {overdue} overdue
+            </Text>
+          </>
+        ) : (
+          <Text style={[styles.outMetaText, { color: colors.textMuted }]} numberOfLines={1}>
+            {open === 0 ? "All settled" : `${open} open`}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+const text = { includeFontPadding: false } as const;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
@@ -672,206 +643,77 @@ const styles = StyleSheet.create({
     gap: Spacing.gutterMd,
   },
   inset: { gap: Spacing.gutterMd },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  block: { gap: Spacing.sm },
   headerBtn: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 100,
-    boxShadow: "0 8px 20px rgba(0, 0, 0, 0.28)",
-  },
 
-  segment: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: Radius.full,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: Radius.full,
-    alignItems: "center",
-  },
-  segmentText: { ...Typography.labelMd },
   rangeChip: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    maxWidth: "100%",
+    borderRadius: Radius.full,
+  },
+  rangeChipMain: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
     paddingVertical: 8,
-    borderRadius: Radius.full,
-    borderWidth: 1,
   },
-  rangeChipText: { ...Typography.labelMd, fontWeight: "600" },
+  rangeChipText: { ...text, flexShrink: 1, fontFamily: FontFamily.semibold, fontSize: 13 },
+  rangeChipClear: { paddingHorizontal: 12, paddingVertical: 8 },
 
-  hero: {
-    borderRadius: Radius.xl,
-    padding: Spacing.containerMargin,
-    gap: 6,
-    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.12)",
-  },
-  heroTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  heroLabel: { ...Typography.labelMd, letterSpacing: 1 },
-  trendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-  },
-  trendText: { ...Typography.labelMd },
-  heroValue: { ...Typography.displayLg },
-  heroDivider: { height: 1, marginVertical: Spacing.stackMd },
-  heroSplit: { flexDirection: "row" },
-  heroCol: { flex: 1, gap: 6 },
-  heroColLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroColCaption: { ...Typography.bodyMd },
-  heroColValue: { ...Typography.headlineSm },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-
-  outRow: { flexDirection: "row", gap: Spacing.stackMd },
+  outRow: { flexDirection: "row", gap: Spacing.stackMd, marginTop: Spacing.stackMd },
   outCard: {
     flex: 1,
+    minWidth: 0,
     padding: Spacing.gutterMd,
     borderRadius: Radius.lg,
-    borderWidth: 1,
-    gap: 8,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 3,
   },
-  outIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outValue: { ...Typography.headlineSm },
-  outLabel: { ...Typography.labelMd },
-
-  chequeCard: {
+  outTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.xl,
-    borderWidth: 1,
+    marginBottom: 6,
   },
-  chequeCardLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    flex: 1,
+  outLabel: { ...text, fontFamily: FontFamily.medium, fontSize: 12 },
+  outValue: {
+    ...text,
+    fontFamily: FontFamily.semibold,
+    fontSize: 19,
+    lineHeight: 26,
+    fontVariant: ["tabular-nums"],
   },
-  chequeCardTitle: { ...Typography.labelMd, fontWeight: "700" },
-  chequeCardSub: { ...Typography.bodySmall, marginTop: 2 },
+  outMeta: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 18 },
+  outMetaText: { ...text, flexShrink: 1, fontFamily: FontFamily.medium, fontSize: 12 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 
-  toolCard: {
+  recentHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    padding: Spacing.gutterMd,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    minHeight: 52,
-  },
-  toolLabel: { ...Typography.labelMd, fontWeight: "600" },
-
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    marginTop: -Spacing.sm,
-  },
-  viewAllBtn: { marginTop: -Spacing.md },
-  viewAll: { ...Typography.labelMd },
-
-  catRow: { flexDirection: "row", alignItems: "center", gap: Spacing.stackMd },
-  catRowGap: { marginTop: Spacing.gutterMd },
-  catIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  catBody: { flex: 1, gap: 8 },
-  catTop: {
-    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    paddingRight: Spacing.containerMargin,
+    marginBottom: -Spacing.sm,
   },
-  catLabel: {
-    ...Typography.bodyLg,
-    fontWeight: "600",
-    flex: 1,
-    marginRight: 8,
-  },
-  catAmount: { ...Typography.bodyMd, fontWeight: "700" },
-  catTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
-  catFill: { height: "100%", borderRadius: 3 },
-
-  txRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.stackMd,
-    paddingVertical: Spacing.stackMd,
-  },
-  txIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  txBody: { flex: 1, gap: 2 },
-  txTitle: { ...Typography.bodyLg, fontWeight: "600" },
-  txSub: { ...Typography.bodyMd },
-  txSubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  sourceChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-  },
-  sourceText: { ...Typography.caption, fontWeight: "600" },
-  txAmount: { ...Typography.bodyLg, fontWeight: "700" },
+  viewAll: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 32 },
+  viewAllText: { ...text, fontFamily: FontFamily.semibold, fontSize: 13 },
 
   emptyBox: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.sectionGap,
-    gap: Spacing.stackMd,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
   },
-  emptyText: { ...Typography.bodyMd, textAlign: "center" },
-  emptyBtn: {
-    paddingHorizontal: Spacing.gutterMd,
-    paddingVertical: 10,
-    borderRadius: Radius.full,
-    marginTop: 4,
-  },
-  emptyBtnText: { ...Typography.labelMd },
+  emptyTitle: { ...text, fontFamily: FontFamily.semibold, fontSize: 15, textAlign: "center" },
+  emptyText: { ...text, fontFamily: FontFamily.regular, fontSize: 13, lineHeight: 18, textAlign: "center" },
 });

@@ -39,6 +39,15 @@ export const REPORT_TYPES: {
   { id: 'cheque_maturity', label: 'Cheque Maturity', subtitle: 'Cheques clearing in the period' },
 ];
 
+/** User-entered text goes into HTML; keep `<`, `&` and quotes literal. */
+function esc(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function reportShell(title: string, periodLabel: string, body: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -130,7 +139,7 @@ export function buildReportHtml(
           const cls = t.type === 'income' ? 'positive' : 'negative';
           return `<tr>
             <td>${format(t.date.toDate(), 'dd MMM')}</td>
-            <td>${t.description || getCategoryMeta(t.category).label}</td>
+            <td>${esc(t.description || getCategoryMeta(t.category).label)}</td>
             <td class="num ${cls}">${sign}${formatCurrency(t.amount, t.currency)}</td>
           </tr>`;
         })
@@ -154,7 +163,7 @@ export function buildReportHtml(
       const rows = active
         .map(
           (g) =>
-            `<tr><td>${g.sku ?? g.id.slice(0, 8)}</td><td>${g.gemType.replace(/_/g, ' ')}</td><td>${g.currentWeight}ct</td><td class="num">${formatCurrency(g.totalCost ?? g.acquisitionCost ?? 0)}</td></tr>`,
+            `<tr><td>${esc(g.sku ?? g.id.slice(0, 8))}</td><td>${esc(g.gemType.replace(/_/g, ' '))}</td><td>${g.currentWeight}ct</td><td class="num">${formatCurrency(g.totalCost ?? g.acquisitionCost ?? 0)}</td></tr>`,
         )
         .join('');
       return reportShell(
@@ -177,7 +186,7 @@ export function buildReportHtml(
         .map((r) => {
           const remaining = r.amount - r.amountReceived;
           const status = effectiveReceivableStatus(r);
-          return `<tr><td>${r.description}</td><td>${status}</td><td class="num">${formatCurrency(remaining, r.currency)}</td></tr>`;
+          return `<tr><td>${esc(r.title || r.description || 'Receivable')}</td><td>${status}</td><td class="num">${formatCurrency(remaining, r.currency)}</td></tr>`;
         })
         .join('');
       const payRows = data.payables
@@ -185,7 +194,7 @@ export function buildReportHtml(
         .map((p) => {
           const remaining = p.amount - p.amountPaid;
           const status = effectivePayableStatus(p);
-          return `<tr><td>${p.description}</td><td>${status}</td><td class="num">${formatCurrency(remaining, p.currency)}</td></tr>`;
+          return `<tr><td>${esc(p.title || p.description || 'Payable')}</td><td>${status}</td><td class="num">${formatCurrency(remaining, p.currency)}</td></tr>`;
         })
         .join('');
       return reportShell(
@@ -213,7 +222,7 @@ export function buildReportHtml(
       const rows = inPeriod
         .map(
           (c) =>
-            `<tr><td>${c.chequeNumber}</td><td>${c.bankName}</td><td>${c.direction}</td><td>${format(c.maturityDate.toDate(), 'dd MMM yyyy')}</td><td class="num">${formatCurrency(c.amount, c.currency)}</td></tr>`,
+            `<tr><td>${esc(c.chequeNumber)}</td><td>${esc(c.bankName)}</td><td>${c.direction}</td><td>${format(c.maturityDate.toDate(), 'dd MMM yyyy')}</td><td class="num">${formatCurrency(c.amount, c.currency)}</td></tr>`,
         )
         .join('');
       return reportShell(
