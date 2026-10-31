@@ -317,6 +317,11 @@ Estimated production effort is 107 hours for the launch set and 254 hours for al
 
 Each video's hook, concept, demonstration, narration, CTA, key message and viewer takeaway are in the **Video Content Ideas** tab.
 
+**Full scripts** for these 16 videos are in the Google Doc **GemFort Launch Video Scripts**. Each has a shot-by-shot table (time, visuals, voiceover, on-screen text), a post caption and production notes:
+https://docs.google.com/document/d/1URn-t4Hn22XhXSdPZJPdFKiekKkJljdim90kVhJmQ6I/edit
+
+**Motion-graphic drafts** of V-03, V-04, V-07 and V-33 are in the `orbitratechnology/Automated-Instagram-Handle` repository under `video-drafts/`, with their HTML source and render script. They recreate app screens with the app's own wording and demo data. Final videos should use real screen recordings.
+
 ## Launch checks before filming
 
 These come from reading the code; they have not been reproduced in a running app. Test each one before filming the affected video.
