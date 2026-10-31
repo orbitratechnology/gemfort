@@ -320,7 +320,7 @@ Each video's hook, concept, demonstration, narration, CTA, key message and viewe
 **Full scripts** for these 16 videos are in the Google Doc **GemFort Launch Video Scripts**. Each has a shot-by-shot table (time, visuals, voiceover, on-screen text), a post caption and production notes:
 https://docs.google.com/document/d/1URn-t4Hn22XhXSdPZJPdFKiekKkJljdim90kVhJmQ6I/edit
 
-**Motion-graphic drafts** of V-03, V-04, V-07 and V-33 are in the `orbitratechnology/Automated-Instagram-Handle` repository under `video-drafts/`, with their HTML source and render script. They recreate app screens with the app's own wording and demo data. Final videos should use real screen recordings.
+**Motion-graphic drafts** of V-03, V-04, V-07 and V-33 (1080x1920 MP4s) were delivered as files on 31 October 2026. They are not stored in a repository. They recreate app screens with the app's own wording and demo data. Final videos should use real screen recordings.
 
 ## Launch checks before filming
 
