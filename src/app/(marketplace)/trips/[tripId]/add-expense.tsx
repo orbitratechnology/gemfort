@@ -2,9 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  Pressable,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -13,9 +11,9 @@ import {
   CurrencyAmountField,
   type CurrencyAmountValue,
 } from '@/components/ui/currency-amount-field';
+import { ChoiceTileGrid } from '@/components/ui/choice-tile-grid';
 import { FormFooter } from '@/components/ui/form-footer';
 import { FormSection } from '@/components/ui/form-section';
-import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { MediaField } from '@/components/ui/media-field';
 import { PaymentMethodPicker } from '@/components/workspace/payment-method-picker';
@@ -28,7 +26,7 @@ import {
   TRIP_PAYMENT_OPTIONS,
   type TripPaymentMethod,
 } from '@/constants/trip-options';
-import { FontFamily, Radius, Spacing } from '@/constants/design-tokens';
+import { Spacing } from '@/constants/design-tokens';
 import { addTripExpense } from '@/features/workspace/workspace-service';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePendingAction } from '@/hooks/use-pending-action';
@@ -122,39 +120,17 @@ export default function AddTripExpenseScreen() {
         <TripContextSummary tripId={tripId} />
 
         <FormSection title="Category">
-          <View style={styles.categoryGrid}>
-            {TRIP_EXPENSE_CATEGORIES.map((c) => {
-              const selected = category === c.id;
-              const tone = selected ? colors.onPrimary : colors.onSurfaceVariant;
-              return (
-                <Pressable
-                  key={c.id}
-                  onPress={() => setCategory(c.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={c.label}
-                  style={({ pressed }) => [
-                    styles.categoryChip,
-                    {
-                      backgroundColor: selected
-                        ? colors.primary
-                        : colors.surfaceContainerLow,
-                    },
-                    pressed && styles.pressed,
-                  ]}>
-                  <Icon name={c.icon} size={18} color={tone} />
-                  <Text
-                    style={[
-                      styles.categoryLabel,
-                      { color: selected ? colors.onPrimary : colors.onSurface },
-                    ]}
-                    numberOfLines={1}>
-                    {c.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <ChoiceTileGrid
+            layout="row"
+            columns={4}
+            options={TRIP_EXPENSE_CATEGORIES.map((c) => ({
+              value: c.id,
+              label: c.label,
+              icon: c.icon,
+            }))}
+            value={category}
+            onChange={setCategory}
+          />
         </FormSection>
 
         <FormSection title="Payment">
@@ -217,25 +193,5 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.stackSm,
     paddingBottom: Spacing.md,
     gap: Spacing.lg,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    borderRadius: Radius.full,
-    minHeight: 40,
-  },
-  pressed: { opacity: 0.85 },
-  categoryLabel: {
-    includeFontPadding: false,
-    fontFamily: FontFamily.medium,
-    fontSize: 14,
-    maxWidth: 104,
   },
 });

@@ -29,6 +29,8 @@ type ChoiceTileGridProps<T extends string> = {
    * `row` — compact equal tiles on one line, for up to four short choices.
    */
   layout: "pair" | "grid" | "row";
+  /** `row` only: wrap into rows of this many equal tiles (category grids). */
+  columns?: number;
 };
 
 /** Large-tap choice tiles for form-sheet first steps (direction / trip type). */
@@ -38,102 +40,121 @@ export function ChoiceTileGrid<T extends string>({
   onChange,
   error,
   layout,
+  columns,
 }: ChoiceTileGridProps<T>) {
   const { colors, isDark } = useAppTheme();
   const restFill = isDark ? colors.surfaceContainerHigh : colors.surfaceContainerLow;
 
+  function renderTile(opt: ChoiceTileOption<T>) {
+    const active = value === opt.value;
+    const span2 = layout === "grid" && (opt.span ?? 1) === 2;
+    const compact = layout === "row";
+    const accent = opt.accent ?? colors.primary;
+
+    return (
+      <Pressable
+        key={opt.value}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={opt.label}
+        onPress={haptics.wrap("selection", () => onChange(opt.value))}
+        style={({ pressed }) => [
+          styles.tile,
+          layout === "pair" && styles.tilePair,
+          compact && styles.tileCompact,
+        compact && !!columns && styles.tileCompactGrid,
+          layout === "grid" && (span2 ? styles.tileSpan2 : styles.tileHalf),
+          active
+            ? {
+                backgroundColor: `${accent}${isDark ? "26" : "12"}`,
+                borderColor: accent,
+                boxShadow: `0 0 0 3px ${accent}${isDark ? "33" : "1F"}`,
+              }
+            : {
+                backgroundColor: restFill,
+                borderColor: error ? colors.error : "transparent",
+              },
+          pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
+        ]}
+      >
+        {opt.icon || opt.image ? (
+          <View
+            style={[
+              styles.iconWrap,
+              compact && styles.iconWrapCompact,
+              {
+                backgroundColor: active
+                  ? opt.image
+                    ? `${accent}24`
+                    : accent
+                  : `${accent}1A`,
+              },
+            ]}
+          >
+            {opt.image ? (
+              <Image
+                source={opt.image}
+                style={styles.optionImage}
+                contentFit="contain"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <Icon
+                name={opt.icon!}
+                size={compact ? 22 : 26}
+                color={active ? "#FFFFFF" : accent}
+              />
+            )}
+          </View>
+        ) : null}
+        <Text
+          style={[
+            styles.tileLabel,
+            compact && styles.tileLabelCompact,
+            { color: colors.onSurface },
+          ]}
+          // Grid tiles wrap only between words; a long single word shrinks
+          // instead of breaking mid-word ("Commissio/ns").
+          numberOfLines={compact ? (columns && opt.label.includes(" ") ? 2 : 1) : 2}
+          adjustsFontSizeToFit={compact}
+          minimumFontScale={0.7}
+        >
+          {opt.label}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={styles.wrap} accessibilityRole="radiogroup">
-      <View
-        style={
-          layout === "pair"
-            ? styles.pairRow
-            : layout === "row"
-              ? styles.compactRow
-              : styles.grid
-        }
-      >
-        {options.map((opt) => {
-          const active = value === opt.value;
-          const span2 = layout === "grid" && (opt.span ?? 1) === 2;
-          const compact = layout === "row";
-          const accent = opt.accent ?? colors.primary;
-
-          return (
-            <Pressable
+      {layout === "row" && columns ? (
+        <View style={styles.compactGrid}>
+          {options.map((opt) => (
+            <View
               key={opt.value}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={opt.label}
-              onPress={haptics.wrap("selection", () => onChange(opt.value))}
-              style={({ pressed }) => [
-                styles.tile,
-                layout === "pair" && styles.tilePair,
-                compact && styles.tileCompact,
-                layout === "grid" &&
-                  (span2 ? styles.tileSpan2 : styles.tileHalf),
-                active
-                  ? {
-                      backgroundColor: `${accent}${isDark ? "26" : "12"}`,
-                      borderColor: accent,
-                      boxShadow: `0 0 0 3px ${accent}${isDark ? "33" : "1F"}`,
-                    }
-                  : {
-                      backgroundColor: restFill,
-                      borderColor: error ? colors.error : "transparent",
-                    },
-                pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
-              ]}
+              style={[styles.compactCell, { width: `${100 / columns}%` }]}
             >
-              {opt.icon || opt.image ? (
-                <View
-                  style={[
-                    styles.iconWrap,
-                    compact && styles.iconWrapCompact,
-                    {
-                      backgroundColor: active
-                        ? opt.image
-                          ? `${accent}24`
-                          : accent
-                        : `${accent}1A`,
-                    },
-                  ]}
-                >
-                  {opt.image ? (
-                    <Image
-                      source={opt.image}
-                      style={styles.optionImage}
-                      contentFit="contain"
-                      accessibilityIgnoresInvertColors
-                    />
-                  ) : (
-                    <Icon
-                      name={opt.icon!}
-                      size={compact ? 22 : 26}
-                      color={active ? "#FFFFFF" : accent}
-                    />
-                  )}
-                </View>
-              ) : null}
-              <Text
-                style={[
-                  styles.tileLabel,
-                  compact && styles.tileLabelCompact,
-                  { color: colors.onSurface },
-                ]}
-                numberOfLines={compact ? 1 : 2}
-                adjustsFontSizeToFit={compact}
-                minimumFontScale={0.8}
-              >
-                {opt.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+              {renderTile(opt)}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View
+          style={
+            layout === "pair"
+              ? styles.pairRow
+              : layout === "row"
+                ? styles.compactRow
+                : styles.grid
+          }
+        >
+          {options.map(renderTile)}
+        </View>
+      )}
       <FieldMessage error={error} />
     </View>
   );
+
 }
 
 /** Selected-choice summary row at the top of the form step ("Taken · Change"). */
@@ -205,6 +226,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: Spacing.md,
   },
+  /** Percentage cells with half-gap gutters keep every column exactly aligned. */
+  compactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: Spacing.sm,
+    marginHorizontal: -Spacing.sm / 2,
+  },
+  compactCell: { paddingHorizontal: Spacing.sm / 2 },
   compactRow: {
     flexDirection: "row",
     gap: Spacing.sm,
@@ -237,6 +266,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     minHeight: 88,
     borderRadius: Radius.lg,
+  },
+  /** Fits a two-line label so every row is the same height. */
+  tileCompactGrid: {
+    paddingVertical: Spacing.sm,
+    minHeight: 100,
   },
   tileHalf: {
     flexGrow: 1,

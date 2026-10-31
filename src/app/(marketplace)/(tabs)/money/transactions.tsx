@@ -8,7 +8,8 @@ import { Timestamp } from '@/lib/firebase/db';
 
 import { useMoneyChartTheme } from '@/components/money/money-chart-theme';
 import { SegmentedControl } from '@/components/money/segmented-control';
-import { ChipSelect } from '@/components/ui/chip-select';
+import { ChoiceTileGrid } from '@/components/ui/choice-tile-grid';
+import { FieldLabel } from '@/components/ui/field-chrome';
 import { getCategoryMeta, MANUAL_CATEGORIES } from '@/constants/transaction-categories';
 
 import { ScanFillStatus } from '@/components/scan/scan-fill-status';
@@ -461,16 +462,21 @@ export default function TransactionsScreen() {
           }}
           error={errors.amount}
         />
-        <ChipSelect
-          label="Category"
-          options={MANUAL_CATEGORIES[type].map((value) => ({
-            value,
-            label: getCategoryMeta(value).label,
-            icon: getCategoryMeta(value).icon,
-          }))}
-          value={entryCategory}
-          onChange={setCategory}
-        />
+        <View style={styles.categoryField}>
+          <FieldLabel>Category</FieldLabel>
+          <ChoiceTileGrid
+            layout="row"
+            columns={4}
+            options={MANUAL_CATEGORIES[type].map((value) => ({
+              value,
+              label: getCategoryMeta(value).label,
+              icon: getCategoryMeta(value).icon,
+              accent: type === 'income' ? chart.income : chart.expense,
+            }))}
+            value={entryCategory}
+            onChange={setCategory}
+          />
+        </View>
         <Input
           label="Description"
           value={description}
@@ -503,6 +509,7 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   scanStatus: { paddingHorizontal: 0 },
+  categoryField: { gap: Spacing.sm },
   safe: { flex: 1 },
   container: { flex: 1 },
   searchSection: {
