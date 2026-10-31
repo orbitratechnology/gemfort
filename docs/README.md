@@ -73,6 +73,12 @@ Status key: **Current** = maintained and expected to match the code. **Reference
 | [`privacy-policy.md`](legal/privacy-policy.md) | Draft. **The published version at [orbitratech.net/gemfort/privacy-policy](https://www.orbitratech.net/gemfort/privacy-policy) is newer.** Don't treat this copy as what users agreed to. |
 | [`terms-and-conditions.md`](legal/terms-and-conditions.md) | Draft. **The published version at [orbitratech.net/gemfort/terms-and-conditions](https://www.orbitratech.net/gemfort/terms-and-conditions) is newer.** |
 
+### [`marketing/`](marketing/): positioning and content plans
+
+| Doc | Status |
+|---|---|
+| [`feature-audit-and-video-strategy.md`](marketing/feature-audit-and-video-strategy.md) | Current as of 31 October 2026: code-based feature inventory (150 features with status), claims to make and avoid, and the video campaign plan. The working copy is the linked Google Sheets workbook; re-check feature statuses against the code before reusing them. |
+
 ### [`ops/`](ops/): runbooks and account setup
 
 | Doc | Status |
