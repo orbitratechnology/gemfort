@@ -38,11 +38,3 @@ export function useMoneyChartTheme(): MoneyChartTheme {
   };
 }
 
-/**
- * Series colours tuned for a given surface brightness. The Money hero sits on
- * an inverted surface (ink in light mode), so it asks for the opposite mode.
- */
-export function moneySeries(darkSurface: boolean) {
-  const series = darkSurface ? SERIES.dark : SERIES.light;
-  return { income: series.income, expense: series.expense };
-}

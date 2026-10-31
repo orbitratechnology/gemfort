@@ -1,4 +1,5 @@
 import { normalizeApRecord, visibleApRecords } from '@/features/workspace/ap-normalize';
+import { PENDING_CHEQUE_STATUSES } from '@/features/workspace/cheque-utils';
 import { pickPrimaryBusiness } from '@/features/marketplace/marketplace-service';
 import {
   mapServiceToLapidaryJob,
@@ -150,6 +151,23 @@ export function subscribeGems(
       orderBy('updatedAt', 'desc'),
       limit(OWNER_LIST_LIMIT),
     ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem),
+    onData,
+    onError,
+  );
+}
+
+/**
+ * Every stone the owner has, uncapped — Money's stock value and sales margin
+ * must not quietly drop stones the way the capped list feed would.
+ */
+export function subscribeAllGems(
+  ownerUid: string,
+  onData: (gems: WorkspaceGem[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(collection(getFirebaseDb(), 'gemtrack_gems'), where('ownerUid', '==', ownerUid)),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem),
     onData,
     onError,
@@ -586,6 +604,24 @@ export function subscribeCheques(
       where('ownerUid', '==', ownerUid),
       orderBy('maturityDate', 'asc'),
       limit(OWNER_LIST_LIMIT),
+    ),
+    (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque),
+    onData,
+    onError,
+  );
+}
+
+/** Cheques still waiting to clear (holding or deposited), uncapped. */
+export function subscribePendingCheques(
+  ownerUid: string,
+  onData: (cheques: Cheque[]) => void,
+  onError?: ErrCb,
+): Unsub {
+  return listenCollection(
+    query(
+      collection(getFirebaseDb(), 'gemtrack_cheques'),
+      where('ownerUid', '==', ownerUid),
+      where('status', 'in', PENDING_CHEQUE_STATUSES),
     ),
     (docs) => docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque),
     onData,

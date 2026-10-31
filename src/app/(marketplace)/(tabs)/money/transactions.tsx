@@ -112,10 +112,17 @@ export default function TransactionsScreen() {
   // A scanned receipt (Scan & add) opens the new-transaction sheet with it
   // attached. Applied during render so it also works when this tab is
   // already mounted; each scan has a fresh file URI.
-  const { receiptUri, compose } = useLocalSearchParams<{
+  const { receiptUri, compose, show } = useLocalSearchParams<{
     receiptUri?: string;
     compose?: EntryType;
+    /** Opens the list filtered, e.g. from Money in / Money out on the overview. */
+    show?: EntryType;
   }>();
+  const [appliedShow, setAppliedShow] = useState<string | null>(null);
+  if (show && show !== appliedShow) {
+    setAppliedShow(show);
+    setFilter(show === 'expense' ? 'expense' : 'income');
+  }
   const [appliedReceiptUri, setAppliedReceiptUri] = useState<string | null>(null);
   // "Add income" / "Add expense" on the Money overview open the sheet preset.
   const [appliedCompose, setAppliedCompose] = useState<string | null>(null);

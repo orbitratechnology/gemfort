@@ -21,8 +21,8 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { SearchField } from "@/components/ui/search-field";
 import { FontFamily, Radius, Spacing, Typography } from "@/constants/design-tokens";
+import { bankLogo } from "@/constants/bank-logos";
 import {
-    bankLogoUrls,
     filterBanks,
     getBankByCode,
     getBankByName,
@@ -45,7 +45,7 @@ type BankPickerSheetProps = {
   title?: string;
 };
 
-function BankAvatarInner({
+export function BankAvatar({
   bank,
   size = 40,
 }: {
@@ -53,17 +53,11 @@ function BankAvatarInner({
   size?: number;
 }) {
   const { colors } = useAppTheme();
-  const urls = useMemo(
-    () => bankLogoUrls(bank, Math.max(size * 2, 128)),
-    [bank, size],
-  );
-  const [urlIndex, setUrlIndex] = useState(0);
-
-  const uri = urls[urlIndex] ?? null;
+  const logo = bankLogo(bank);
   const initial = (bank.shortName || bank.name).charAt(0).toUpperCase();
   const radius = Math.round(size / 4);
 
-  if (!uri) {
+  if (!logo) {
     return (
       <View
         style={[
@@ -99,27 +93,13 @@ function BankAvatarInner({
       ]}
     >
       <Image
-        key={`${bank.code}-${urlIndex}`}
-        source={{ uri }}
+        source={logo}
         style={{ width: size * 0.72, height: size * 0.72 }}
         contentFit="contain"
-        recyclingKey={`${bank.code}-${urlIndex}`}
-        onError={() => {
-          setUrlIndex((i) => (i + 1 < urls.length ? i + 1 : urls.length));
-        }}
+        recyclingKey={bank.code}
       />
     </View>
   );
-}
-
-export function BankAvatar({
-  bank,
-  size = 40,
-}: {
-  bank: SriLankaBank;
-  size?: number;
-}) {
-  return <BankAvatarInner key={bank.code} bank={bank} size={size} />;
 }
 
 /** Hairline between sheet list rows, inset past the 40dp leading mark. */

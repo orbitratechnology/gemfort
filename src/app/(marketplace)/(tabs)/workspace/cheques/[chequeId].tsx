@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Linking,
   Pressable,
@@ -43,9 +43,9 @@ import {
 import { ContactAvatar } from "@/components/workspace/contact-avatar";
 import { GemThumb } from "@/components/workspace/gem-thumb";
 import { FontFamily, Palette, Radius, Spacing } from "@/constants/design-tokens";
+import { bankLogo } from "@/constants/bank-logos";
 import { formatGemType } from "@/constants/gem-options";
 import {
-  bankLogoUrls,
   getBankByCode,
   getBankByName,
   type SriLankaBank,
@@ -320,23 +320,19 @@ function ChequeTimeline({
   );
 }
 
-/** Smallest source logo worth enlarging; favicon-sized ones would blur. */
+/** Smallest bundled logo worth enlarging; smaller ones would blur. */
 const HERO_LOGO_MIN_SOURCE_PX = 128;
 
 /**
- * The bank's logo in place of the hero's status tint and halos. Tries each
- * logo URL in turn and covers the tint only once one big enough to enlarge
- * has loaded, so an unknown bank keeps the tinted hero.
+ * The bank's logo in place of the hero's status tint and halos. Covers the
+ * tint only once a logo big enough to enlarge has loaded, so a bank without
+ * one keeps the tinted hero.
  */
 function BankHeroBackdrop({ bank }: { bank: SriLankaBank }) {
-  const { colors, isDark } = useAppTheme();
-  const urls = useMemo(() => bankLogoUrls(bank, 256), [bank]);
-  const [urlIndex, setUrlIndex] = useState(0);
+  const { colors } = useAppTheme();
+  const logo = bankLogo(bank);
   const [ready, setReady] = useState(false);
-  const uri = urls[urlIndex];
-  if (!uri) return null;
-
-  const tryNext = () => setUrlIndex((i) => i + 1);
+  if (!logo) return null;
 
   return (
     <View
@@ -347,15 +343,10 @@ function BankHeroBackdrop({ bank }: { bank: SriLankaBank }) {
       ]}
     >
       <Image
-        key={uri}
-        source={{ uri }}
-        style={[styles.heroLogo, { opacity: isDark ? 0.2 : 0.16 }]}
+        source={logo}
+        style={styles.heroLogo}
         contentFit="contain"
-        onLoad={(e) => {
-          if (e.source.width < HERO_LOGO_MIN_SOURCE_PX) tryNext();
-          else setReady(true);
-        }}
-        onError={tryNext}
+        onLoad={(e) => setReady(e.source.width >= HERO_LOGO_MIN_SOURCE_PX)}
       />
     </View>
   );

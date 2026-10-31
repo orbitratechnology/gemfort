@@ -22,6 +22,7 @@ import {
   OPEN_ITEM_STATUSES,
   OWNER_LIST_LIMIT,
 } from "@/features/workspace/firestore-subscriptions";
+import { PENDING_CHEQUE_STATUSES } from "@/features/workspace/cheque-utils";
 import { convertFromBase, convertToBase } from "@/lib/exchange-rates";
 import { getFirebaseDb } from "@/lib/firebase/config";
 import { listingShareUrl } from "@/lib/public-links";
@@ -107,6 +108,14 @@ export async function fetchGems(ownerUid: string): Promise<WorkspaceGem[]> {
     limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem);
+}
+
+/** Every stone the owner has, uncapped (see `subscribeAllGems`). */
+export async function fetchAllGems(ownerUid: string): Promise<WorkspaceGem[]> {
+  const snap = await getDocs(
+    query(collection(getFirebaseDb(), "gemtrack_gems"), where("ownerUid", "==", ownerUid)),
+  );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as WorkspaceGem);
 }
 
@@ -1782,6 +1791,18 @@ export async function fetchCheques(ownerUid: string): Promise<Cheque[]> {
     limit(OWNER_LIST_LIMIT),
   );
   const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque);
+}
+
+/** Cheques still waiting to clear, uncapped (see `subscribePendingCheques`). */
+export async function fetchPendingCheques(ownerUid: string): Promise<Cheque[]> {
+  const snap = await getDocs(
+    query(
+      collection(getFirebaseDb(), "gemtrack_cheques"),
+      where("ownerUid", "==", ownerUid),
+      where("status", "in", PENDING_CHEQUE_STATUSES),
+    ),
+  );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Cheque);
 }
 
